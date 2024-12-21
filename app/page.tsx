@@ -37,6 +37,7 @@ export default function Home() {
     })
 
     socket.on("gameOver", () => {
+      setGameOver(true);
       console.log("GAME IS OVER");
     })
 
