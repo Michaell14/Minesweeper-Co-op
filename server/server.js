@@ -10,8 +10,8 @@ async function initializeRedisClient() {
             username: 'default',
             password: process.env.DB_PASS,
             socket: {
-                host: 'redis-16049.c274.us-east-1-3.ec2.redns.redis-cloud.com',
-                port: 16049
+                host: process.env.HOST,
+                port: process.env.PORT
             },
         });
 
