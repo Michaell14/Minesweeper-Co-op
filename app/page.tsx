@@ -1,113 +1,131 @@
-import Image from "next/image";
+"use client"
+import { useState, useEffect } from "react";
+import styles from "./Home.module.css";
+import io from 'socket.io-client';
+import { useMinesweeperStore } from './store';
+import { SimpleGrid, Container, Center } from "@chakra-ui/react";
+
+const socket = io('http://localhost:3001');
 
 export default function Home() {
+
+  const { board, gameOver, gameWon, room, playerJoined,
+    setBoard, setGameOver, setGameWon, setRoom, setPlayerJoined } = useMinesweeperStore();
+  //const [board, setBoard] = useState<any[][]>([]);
+  //const [gameWon, setGameWon] = useState(false);
+  //const [room, setRoom] = useState<string>('');
+  //const [joined, setJoined] = useState(false);
+
+  // Join a room
+  const joinRoom = () => {
+    if (room) {
+      socket.emit('joinRoom', { room });
+      setPlayerJoined(true);
+    }
+  };
+
+  useEffect(() => {
+    // Listen for board updates
+    socket.on('boardUpdate', (updatedBoard) => {
+      console.log("board updated");
+      setBoard(updatedBoard);
+    });
+
+    socket.on("gameWon", () => {
+      console.log("THE GAME IS WON");
+      setGameWon(true);
+    })
+
+    socket.on("gameOver", () => {
+      console.log("GAME IS OVER");
+    })
+
+    // Clean up socket listeners
+    return () => {
+      socket.off('boardUpdate');
+      socket.off("gameWon");
+    };
+  }, []);
+
+  useEffect(() => {
+    console.log(board);
+  }, [board])
+
+
+  const openCell = (row: number, col: number) => {
+    if (!playerJoined) return;
+    socket.emit('openCell', { room, row, col });
+  };
+
+  const toggleFlag = (row: number, col: number) => {
+    if (!playerJoined) return;
+    socket.emit('toggleFlag', { room, row, col });
+  };
+
+  const renderCell = (cell: any, row: number, col: number) => {
+    if (cell.isOpen) {
+      if (cell.isMine) return <div key={col} className={`${styles.cell} ${styles.mine}`}>💣</div>;
+      return <div key={col} className={`${styles.cell} ${styles.open}`}>{cell.nearbyMines > 0 ? cell.nearbyMines : ''}</div>;
+    }
+
+    if (cell.isFlagged) {
+      return (
+        <div
+          key = {col}
+          className={`${styles.cell} ${styles.flagged}`}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            toggleFlag(row, col);
+          }}>🚩</div>
+      )
+    };
+    return (
+      <div
+        key = {col}
+        className={`${styles.cell} ${styles.closed}`}
+        onClick={() => openCell(row, col)}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          toggleFlag(row, col);
+        }}
+      >
+        &nbsp;
+      </div>
+    );
+  };
+
+
   return (
-    <main className="flex min-h-screen flex-col items-center justify-between p-24">
-      <div className="z-10 w-full max-w-5xl items-center justify-between font-mono text-sm lg:flex">
-        <p className="fixed left-0 top-0 flex w-full justify-center border-b border-gray-300 bg-gradient-to-b from-zinc-200 pb-6 pt-8 backdrop-blur-2xl dark:border-neutral-800 dark:bg-zinc-800/30 dark:from-inherit lg:static lg:w-auto  lg:rounded-xl lg:border lg:bg-gray-200 lg:p-4 lg:dark:bg-zinc-800/30">
-          Get started by editing&nbsp;
-          <code className="font-mono font-bold">app/page.tsx</code>
-        </p>
-        <div className="fixed bottom-0 left-0 flex h-48 w-full items-end justify-center bg-gradient-to-t from-white via-white dark:from-black dark:via-black lg:static lg:size-auto lg:bg-none">
-          <a
-            className="pointer-events-none flex place-items-center gap-2 p-8 lg:pointer-events-auto lg:p-0"
-            href="https://vercel.com?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            By{" "}
-            <Image
-              src="/vercel.svg"
-              alt="Vercel Logo"
-              className="dark:invert"
-              width={100}
-              height={24}
-              priority
-            />
-          </a>
-        </div>
-      </div>
+    <Container maxW={"3xl"}>
 
-      <div className="relative z-[-1] flex place-items-center before:absolute before:h-[300px] before:w-full before:-translate-x-1/2 before:rounded-full before:bg-gradient-radial before:from-white before:to-transparent before:blur-2xl before:content-[''] after:absolute after:-z-20 after:h-[180px] after:w-full after:translate-x-1/3 after:bg-gradient-conic after:from-sky-200 after:via-blue-200 after:blur-2xl after:content-[''] before:dark:bg-gradient-to-br before:dark:from-transparent before:dark:to-blue-700 before:dark:opacity-10 after:dark:from-sky-900 after:dark:via-[#0141ff] after:dark:opacity-40 sm:before:w-[480px] sm:after:w-[240px] before:lg:h-[360px]">
-        <Image
-          className="relative dark:drop-shadow-[0_0_0.3rem_#ffffff70] dark:invert"
-          src="/next.svg"
-          alt="Next.js Logo"
-          width={180}
-          height={37}
-          priority
-        />
-      </div>
+      {!playerJoined ? (
+        <Center>
+          <div className="mt-40">
+            <p className="text-5xl font-bold">Minesweeper Co-op</p>
+            <p className="mt-10 text-xl">Join Room:</p>
+            <div className="flex gap-5 w-full">
+              <input className="w-full" type="text" value={room} onChange={(e) => { setRoom(e.target.value) }} placeholder="Enter room name" />
+              <div className="border-solid border-2 border-black w-fit rounded-md p-1" onClick={joinRoom}>Join</div>
+            </div>
+            <p className="mt-10">Rules</p>
+            <p>1) Create a room code (Can be anything you want)</p>
+            <p>2) Tell your friends the code</p>
+            <p>3) Play together!</p>
+          </div>
+        </Center>
+      ) : (
+        <>
+          <p>HELO WORLD</p>
+          <SimpleGrid columns={8}>
+            {board.map((row, rowIndex) => (
+              <div key={rowIndex} className="row">
+                {row.map((cell, colIndex) => renderCell(cell, rowIndex, colIndex))}
+              </div>
+            ))}
+          </SimpleGrid>
+        </>
+      )}
 
-      <div className="mb-32 grid text-center lg:mb-0 lg:w-full lg:max-w-5xl lg:grid-cols-4 lg:text-left">
-        <a
-          href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className="mb-3 text-2xl font-semibold">
-            Docs{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className="m-0 max-w-[30ch] text-sm opacity-50">
-            Find in-depth information about Next.js features and API.
-          </p>
-        </a>
-
-        <a
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className="mb-3 text-2xl font-semibold">
-            Learn{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className="m-0 max-w-[30ch] text-sm opacity-50">
-            Learn about Next.js in an interactive course with&nbsp;quizzes!
-          </p>
-        </a>
-
-        <a
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className="mb-3 text-2xl font-semibold">
-            Templates{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className="m-0 max-w-[30ch] text-sm opacity-50">
-            Explore starter templates for Next.js.
-          </p>
-        </a>
-
-        <a
-          href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className="mb-3 text-2xl font-semibold">
-            Deploy{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className="m-0 max-w-[30ch] text-balance text-sm opacity-50">
-            Instantly deploy your Next.js site to a shareable URL with Vercel.
-          </p>
-        </a>
-      </div>
-    </main>
+    </Container>
   );
-}
+};

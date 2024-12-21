@@ -1,0 +1,29 @@
+
+.cell {
+    height: 60px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 18px;
+    font-weight: bold;
+    cursor: pointer;
+    border: 1px solid #888;
+}
+
+.cell.closed {
+    background-color: #bbb;
+}
+
+.cell.open {
+    background-color: #ddd;
+}
+
+.cell.mine {
+    background-color: red;
+    color: white;
+}
+
+.cell.flagged {
+    background-color: #bbb;
+    color: red;
+}
