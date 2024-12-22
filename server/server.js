@@ -40,7 +40,10 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
-        origin: "https://minesweeper-test.vercel.app/" 
+        origin: [
+            "http://localhost:3000", // Development
+            "https://minesweeper-test.vercel.app", // Production
+        ]
     }
 });
 
@@ -232,7 +235,7 @@ io.on('connection', (socket) => {
 
         const newBoard = JSON.parse(roomState.board);
         newBoard[row][col].isFlagged = !newBoard[row][col].isFlagged;
-        
+
         io.to(room).emit('boardUpdate', newBoard);
 
         await redisClient.hSet(`room:${room}`, { board: JSON.stringify(newBoard) })
@@ -245,7 +248,7 @@ io.on('connection', (socket) => {
 
         const playerRooms = JSON.parse(await redisClient.hGet(`player:${socket.id}`, 'rooms'));
         console.log(playerRooms);
-    
+
         playerRooms.forEach(async (room) => {
             const playersInRoom = JSON.parse(await redisClient.hGet(`room:${room}`, "players"));
             console.log(playersInRoom);

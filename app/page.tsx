@@ -5,7 +5,7 @@ import io from 'socket.io-client';
 import { useMinesweeperStore } from './store';
 import { SimpleGrid, Container, Center } from "@chakra-ui/react";
 
-const socket = io('http://localhost:3001');
+const socket = io('https://minesweeper-test.vercel.app/');
 
 export default function Home() {
 
