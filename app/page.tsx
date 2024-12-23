@@ -5,8 +5,8 @@ import io from 'socket.io-client';
 import { useMinesweeperStore } from './store';
 import { SimpleGrid, Container, Center } from "@chakra-ui/react";
 
-const socket = io('https://minesweeper-test.vercel.app/');
-
+// const socket = io('http://localhost:3001');
+const socket = io('https://minesweeper-test.vercel.app');
 export default function Home() {
 
   const { board, gameOver, gameWon, room, playerJoined,
@@ -72,7 +72,7 @@ export default function Home() {
     if (cell.isFlagged) {
       return (
         <div
-          key = {col}
+          key={col}
           className={`${styles.cell} ${styles.flagged}`}
           onContextMenu={(e) => {
             e.preventDefault();
@@ -82,7 +82,7 @@ export default function Home() {
     };
     return (
       <div
-        key = {col}
+        key={col}
         className={`${styles.cell} ${styles.closed}`}
         onClick={() => openCell(row, col)}
         onContextMenu={(e) => {
