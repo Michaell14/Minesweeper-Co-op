@@ -11,7 +11,7 @@ async function initializeRedisClient() {
             password: process.env.DB_PASS,
             socket: {
                 host: process.env.HOST,
-                port: process.env.PORT
+                port: process.env.REDIS_PORT
             },
         });
 
@@ -50,7 +50,6 @@ const io = new Server(server, {
 
 const BOARD_SIZE = 8;
 const NUM_MINES = 10;
-const PORT = 3001;
 
 const rooms = {}; // Store rooms and their boards
 //const playersInRoom = {};
@@ -272,7 +271,7 @@ io.on('connection', (socket) => {
     });
 
 });
-
+PORT = 3001
 // Start the server
 server.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
