@@ -6,7 +6,7 @@ import { useMinesweeperStore } from './store';
 import { SimpleGrid, Container, Center } from "@chakra-ui/react";
 
 // const socket = io('http://localhost:3001');
-const socket = io('https://minesweeper-test.vercel.app');
+const socket = io('https://minesweeper-co-op.onrender.com/');
 export default function Home() {
 
   const { board, gameOver, gameWon, room, playerJoined,
