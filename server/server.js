@@ -38,20 +38,20 @@ let redisClient;
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, {
-    cors: {
-        origin: [
-            "http://localhost:3000", // Development
-            "https://minesweeper-co-op.onrender.com/", // Production
-        ]
-    }
-});
-
 // const io = new Server(server, {
 //     cors: {
-//         origin: "https://minesweeper-co-op.onrender.com/"
+//         origin: [
+//             "http://localhost:3000", // Development
+//             "https://minesweeper-co-op.onrender.com/", // Production
+//         ]
 //     }
 // });
+
+const io = new Server(server, {
+    cors: {
+        origin: "https://minesweeper-co-op.onrender.com/"
+    }
+});
 
 // Utility function to generate a board (reusing your board generation logic)
 const generateBoard = (numRows, numCols, numMines, excludeRow, excludeCol) => {
