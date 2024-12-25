@@ -12,23 +12,29 @@ export interface MinesweeperState {
     board: Cell[][];
     gameOver: boolean;
     gameWon: boolean;
+    numCols: number,
+    numRows: number,
+    numMines: number,
     room: string;
+    difficulty: string,
     playerJoined: boolean;
     setBoard: (newBoard: Cell[][]) => void;
     setGameOver: (isGameOver: boolean) => void;
     setGameWon: (isGameWon: boolean) => void;
     setRoom: (newRoom: string) => void;
     setPlayerJoined: (isPlayerJoined: boolean) => void;
+    setDimensions: (rows: number, cols: number, mines: number, diff: string) => void;
 }
-
-const BOARD_SIZE = 8;
-const NUM_MINES = 10;
 
 export const useMinesweeperStore = create<MinesweeperState>((set, get) => ({
     board: [],
     gameOver: false,
     gameWon: false,
     playerJoined: false,
+    numRows: 13,
+    numCols: 15,
+    numMines: 40,
+    difficulty: "Medium",
     room: "",
     setBoard: (newBoard: Cell[][]) => {
         set({ board: newBoard })
@@ -43,6 +49,9 @@ export const useMinesweeperStore = create<MinesweeperState>((set, get) => ({
         set({ room: newRoom })
     },
     setPlayerJoined: (isPlayerJoined: boolean) => {
-        set({ playerJoined: isPlayerJoined});
+        set({ playerJoined: isPlayerJoined });
+    },
+    setDimensions: (rows: number, cols: number, mines: number, diff: string) => {
+        set({ numRows: rows, numCols: cols, numMines: mines, difficulty: diff });
     }
 }));
