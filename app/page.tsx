@@ -16,8 +16,8 @@ interface FormValues {
   roomCode: string
 }
 
-const socket = io('http://localhost:3001');
-// const socket = io('https://minesweeper-co-op.onrender.com/');
+// const socket = io('http://localhost:3001');
+const socket = io('https://minesweeper-co-op.onrender.com/');
 
 export default function Home() {
 
@@ -120,7 +120,7 @@ export default function Home() {
     socket.emit("playerLeave");
     setPlayerJoined(false);
     setBoard([]);
-    // resetGame();
+    // resetGame(); 
   }
 
   const renderCell = (cell: any, row: number, col: number) => {
