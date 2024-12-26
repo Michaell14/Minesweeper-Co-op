@@ -196,7 +196,7 @@ const removePlayer = async (socket, socketId) => {
             // If the room is empty, clean up
             if (playersInRoom.length === 0) {
                 await redisClient.del(`room:${room}`);
-                console.log(`Room ${room} has been removed (no players left).`);
+                // console.log(`Room ${room} has been removed (no players left).`);
             }
         }
         socket.leave(room);
@@ -207,7 +207,7 @@ const removePlayer = async (socket, socketId) => {
 
 // When a new socket connects
 io.on('connection', (socket) => {
-    console.log(`Player connected: ${socket.id}`);
+    // console.log(`Player connected: ${socket.id}`);
 
     socket.on('createRoom', async ({ newRoom, numRows, numCols, numMines }) => {
         const room = newRoom;
@@ -215,7 +215,6 @@ io.on('connection', (socket) => {
         socket.join(room);
         // Eventually emit an error
         if (roomExists) {
-            console.log("This room exists");
             io.to(room).emit("createRoomError", room);
             socket.leave(room);
             return;
@@ -267,7 +266,6 @@ io.on('connection', (socket) => {
         const roomExists = await redisClient.exists(`room:${room}`);
        
         if (!roomExists) {
-            console.log("room does not exist");
             return;
         }
 
@@ -321,7 +319,7 @@ io.on('connection', (socket) => {
     });
 
     socket.on('disconnect', async () => {
-        console.log(`Player disconnected: ${socket.id}`);
+        // console.log(`Player disconnected: ${socket.id}`);
         removePlayer(socket, socket.id);
     });
 });

@@ -4,10 +4,9 @@ import io from 'socket.io-client';
 import { useMinesweeperStore } from './store';
 import Landing from "@/components/Landing";
 import Grid from "@/components/Grid";
-import { Center, Container } from "@chakra-ui/react";
 
-// const socket = io('http://localhost:3001');
-const socket = io('https://minesweeper-co-op.onrender.com/');
+const socket = io('http://localhost:3001');
+// const socket = io('https://minesweeper-co-op.onrender.com/');
 
 export default function Home() {
 
@@ -44,7 +43,7 @@ export default function Home() {
         socket.on("gameOver", () => {
             setGameOver(true);
             console.log("GAME IS OVER");
-            document.getElementById('dialog-default')?.showModal();
+            (document.getElementById('dialog-default') as HTMLDialogElement)?.showModal();
         })
 
         socket.on("resetEveryone", () => {
