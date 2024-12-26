@@ -5,8 +5,8 @@ import { useMinesweeperStore } from './store';
 import Landing from "@/components/Landing";
 import Grid from "@/components/Grid";
 
-const socket = io('http://localhost:3001');
-// const socket = io('https://minesweeper-co-op.onrender.com/');
+// const socket = io('http://localhost:3001');
+const socket = io('https://minesweeper-co-op.onrender.com/');
 
 export default function Home() {
 
