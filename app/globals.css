@@ -2,3 +2,10 @@
 @tailwind components;
 @tailwind utilities;
 
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+*{
+    font-family: "Press Start 2P", serif;
+    font-weight: 400;
+    font-style: normal;
+}

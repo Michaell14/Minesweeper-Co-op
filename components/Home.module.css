@@ -1,0 +1,22 @@
+.cell {
+    height: 40px;
+    width: 40px;
+    text-align: center;
+    border: 3px solid #3b3b3b;   
+}
+
+.cell.closed {
+    background-color: #bbb;
+}
+
+.cell.open {
+    background-color: #eee;
+}
+
+.cell.mine {
+    background-color: red;
+}
+
+.cell.flagged {
+    background-color: #bbb;
+}

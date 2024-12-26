@@ -47,12 +47,6 @@ const io = new Server(server, {
     }
 });
 
-// const io = new Server(server, {
-//     cors: {
-//         origin: "https://minesweeper-co-op.onrender.com/"
-//     }
-// });
-
 // Utility function to generate a board (reusing your board generation logic)
 const generateBoard = (numRows, numCols, numMines, excludeRow, excludeCol) => {
     const board = Array(numRows)
@@ -270,9 +264,8 @@ io.on('connection', (socket) => {
 
     // When a player opens a cell
     socket.on('openCell', async ({ room, row, col }) => {
-        console.log("room: " + room);
         const roomExists = await redisClient.exists(`room:${room}`);
-        console.log(roomExists);
+       
         if (!roomExists) {
             console.log("room does not exist");
             return;
@@ -285,8 +278,8 @@ io.on('connection', (socket) => {
     socket.on('toggleFlag', async ({ room, row, col }) => {
         const roomExists = await redisClient.exists(`room:${room}`);
         const roomState = await redisClient.hGetAll(`room:${room}`);
-
-        if (!roomExists || roomState.gameOver === 'true') return;
+        
+        if (!roomExists || roomState.gameOver === 'true' || roomState.gameWon === 'true') return;
 
         const newBoard = JSON.parse(roomState.board);
         newBoard[row][col].isFlagged = !newBoard[row][col].isFlagged;

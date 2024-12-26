@@ -17,6 +17,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <link href="https://fonts.googleapis.com/css?family=Press+Start+2P" rel="stylesheet" />
+        <link href="https://unpkg.com/nes.css/css/nes.css" rel="stylesheet" />
+      </head>
       <body className={inter.className}>
         <Provider>{children}</Provider>
       </body>
