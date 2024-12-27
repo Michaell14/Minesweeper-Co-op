@@ -1,30 +1,35 @@
 "use client"
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import io from 'socket.io-client';
 import { useMinesweeperStore } from './store';
 import Landing from "@/components/Landing";
 import Grid from "@/components/Grid";
 
+const serverURL = process.env.NODE_ENV === "development"
+  ? "http://localhost:3001" // Development URL
+  : "https://minesweeper-co-op.onrender.com/"; // Production URL
+
+
 // const socket = io('http://localhost:3001');
-const socket = io('https://minesweeper-co-op.onrender.com/');
+const socket = io(serverURL);
 
 export default function Home() {
 
-    const { room, playerJoined, numRows, numCols, numMines, setBoard,
+    const [ gameOverName, setGameOverName ] = useState("");
+    const { name, room, playerJoined, numRows, numCols, numMines, setBoard,
         setGameOver, setGameWon, setRoom, setPlayerJoined,
-        setDimensions } = useMinesweeperStore();
+        setDimensions, setPlayerNamesInRoom } = useMinesweeperStore();
 
-    const createRoom = (newRoom: string) => {
-        if (!newRoom) return;
-
-        socket.emit("createRoom", { newRoom, numRows, numCols, numMines })
+    const createRoom = () => {
+        if (!room) return;
+        socket.emit("createRoom", { room, numRows, numCols, numMines, name })
     }
 
     // Join a room
-    const joinRoom = (newRoom: string) => {
-        if (!newRoom) return;
+    const joinRoom = () => {
+        if (!room) return;
 
-        socket.emit('joinRoom', { newRoom });
+        socket.emit('joinRoom', { room, name });
     };
 
     useEffect(() => {
@@ -35,15 +40,19 @@ export default function Home() {
             setBoard(updatedBoard);
         });
 
+        socket.on("playerNamesUpdate", (updatedNames) => {
+            setPlayerNamesInRoom(updatedNames);
+        })
+
         socket.on("gameWon", () => {
             console.log("THE GAME IS WON");
             setGameWon(true);
         })
 
-        socket.on("gameOver", () => {
+        socket.on("gameOver", (newName) => {
             setGameOver(true);
-            console.log("GAME IS OVER");
-            (document.getElementById('dialog-default') as HTMLDialogElement)?.showModal();
+            setGameOverName(newName);
+            (document.getElementById('dialog-game-over') as HTMLDialogElement)?.showModal();
         })
 
         socket.on("resetEveryone", () => {
@@ -94,6 +103,8 @@ export default function Home() {
         socket.emit("playerLeave");
         setPlayerJoined(false);
         setBoard([]);
+        setGameWon(false);
+        setGameOver(false);
         setDimensions(13, 15, 40, "Medium");
     }
 
@@ -108,10 +119,10 @@ export default function Home() {
                 </>
             )}
 
-            <dialog className="nes-dialog absolute left-1/2 top-60 -translate-x-1/2" id="dialog-default">
+            <dialog className="nes-dialog absolute left-1/2 top-60 -translate-x-1/2" id="dialog-game-over">
                 <form method="dialog">
                     <p className="title">You lost.</p>
-                    <p>Someone hit a bomb!</p>
+                    <p>{gameOverName} hit a bomb!</p>
                     <menu className="dialog-menu">
                         <button className="nes-btn is-error text-xs">Cancel</button>
                     </menu>

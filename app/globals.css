@@ -9,3 +9,26 @@
     font-weight: 400;
     font-style: normal;
 }
+
+#horizontal {
+    overflow: hidden;
+    text-align: center;
+}
+#horizontal:before,
+#horizontal:after {
+    background-color: #000;
+    content: "";
+    display: inline-block;
+    height: 3px;
+    position: relative;
+    vertical-align: middle;
+    width: 50%;
+}
+#horizontal:before {
+    right: 0.5em;
+    margin-left: -50%;
+}
+#horizontal:after {
+    left: 0.5em;
+    margin-right: -50%;
+}

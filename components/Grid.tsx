@@ -12,7 +12,7 @@ interface GridParams {
 
 export default function Grid({ leaveRoom, resetGame, toggleFlag, openCell }: GridParams) {
 
-    const { board, gameOver, gameWon } = useMinesweeperStore();
+    const { playerNamesInRoom, board, gameOver, gameWon } = useMinesweeperStore();
     return (
         <>
             <Container maxW={"6xl"}>
@@ -20,6 +20,24 @@ export default function Grid({ leaveRoom, resetGame, toggleFlag, openCell }: Gri
                 <div className="mx-3 mt-16 mb-10 flex justify-between">
                     <button type="button" className="nes-btn is-warning text-xs" onClick={leaveRoom}>Return to Menu</button>
                     <button type="button" className="nes-btn text-xs" onClick={resetGame}>Reset Board</button>
+                </div>
+                <div className="nes-table-responsive">
+                    <table className="nes-table is-bordered is-centered">
+                        <thead>
+                            <tr>
+                                <th className = "">Player</th>
+                                <th className = "">Score</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {playerNamesInRoom.map((item, index) => (
+                                <tr key={index}>
+                                    <td className = "">{item.name}</td>
+                                    <td>{item.score}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
                 </div>
                 {gameWon &&
                     <p>YOU WON THE GAME</p>
@@ -49,7 +67,7 @@ export default function Grid({ leaveRoom, resetGame, toggleFlag, openCell }: Gri
                         </tbody>
                     </table>
                 </Center>
-                
+
             </Container>
         </>
     )

@@ -95,13 +95,14 @@ const generateBoard = (numRows, numCols, numMines, excludeRow, excludeCol) => {
     return board;
 };
 
-const reveal = async (board, numRows, numCols, r, c, room) => {
+const reveal = async (board, numRows, numCols, r, c, room, socketId) => {
 
     if (r < 0 || r >= numRows || c < 0 || c >= numCols || board[r][c].isOpen) return;
 
     board[r][c].isOpen = true;
     if (board[r][c].isMine) {
-        io.to(room).emit('gameOver');
+        const gameOverName = await redisClient.hGet(`player:${socketId}`, "name");
+        io.to(room).emit('gameOver', gameOverName);
         await redisClient.hSet(`room:${room}`, { gameOver: 'true' });
         return;
     }
@@ -109,13 +110,13 @@ const reveal = async (board, numRows, numCols, r, c, room) => {
     if (board[r][c].nearbyMines === 0) {
         for (let dr = -1; dr <= 1; dr++) {
             for (let dc = -1; dc <= 1; dc++) {
-                reveal(board, numRows, numCols, r + dr, c + dc, room);
+                reveal(board, numRows, numCols, r + dr, c + dc, room, socketId);
             }
         }
     }
 };
 
-const openCell = async (row, col, room) => {
+const openCell = async (row, col, room, socketId) => {
     const roomState = await redisClient.hGetAll(`room:${room}`);
     let board = JSON.parse(roomState.board);
 
@@ -129,9 +130,13 @@ const openCell = async (row, col, room) => {
     if (roomState.initialized === 'false') {
         board = generateBoard(numRows, numCols, numMines, row, col);
         await redisClient.hSet(`room:${room}`, { initialized: 'true' });
+    } else if (!board[row][col].isMine){
+        const newScore = parseInt(await redisClient.hGet(`player:${socketId}`, "score")) + 1;
+        await redisClient.hSet(`player:${socketId}`, { score: newScore.toString() })
+        updatePlayerNamesInRoom(room);
     }
 
-    reveal(board, numRows, numCols, row, col, room);
+    reveal(board, numRows, numCols, row, col, room, socketId);
     checkWin(roomState, board, room);
     await redisClient.hSet(`room:${room}`, { board: JSON.stringify(board) });
     io.to(room).emit('boardUpdate', board, numRows, numCols, numMines);
@@ -153,18 +158,47 @@ const checkWin = async (roomState, board, room) => {
     }
 }
 
-const addPlayerToRoom = async (room, socketId) => {
+const updatePlayerNamesInRoom = async (room) => {
+    if (!room) return;
+    const playersInRoom = JSON.parse(await redisClient.hGet(`room:${room}`, "players"));
+
+    if (!playersInRoom) return;
+
+    const roomNames = [];
+    for (let i = 0; i < playersInRoom.length; i++) {
+        const playerState = await redisClient.hGetAll(`player:${playersInRoom[i]}`);
+        roomNames.push({
+            name: playerState.name,
+            score: parseInt(playerState.score)
+        });
+    }
+
+    io.to(room).emit("playerNamesUpdate", roomNames);
+}
+
+const resetPlayerScores = async (room) => {
+    if (!room) return;
+    const playersInRoom = JSON.parse(await redisClient.hGet(`room:${room}`, "players"));
+
+    if (!playersInRoom) return;
+
+    for (let i = 0; i < playersInRoom.length; i++) {
+        await redisClient.hSet(`player:${playersInRoom[i]}`, { "score": "0" })
+    }
+}
+
+const addPlayerToRoom = async (room, socketId, name) => {
     const playerExists = await redisClient.exists(`player:${socketId}`);
     if (!playerExists) {
         await redisClient.hSet(`player:${socketId}`, {
-            rooms: JSON.stringify([])
+            room: "",
+            name: name,
+            score: "0"
         })
         await redisClient.expire(`player:${socketId}`, 86400); // Deletes a user after a day
     }
 
-    const playerRooms = JSON.parse(await redisClient.hGet(`player:${socketId}`, "rooms"));
-    playerRooms.push(room);
-    await redisClient.hSet(`player:${socketId}`, { "rooms": JSON.stringify(playerRooms) });
+    await redisClient.hSet(`player:${socketId}`, { "room": room });
 
     const roomState = await redisClient.hGetAll(`room:${room}`);
     const roomPlayers = JSON.parse(roomState.players);
@@ -175,33 +209,32 @@ const addPlayerToRoom = async (room, socketId) => {
     // Send the current board to the player who joined
     const board = JSON.parse(roomState.board);
     io.to(room).emit('boardUpdate', board, parseInt(roomState.numRows), parseInt(roomState.numCols), parseInt(roomState.numMines));
+
+    updatePlayerNamesInRoom(room);
 }
 
 const removePlayer = async (socket, socketId) => {
     const playerExists = await redisClient.exists(`player:${socketId}`);
     if (!playerExists) return;
 
-    const playerRooms = JSON.parse(await redisClient.hGet(`player:${socketId}`, 'rooms'));
+    const room = await redisClient.hGet(`player:${socketId}`, 'room');
 
-    playerRooms.forEach(async (room) => {
-        const playersInRoom = JSON.parse(await redisClient.hGet(`room:${room}`, "players"));
+    const playersInRoom = JSON.parse(await redisClient.hGet(`room:${room}`, "players"));
 
-        if (playersInRoom && playersInRoom.includes(socketId)) {
-            const index = playersInRoom.indexOf(socketId); // Find the index of the element
-            if (index > -1) {
-                playersInRoom.splice(index, 1);
-            }
-
-            await redisClient.hSet(`room:${room}`, { "players": JSON.stringify(playersInRoom) });
-            // If the room is empty, clean up
-            if (playersInRoom.length === 0) {
-                await redisClient.del(`room:${room}`);
-                // console.log(`Room ${room} has been removed (no players left).`);
-            }
+    if (playersInRoom && playersInRoom.includes(socketId)) {
+        const index = playersInRoom.indexOf(socketId); // Find the index of the element
+        if (index > -1) {
+            playersInRoom.splice(index, 1);
         }
-        socket.leave(room);
-    });
 
+        await redisClient.hSet(`room:${room}`, { "players": JSON.stringify(playersInRoom) });
+        // If the room is empty, clean up
+        if (playersInRoom.length === 0) {
+            await redisClient.del(`room:${room}`);
+        }
+    }
+    updatePlayerNamesInRoom(room);
+    socket.leave(room);
     await redisClient.del(`player:${socketId}`);
 }
 
@@ -209,8 +242,7 @@ const removePlayer = async (socket, socketId) => {
 io.on('connection', (socket) => {
     // console.log(`Player connected: ${socket.id}`);
 
-    socket.on('createRoom', async ({ newRoom, numRows, numCols, numMines }) => {
-        const room = newRoom;
+    socket.on('createRoom', async ({ room, numRows, numCols, numMines, name }) => {
         const roomExists = await redisClient.exists(`room:${room}`);
         socket.join(room);
         // Eventually emit an error
@@ -240,14 +272,14 @@ io.on('connection', (socket) => {
             numCols: numCols.toString(),
             numMines: numMines.toString()
         })
-        
-        addPlayerToRoom(room, socket.id);
+
+        addPlayerToRoom(room, socket.id, name);
         io.to(room).emit("joinRoomSuccess", room);
+
     })
 
     // When a player joins a room
-    socket.on('joinRoom', async ({ newRoom }) => {
-        const room = newRoom;
+    socket.on('joinRoom', async ({ room, name }) => {
         const roomExists = await redisClient.exists(`room:${room}`);
         socket.join(room);
         // If the room doesn't have a board yet, create one
@@ -256,27 +288,27 @@ io.on('connection', (socket) => {
             socket.leave(room);
             return;
         }
-        
-        addPlayerToRoom(room, socket.id);
+
+        addPlayerToRoom(room, socket.id, name);
         io.to(room).emit("joinRoomSuccess", room);
     });
 
     // When a player opens a cell
     socket.on('openCell', async ({ room, row, col }) => {
         const roomExists = await redisClient.exists(`room:${room}`);
-       
+
         if (!roomExists) {
             return;
         }
 
-        openCell(row, col, room);
+        openCell(row, col, room, socket.id);
     });
 
     // When a player toggles a flag
     socket.on('toggleFlag', async ({ room, row, col }) => {
         const roomExists = await redisClient.exists(`room:${room}`);
         const roomState = await redisClient.hGetAll(`room:${room}`);
-        
+
         if (!roomExists || roomState.gameOver === 'true' || roomState.gameWon === 'true') return;
 
         const newBoard = JSON.parse(roomState.board);
@@ -312,6 +344,8 @@ io.on('connection', (socket) => {
             gameWon: 'false',
             initialized: 'false',
         })
+        resetPlayerScores(room);
+        updatePlayerNamesInRoom(room);
     })
 
     socket.on("playerLeave", async () => {
