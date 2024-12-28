@@ -17,7 +17,7 @@ export default function Home() {
 
     const [ gameOverName, setGameOverName ] = useState("");
     const { name, room, playerJoined, numRows, numCols, numMines, setBoard,
-        setGameOver, setGameWon, setRoom, setPlayerJoined,
+        setGameOver, setGameWon, setRoom, setPlayerJoined, setName,
         setDimensions, setPlayerNamesInRoom } = useMinesweeperStore();
 
     const createRoom = () => {
@@ -105,6 +105,7 @@ export default function Home() {
         setBoard([]);
         setGameWon(false);
         setGameOver(false);
+        setName("");
         setDimensions(13, 15, 40, "Medium");
     }
 
@@ -121,8 +122,8 @@ export default function Home() {
 
             <dialog className="nes-dialog absolute left-1/2 top-60 -translate-x-1/2" id="dialog-game-over">
                 <form method="dialog">
-                    <p className="title">You lost.</p>
-                    <p>{gameOverName} hit a bomb!</p>
+                    <p className="title">Uh Oh!</p>
+                    <p><span className = "underline decoration-2">{gameOverName}</span> hit a bomb.</p>
                     <menu className="dialog-menu">
                         <button className="nes-btn is-error text-xs">Cancel</button>
                     </menu>

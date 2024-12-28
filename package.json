@@ -12,6 +12,7 @@
     "@chakra-ui/react": "^3.2.3",
     "@emotion/react": "^11.14.0",
     "@types/socket.io": "^3.0.1",
+    "canvas-confetti": "^1.9.3",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "nes.css": "^2.2.1",

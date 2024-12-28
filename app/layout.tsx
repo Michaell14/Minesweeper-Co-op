@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import { Provider } from "@/components/ui/provider"
+import { Provider } from "@/components/ui/provider";
+import Footer from "@/components/Footer";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -21,9 +22,14 @@ export default function RootLayout({
         <link href="https://fonts.googleapis.com/css?family=Press+Start+2P" rel="stylesheet" />
         <link href="https://unpkg.com/nes.css/css/nes.css" rel="stylesheet" />
       </head>
+
       <body className={inter.className}>
-        <Provider>{children}</Provider>
+        <Provider>
+          {children}
+          <Footer/>
+        </Provider>
       </body>
+
     </html>
   );
 }
