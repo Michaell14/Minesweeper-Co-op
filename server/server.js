@@ -42,7 +42,8 @@ const io = new Server(server, {
     cors: {
         origin: [
             "http://localhost:3000", // Development
-            "https://minesweeper-test.vercel.app", // Production
+            "https://minesweeper-test.vercel.app", // Production,
+            "https://www.minesweepercoop.com/"
         ]
     }
 });
@@ -254,7 +255,7 @@ io.on('connection', (socket) => {
         socket.join(room);
         // Eventually emit an error
         if (roomExists) {
-            io.to(room).emit("createRoomError", room);
+            io.to(room).emit("createRoomError");
             socket.leave(room);
             return;
         }
@@ -291,7 +292,7 @@ io.on('connection', (socket) => {
         socket.join(room);
         // If the room doesn't have a board yet, create one
         if (!roomExists) {
-            io.to(room).emit("joinRoomError", room);
+            io.to(room).emit("joinRoomError");
             socket.leave(room);
             return;
         }

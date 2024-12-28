@@ -66,11 +66,11 @@ export default function Home() {
             setPlayerJoined(true);
         })
 
-        socket.on("joinRoomError", (newRoom) => {
+        socket.on("joinRoomError", () => {
             console.log("This room does not exist yet");
         })
 
-        socket.on("createRoomError", (newRoom) => {
+        socket.on("createRoomError", () => {
             console.log("This room already exists");
         })
 
@@ -80,9 +80,11 @@ export default function Home() {
             socket.off("gameWon");
             socket.off("gameOver");
             socket.off("resetGame");
+            socket.off("resetEveryone")
             socket.off("joinRoomSuccess");
             socket.off("joinRoomError");
             socket.off("createRoomError");
+            socket.off("playerNamesUpdate");
         };
     }, []);
 
