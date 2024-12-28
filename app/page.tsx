@@ -7,7 +7,7 @@ import Grid from "@/components/Grid";
 
 const serverURL = process.env.NODE_ENV === "development"
   ? "http://localhost:3001" // Development URL
-  : "https://minesweeper-co-op.onrender.com/"; // Production URL
+  : "https://minesweeper-co-op.onrender.com"; // Production URL
 
 
 // const socket = io('http://localhost:3001');
