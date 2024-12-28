@@ -40,7 +40,7 @@ const io = new Server(server, {
     cors: {
         origin: [
             "http://localhost:3000", // Development
-            "https://www.minesweepercoop.com/"
+            "https://www.minesweepercoop.com"
         ]
     }
 });
