@@ -22,7 +22,7 @@
 }
 
 .cell.mine {
-    background-color: red;
+    background-color: #D70040;
 }
 
 .cell.flagged {
