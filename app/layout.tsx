@@ -19,6 +19,9 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        <link rel="icon" href="/favicon.ico" sizes="any" />
+        <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         <link href="https://fonts.googleapis.com/css?family=Press+Start+2P" rel="stylesheet" />
         <link href="https://unpkg.com/nes.css/css/nes.css" rel="stylesheet" />
         <title>Minesweeper Co-Op</title>
@@ -27,7 +30,7 @@ export default function RootLayout({
       <body className={inter.className}>
         <Provider>
           {children}
-          <Footer/>
+          <Footer />
         </Provider>
       </body>
 
