@@ -33,8 +33,9 @@ export default function Home() {
     };
 
     useEffect(() => {
-        // Listen for board updates
+        socket.emit('wakeUp');
 
+        // Listen for board updates
         socket.on('boardUpdate', (updatedBoard, rows, cols, mines) => {
             setDimensions(rows, cols, mines, "Medium");
             setBoard(updatedBoard);

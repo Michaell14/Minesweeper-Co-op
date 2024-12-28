@@ -1,7 +1,6 @@
 import React from 'react';
 import styles from "./Home.module.css";
-import { MdOutlineOutlinedFlag } from "react-icons/md";
-import { Icon } from "@chakra-ui/react";
+import { useMinesweeperStore } from '@/app/store';
 
 interface CellParams {
     cell: any,
@@ -12,8 +11,11 @@ interface CellParams {
 }
 
 export default function Cell({ cell, row, col, toggleFlag, openCell }: CellParams) {
+    const { gameOver } = useMinesweeperStore();
+    if ((cell.isOpen || gameOver) && cell.isMine) {
+        return <td key={col} className={`${styles.cell} ${styles.mine}`}>💣</td>;
+    }
     if (cell.isOpen) {
-        if (cell.isMine) return <td key={col} className={`${styles.cell} ${styles.mine}`}>💣</td>;
         return (
             <td key={col} className={`${styles.cell} ${styles.open}`}>
                 {cell.nearbyMines > 0 ? cell.nearbyMines : ''}

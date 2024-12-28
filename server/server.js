@@ -130,7 +130,7 @@ const openCell = async (row, col, room, socketId) => {
     if (roomState.initialized === 'false') {
         board = generateBoard(numRows, numCols, numMines, row, col);
         await redisClient.hSet(`room:${room}`, { initialized: 'true' });
-    } else if (!board[row][col].isMine){
+    } else if (!board[row][col].isMine) {
         const newScore = parseInt(await redisClient.hGet(`player:${socketId}`, "score")) + 1;
         await redisClient.hSet(`player:${socketId}`, { score: newScore.toString() })
         updatePlayerNamesInRoom(room);
@@ -241,6 +241,9 @@ const removePlayer = async (socket, socketId) => {
 // When a new socket connects
 io.on('connection', (socket) => {
     // console.log(`Player connected: ${socket.id}`);
+    socket.on('wakeUp', () => {
+        return;
+    });
 
     socket.on('createRoom', async ({ room, numRows, numCols, numMines, name }) => {
         const roomExists = await redisClient.exists(`room:${room}`);
