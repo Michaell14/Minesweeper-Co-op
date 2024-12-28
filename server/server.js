@@ -40,6 +40,7 @@ const io = new Server(server, {
     cors: {
         origin: [
             "http://localhost:3000", // Development
+            "https://minesweeper-test.vercel.app", // Production
             "https://www.minesweepercoop.com"
         ]
     }
