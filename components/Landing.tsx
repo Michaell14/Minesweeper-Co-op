@@ -49,8 +49,8 @@ export default function Landing({ createRoom, joinRoom }: LandingParams) {
 
     return (
         <>
-            <div className="text-center pt-20">
-                <p className="text-4xl font-bold">Minesweeper Co-op</p>
+            <div className="text-center pt-10 lg:pt-20">
+                <p className="text-2xl md:text-4xl font-bold">Minesweeper Co-op</p>
             </div>
             <Center pb={12}>
                 <Container maxW={"2xl"}>
@@ -66,8 +66,8 @@ export default function Landing({ createRoom, joinRoom }: LandingParams) {
                                 {...createRegister("roomCode", { required: "Room Code is required." })} />
                         </Field>
                         <Field label={"Select Difficulty:"} mt={5}>
-                            <RadioCardRoot variant={"subtle"} defaultValue={difficulty}>
-                                <HStack align="stretch" >
+                            <RadioCardRoot maxW={"100%"} overflowX={"scroll"} variant={"subtle"} defaultValue={difficulty}>
+                                <HStack align="stretch">
                                     {difficultyConfig.map((item) => (
                                         <RadioCardItem
                                             onClick={() => { setDimensions(item.rows, item.cols, item.mines, item.title) }}

@@ -5,6 +5,14 @@
     border: 3px solid #3b3b3b;   
 }
 
+@media (max-width: 48em) {
+    .cell {
+        height: 30px;
+        width: 30px;
+        min-width: 30px;
+    }
+}
+
 .cell.closed {
     background-color: #bbb;
 }
