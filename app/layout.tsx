@@ -4,6 +4,7 @@ import "./globals.css";
 import { Provider } from "@/components/ui/provider";
 import { Analytics } from '@vercel/analytics/next';
 import Footer from "@/components/Footer";
+import { ChakraProvider, createSystem, defineConfig } from "@chakra-ui/react";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -11,6 +12,16 @@ export const metadata: Metadata = {
   title: "Minesweeper Co-Op - An Online Multiplayer",
   description: "The Free Online Minesweeper Game! Team up to uncover mines and compete in real-time challenges - Different multiplayer modes coming soon!",
 };
+
+const config = defineConfig({
+  theme: {
+    tokens: {
+      colors: {},
+    },
+  },
+})
+
+const system = createSystem(config)
 
 export default function RootLayout({
   children,
@@ -29,7 +40,7 @@ export default function RootLayout({
       </head>
 
       <body className={inter.className}>
-        <Provider>
+        <Provider defaultTheme="light" enableSystem={false}>
           {children}
           <Footer />
           <Analytics />
