@@ -47,7 +47,7 @@ const io = new Server(server, {
     }
 });
 
-app.get('/', (req, res) => {
+app.get('/cron', (req, res) => {
     res.send('Landing page is loaded.');
 });
 
