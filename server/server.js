@@ -34,15 +34,12 @@ let redisClient;
     await redisClient.flushDb();
 })();
 
-
-
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
         origin: [
             "http://localhost:3000", // Development
-            "https://minesweeper-test.vercel.app", // Production,
             "https://www.minesweepercoop.com/"
         ]
     }
