@@ -47,6 +47,10 @@ const io = new Server(server, {
     }
 });
 
+app.get('/', (req, res) => {
+    res.send('Landing page is loaded.');
+});
+
 // Utility function to generate a board (reusing your board generation logic)
 const generateBoard = (numRows, numCols, numMines, excludeRow, excludeCol) => {
     const board = Array(numRows)
