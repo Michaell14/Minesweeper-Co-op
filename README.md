@@ -1,5 +1,8 @@
 
 <h1 align="center">Minesweeper Co-op (www.MinesweeperCoop.com)</h1>
+<p align="center">
+  <img width="80%" src="/minesweeperss.png" alt="Game won in Minesweeper Co-Op"/>
+</p>
 
 <p align="center">
   This is an online multiplayer Minesweeper game built with Next.js, allowing multiple players to collaborate in real-time. Create a room, share the code with friends, and work together to clear the minefield!
