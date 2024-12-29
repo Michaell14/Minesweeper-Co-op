@@ -4,7 +4,7 @@ import "./globals.css";
 import { Provider } from "@/components/ui/provider";
 import { Analytics } from '@vercel/analytics/next';
 import Footer from "@/components/Footer";
-import { ChakraProvider, createSystem, defineConfig } from "@chakra-ui/react";
+import { createSystem, defineConfig } from "@chakra-ui/react";
 
 const inter = Inter({ subsets: ["latin"] });
 
