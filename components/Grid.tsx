@@ -1,8 +1,9 @@
 import React from 'react';
-import { Center, Container, HStack, VStack } from "@chakra-ui/react";
+import { Center, Container, HStack, VStack, Box } from "@chakra-ui/react";
 import { useMinesweeperStore } from '@/app/store';
 import Cell from "@/components/Cell";
 import { shootConfetti } from "@/lib/confetti";
+import { Switch } from "@/components/ui/switch";
 
 interface GridParams {
     leaveRoom: () => void;
@@ -13,7 +14,8 @@ interface GridParams {
 
 export default function Grid({ leaveRoom, resetGame, toggleFlag, openCell }: GridParams) {
 
-    const { room, playerNamesInRoom, board, gameOver, gameWon } = useMinesweeperStore();
+
+    const { isChecked, room, playerNamesInRoom, board, gameOver, gameWon, setIsChecked } = useMinesweeperStore();
 
     const openPlayersDialog = () => {
         (document.getElementById('dialog-players') as HTMLDialogElement)?.showModal();
@@ -21,7 +23,7 @@ export default function Grid({ leaveRoom, resetGame, toggleFlag, openCell }: Gri
 
     return (
         <>
-            <Container minH={"94vh"} pb={{base: 6, xl: 16}} maxW={"1350px"} pt={{ base: 10, xl: 20 }}>
+            <Container minH={"94vh"} pb={{ base: 6, xl: 16 }} maxW={"1350px"} pt={{ base: 10, xl: 20 }}>
 
                 <p className="text-center font-bold text-2xl md:text-4xl">Minesweeper Co-Op</p>
 
@@ -105,6 +107,18 @@ export default function Grid({ leaveRoom, resetGame, toggleFlag, openCell }: Gri
                             </div>
                             <i className="nes-icon trophy is-medium" onClick={openPlayersDialog}></i>
                         </HStack>
+                        <Box hideFrom={"sm"}>
+                            <HStack gap={5}>
+
+                                <Switch
+                                    defaultChecked
+                                    onCheckedChange={(e) => setIsChecked(e.checked)}
+                                    size="lg"
+                                    colorScheme="blue"
+                                />
+                                <p className = "mt-1.5">{isChecked ? "Click" : "Flag"} Mode</p>
+                            </HStack>
+                        </Box>
                     </VStack>
                 </Center>
                 <Center hideFrom={"xl"} mt={5}>

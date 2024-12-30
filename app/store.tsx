@@ -18,6 +18,7 @@ export interface MinesweeperState {
     room: string;
     difficulty: string,
     playerJoined: boolean;
+    isChecked: boolean,
     name: string;
     playerNamesInRoom: any[];
     setBoard: (newBoard: Cell[][]) => void;
@@ -29,6 +30,7 @@ export interface MinesweeperState {
     setName: (newName: string) => void;
     setPlayerNamesInRoom: (newNames: any[]) => void;
     setDifficulty: (diff: string) => void;
+    setIsChecked: (checked: boolean) => void;
 }
 
 export const useMinesweeperStore = create<MinesweeperState>((set, get) => ({
@@ -36,6 +38,7 @@ export const useMinesweeperStore = create<MinesweeperState>((set, get) => ({
     gameOver: false,
     gameWon: false,
     playerJoined: false,
+    isChecked: true,
     numRows: 15,
     numCols: 13,
     numMines: 40,
@@ -69,5 +72,8 @@ export const useMinesweeperStore = create<MinesweeperState>((set, get) => ({
     },
     setPlayerNamesInRoom: (newNames: any[]) => {
         set({ playerNamesInRoom: newNames });
+    },
+    setIsChecked: (checked: boolean) => {
+        set({ isChecked: checked })
     }
 }));

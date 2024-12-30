@@ -188,7 +188,7 @@ export default function Landing({ createRoom, joinRoom }: LandingParams) {
                         errorText={customErrors.rows?.message}
                     >
                         <p className="mb-0">Number of Rows:</p>
-                        <input type="number" defaultValue={numRows} className="nes-input text-xs" maxLength={28} min={8} max={30} placeholder={"Between 8 - 30"}
+                        <input type="number" value={numRows} className="nes-input text-xs" maxLength={28} min={8} max={30} placeholder={"Between 8 - 30"}
                             {...customRegister("rows", { required: "Number of Rows is Required." })} />
                     </Field>
                     <Field
@@ -196,7 +196,7 @@ export default function Landing({ createRoom, joinRoom }: LandingParams) {
                         errorText={customErrors.cols?.message}
                     >
                         <p className="mb-0 mt-4">Number of Columns:</p>
-                        <input className="nes-input text-xs" defaultValue={numCols} maxLength={28} type="number" min={8} max={16} placeholder={"Between 8 - 16"}
+                        <input className="nes-input text-xs" value={numCols} maxLength={28} type="number" min={8} max={16} placeholder={"Between 8 - 16"}
                             {...customRegister("cols", { required: "Number of Columns is Required." })} />
                     </Field>
                     <Field
@@ -204,7 +204,7 @@ export default function Landing({ createRoom, joinRoom }: LandingParams) {
                         errorText={customErrors.mines?.message}
                     >
                         <p className="mb-0 mt-4">Number of Mines</p>
-                        <input className="nes-input text-xs" defaultValue={numMines} maxLength={28} min={1} type="number" placeholder={"Min: 1"}
+                        <input className="nes-input text-xs" value={numMines} maxLength={28} min={1} type="number" placeholder={"Min: 1"}
                             {...customRegister("mines", { required: "Number of Mines is Required." })} />
                     </Field>
                     <div className="flex justify-between mt-5">

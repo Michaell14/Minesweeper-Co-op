@@ -1,6 +1,8 @@
 import React from 'react';
 import styles from "./Home.module.css";
 import { useMinesweeperStore } from '@/app/store';
+import { Box } from "@chakra-ui/react";
+
 
 interface CellParams {
     cell: any,
@@ -11,7 +13,7 @@ interface CellParams {
 }
 
 export default function Cell({ cell, row, col, toggleFlag, openCell }: CellParams) {
-    const { gameOver } = useMinesweeperStore();
+    const { isChecked, gameOver } = useMinesweeperStore();
     if ((cell.isOpen || gameOver) && cell.isMine) {
         return <td key={col} className={`${styles.cell} ${styles.mine}`}>💣</td>;
     }
@@ -37,15 +39,20 @@ export default function Cell({ cell, row, col, toggleFlag, openCell }: CellParam
         )
     };
     return (
+        
         <td
             key={col}
             className={`${styles.cell} ${styles.closed} nes-pointer `}
-            onClick={() => openCell(row, col)}
             onContextMenu={(e) => {
                 e.preventDefault();
                 toggleFlag(row, col);
-            }}
-        >
+            }}>
+                <Box h={"full"} w={"full"} hideFrom={"sm"} onClick={() => {isChecked ? openCell(row, col) : toggleFlag(row, col)}}>
+
+                </Box>
+                <Box h={"full"} w={"full"} hideBelow={"sm"} onClick={() => openCell(row, col)}>
+
+                </Box>
         </td>
     );
 }
