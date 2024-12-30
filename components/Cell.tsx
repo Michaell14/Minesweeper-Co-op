@@ -34,12 +34,18 @@ export default function Cell({ cell, row, col, toggleFlag, openCell }: CellParam
                     e.preventDefault();
                     toggleFlag(row, col);
                 }}>
-                🚩
+
+                <Box h={"full"} w={"full"} hideFrom={"sm"} onClick={() => { !isChecked ? toggleFlag(row, col) : {} }}>
+                    🚩
+                </Box>
+                <Box h={"full"} w={"full"} hideBelow={"sm"}>
+                    🚩
+                </Box>
             </td>
         )
     };
     return (
-        
+
         <td
             key={col}
             className={`${styles.cell} ${styles.closed} nes-pointer `}
@@ -47,12 +53,12 @@ export default function Cell({ cell, row, col, toggleFlag, openCell }: CellParam
                 e.preventDefault();
                 toggleFlag(row, col);
             }}>
-                <Box h={"full"} w={"full"} hideFrom={"sm"} onClick={() => {isChecked ? openCell(row, col) : toggleFlag(row, col)}}>
+            <Box h={"full"} w={"full"} hideFrom={"sm"} onClick={() => { isChecked ? openCell(row, col) : toggleFlag(row, col) }}>
 
-                </Box>
-                <Box h={"full"} w={"full"} hideBelow={"sm"} onClick={() => openCell(row, col)}>
+            </Box>
+            <Box h={"full"} w={"full"} hideBelow={"sm"} onClick={() => openCell(row, col)}>
 
-                </Box>
+            </Box>
         </td>
     );
 }
