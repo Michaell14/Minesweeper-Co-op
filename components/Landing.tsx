@@ -102,7 +102,7 @@ export default function Landing({ createRoom, joinRoom }: LandingParams) {
                                 {...createRegister("roomCode", { required: "Room Code is required." })} />
                         </Field>
                         <Field label={"Select Difficulty:"} mt={5}>
-                            <RadioCardRoot maxW={"100%"} overflowX={"hidden"} variant={"subtle"} value={difficulty}>
+                            <RadioCardRoot maxW={"100%"} overflowX={{base: "scroll", md: "hidden"}} variant={"subtle"} value={difficulty}>
                                 <HStack align="stretch">
                                     {difficultyConfig.map((item) => (
                                         <RadioCardItem
