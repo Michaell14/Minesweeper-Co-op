@@ -10,14 +10,13 @@ const serverURL = process.env.NODE_ENV === "development"
     : "https://minesweeper-co-op.onrender.com"; // Production URL
 
 
-// const socket = io('http://localhost:3001');
 const socket = io(serverURL);
 
 export default function Home() {
 
     const [gameOverName, setGameOverName] = useState("");
     const { name, room, playerJoined, numRows, numCols, numMines, setBoard,
-        setGameOver, setGameWon, setRoom, setPlayerJoined, setName,
+        setGameOver, setGameWon, setRoom, setPlayerJoined, setName, setDifficulty,
         setDimensions, setPlayerNamesInRoom } = useMinesweeperStore();
 
     const createRoom = () => {
@@ -37,7 +36,8 @@ export default function Home() {
 
         // Listen for board updates
         socket.on('boardUpdate', (updatedBoard, rows, cols, mines) => {
-            setDimensions(rows, cols, mines, "Medium");
+            setDimensions(rows, cols, mines);
+            setDifficulty("Medium");
             setBoard(updatedBoard);
         });
 
@@ -111,7 +111,8 @@ export default function Home() {
         setGameWon(false);
         setGameOver(false);
         setName("");
-        setDimensions(13, 15, 40, "Medium");
+        setDimensions(13, 15, 40);
+        setDifficulty("Medium")
     }
 
     return (

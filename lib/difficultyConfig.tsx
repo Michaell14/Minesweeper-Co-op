@@ -16,12 +16,5 @@ export const difficultyConfig = [
         cols: 16,
         mines: 60,
         title: "Hard",
-
     },
-    {
-        rows: 30,
-        cols: 16,
-        mines: 99,
-        title: "Expert",
-    },
-] 
+]

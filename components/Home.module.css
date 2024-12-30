@@ -1,15 +1,16 @@
 .cell {
     height: 40px;
     width: 40px;
+    min-width: 40px;
     text-align: center;
     border: 3px solid #3b3b3b;   
 }
 
 @media (max-width: 48em) {
     .cell {
-        height: 30px;
-        width: 30px;
-        min-width: 30px;
+        height: 32px;
+        width: 32px;
+        min-width: 32px;
     }
 }
 

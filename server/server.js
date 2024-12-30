@@ -250,13 +250,15 @@ io.on('connection', (socket) => {
 
     socket.on('createRoom', async ({ room, numRows, numCols, numMines, name }) => {
         const roomExists = await redisClient.exists(`room:${room}`);
-        socket.join(room);
+        socket.join(`${socket.id}:${room}`);
         // Eventually emit an error
         if (roomExists) {
-            io.to(room).emit("createRoomError");
+            io.to(`${socket.id}:${room}`).emit("createRoomError");
             socket.leave(room);
             return;
         }
+        socket.leave(`${socket.id}:${room}`);
+        socket.join(room);
 
         await redisClient.hSet(`room:${room}`, {
             // Initialize empty board
