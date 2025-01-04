@@ -21,6 +21,11 @@ export interface MinesweeperState {
     isChecked: boolean,
     name: string;
     playerNamesInRoom: any[];
+    r: number,
+    c: number,
+    leftClick: boolean,
+    rightClick: boolean,
+    bothPressed: boolean,
     setBoard: (newBoard: Cell[][]) => void;
     setGameOver: (isGameOver: boolean) => void;
     setGameWon: (isGameWon: boolean) => void;
@@ -31,6 +36,11 @@ export interface MinesweeperState {
     setPlayerNamesInRoom: (newNames: any[]) => void;
     setDifficulty: (diff: string) => void;
     setIsChecked: (checked: boolean) => void;
+    setCoord: (newR: number, newC: number) => void;
+    setLeftClick: (lClick: boolean) => void;
+    setRightClick: (rClick: boolean) => void;
+    setBothPressed: (bothPressed: boolean) => void;
+    setCell: (row: number, col: number, newCell: Cell) => void;
 }
 
 export const useMinesweeperStore = create<MinesweeperState>((set, get) => ({
@@ -46,6 +56,15 @@ export const useMinesweeperStore = create<MinesweeperState>((set, get) => ({
     room: "",
     name: "",
     playerNamesInRoom: [],
+    leftClickTime: -1,
+    rightClickTime: -1,
+    r: -1,
+    c: -1,
+    leftTimeout: null,
+    rightTimeout: null,
+    leftClick: false,
+    rightClick: false,
+    bothPressed: false,
     setBoard: (newBoard: Cell[][]) => {
         set({ board: newBoard })
     },
@@ -75,5 +94,25 @@ export const useMinesweeperStore = create<MinesweeperState>((set, get) => ({
     },
     setIsChecked: (checked: boolean) => {
         set({ isChecked: checked })
-    }
+    },
+    setCoord: (newR: number, newC: number) => {
+        set({ r: newR, c: newC })
+    },
+    setLeftClick: (lClick: boolean) => {
+        set({ leftClick: lClick })
+    },
+    setRightClick: (rClick: boolean) => {     
+        set({ rightClick: rClick })
+    },
+    setBothPressed: (bothPressed: boolean) => {
+        set({ bothPressed: bothPressed })
+    },
+    setCell: (row: number, col: number, newCell: Cell) => {
+        set((state) => {
+            const newBoard = state.board.map((r, rowIndex) =>
+                r.map((c, colIndex) => (rowIndex === row && colIndex === col ? newCell : c))
+            );
+            return { ...state, board: newBoard };
+        });
+    },
 }));

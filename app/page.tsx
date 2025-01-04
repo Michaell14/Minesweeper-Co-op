@@ -4,6 +4,7 @@ import io from 'socket.io-client';
 import { useMinesweeperStore } from './store';
 import Landing from "@/components/Landing";
 import Grid from "@/components/Grid";
+import { shootConfetti } from "@/lib/confetti";
 
 const serverURL = process.env.NODE_ENV === "development"
     ? "http://localhost:3001" // Development URL
@@ -17,7 +18,7 @@ export default function Home() {
     const [gameOverName, setGameOverName] = useState("");
     const { name, room, playerJoined, numRows, numCols, numMines, setBoard,
         setGameOver, setGameWon, setRoom, setPlayerJoined, setName, setDifficulty,
-        setDimensions, setPlayerNamesInRoom } = useMinesweeperStore();
+        setDimensions, setPlayerNamesInRoom, setCell } = useMinesweeperStore();
 
     const createRoom = () => {
         if (!room) return;
@@ -32,21 +33,28 @@ export default function Home() {
     };
 
     useEffect(() => {
-        socket.emit('wakeUp');
 
         // Listen for board updates
-        socket.on('boardUpdate', (updatedBoard, rows, cols, mines) => {
-            setDimensions(rows, cols, mines);
+        socket.on('boardUpdate', (updatedBoard) => {
             setDifficulty("Medium");
             setBoard(updatedBoard);
         });
-
+        
+        socket.on("updateCells", (toUpdate) => {
+            toUpdate.forEach((cell: any) => {
+                setCell(cell.row, cell.col, {
+                    isMine: cell.isMine,
+                    isOpen: cell.isOpen,
+                    isFlagged: cell.isFlagged,
+                    nearbyMines: cell.nearbyMines,
+                });
+            });
+        });
         socket.on("playerNamesUpdate", (updatedNames) => {
             setPlayerNamesInRoom(updatedNames);
         })
 
         socket.on("gameWon", () => {
-            console.log("THE GAME IS WON");
             setGameWon(true);
         })
 
@@ -75,6 +83,10 @@ export default function Home() {
             console.log("This room already exists");
             (document.getElementById('dialog-create-room-error') as HTMLDialogElement)?.showModal();
         })
+        
+        socket.on("receiveConfetti", () => {
+            shootConfetti();
+        })
 
         // Clean up socket listeners
         return () => {
@@ -87,13 +99,22 @@ export default function Home() {
             socket.off("joinRoomError");
             socket.off("createRoomError");
             socket.off("playerNamesUpdate");
+            socket.off("updateCells");
+            socket.off("receiveConfetti");
         };
     }, []);
+
+
 
     const openCell = (row: number, col: number) => {
         if (!playerJoined) return;
         socket.emit('openCell', { room, row, col });
     };
+
+    const chordCell = (row: number, col: number) => {
+        if (!playerJoined) return;
+        socket.emit('chordCell', { room, row, col });
+    }
 
     const toggleFlag = (row: number, col: number) => {
         if (!playerJoined) return;
@@ -102,6 +123,10 @@ export default function Home() {
 
     const resetGame = () => {
         socket.emit('resetGame', { room })
+    }
+
+    const emitConfetti = () => {
+        socket.emit('emitConfetti', { room });
     }
 
     const leaveRoom = () => {
@@ -121,7 +146,9 @@ export default function Home() {
                 <Landing createRoom={createRoom} joinRoom={joinRoom} />
             ) : (
                 <>
-                    <Grid leaveRoom={leaveRoom} resetGame={resetGame} toggleFlag={toggleFlag} openCell={openCell} />
+                    <Grid leaveRoom={leaveRoom} resetGame={resetGame} 
+                    toggleFlag={toggleFlag} openCell={openCell} 
+                    chordCell={chordCell} emitConfetti={emitConfetti}/>
 
                 </>
             )}

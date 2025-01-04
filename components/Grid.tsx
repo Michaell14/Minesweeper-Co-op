@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Center, Container, HStack, VStack, Box } from "@chakra-ui/react";
 import { useMinesweeperStore } from '@/app/store';
 import Cell from "@/components/Cell";
-import { shootConfetti } from "@/lib/confetti";
+
 import { Switch } from "@/components/ui/switch";
 
 interface GridParams {
@@ -10,16 +10,33 @@ interface GridParams {
     resetGame: () => void;
     toggleFlag: (row: number, col: number) => void;
     openCell: (row: number, col: number) => void;
+    chordCell: (row: number, col: number) => void;
+    emitConfetti: () => void;
 }
 
-export default function Grid({ leaveRoom, resetGame, toggleFlag, openCell }: GridParams) {
+export default function Grid({ leaveRoom, resetGame, toggleFlag, openCell, chordCell, emitConfetti }: GridParams) {
 
-
-    const { isChecked, room, playerNamesInRoom, board, gameOver, gameWon, setIsChecked } = useMinesweeperStore();
+    const { r, c, leftClick, rightClick, isChecked, room, playerNamesInRoom, board,
+        gameOver, gameWon, setIsChecked, setBothPressed } = useMinesweeperStore();
 
     const openPlayersDialog = () => {
         (document.getElementById('dialog-players') as HTMLDialogElement)?.showModal();
     }
+
+    useEffect(() => {
+        // Check if both buttons are pressed
+        if (leftClick && rightClick) {
+            setBothPressed(true);
+            chordCell(r, c);
+            return;
+        }
+
+        // Release lock when both buttons are released
+        if (!leftClick && !rightClick) {
+            setBothPressed(false);
+        }
+    }, [leftClick, rightClick]);
+
 
     return (
         <>
@@ -39,7 +56,7 @@ export default function Grid({ leaveRoom, resetGame, toggleFlag, openCell }: Gri
                         <Center>
                             {gameWon &&
                                 <a className="nes-badge pb-12">
-                                    <span className="is-success" onClick={shootConfetti}>GAME WON!</span>
+                                    <span className="is-success" onClick={emitConfetti}>GAME WON!</span>
                                 </a>
                             }
                             {gameOver &&
@@ -116,7 +133,7 @@ export default function Grid({ leaveRoom, resetGame, toggleFlag, openCell }: Gri
                                     size="lg"
                                     colorScheme="blue"
                                 />
-                                <p className = "mt-1.5">{isChecked ? "Click" : "Flag"} Mode</p>
+                                <p className="mt-1.5">{isChecked ? "Click" : "Flag"} Mode</p>
                             </HStack>
                         </Box>
                     </VStack>
@@ -126,7 +143,7 @@ export default function Grid({ leaveRoom, resetGame, toggleFlag, openCell }: Gri
                         <Center>
                             {gameWon &&
                                 <a className="nes-badge pb-12">
-                                    <span className="is-success" onClick={shootConfetti}>GAME WON!</span>
+                                    <span className="is-success" onClick={emitConfetti}>GAME WON!</span>
                                 </a>
                             }
                             {gameOver &&
