@@ -353,15 +353,13 @@ io.on('connection', (socket) => {
 
     // When a player joins a room
     socket.on('joinRoom', async ({ room, name }) => {
-        const roomState = await redisClient.hGetAll(`room:${room}`);
+        const roomExists = await redisClient.exists(`room:${room}`);
         socket.join(room);
         // If the room doesn't have a board yet, create one
-        if (!roomState) {
+        if (!roomExists) {
             io.to(room).emit("joinRoomError");
             socket.leave(room);
             return;
-        } else if (roomState.gameWon === "true") {
-            io.to(room).emit("gameWon");
         }
 
         addPlayerToRoom(room, socket.id, name);

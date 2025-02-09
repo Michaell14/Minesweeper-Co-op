@@ -19,13 +19,7 @@ export default function Footer() {
                     <p>1) Create a room code (Can be anything you want)</p>
                     <p>2) Share your room code with friends</p>
                     <p>3) Play together!</p>
-                    <hr />
-
-                    <menu className="dialog-menu justify-between flex mt-3">
-                        <div>
-                            <p className="text-xs text-gray-600">Suggestions for new features?</p>
-                            <p className="text-xs text-gray-600 -mt-3"><a href="https://forms.gle/ALpScH8K7K2QsA8M7" target="_blank">Fill out this form</a></p>
-                        </div>
+                    <menu className="dialog-menu justify-end flex">
                         <button className="nes-btn">Cancel</button>
                     </menu>
                 </form>

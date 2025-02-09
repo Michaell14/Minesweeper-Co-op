@@ -64,7 +64,6 @@ export default function Grid({ leaveRoom, resetGame, toggleFlag, openCell, chord
                                     <span className="is-error">GAME LOST!</span>
                                 </a>
                             }
-                            <p>Time: 0</p>
                         </Center>
                         <table className="flex">
                             <tbody>
@@ -127,6 +126,7 @@ export default function Grid({ leaveRoom, resetGame, toggleFlag, openCell, chord
                         </HStack>
                         <Box hideFrom={"sm"}>
                             <HStack gap={5}>
+
                                 <Switch
                                     defaultChecked
                                     onCheckedChange={(e) => setIsChecked(e.checked)}
