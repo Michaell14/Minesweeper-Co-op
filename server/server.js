@@ -144,6 +144,8 @@ const openCell = async (row, col, room, socketId) => {
     if (
         roomState.gameOver === 'true' ||
         roomState.gameWon === 'true' ||
+        !board ||
+        !board[row][col] ||
         board[row][col].isOpen ||
         board[row][col].isFlagged
     ) return;
