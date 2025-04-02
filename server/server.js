@@ -420,11 +420,12 @@ io.on('connection', (socket) => {
         // Check if room exists and fetch its state in a single call
         const roomState = await redisClient.hGetAll(`room:${room}`);
         if (!roomState || roomState.gameOver === 'true' || roomState.gameWon === 'true') return;
-    
+        
+        if (!roomState || !roomState.board) return;
         const board = JSON.parse(roomState.board);
         
         // Exit early if the cell is already open
-        if (board[row][col].isOpen) return;
+        if (!board || !board[row][col] || board[row][col].isOpen) return;
     
         // Toggle the flag
         board[row][col].isFlagged = !board[row][col].isFlagged;
