@@ -425,7 +425,7 @@ io.on('connection', (socket) => {
         const board = JSON.parse(roomState.board);
         
         // Exit early if the cell is already open
-        if (!board || !board[row][col] || board[row][col].isOpen) return;
+        if (!board || board[row][col] === undefined || !board[row][col] || board[row][col].isOpen) return;
     
         // Toggle the flag
         board[row][col].isFlagged = !board[row][col].isFlagged;
