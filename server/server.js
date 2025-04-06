@@ -382,10 +382,12 @@ io.on('connection', (socket) => {
 
     socket.on("chordCell", async ({ room, row, col }) => {
         const roomState = await redisClient.hGetAll(`room:${room}`);
-        if (!roomState || roomState.gameOver === 'true' || roomState.gameWon === 'true') {
+        if (roomState === undefined || !roomState || roomState.gameOver === 'true' || roomState.gameWon === 'true') {
             return;
         }
-
+        if (roomState.board === undefined || !roomState.board) {
+            return;
+        }
         let board = JSON.parse(roomState.board);
 
         const adjacentCells = getAdjacentCells(row, col, board);
