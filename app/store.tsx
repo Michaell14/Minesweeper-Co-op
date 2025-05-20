@@ -20,12 +20,13 @@ export interface MinesweeperState {
     playerJoined: boolean;
     isChecked: boolean,
     name: string;
-    playerNamesInRoom: any[];
+    playerStatsInRoom: any[];
     r: number,
     c: number,
     leftClick: boolean,
     rightClick: boolean,
     bothPressed: boolean,
+    gameOverName: string,
     setBoard: (newBoard: Cell[][]) => void;
     setGameOver: (isGameOver: boolean) => void;
     setGameWon: (isGameWon: boolean) => void;
@@ -33,7 +34,7 @@ export interface MinesweeperState {
     setPlayerJoined: (isPlayerJoined: boolean) => void;
     setDimensions: (rows: number, cols: number, mines: number) => void;
     setName: (newName: string) => void;
-    setPlayerNamesInRoom: (newNames: any[]) => void;
+    setPlayerStatsInRoom: (newStats: any[]) => void;
     setDifficulty: (diff: string) => void;
     setIsChecked: (checked: boolean) => void;
     setCoord: (newR: number, newC: number) => void;
@@ -41,6 +42,7 @@ export interface MinesweeperState {
     setRightClick: (rClick: boolean) => void;
     setBothPressed: (bothPressed: boolean) => void;
     setCell: (row: number, col: number, newCell: Cell) => void;
+    setGameOverName: (gameOverName: string) => void;
 }
 
 export const useMinesweeperStore = create<MinesweeperState>((set, get) => ({
@@ -55,7 +57,7 @@ export const useMinesweeperStore = create<MinesweeperState>((set, get) => ({
     difficulty: "Medium",
     room: "",
     name: "",
-    playerNamesInRoom: [],
+    playerStatsInRoom: [],
     leftClickTime: -1,
     rightClickTime: -1,
     r: -1,
@@ -65,6 +67,7 @@ export const useMinesweeperStore = create<MinesweeperState>((set, get) => ({
     leftClick: false,
     rightClick: false,
     bothPressed: false,
+    gameOverName: "",
     setBoard: (newBoard: Cell[][]) => {
         set({ board: newBoard })
     },
@@ -89,8 +92,8 @@ export const useMinesweeperStore = create<MinesweeperState>((set, get) => ({
     setName: (newName: string) => {
         set({ name: newName })
     },
-    setPlayerNamesInRoom: (newNames: any[]) => {
-        set({ playerNamesInRoom: newNames });
+    setPlayerStatsInRoom: (newStats: any[]) => {
+        set({ playerStatsInRoom: newStats });
     },
     setIsChecked: (checked: boolean) => {
         set({ isChecked: checked })
@@ -101,7 +104,7 @@ export const useMinesweeperStore = create<MinesweeperState>((set, get) => ({
     setLeftClick: (lClick: boolean) => {
         set({ leftClick: lClick })
     },
-    setRightClick: (rClick: boolean) => {     
+    setRightClick: (rClick: boolean) => {
         set({ rightClick: rClick })
     },
     setBothPressed: (bothPressed: boolean) => {
@@ -115,4 +118,7 @@ export const useMinesweeperStore = create<MinesweeperState>((set, get) => ({
             return { ...state, board: newBoard };
         });
     },
+    setGameOverName: (gameOverName: string) => {
+        set({ gameOverName: gameOverName })
+    }
 }));

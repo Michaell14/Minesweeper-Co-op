@@ -2,7 +2,6 @@ import React, { useEffect } from 'react';
 import { Center, Container, HStack, VStack, Box } from "@chakra-ui/react";
 import { useMinesweeperStore } from '@/app/store';
 import Cell from "@/components/Cell";
-
 import { Switch } from "@/components/ui/switch";
 
 interface GridParams {
@@ -16,7 +15,7 @@ interface GridParams {
 
 export default function Grid({ leaveRoom, resetGame, toggleFlag, openCell, chordCell, emitConfetti }: GridParams) {
 
-    const { r, c, leftClick, rightClick, isChecked, room, playerNamesInRoom, board,
+    const { r, c, leftClick, rightClick, isChecked, room, playerStatsInRoom, board,
         gameOver, gameWon, setIsChecked, setBothPressed } = useMinesweeperStore();
 
     const openPlayersDialog = () => {
@@ -97,7 +96,7 @@ export default function Grid({ leaveRoom, resetGame, toggleFlag, openCell, chord
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {playerNamesInRoom.map((item, index) => (
+                                    {playerStatsInRoom.map((item, index) => (
                                         <tr key={index}>
                                             <td className="text-sm max-w-40">{item.name}</td>
                                             <td className="text-sm">{item.score}</td>
@@ -186,7 +185,7 @@ export default function Grid({ leaveRoom, resetGame, toggleFlag, openCell, chord
                                 </tr>
                             </thead>
                             <tbody>
-                                {playerNamesInRoom.map((item, index) => (
+                                {playerStatsInRoom.map((item, index) => (
                                     <tr key={index}>
                                         <td className="text-sm max-w-60">{item.name}</td>
                                         <td className="text-sm">{item.score}</td>

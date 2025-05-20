@@ -1,23 +1,24 @@
 const { io } = require('./initializeClient');
 const { redisClient } = require('./initializeRedisClient');
 
-const updatePlayerNamesInRoom = async (room) => {
-    if (!room) return;
+// Basically updates the player's stats whenever:
+// 1) A player joins/leaves the room
+// 2) A player increments their score
+const updatePlayerStatsInRoom = async (room) => {
+    if (!room) return; // Necessary??
     const client = await redisClient;
     const playersInRoom = JSON.parse(await client.hGet(`room:${room}`, "players"));
-
     if (!playersInRoom) return;
 
-    const roomNames = [];
+    const updatedStats = [];
     for (let i = 0; i < playersInRoom.length; i++) {
         const playerState = await client.hGetAll(`player:${playersInRoom[i]}`);
-        roomNames.push({
+        updatedStats.push({
             name: playerState.name,
             score: parseInt(playerState.score)
         });
     }
-
-    io.to(room).emit("playerNamesUpdate", roomNames);
+    io.to(room).emit("playerStatsUpdate", updatedStats);
 }
 
 const resetPlayerScores = async (room) => {
@@ -37,26 +38,36 @@ const addPlayerToRoom = async (room, socketId, name) => {
     const playerExists = await client.exists(`player:${socketId}`);
     if (!playerExists) {
         await client.hSet(`player:${socketId}`, {
-            room: "",
+            room: room,
             name: name,
             score: "0"
         })
         await client.expire(`player:${socketId}`, 86400); // Deletes a user after a day
+    } else {
+        await client.hSet(`player:${socketId}`, { "room": room });
     }
 
-    await client.hSet(`player:${socketId}`, { "room": room });
-
+    // Add the player to the room
     const roomState = await client.hGetAll(`room:${room}`);
+
+    if (roomState.gameWon === "true") {
+        io.to(room).emit("gameWon");
+    }
+
+    if (roomState.gameOver === "true") {
+        io.to(room).emit("gameOver", "");
+    }
+
     const roomPlayers = JSON.parse(roomState.players);
     roomPlayers.push(socketId);
+    
     // Save the updated players array back to Redis
     await client.hSet(`room:${room}`, { players: JSON.stringify(roomPlayers) });
 
     // Send the current board to the player who joined
     const board = JSON.parse(roomState.board);
     io.to(room).emit('boardUpdate', board);
-
-    updatePlayerNamesInRoom(room);
+    await updatePlayerStatsInRoom(room);
 }
 
 const removePlayer = async (socket, socketId) => {
@@ -80,9 +91,9 @@ const removePlayer = async (socket, socketId) => {
             await client.del(`room:${room}`);
         }
     }
-    updatePlayerNamesInRoom(room);
+    updatePlayerStatsInRoom(room);
     socket.leave(room);
     await client.del(`player:${socketId}`);
 }
 
-module.exports = { updatePlayerNamesInRoom, resetPlayerScores, addPlayerToRoom, removePlayer };
+module.exports = { updatePlayerStatsInRoom, resetPlayerScores, addPlayerToRoom, removePlayer };

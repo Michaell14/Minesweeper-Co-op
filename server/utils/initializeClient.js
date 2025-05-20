@@ -11,6 +11,12 @@ const io = new Server(server, {
             "https://minesweeper-test.vercel.app", // Production
             "https://www.minesweepercoop.com"
         ]
+    },
+    connectionStateRecovery: {
+        // the backup duration of the sessions and the packets
+        maxDisconnectionDuration: 2 * 60 * 1000,
+        // whether to skip middlewares upon successful recovery
+        skipMiddlewares: true,
     }
 });
 

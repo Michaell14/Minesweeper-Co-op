@@ -1,25 +1,53 @@
 const { server, io } = require('./utils/initializeClient');
-const { updatePlayerNamesInRoom, resetPlayerScores, removePlayer } = require('./utils/playerUtils');
-const { createRoom, joinRoom } = require('./utils/gameUtils');
-const { openCell, chordCell } = require('./utils/boardUtils');
+const { removePlayer, addPlayerToRoom } = require('./utils/playerUtils');
+const { createRoom, resetGame } = require('./utils/gameUtils');
+const { openCell, chordCell, toggleFlag } = require('./utils/boardUtils');
 const { redisClient } = require('./utils/initializeRedisClient');
 
 // When a new socket connects
 io.on('connection', async (socket) => {
     const client = await redisClient;
+    
     socket.on('createRoom', async ({ room, numRows, numCols, numMines, name }) => {
-        createRoom(room, numRows, numCols, numMines, name, socket);
+        const roomExists = await client.exists(`room:${room}`);
+
+        // If the room exists, emit an error
+        if (roomExists) {
+            socket.join(`${socket.id}:${room}`);
+            io.to(`${socket.id}:${room}`).emit("createRoomError");
+            socket.leave(`${socket.id}:${room}`);
+            return;
+        }
+        socket.join(room);
+
+        await createRoom(room, numRows, numCols, numMines, name); // Creates the room once we verified that it doesn't exist
+        await addPlayerToRoom(room, socket.id, name); // Adds player's socket_id to current room
+        io.to(room).emit("joinRoomSuccess", room); // Returns success
     })
 
     // When a player joins a room
     socket.on('joinRoom', async ({ room, name }) => {
-        joinRoom(room, name, socket, io);
+        const roomExists = await client.exists(`room:${room}`);
+
+        socket.join(room);
+
+        // If room does not exist, emit error + leave room
+        if (!roomExists) {
+            io.to(room).emit("joinRoomError");
+            socket.leave(room);
+            return;
+        }
+
+        addPlayerToRoom(room, socket.id, name); // Adds player's socket_id to current room
+        io.to(room).emit("joinRoomSuccess", room); // Returns success
     });
 
     // When a player opens a cell
     socket.on('openCell', async ({ room, row, col }) => {
-        const roomExists = await client.exists(`room:${room}`);
 
+        // If player is somehow clicking on a cell, but they haven't managed to enter a room, then return
+        // Scenario: Room times out and gets deleted
+        const roomExists = await client.exists(`room:${room}`);
         if (!roomExists) {
             return;
         }
@@ -28,62 +56,30 @@ io.on('connection', async (socket) => {
     });
 
     socket.on("chordCell", async ({ room, row, col }) => {
+        const roomExists = await client.exists(`room:${room}`);
+        if (!roomExists) {
+            return;
+        }
         chordCell(row, col, room, socket.id);
     });
 
-
     socket.on('toggleFlag', async ({ room, row, col }) => {
-        toggleFlag(row, col, room);
+        toggleFlag(row, col, room, socket.id);
     });
 
-    socket.on("emitConfetti", async({room}) => {
+    socket.on("emitConfetti", async ({ room }) => {
         io.to(room).emit("receiveConfetti");
     })
-    
+
     socket.on('resetGame', async ({ room }) => {
-        // Fetch room state once
-        const roomState = await client.hGetAll(`room:${room}`);
-        if (!roomState) return;
-    
-        const numRows = parseInt(roomState.numRows, 10);
-        const numCols = parseInt(roomState.numCols, 10);
-    
-        // Create an empty board with a more memory-efficient method
-        const newBoard = Array.from({ length: numRows }, () =>
-            Array.from({ length: numCols }, () => ({
-                isMine: false,
-                isOpen: false,
-                isFlagged: false,
-                nearbyMines: 0,
-            }))
-        );
-    
-        // Emit events to reset the board and players
-        io.to(room).emit('boardUpdate', newBoard);
-        io.to(room).emit('resetEveryone');
-    
-        // Update room state and reset player scores in Redis
-        await client.hSet(`room:${room}`, {
-            board: JSON.stringify(newBoard),
-            gameOver: 'false',
-            gameWon: 'false',
-            initialized: 'false',
-        });
-    
-        // Reset player scores and update player names
-        await Promise.all([
-            resetPlayerScores(room),
-            updatePlayerNamesInRoom(room),
-        ]);
+        resetGame(room);
     });
-    
 
     socket.on("playerLeave", async () => {
         removePlayer(socket, socket.id);
     });
 
     socket.on('disconnect', async () => {
-        // console.log(`Player disconnected: ${socket.id}`);
         removePlayer(socket, socket.id);
     });
 });

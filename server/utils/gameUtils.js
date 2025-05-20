@@ -1,8 +1,9 @@
-const { addPlayerToRoom } = require('./playerUtils');
+const { addPlayerToRoom, resetPlayerScores, updatePlayerStatsInRoom } = require('./playerUtils');
 const { io } = require('./initializeClient');
 const { redisClient } = require('./initializeRedisClient');
 
-// Utility function to generate a board (reusing your board generation logic)
+// Utility function to generate a board
+// Checked
 const generateBoard = (numRows, numCols, numMines, excludeRow, excludeCol) => {
     const board = Array(numRows)
         .fill(null)
@@ -16,19 +17,32 @@ const generateBoard = (numRows, numCols, numMines, excludeRow, excludeCol) => {
         );
 
     let placedMines = 0;
+
+    // Randomly placing mines on the board
     while (placedMines < numMines) {
         const row = Math.floor(Math.random() * numRows);
         const col = Math.floor(Math.random() * numCols);
 
         if (
             !board[row][col].isMine &&
+            
+            // wtf is this thing checkin
             !(row >= excludeRow - 1 && row <= excludeRow + 1 && col >= excludeCol - 1 && col <= excludeCol + 1)
+
+            // test this later:
+            // row != excludeRow &&
+            // col != excludeCol
         ) {
-            board[row][col] = { ...board[row][col], isMine: true };
+            board[row][col] = { 
+                ...board[row][col],
+                isMine: true
+            };
             placedMines++;
         }
     }
 
+    // For each cell, calculating the number of mines in its 3x3 perimeter
+    // Runtime: O(n^2)
     for (let r = 0; r < numRows; r++) {
         for (let c = 0; c < numCols; c++) {
             if (!board[r][c].isMine) {
@@ -42,7 +56,10 @@ const generateBoard = (numRows, numCols, numMines, excludeRow, excludeCol) => {
                         }
                     }
                 }
-                board[r][c] = { ...board[r][c], nearbyMines: count };
+                board[r][c] = { 
+                    ...board[r][c],
+                    nearbyMines: count
+                };
             }
         }
     }
@@ -54,7 +71,6 @@ const checkWin = async (roomState, board, room) => {
     if (roomState.gameOver === 'true') {
         return;
     }
-
     const allNonMinesOpened = board.every((row) =>
         row.every((cell) => (cell.isMine && !cell.isOpen) || (!cell.isMine && cell.isOpen))
     );
@@ -66,21 +82,28 @@ const checkWin = async (roomState, board, room) => {
     }
 }
 
-const createRoom = async (room, numRows, numCols, numMines, name, socket) => {
+// Note that Object properties set in redis must be string
+// ROOM PROPERTIES:
+// gameOver
+// gameWon
+// initialized
+// players
+// numRows
+// numCols
+// numMines
+
+// CELL PROPERTIES:
+// isMine: boolean
+// isOpen: boolean
+// isFlagged: boolean
+// nearbyMines: number
+
+// Checked
+const createRoom = async (room, numRows, numCols, numMines, name) => {
     const client = await redisClient;
-    const roomExists = await client.exists(`room:${room}`);
-    socket.join(`${socket.id}:${room}`);
-    // Eventually emit an error
-    if (roomExists) {
-        io.to(`${socket.id}:${room}`).emit("createRoomError");
-        socket.leave(room);
-        return;
-    }
-    socket.leave(`${socket.id}:${room}`);
-    socket.join(room);
 
     await client.hSet(`room:${room}`, {
-        // Initialize empty board
+        // Initialize empty board for player to visualize before first click
         board: JSON.stringify(Array(numRows)
             .fill(null)
             .map(() =>
@@ -99,23 +122,44 @@ const createRoom = async (room, numRows, numCols, numMines, name, socket) => {
         numCols: numCols.toString(),
         numMines: numMines.toString()
     })
-
-    addPlayerToRoom(room, socket.id, name);
-    io.to(room).emit("joinRoomSuccess", room);
+    await client.expire(`room:${room}`, 86400); // Deletes room after 24 hours
 }
 
-const joinRoom = async (room, name, socket, io) => {
+const resetGame = async (room) => {
     const client = await redisClient;
-    const roomExists = await client.exists(`room:${room}`);
-    socket.join(room);
-    // If the room doesn't have a board yet, create one
-    if (!roomExists) {
-        io.to(room).emit("joinRoomError");
-        socket.leave(room);
-        return;
-    }
+    // Fetch room state once
+    const roomState = await client.hGetAll(`room:${room}`);
+    if (!roomState) return;
 
-    addPlayerToRoom(room, socket.id, name);
-    io.to(room).emit("joinRoomSuccess", room);
+    const numRows = parseInt(roomState.numRows, 10);
+    const numCols = parseInt(roomState.numCols, 10);
+
+    // Create an empty board with a more memory-efficient method
+    const newBoard = Array.from({ length: numRows }, () =>
+        Array.from({ length: numCols }, () => ({
+            isMine: false,
+            isOpen: false,
+            isFlagged: false,
+            nearbyMines: 0,
+        }))
+    );
+
+    // Emit events to reset the board and players
+    io.to(room).emit('boardUpdate', newBoard);
+    io.to(room).emit('resetEveryone');
+
+    // Update room state and reset player scores in Redis
+    await client.hSet(`room:${room}`, {
+        board: JSON.stringify(newBoard),
+        gameOver: 'false',
+        gameWon: 'false',
+        initialized: 'false',
+    });
+
+    // Reset player scores and update player names
+    await Promise.all([
+        resetPlayerScores(room),
+        updatePlayerStatsInRoom(room),
+    ]);
 }
-module.exports = { generateBoard, checkWin, createRoom, joinRoom };
+module.exports = { generateBoard, checkWin, createRoom, resetGame };

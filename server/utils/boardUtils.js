@@ -1,5 +1,5 @@
 const { generateBoard, checkWin } = require('./gameUtils');
-const { updatePlayerNamesInRoom } = require('./playerUtils');
+const { updatePlayerStatsInRoom } = require('./playerUtils');
 const { io } = require('./initializeClient');
 const { redisClient } = require('./initializeRedisClient');
 
@@ -29,10 +29,12 @@ const getAdjacentCells = (row, col, grid) => {
     return adjacentCells;
 };
 
+// Reveals a cell to player
 const reveal = async (board, r, c, room, socketId, toUpdate) => {
     const client = await redisClient;
     const stack = [[r, c]];
 
+    // Iteratively reveals open cells
     while (stack.length > 0) {
         const [row, col] = stack.pop();
 
@@ -62,25 +64,30 @@ const reveal = async (board, r, c, room, socketId, toUpdate) => {
     }
 };
 
+// Opens a cell
 const openCell = async (row, col, room, socketId) => {
     const client = await redisClient;
+
     // Fetch room state and board in parallel to save time
     const [roomState, playerScore] = await Promise.all([
         client.hGetAll(`room:${room}`),
-        client.hGet(`player:${socketId}`, "score"),
+        client.hGet(`player:${socketId}`, "score"), // Retrieves the player score to later increment it
     ]);
+
+    // Return when game is over -> no more interactions necessary
+    if (roomState.gameOver === 'true' || roomState.gameWon === 'true') {
+        return;
+    }
 
     // Parse board only if necessary
     let board = JSON.parse(roomState.board);
 
-    // Check invalid scenarios early to return immediately
+    // Check invalid scenarios with board state
     if (
-        roomState.gameOver === 'true' ||
-        roomState.gameWon === 'true' ||
-        board === undefined ||
-        !board ||
+        board === undefined || 
+        !board || // Necessary??
         board[row][col] === undefined ||
-        !board[row][col] ||
+        !board[row][col] || // Necessary??
         board[row][col].isOpen ||
         board[row][col].isFlagged
     ) return;
@@ -89,6 +96,7 @@ const openCell = async (row, col, room, socketId) => {
     const numCols = parseInt(roomState.numCols);
     const numMines = parseInt(roomState.numMines);
     let justInitialized = false;
+
     // Initialize board if not already initialized
     if (roomState.initialized === 'false') {
         board = generateBoard(numRows, numCols, numMines, row, col);
@@ -101,13 +109,12 @@ const openCell = async (row, col, room, socketId) => {
         // Update player score in a single database operation
         const newScore = parseInt(playerScore || '0') + 1;
         await client.hSet(`player:${socketId}`, { score: newScore.toString() });
-        updatePlayerNamesInRoom(room); // Consider making this function asynchronous
+        updatePlayerStatsInRoom(room); // Consider making this function asynchronous
     }
 
     // Reveal cells and update board state
     const toUpdate = [];
-    reveal(board, row, col, room, socketId, toUpdate);
-
+    await reveal(board, row, col, room, socketId, toUpdate);
     // Check for game win condition
     checkWin(roomState, board, room);
 
@@ -153,7 +160,7 @@ const chordCell = async (row, col, room, socketId) => {
     // Updating player score
     const newScore = parseInt(await client.hGet(`player:${socketId}`, "score")) + scoreIncrease;
     await client.hSet(`player:${socketId}`, { score: newScore.toString() })
-    updatePlayerNamesInRoom(room);
+    updatePlayerStatsInRoom(room);
 
     checkWin(roomState, board, room);
     io.to(room).emit("updateCells", toUpdate);
@@ -176,9 +183,9 @@ const toggleFlag = async (row, col, room) => {
 
     // Prepare the update for broadcasting
     const toUpdate = [{
+        ...board[row][col],
         row,
         col,
-        ...board[row][col]
     }];
 
     // Emit the cell update and update the board in Redis

@@ -12,6 +12,14 @@ async function initializeRedisClient() {
             },
         });
 
+        setInterval(async () => {
+            try {
+              await client.ping();
+            } catch (err) {
+              console.error('❌ Redis ping failed:', err);
+            }
+          }, 60000); // ping every 60 seconds
+          
         await client.connect().then(() => {
             console.log('Connected to Redis');
         }).catch((err) => {
