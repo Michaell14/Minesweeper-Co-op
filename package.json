@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "start-server": "cd server && node server.js"
   },
   "dependencies": {
     "@chakra-ui/react": "^3.2.3",
