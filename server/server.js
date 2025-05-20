@@ -49,6 +49,8 @@ io.on('connection', async (socket) => {
         // Scenario: Room times out and gets deleted
         const roomExists = await client.exists(`room:${room}`);
         if (!roomExists) {
+            io.to(room).emit("roomDoesNotExistError");
+            socket.leave(room);
             return;
         }
 
@@ -58,12 +60,20 @@ io.on('connection', async (socket) => {
     socket.on("chordCell", async ({ room, row, col }) => {
         const roomExists = await client.exists(`room:${room}`);
         if (!roomExists) {
+            io.to(room).emit("roomDoesNotExistError");
+            socket.leave(room);
             return;
         }
         chordCell(row, col, room, socket.id);
     });
 
     socket.on('toggleFlag', async ({ room, row, col }) => {
+        const roomExists = await client.exists(`room:${room}`);
+        if (!roomExists) {
+            io.to(room).emit("roomDoesNotExistError");
+            socket.leave(room);
+            return;
+        }
         toggleFlag(row, col, room, socket.id);
     });
 

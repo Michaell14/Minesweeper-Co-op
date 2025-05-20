@@ -72,14 +72,17 @@ export default function Home() {
 
         // Shows Join Room Error Dialog
         socket.on("joinRoomError", () => {
-            console.log("This room does not exist yet");
             (document.getElementById('dialog-join-room-error') as HTMLDialogElement)?.showModal();
         })
 
         // Shows Create Room Error Dialog
         socket.on("createRoomError", () => {
-            console.log("This room already exists");
             (document.getElementById('dialog-create-room-error') as HTMLDialogElement)?.showModal();
+        })
+
+        socket.on("roomDoesNotExistError", () => {
+            leaveRoom();
+            (document.getElementById('dialog-room-does-not-exist-error') as HTMLDialogElement)?.showModal();
         })
 
         // CONFETTIIIIIIIIIIII
@@ -187,6 +190,15 @@ export default function Home() {
                     <p>This room does not exist.</p>
                     <div className="flex justify-between">
                         <button className="nes-btn">Cancel</button>
+                    </div>
+                </form>
+            </dialog>
+            
+            <dialog className="nes-dialog absolute left-1/2 top-60 -translate-x-1/2" id="dialog-room-does-not-exist-error">
+                <form method="dialog">
+                    <p>There was an error joining the room.</p>
+                    <div className="flex justify-between">
+                        <button className="nes-btn" onClick={() => setPlayerJoined(false)}>Cancel</button>
                     </div>
                 </form>
             </dialog>
