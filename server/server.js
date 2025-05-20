@@ -42,38 +42,32 @@ io.on('connection', async (socket) => {
         io.to(room).emit("joinRoomSuccess", room); // Returns success
     });
 
-    // When a player opens a cell
-    socket.on('openCell', async ({ room, row, col }) => {
-
-        // If player is somehow clicking on a cell, but they haven't managed to enter a room, then return
-        // Scenario: Room times out and gets deleted
+    const isValid = async (room) => {
         const roomExists = await client.exists(`room:${room}`);
-        if (!roomExists) {
+        const playerExists = await client.exists(`player:${socket.id}`);
+        if (!roomExists || !playerExists) {
             io.to(room).emit("roomDoesNotExistError");
             socket.leave(room);
-            return;
+            return false;
         }
+        return true;
+    }
 
+    // When a player opens a cell
+    socket.on('openCell', async ({ room, row, col }) => {
+        // If player is somehow clicking on a cell, but they haven't managed to enter a room, then return
+        // Scenario: Room times out and gets deleted
+        if (!(await isValid(room))) return;
         openCell(row, col, room, socket.id);
     });
 
     socket.on("chordCell", async ({ room, row, col }) => {
-        const roomExists = await client.exists(`room:${room}`);
-        if (!roomExists) {
-            io.to(room).emit("roomDoesNotExistError");
-            socket.leave(room);
-            return;
-        }
+        if (!(await isValid(room))) return;
         chordCell(row, col, room, socket.id);
     });
 
     socket.on('toggleFlag', async ({ room, row, col }) => {
-        const roomExists = await client.exists(`room:${room}`);
-        if (!roomExists) {
-            io.to(room).emit("roomDoesNotExistError");
-            socket.leave(room);
-            return;
-        }
+        if (!(await isValid(room))) return;
         toggleFlag(row, col, room, socket.id);
     });
 
