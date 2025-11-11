@@ -79,7 +79,8 @@ export default function Grid({ leaveRoom, resetGame, toggleFlag, openCell, chord
                                                 row={rowIndex}
                                                 col={colIndex}
                                                 toggleFlag={toggleFlag}
-                                                openCell={openCell} />
+                                                openCell={openCell}
+                                                chordCell={chordCell} />
                                         ))}
                                     </tr>
 
@@ -166,7 +167,8 @@ export default function Grid({ leaveRoom, resetGame, toggleFlag, openCell, chord
                                                 row={rowIndex}
                                                 col={colIndex}
                                                 toggleFlag={toggleFlag}
-                                                openCell={openCell} />
+                                                openCell={openCell}
+                                                chordCell={chordCell} />
                                         ))}
                                     </tr>
 

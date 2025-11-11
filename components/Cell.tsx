@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import styles from "./Home.module.css";
 import { useMinesweeperStore } from '@/app/store';
 import { Box } from "@chakra-ui/react";
@@ -10,9 +10,10 @@ interface CellParams {
     col: number,
     toggleFlag: (row: number, col: number) => void;
     openCell: (row: number, col: number) => void;
+    chordCell: (row: number, col: number) => void;
 }
 
-export default function Cell({ cell, row, col, toggleFlag, openCell }: CellParams) {
+export default function Cell({ cell, row, col, toggleFlag, openCell, chordCell }: CellParams) {
     const { bothPressed, isChecked, gameOver,
         setLeftClick, setRightClick, setCoord } = useMinesweeperStore();
 
@@ -20,6 +21,10 @@ export default function Cell({ cell, row, col, toggleFlag, openCell }: CellParam
         setCoord(row, col);
         if (event.button === 0) {
             setLeftClick(true);
+        } else if (event.button === 1) {
+            // Middle mouse button - chord immediately
+            event.preventDefault();
+            chordCell(row, col);
         } else if (event.button === 2) {
             setRightClick(true);
         }
@@ -42,7 +47,12 @@ export default function Cell({ cell, row, col, toggleFlag, openCell }: CellParam
     };
 
     if ((cell.isOpen || gameOver) && cell.isMine) {
-        return <td key={col} className={`${styles.cell} ${styles.mine}`}>💣</td>;
+        return <td key={col} className={`${styles.cell} ${styles.mine}`} onMouseDown={(e) => {
+            // Prevent middle mouse button default behavior (scrolling)
+            if (e.button === 1) {
+                e.preventDefault();
+            }
+        }}>💣</td>;
     }
     if (cell.isOpen) {
         return (
@@ -64,6 +74,12 @@ export default function Cell({ cell, row, col, toggleFlag, openCell }: CellParam
                 onContextMenu={(e) => {
                     e.preventDefault();
                     toggleFlag(row, col);
+                }}
+                onMouseDown={(e) => {
+                    // Prevent middle mouse button default behavior (scrolling)
+                    if (e.button === 1) {
+                        e.preventDefault();
+                    }
                 }}>
 
                 <Box h={"full"} w={"full"} hideFrom={"sm"} onClick={() => { !isChecked ? toggleFlag(row, col) : {} }}>
@@ -84,6 +100,12 @@ export default function Cell({ cell, row, col, toggleFlag, openCell }: CellParam
             onContextMenu={(e) => {
                 e.preventDefault();
                 toggleFlag(row, col);
+            }}
+            onMouseDown={(e) => {
+                // Prevent middle mouse button default behavior (scrolling)
+                if (e.button === 1) {
+                    e.preventDefault();
+                }
             }}>
             <Box h={"full"} w={"full"} hideFrom={"sm"} onClick={() => { isChecked ? openCell(row, col) : toggleFlag(row, col) }}>
 
