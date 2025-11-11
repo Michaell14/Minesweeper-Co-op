@@ -65,16 +65,32 @@ export default function Landing({ createRoom, joinRoom }: LandingParams) {
         const rows = parseInt(data.rows.toString())
         const cols = parseInt(data.cols.toString())
         const mines = parseInt(data.mines.toString())
+
+        // Validate board size and mine count
         if (mines >= (rows * cols) / 2){
             (document.getElementById('dialog-custom-error') as HTMLDialogElement)?.showModal();
             return;
         }
+        // Ensure board is large enough for exclusion zone (3x3 = 9 cells)
+        if (rows * cols < 20 || rows < 3 || cols < 3){
+            (document.getElementById('dialog-custom-error') as HTMLDialogElement)?.showModal();
+            return;
+        }
+        // Ensure there's at least some safe spaces after exclusion
+        const availableSpaces = (rows * cols) - 9; // Exclude 3x3 around first click
+        if (mines > availableSpaces - 5){
+            (document.getElementById('dialog-custom-error') as HTMLDialogElement)?.showModal();
+            return;
+        }
+
         setDimensions(rows, cols, mines);
         (document.getElementById('dialog-custom') as HTMLDialogElement)?.close();
     })
 
     const cancelCustom = () => {
-        setDimensions(0,0,0);
+        // Reset to Medium difficulty instead of invalid 0,0,0
+        setDimensions(15, 13, 40);
+        setDifficulty("Medium");
         (document.getElementById('dialog-custom') as HTMLDialogElement)?.close();
     }
 
@@ -149,11 +165,23 @@ export default function Landing({ createRoom, joinRoom }: LandingParams) {
                 <form method="dialog">
                     <p>Enter your Name:</p>
                     <div className="nes-field mb-4">
-                        <input type="text" maxLength={16} className="nes-input text-sm" onChange={(e) => setName(e.target.value)} />
+                        <input type="text" name="name" maxLength={16} minLength={1} required className="nes-input text-sm" onChange={(e) => setName(e.target.value)} />
                     </div>
                     <div className="flex justify-between">
-                        <button className="nes-btn">Cancel</button>
-                        <button onClick={createRoom} type={"submit"} className="nes-btn is-success">Confirm</button>
+                        <button type="button" className="nes-btn" onClick={() => {
+                            (document.getElementById('dialog-name-create') as HTMLDialogElement)?.close();
+                        }}>Cancel</button>
+                        <button onClick={(e) => {
+                            const input = document.querySelector('#dialog-name-create input[name="name"]') as HTMLInputElement;
+                            const nameValue = input?.value || '';
+                            if (!nameValue || nameValue.trim().length === 0) {
+                                e.preventDefault();
+                                alert('Please enter a valid name');
+                                return;
+                            }
+                            setName(nameValue);
+                            setTimeout(() => createRoom(), 0);
+                        }} type="submit" className="nes-btn is-success">Confirm</button>
                     </div>
                 </form>
             </dialog>
@@ -161,11 +189,23 @@ export default function Landing({ createRoom, joinRoom }: LandingParams) {
                 <form method="dialog">
                     <p>Enter your Name:</p>
                     <div className="nes-field mb-4">
-                        <input type="text" maxLength={16} className="nes-input text-sm" onChange={(e) => setName(e.target.value)} />
+                        <input type="text" name="name" maxLength={16} minLength={1} required className="nes-input text-sm" onChange={(e) => setName(e.target.value)} />
                     </div>
                     <div className="flex justify-between">
-                        <button className="nes-btn">Cancel</button>
-                        <button onClick={joinRoom} className="nes-btn is-success">Confirm</button>
+                        <button type="button" className="nes-btn" onClick={() => {
+                            (document.getElementById('dialog-name-join') as HTMLDialogElement)?.close();
+                        }}>Cancel</button>
+                        <button onClick={(e) => {
+                            const input = document.querySelector('#dialog-name-join input[name="name"]') as HTMLInputElement;
+                            const nameValue = input?.value || '';
+                            if (!nameValue || nameValue.trim().length === 0) {
+                                e.preventDefault();
+                                alert('Please enter a valid name');
+                                return;
+                            }
+                            setName(nameValue);
+                            setTimeout(() => joinRoom(), 0);
+                        }} type="submit" className="nes-btn is-success">Confirm</button>
                     </div>
                 </form>
             </dialog>

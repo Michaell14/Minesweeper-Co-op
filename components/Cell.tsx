@@ -13,7 +13,7 @@ interface CellParams {
 }
 
 export default function Cell({ cell, row, col, toggleFlag, openCell }: CellParams) {
-    const { r, c, bothPressed, isChecked, gameOver,
+    const { bothPressed, isChecked, gameOver,
         setLeftClick, setRightClick, setCoord } = useMinesweeperStore();
 
     const handleMouseDown = (event: any) => {
@@ -29,13 +29,13 @@ export default function Cell({ cell, row, col, toggleFlag, openCell }: CellParam
     const handleMouseUp = (event: any) => {
         if (event.button === 0) {
             if (!bothPressed) {
-                openCell(r, c);
+                openCell(row, col);
             }
             setLeftClick(false);
-            
+
         } else if (event.button === 2) {
             if (!bothPressed) {
-                toggleFlag(r, c);
+                toggleFlag(row, col);
             }
             setRightClick(false);
         }

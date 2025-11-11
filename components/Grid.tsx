@@ -26,7 +26,10 @@ export default function Grid({ leaveRoom, resetGame, toggleFlag, openCell, chord
         // Check if both buttons are pressed
         if (leftClick && rightClick) {
             setBothPressed(true);
-            chordCell(r, c);
+            // Only chord if we have valid coordinates
+            if (r >= 0 && c >= 0) {
+                chordCell(r, c);
+            }
             return;
         }
 
@@ -34,7 +37,7 @@ export default function Grid({ leaveRoom, resetGame, toggleFlag, openCell, chord
         if (!leftClick && !rightClick) {
             setBothPressed(false);
         }
-    }, [leftClick, rightClick]);
+    }, [leftClick, rightClick, r, c]); // Removed chordCell and setBothPressed from dependencies
 
 
     return (

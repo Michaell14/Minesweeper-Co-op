@@ -5,40 +5,44 @@ const { redisClient } = require('./initializeRedisClient');
 // Utility function to generate a board
 // Checked
 const generateBoard = (numRows, numCols, numMines, excludeRow, excludeCol) => {
-    const board = Array(numRows)
-        .fill(null)
-        .map(() =>
-            Array(numCols).fill({
-                isMine: false,
-                isOpen: false,
-                isFlagged: false,
-                nearbyMines: 0,
-            })
-        );
+    const board = Array.from({ length: numRows }, () =>
+        Array.from({ length: numCols }, () => ({
+            isMine: false,
+            isOpen: false,
+            isFlagged: false,
+            nearbyMines: 0,
+        }))
+    );
 
-    let placedMines = 0;
+    // Calculate available cells (excluding the 3x3 area around first click)
+    const totalCells = numRows * numCols;
+    const excludedCells = 9; // 3x3 grid around first click
+    const maxMines = totalCells - excludedCells;
 
-    // Randomly placing mines on the board
-    while (placedMines < numMines) {
-        const row = Math.floor(Math.random() * numRows);
-        const col = Math.floor(Math.random() * numCols);
+    // Prevent infinite loop by capping mines at available space
+    const actualMines = Math.min(numMines, maxMines);
 
-        if (
-            !board[row][col].isMine &&
-            
-            // wtf is this thing checkin
-            !(row >= excludeRow - 1 && row <= excludeRow + 1 && col >= excludeCol - 1 && col <= excludeCol + 1)
-
-            // test this later:
-            // row != excludeRow &&
-            // col != excludeCol
-        ) {
-            board[row][col] = { 
-                ...board[row][col],
-                isMine: true
-            };
-            placedMines++;
+    // Create array of all valid positions
+    const validPositions = [];
+    for (let r = 0; r < numRows; r++) {
+        for (let c = 0; c < numCols; c++) {
+            // Exclude 3x3 area around first click
+            if (!(r >= excludeRow - 1 && r <= excludeRow + 1 && c >= excludeCol - 1 && c <= excludeCol + 1)) {
+                validPositions.push({ row: r, col: c });
+            }
         }
+    }
+
+    // Shuffle array using Fisher-Yates algorithm and place mines
+    for (let i = validPositions.length - 1; i >= validPositions.length - actualMines; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [validPositions[i], validPositions[j]] = [validPositions[j], validPositions[i]];
+
+        const { row, col } = validPositions[i];
+        board[row][col] = {
+            ...board[row][col],
+            isMine: true
+        };
     }
 
     // For each cell, calculating the number of mines in its 3x3 perimeter
@@ -68,15 +72,22 @@ const generateBoard = (numRows, numCols, numMines, excludeRow, excludeCol) => {
 };
 
 const checkWin = async (roomState, board, room) => {
-    if (roomState.gameOver === 'true') {
+    // Don't check win if game is already over or won
+    if (roomState.gameOver === 'true' || roomState.gameWon === 'true') {
         return;
     }
+
     const allNonMinesOpened = board.every((row) =>
         row.every((cell) => (cell.isMine && !cell.isOpen) || (!cell.isMine && cell.isOpen))
     );
 
     if (allNonMinesOpened) {
         const client = await redisClient;
+        // Double-check in Redis to prevent race condition
+        const currentState = await client.hGet(`room:${room}`, 'gameWon');
+        if (currentState === 'true') {
+            return; // Already won, don't emit again
+        }
         await client.hSet(`room:${room}`, { gameWon: 'true' });
         io.to(room).emit('gameWon');
     }
@@ -99,21 +110,19 @@ const checkWin = async (roomState, board, room) => {
 // nearbyMines: number
 
 // Checked
-const createRoom = async (room, numRows, numCols, numMines, name) => {
+const createRoom = async (room, numRows, numCols, numMines) => {
     const client = await redisClient;
 
     await client.hSet(`room:${room}`, {
         // Initialize empty board for player to visualize before first click
-        board: JSON.stringify(Array(numRows)
-            .fill(null)
-            .map(() =>
-                Array(numCols).fill({
-                    isMine: false,
-                    isOpen: false,
-                    isFlagged: false,
-                    nearbyMines: 0,
-                })
-            )),
+        board: JSON.stringify(Array.from({ length: numRows }, () =>
+            Array.from({ length: numCols }, () => ({
+                isMine: false,
+                isOpen: false,
+                isFlagged: false,
+                nearbyMines: 0,
+            }))
+        )),
         gameOver: 'false',
         gameWon: 'false',
         initialized: 'false',
@@ -154,6 +163,7 @@ const resetGame = async (room) => {
         gameOver: 'false',
         gameWon: 'false',
         initialized: 'false',
+        gameOverName: '',
     });
 
     // Reset player scores and update player names

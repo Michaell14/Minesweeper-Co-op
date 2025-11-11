@@ -93,15 +93,15 @@ export default function Home() {
         // Clean up socket listeners
         return () => {
             socket.off('boardUpdate');
+            socket.off("updateCells");
+            socket.off("playerStatsUpdate");
             socket.off("gameWon");
             socket.off("gameOver");
-            socket.off("resetGame");
-            socket.off("resetEveryone")
+            socket.off("resetEveryone");
             socket.off("joinRoomSuccess");
             socket.off("joinRoomError");
             socket.off("createRoomError");
-            socket.off("playerNamesUpdate");
-            socket.off("updateCells");
+            socket.off("roomDoesNotExistError");
             socket.off("receiveConfetti");
         };
     }, [socket]);
@@ -150,7 +150,7 @@ export default function Home() {
         setGameWon(false);
         setGameOver(false);
         setName("");
-        setDimensions(13, 15, 40);
+        setDimensions(15, 13, 40); // rows=15, cols=13 (default Medium)
         setDifficulty("Medium")
     }
 

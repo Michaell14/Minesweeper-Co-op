@@ -10,14 +10,20 @@ const updatePlayerStatsInRoom = async (room) => {
     const playersInRoom = JSON.parse(await client.hGet(`room:${room}`, "players"));
     if (!playersInRoom) return;
 
-    const updatedStats = [];
-    for (let i = 0; i < playersInRoom.length; i++) {
-        const playerState = await client.hGetAll(`player:${playersInRoom[i]}`);
-        updatedStats.push({
+    // Fetch all player data in parallel for better performance
+    const playerDataPromises = playersInRoom.map(playerId =>
+        client.hGetAll(`player:${playerId}`)
+    );
+    const playerStates = await Promise.all(playerDataPromises);
+
+    // Filter out null/undefined player states and map to stats
+    const updatedStats = playerStates
+        .filter(playerState => playerState && playerState.name)
+        .map(playerState => ({
             name: playerState.name,
-            score: parseInt(playerState.score)
-        });
-    }
+            score: parseInt(playerState.score || '0', 10) || 0
+        }));
+
     io.to(room).emit("playerStatsUpdate", updatedStats);
 }
 
@@ -28,9 +34,11 @@ const resetPlayerScores = async (room) => {
 
     if (!playersInRoom) return;
 
-    for (let i = 0; i < playersInRoom.length; i++) {
-        await client.hSet(`player:${playersInRoom[i]}`, { "score": "0" })
-    }
+    // Reset all player scores in parallel for better performance
+    const resetPromises = playersInRoom.map(playerId =>
+        client.hSet(`player:${playerId}`, { "score": "0" })
+    );
+    await Promise.all(resetPromises);
 }
 
 const addPlayerToRoom = async (room, socketId, name) => {
@@ -44,7 +52,11 @@ const addPlayerToRoom = async (room, socketId, name) => {
         })
         await client.expire(`player:${socketId}`, 86400); // Deletes a user after a day
     } else {
-        await client.hSet(`player:${socketId}`, { "room": room });
+        // Update room and name (in case player rejoins with different name)
+        await client.hSet(`player:${socketId}`, {
+            "room": room,
+            "name": name
+        });
     }
 
     // Add the player to the room
@@ -55,14 +67,20 @@ const addPlayerToRoom = async (room, socketId, name) => {
     }
 
     if (roomState.gameOver === "true") {
-        io.to(room).emit("gameOver", "");
+        // Get the name of whoever hit the mine (stored in room state or empty)
+        const gameOverName = roomState.gameOverName || "Someone";
+        io.to(room).emit("gameOver", gameOverName);
     }
 
     const roomPlayers = JSON.parse(roomState.players);
-    roomPlayers.push(socketId);
-    
-    // Save the updated players array back to Redis
-    await client.hSet(`room:${room}`, { players: JSON.stringify(roomPlayers) });
+
+    // Only add player if not already in the room (prevent duplicates on reconnect)
+    if (!roomPlayers.includes(socketId)) {
+        roomPlayers.push(socketId);
+
+        // Save the updated players array back to Redis
+        await client.hSet(`room:${room}`, { players: JSON.stringify(roomPlayers) });
+    }
 
     // Send the current board to the player who joined
     const board = JSON.parse(roomState.board);
@@ -76,8 +94,17 @@ const removePlayer = async (socket, socketId) => {
     if (!playerExists) return;
 
     const room = await client.hGet(`player:${socketId}`, 'room');
+    if (!room) return;
 
-    const playersInRoom = JSON.parse(await client.hGet(`room:${room}`, "players"));
+    const playersData = await client.hGet(`room:${room}`, "players");
+    if (!playersData) {
+        // Room already deleted, just clean up player
+        socket.leave(room);
+        await client.del(`player:${socketId}`);
+        return;
+    }
+
+    const playersInRoom = JSON.parse(playersData);
 
     if (playersInRoom && playersInRoom.includes(socketId)) {
         const index = playersInRoom.indexOf(socketId); // Find the index of the element
@@ -85,13 +112,15 @@ const removePlayer = async (socket, socketId) => {
             playersInRoom.splice(index, 1);
         }
 
-        await client.hSet(`room:${room}`, { "players": JSON.stringify(playersInRoom) });
-        // If the room is empty, clean up
+        // If the room is empty, delete it immediately
         if (playersInRoom.length === 0) {
             await client.del(`room:${room}`);
+        } else {
+            // Only update the room and stats if it still has players
+            await client.hSet(`room:${room}`, { "players": JSON.stringify(playersInRoom) });
+            await updatePlayerStatsInRoom(room);
         }
     }
-    updatePlayerStatsInRoom(room);
     socket.leave(room);
     await client.del(`player:${socketId}`);
 }

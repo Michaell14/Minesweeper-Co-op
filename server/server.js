@@ -9,37 +9,80 @@ io.on('connection', async (socket) => {
     const client = await redisClient;
     
     socket.on('createRoom', async ({ room, numRows, numCols, numMines, name }) => {
-        const roomExists = await client.exists(`room:${room}`);
+        try {
+            // Validate input parameters
+            if (!room || typeof room !== 'string' || room.length === 0 || room.length > 100) {
+                socket.emit("createRoomError");
+                return;
+            }
+            if (!name || typeof name !== 'string' || name.length === 0 || name.length > 50) {
+                socket.emit("createRoomError");
+                return;
+            }
+            if (typeof numRows !== 'number' || numRows < 8 || numRows > 32) {
+                socket.emit("createRoomError");
+                return;
+            }
+            if (typeof numCols !== 'number' || numCols < 8 || numCols > 16) {
+                socket.emit("createRoomError");
+                return;
+            }
+            if (typeof numMines !== 'number' || numMines < 1 || numMines >= (numRows * numCols) / 2) {
+                socket.emit("createRoomError");
+                return;
+            }
 
-        // If the room exists, emit an error
-        if (roomExists) {
-            socket.join(`${socket.id}:${room}`);
+            const roomExists = await client.exists(`room:${room}`);
+
+            // If the room exists, emit an error
+            if (roomExists) {
+                socket.join(`${socket.id}:${room}`);
+                io.to(`${socket.id}:${room}`).emit("createRoomError");
+                socket.leave(`${socket.id}:${room}`);
+                return;
+            }
+            socket.join(room);
+
+            await createRoom(room, numRows, numCols, numMines); // Creates the room once we verified that it doesn't exist
+            await addPlayerToRoom(room, socket.id, name); // Adds player's socket_id to current room
+            io.to(room).emit("joinRoomSuccess", room); // Returns success
+        } catch (error) {
+            console.error('Error in createRoom:', error);
             io.to(`${socket.id}:${room}`).emit("createRoomError");
-            socket.leave(`${socket.id}:${room}`);
-            return;
         }
-        socket.join(room);
-
-        await createRoom(room, numRows, numCols, numMines, name); // Creates the room once we verified that it doesn't exist
-        await addPlayerToRoom(room, socket.id, name); // Adds player's socket_id to current room
-        io.to(room).emit("joinRoomSuccess", room); // Returns success
     })
 
     // When a player joins a room
     socket.on('joinRoom', async ({ room, name }) => {
-        const roomExists = await client.exists(`room:${room}`);
+        try {
+            // Validate input parameters
+            if (!room || typeof room !== 'string' || room.length === 0 || room.length > 100) {
+                socket.emit("joinRoomError");
+                return;
+            }
+            if (!name || typeof name !== 'string' || name.length === 0 || name.length > 50) {
+                socket.emit("joinRoomError");
+                return;
+            }
 
-        socket.join(room);
+            const roomExists = await client.exists(`room:${room}`);
 
-        // If room does not exist, emit error + leave room
-        if (!roomExists) {
+            socket.join(room);
+
+            // If room does not exist, emit error + leave room
+            if (!roomExists) {
+                io.to(room).emit("joinRoomError");
+                socket.leave(room);
+                return;
+            }
+
+            await addPlayerToRoom(room, socket.id, name); // Adds player's socket_id to current room
+            io.to(room).emit("joinRoomSuccess", room); // Returns success
+        } catch (error) {
+            console.error('Error in joinRoom:', error);
             io.to(room).emit("joinRoomError");
             socket.leave(room);
-            return;
         }
-
-        addPlayerToRoom(room, socket.id, name); // Adds player's socket_id to current room
-        io.to(room).emit("joinRoomSuccess", room); // Returns success
     });
 
     const isValid = async (room) => {
@@ -50,41 +93,105 @@ io.on('connection', async (socket) => {
             socket.leave(room);
             return false;
         }
+
+        // Verify player is actually in the room's player list
+        const roomState = await client.hGetAll(`room:${room}`);
+        const playersInRoom = JSON.parse(roomState.players || '[]');
+        if (!playersInRoom.includes(socket.id)) {
+            io.to(room).emit("roomDoesNotExistError");
+            socket.leave(room);
+            return false;
+        }
+
         return true;
     }
 
     // When a player opens a cell
     socket.on('openCell', async ({ room, row, col }) => {
-        // If player is somehow clicking on a cell, but they haven't managed to enter a room, then return
-        // Scenario: Room times out and gets deleted
-        if (!(await isValid(room))) return;
-        openCell(row, col, room, socket.id);
+        try {
+            // Validate input parameters
+            if (!room || typeof room !== 'string') return;
+            if (typeof row !== 'number' || typeof col !== 'number') return;
+            if (!Number.isInteger(row) || !Number.isInteger(col)) return;
+            if (row < 0 || row > 100 || col < 0 || col > 100) return;
+
+            // If player is somehow clicking on a cell, but they haven't managed to enter a room, then return
+            // Scenario: Room times out and gets deleted
+            if (!(await isValid(room))) return;
+            await openCell(row, col, room, socket.id);
+        } catch (error) {
+            console.error('Error in openCell:', error);
+        }
     });
 
     socket.on("chordCell", async ({ room, row, col }) => {
-        if (!(await isValid(room))) return;
-        chordCell(row, col, room, socket.id);
+        try {
+            // Validate input parameters
+            if (!room || typeof room !== 'string') return;
+            if (typeof row !== 'number' || typeof col !== 'number') return;
+            if (!Number.isInteger(row) || !Number.isInteger(col)) return;
+            if (row < 0 || row > 100 || col < 0 || col > 100) return;
+
+            if (!(await isValid(room))) return;
+            await chordCell(row, col, room, socket.id);
+        } catch (error) {
+            console.error('Error in chordCell:', error);
+        }
     });
 
     socket.on('toggleFlag', async ({ room, row, col }) => {
-        if (!(await isValid(room))) return;
-        toggleFlag(row, col, room, socket.id);
+        try {
+            // Validate input parameters
+            if (!room || typeof room !== 'string') return;
+            if (typeof row !== 'number' || typeof col !== 'number') return;
+            if (!Number.isInteger(row) || !Number.isInteger(col)) return;
+            if (row < 0 || row > 100 || col < 0 || col > 100) return;
+
+            if (!(await isValid(room))) return;
+            await toggleFlag(row, col, room, socket.id);
+        } catch (error) {
+            console.error('Error in toggleFlag:', error);
+        }
     });
 
     socket.on("emitConfetti", async ({ room }) => {
-        io.to(room).emit("receiveConfetti");
+        try {
+            // Validate input parameters
+            if (!room || typeof room !== 'string') return;
+
+            if (!(await isValid(room))) return;
+            io.to(room).emit("receiveConfetti");
+        } catch (error) {
+            console.error('Error in emitConfetti:', error);
+        }
     })
 
     socket.on('resetGame', async ({ room }) => {
-        resetGame(room);
+        try {
+            // Validate input parameters
+            if (!room || typeof room !== 'string') return;
+
+            if (!(await isValid(room))) return;
+            await resetGame(room);
+        } catch (error) {
+            console.error('Error in resetGame:', error);
+        }
     });
 
     socket.on("playerLeave", async () => {
-        removePlayer(socket, socket.id);
+        try {
+            await removePlayer(socket, socket.id);
+        } catch (error) {
+            console.error('Error in playerLeave:', error);
+        }
     });
 
     socket.on('disconnect', async () => {
-        removePlayer(socket, socket.id);
+        try {
+            await removePlayer(socket, socket.id);
+        } catch (error) {
+            console.error('Error in disconnect:', error);
+        }
     });
 });
 
