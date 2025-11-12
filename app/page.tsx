@@ -1,5 +1,5 @@
 "use client"
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Cell, useMinesweeperStore } from './store';
 import Landing from "@/components/Landing";
 import Grid from "@/components/Grid";
@@ -7,12 +7,48 @@ import { shootConfetti } from "@/lib/confetti";
 import { initSocket } from "@/lib/initSocket";
 import { Socket } from "socket.io-client";
 
+/**
+ * Home Component
+ * Main application component that manages the Minesweeper Co-op game.
+ * Handles socket connections, room management, and game state.
+ */
 export default function Home() {
+    // ============================================================================
+    // STATE & STORE
+    // ============================================================================
+
     const [socket, setSocket] = useState<Socket | null>(null);
-    const { name, room, playerJoined, numRows, numCols, numMines, gameOverName, setBoard,
-        setGameOver, setGameWon, setRoom, setPlayerJoined, setName, setDifficulty,
-        setDimensions, setPlayerStatsInRoom, setCell, setGameOverName } = useMinesweeperStore();
-    
+
+    // Zustand store - contains all game state
+    const {
+        name,           // Player's display name
+        room,           // Current room code
+        playerJoined,   // Whether player has joined a room
+        numRows,        // Board height (from difficulty settings)
+        numCols,        // Board width (from difficulty settings)
+        numMines,       // Number of mines (from difficulty settings)
+        gameOverName,   // Name of player who hit a mine
+        setBoard,       // Update entire board state
+        setGameOver,    // Set game over state
+        setGameWon,     // Set game won state
+        setRoom,        // Set current room code
+        setPlayerJoined,// Set player joined status
+        setName,        // Set player name
+        setDifficulty,  // Set difficulty level
+        setDimensions,  // Set board dimensions (rows, cols, mines)
+        setPlayerStatsInRoom, // Update player stats/scores
+        setCell,        // Update individual cell state
+        setGameOverName // Set name of player who caused game over
+    } = useMinesweeperStore();
+
+    // ============================================================================
+    // SOCKET INITIALIZATION
+    // ============================================================================
+
+    /**
+     * Initialize socket connection on component mount
+     * Cleanup: Disconnect socket when component unmounts
+     */
     useEffect(() => {
         const newSocket = initSocket();
         setSocket(newSocket);
@@ -22,18 +58,55 @@ export default function Home() {
         }
     }, []);
 
-    // Set up socket event listeners
+    // ============================================================================
+    // ROOM MANAGEMENT
+    // ============================================================================
+
+    /**
+     * Leave the current room and reset all game state
+     * Resets to Medium difficulty (16x16, 40 mines)
+     */
+    const leaveRoom = useCallback(() => {
+        if (!socket) return;
+
+        socket.emit("playerLeave");
+        setPlayerJoined(false);
+        setBoard([]);
+        setGameWon(false);
+        setGameOver(false);
+        setName("");
+        setDimensions(16, 16, 40); // Default: Medium difficulty
+        setDifficulty("Medium");
+    }, [socket, setPlayerJoined, setBoard, setGameWon, setGameOver, setName, setDimensions, setDifficulty]);
+
+    // ============================================================================
+    // SOCKET EVENT HANDLERS
+    // ============================================================================
+
+    /**
+     * Set up all socket event listeners for real-time multiplayer communication
+     * Handles: board updates, game state changes, room events, errors
+     */
     useEffect(() => {
         if (!socket) return;
 
         socket.connect();
-       
-        // Listen for board updates
+
+        // --- Game State Events ---
+
+        /**
+         * Receive full board update from server
+         * Triggered when: joining room, board reset, game start
+         */
         socket.on('boardUpdate', (updatedBoard: Cell[][]) => {
             setDifficulty("Medium");
             setBoard(updatedBoard);
         });
 
+        /**
+         * Receive partial cell updates (optimized for performance)
+         * Triggered when: cells are opened, flagged, or chording occurs
+         */
         socket.on("updateCells", (toUpdate: { row: number, col: number, isMine: boolean, isOpen: boolean, isFlagged: boolean, nearbyMines: number }[]) => {
             toUpdate.forEach((cell) => {
                 setCell(cell.row, cell.col, {
@@ -44,53 +117,85 @@ export default function Home() {
                 });
             });
         });
+
+        /**
+         * Update player statistics (scores) in current room
+         */
         socket.on("playerStatsUpdate", (updatedStats) => {
             setPlayerStatsInRoom(updatedStats);
-        })
+        });
 
+        // --- Win/Loss Events ---
+
+        /**
+         * Game won - all non-mine cells revealed
+         */
         socket.on("gameWon", () => {
             shootConfetti();
             setGameWon(true);
-        })
+        });
 
+        /**
+         * Game over - someone hit a mine
+         */
         socket.on("gameOver", (newName) => {
             setGameOver(true);
             setGameOverName(newName);
             (document.getElementById('dialog-game-over') as HTMLDialogElement)?.showModal();
-        })
+        });
 
+        /**
+         * Reset game state for all players in room
+         */
         socket.on("resetEveryone", () => {
             setGameOver(false);
             setGameWon(false);
-        })
+        });
 
-        // Updates player's room when joined successfully
+        // --- Room Management Events ---
+
+        /**
+         * Successfully joined a room
+         */
         socket.on("joinRoomSuccess", (newRoom) => {
             setRoom(newRoom);
             setPlayerJoined(true);
-        })
+        });
 
-        // Shows Join Room Error Dialog
+        // --- Error Events ---
+
+        /**
+         * Error: Tried to join a room that doesn't exist
+         */
         socket.on("joinRoomError", () => {
             (document.getElementById('dialog-join-room-error') as HTMLDialogElement)?.showModal();
-        })
+        });
 
-        // Shows Create Room Error Dialog
+        /**
+         * Error: Tried to create a room that already exists
+         */
         socket.on("createRoomError", () => {
             (document.getElementById('dialog-create-room-error') as HTMLDialogElement)?.showModal();
-        })
+        });
 
+        /**
+         * Error: Room was deleted or became invalid while playing
+         */
         socket.on("roomDoesNotExistError", () => {
             leaveRoom();
             (document.getElementById('dialog-room-does-not-exist-error') as HTMLDialogElement)?.showModal();
-        })
+        });
 
-        // CONFETTIIIIIIIIIIII
+        // --- Special Events ---
+
+        /**
+         * Receive confetti trigger from another player
+         */
         socket.on("receiveConfetti", () => {
             shootConfetti();
-        })
+        });
 
-        // Clean up socket listeners
+        // Cleanup: Remove all event listeners when socket changes or component unmounts
         return () => {
             socket.off('boardUpdate');
             socket.off("updateCells");
@@ -104,69 +209,103 @@ export default function Home() {
             socket.off("roomDoesNotExistError");
             socket.off("receiveConfetti");
         };
-    }, [socket]);
+    }, [socket, leaveRoom, setBoard, setCell, setDifficulty, setGameOver, setGameOverName, setGameWon, setPlayerJoined, setPlayerStatsInRoom, setRoom]);
 
+    // ============================================================================
+    // SOCKET EMIT FUNCTIONS (Client -> Server)
+    // ============================================================================
+
+    /**
+     * Create a new room with specified difficulty settings
+     * Server validates room doesn't exist before creating
+     */
     const createRoom = () => {
         if (!room || !socket) return;
         socket.emit("createRoom", { room, numRows, numCols, numMines, name });
-    }
+    };
 
-    // Join a room
+    /**
+     * Join an existing room
+     * Server validates room exists before allowing join
+     */
     const joinRoom = () => {
         if (!room || !socket) return;
         socket.emit('joinRoom', { room, name });
     };
 
+    /**
+     * Open a cell at the specified coordinates
+     * If cell is mine: game over
+     * If cell is empty: reveal adjacent cells recursively
+     */
     const openCell = (row: number, col: number) => {
         if (!playerJoined || !socket) return;
         socket.emit('openCell', { room, row, col });
     };
 
-    const chordCell = (row: number, col: number) => {
+    /**
+     * Chord/Middle-click a cell
+     * If an opened cell's number equals adjacent flags, opens all unflagged neighbors
+     * Used for fast gameplay when you're confident about mine locations
+     * Memoized to prevent infinite loops in Grid component's useEffect
+     */
+    const chordCell = useCallback((row: number, col: number) => {
         if (!playerJoined || !socket) return;
         socket.emit('chordCell', { room, row, col });
-    }
+    }, [playerJoined, socket, room]);
 
+    /**
+     * Toggle flag on a cell (right-click or flag mode tap)
+     * Cycles: unmarked -> flagged -> unmarked
+     */
     const toggleFlag = (row: number, col: number) => {
         if (!playerJoined || !socket) return;
         socket.emit('toggleFlag', { room, row, col });
     };
 
+    /**
+     * Reset the game board
+     * Generates new mine placement and resets all cells
+     */
     const resetGame = () => {
         if (!socket) return;
-        socket.emit('resetGame', { room })
-    }
+        socket.emit('resetGame', { room });
+    };
 
+    /**
+     * Trigger confetti animation for all players in room
+     * Fun way to celebrate wins or other achievements
+     */
     const emitConfetti = () => {
         if (!socket) return;
         socket.emit('emitConfetti', { room });
-    }
+    };
 
-    const leaveRoom = () => {
-        if (!socket) return;
-        socket.emit("playerLeave");
-        setPlayerJoined(false);
-        setBoard([]);
-        setGameWon(false);
-        setGameOver(false);
-        setName("");
-        setDimensions(15, 13, 40); // rows=15, cols=13 (default Medium)
-        setDifficulty("Medium")
-    }
+    // ============================================================================
+    // RENDER
+    // ============================================================================
 
     return (
-        <> 
+        <>
+            {/* Conditional rendering: show Landing page or Game Grid */}
             {!playerJoined ? (
                 <Landing createRoom={createRoom} joinRoom={joinRoom} />
             ) : (
-                <>
-                    <Grid leaveRoom={leaveRoom} resetGame={resetGame}
-                        toggleFlag={toggleFlag} openCell={openCell}
-                        chordCell={chordCell} emitConfetti={emitConfetti} />
-
-                </>
+                <Grid
+                    leaveRoom={leaveRoom}
+                    resetGame={resetGame}
+                    toggleFlag={toggleFlag}
+                    openCell={openCell}
+                    chordCell={chordCell}
+                    emitConfetti={emitConfetti}
+                />
             )}
 
+            {/* ============================================================================ */}
+            {/* ERROR & NOTIFICATION DIALOGS */}
+            {/* ============================================================================ */}
+
+            {/* Game Over Dialog - Shows when someone hits a mine */}
             <dialog className="nes-dialog absolute left-1/2 top-60 -translate-x-1/2" id="dialog-game-over">
                 <form method="dialog">
                     <p className="title">Uh Oh!</p>
@@ -176,6 +315,8 @@ export default function Home() {
                     </menu>
                 </form>
             </dialog>
+
+            {/* Create Room Error - Room already exists */}
             <dialog className="nes-dialog absolute left-1/2 top-60 -translate-x-1/2" id="dialog-create-room-error">
                 <form method="dialog">
                     <p>This room already exists.</p>
@@ -185,6 +326,7 @@ export default function Home() {
                 </form>
             </dialog>
 
+            {/* Join Room Error - Room doesn't exist */}
             <dialog className="nes-dialog absolute left-1/2 top-60 -translate-x-1/2" id="dialog-join-room-error">
                 <form method="dialog">
                     <p>This room does not exist.</p>
@@ -193,7 +335,8 @@ export default function Home() {
                     </div>
                 </form>
             </dialog>
-            
+
+            {/* Room Deleted Error - Room became invalid during gameplay */}
             <dialog className="nes-dialog absolute left-1/2 top-60 -translate-x-1/2" id="dialog-room-does-not-exist-error">
                 <form method="dialog">
                     <p>There was an error joining the room.</p>

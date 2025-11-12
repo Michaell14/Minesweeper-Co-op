@@ -89,7 +89,7 @@ export default function Landing({ createRoom, joinRoom }: LandingParams) {
 
     const cancelCustom = () => {
         // Reset to Medium difficulty instead of invalid 0,0,0
-        setDimensions(15, 13, 40);
+        setDimensions(16, 16, 40);
         setDifficulty("Medium");
         (document.getElementById('dialog-custom') as HTMLDialogElement)?.close();
     }

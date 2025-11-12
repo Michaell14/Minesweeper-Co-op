@@ -1,27 +1,70 @@
+/**
+ * Grid Component
+ * Main game board display and interaction handler
+ * Renders the Minesweeper grid, controls, and player stats
+ */
 import React, { useEffect } from 'react';
 import { Center, Container, HStack, VStack, Box } from "@chakra-ui/react";
 import { useMinesweeperStore } from '@/app/store';
 import Cell from "@/components/Cell";
 import { Switch } from "@/components/ui/switch";
 
+/**
+ * Grid Component Props
+ * Functions passed from parent (Home) component
+ */
 interface GridParams {
-    leaveRoom: () => void;
-    resetGame: () => void;
-    toggleFlag: (row: number, col: number) => void;
-    openCell: (row: number, col: number) => void;
-    chordCell: (row: number, col: number) => void;
-    emitConfetti: () => void;
+    leaveRoom: () => void;          // Leave current room and return to landing
+    resetGame: () => void;          // Reset board with new mine placement
+    toggleFlag: (row: number, col: number) => void; // Flag/unflag a cell
+    openCell: (row: number, col: number) => void;   // Reveal a cell
+    chordCell: (row: number, col: number) => void;  // Middle-click chord action
+    emitConfetti: () => void;       // Send confetti to all players
 }
 
 export default function Grid({ leaveRoom, resetGame, toggleFlag, openCell, chordCell, emitConfetti }: GridParams) {
+    // ============================================================================
+    // STATE
+    // ============================================================================
 
-    const { r, c, leftClick, rightClick, isChecked, room, playerStatsInRoom, board,
-        gameOver, gameWon, setIsChecked, setBothPressed } = useMinesweeperStore();
+    const {
+        r,                  // Current mouse row coordinate
+        c,                  // Current mouse column coordinate
+        leftClick,          // Left mouse button state
+        rightClick,         // Right mouse button state
+        isChecked,          // Mobile mode: click (true) vs flag (false)
+        room,               // Current room code
+        playerStatsInRoom,  // All players' scores
+        board,              // Game board state
+        gameOver,           // Game over flag
+        gameWon,            // Game won flag
+        setIsChecked,       // Toggle mobile mode
+        setBothPressed      // Set both-buttons-pressed state
+    } = useMinesweeperStore();
 
+    // ============================================================================
+    // DIALOG HELPERS
+    // ============================================================================
+
+    /**
+     * Open the player stats dialog (mobile view only)
+     */
     const openPlayersDialog = () => {
         (document.getElementById('dialog-players') as HTMLDialogElement)?.showModal();
-    }
+    };
 
+    // ============================================================================
+    // CHORDING DETECTION
+    // ============================================================================
+
+    /**
+     * Detect when both mouse buttons are pressed simultaneously
+     * This enables "chording" - opening all unflagged neighbors of a satisfied number
+     * Pattern: Press left + right buttons together on an opened numbered cell
+     *
+     * Note: chordCell is memoized in parent to prevent infinite loops
+     * Note: setBothPressed is a stable Zustand setter (doesn't need dependency)
+     */
     useEffect(() => {
         // Check if both buttons are pressed
         if (leftClick && rightClick) {
@@ -37,7 +80,7 @@ export default function Grid({ leaveRoom, resetGame, toggleFlag, openCell, chord
         if (!leftClick && !rightClick) {
             setBothPressed(false);
         }
-    }, [leftClick, rightClick, r, c]); // Removed chordCell and setBothPressed from dependencies
+    }, [leftClick, rightClick, r, c, chordCell]);
 
 
     return (
