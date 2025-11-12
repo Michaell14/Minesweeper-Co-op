@@ -1,0 +1,13 @@
+# Allow all search engines to crawl the entire site
+User-agent: *
+Allow: /
+
+# Sitemap location
+Sitemap: https://www.minesweepercoop.com/sitemap.xml
+
+# Crawl-delay (optional, helps with server load)
+Crawl-delay: 1
+
+# Block specific bots (if needed in future)
+# User-agent: BadBot
+# Disallow: /

@@ -306,42 +306,58 @@ export default function Home() {
             {/* ============================================================================ */}
 
             {/* Game Over Dialog - Shows when someone hits a mine */}
-            <dialog className="nes-dialog absolute left-1/2 top-60 -translate-x-1/2" id="dialog-game-over">
+            <dialog
+                className="nes-dialog absolute left-1/2 top-60 -translate-x-1/2"
+                id="dialog-game-over"
+                role="alertdialog"
+                aria-labelledby="game-over-title">
                 <form method="dialog">
-                    <p className="title">Uh Oh!</p>
+                    <p id="game-over-title" className="title">Uh Oh!</p>
                     <p><span className="underline decoration-2">{gameOverName}</span> hit a bomb.</p>
                     <menu className="dialog-menu">
-                        <button className="nes-btn is-error text-xs">Cancel</button>
+                        <button className="nes-btn is-error text-xs" aria-label="Close game over dialog">Cancel</button>
                     </menu>
                 </form>
             </dialog>
 
             {/* Create Room Error - Room already exists */}
-            <dialog className="nes-dialog absolute left-1/2 top-60 -translate-x-1/2" id="dialog-create-room-error">
+            <dialog
+                className="nes-dialog absolute left-1/2 top-60 -translate-x-1/2"
+                id="dialog-create-room-error"
+                role="alertdialog"
+                aria-labelledby="create-room-error-title">
                 <form method="dialog">
-                    <p>This room already exists.</p>
+                    <p id="create-room-error-title">This room already exists.</p>
                     <div className="flex justify-between">
-                        <button className="nes-btn">Cancel</button>
+                        <button className="nes-btn" aria-label="Close error dialog">Cancel</button>
                     </div>
                 </form>
             </dialog>
 
             {/* Join Room Error - Room doesn't exist */}
-            <dialog className="nes-dialog absolute left-1/2 top-60 -translate-x-1/2" id="dialog-join-room-error">
+            <dialog
+                className="nes-dialog absolute left-1/2 top-60 -translate-x-1/2"
+                id="dialog-join-room-error"
+                role="alertdialog"
+                aria-labelledby="join-room-error-title">
                 <form method="dialog">
-                    <p>This room does not exist.</p>
+                    <p id="join-room-error-title">This room does not exist.</p>
                     <div className="flex justify-between">
-                        <button className="nes-btn">Cancel</button>
+                        <button className="nes-btn" aria-label="Close error dialog">Cancel</button>
                     </div>
                 </form>
             </dialog>
 
             {/* Room Deleted Error - Room became invalid during gameplay */}
-            <dialog className="nes-dialog absolute left-1/2 top-60 -translate-x-1/2" id="dialog-room-does-not-exist-error">
+            <dialog
+                className="nes-dialog absolute left-1/2 top-60 -translate-x-1/2"
+                id="dialog-room-does-not-exist-error"
+                role="alertdialog"
+                aria-labelledby="room-error-title">
                 <form method="dialog">
-                    <p>There was an error joining the room.</p>
+                    <p id="room-error-title">There was an error joining the room.</p>
                     <div className="flex justify-between">
-                        <button className="nes-btn" onClick={() => setPlayerJoined(false)}>Cancel</button>
+                        <button className="nes-btn" onClick={() => setPlayerJoined(false)} aria-label="Close error dialog">Cancel</button>
                     </div>
                 </form>
             </dialog>

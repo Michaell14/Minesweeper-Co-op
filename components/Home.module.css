@@ -1,9 +1,26 @@
+/* Grid container for the game board - using CSS Grid for better performance */
+.gameBoard {
+    display: grid;
+    gap: 3px;
+    width: fit-content;
+    background-color: #3b3b3b;
+    padding: 3px;
+}
+
+.gameRow {
+    display: grid;
+    grid-auto-flow: column;
+    gap: 3px;
+}
+
 .cell {
     height: 40px;
     width: 40px;
     min-width: 40px;
     text-align: center;
-    border: 3px solid #3b3b3b;   
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 @media (max-width: 48em) {

@@ -102,23 +102,34 @@ export default function Landing({ createRoom, joinRoom }: LandingParams) {
     return (
         <>
             <div className="text-center pt-10 lg:pt-20">
-                <p className="text-2xl md:text-4xl font-bold">Minesweeper Co-op</p>
+                <h1 className="text-2xl md:text-4xl font-bold">Minesweeper Co-op</h1>
             </div>
             <Center pb={12}>
                 <Container maxW={"2xl"}>
                     <p className="text-xl mt-10">Create a New Room:</p>
 
-                    <form onSubmit={createOnSubmit} className="mt-2">
+                    <form onSubmit={createOnSubmit} className="mt-2" aria-label="Create new room form">
                         <Field
                             invalid={!!createErrors.roomCode}
                             errorText={createErrors.roomCode?.message}
                         >
 
-                            <input className="nes-input text-xs" maxLength={28} type="text" placeholder={"Enter Room Code"}
+                            <input
+                                className="nes-input text-xs"
+                                maxLength={28}
+                                type="text"
+                                placeholder={"Enter Room Code"}
+                                aria-label="Room code"
+                                aria-required="true"
                                 {...createRegister("roomCode", { required: "Room Code is required." })} />
                         </Field>
                         <Field label={"Select Difficulty:"} mt={5}>
-                            <RadioCardRoot maxW={"100%"} overflowX={{base: "scroll", md: "hidden"}} variant={"subtle"} value={difficulty}>
+                            <RadioCardRoot
+                                maxW={"100%"}
+                                overflowX={{base: "scroll", md: "hidden"}}
+                                variant={"subtle"}
+                                value={difficulty}
+                                aria-label="Select game difficulty">
                                 <HStack align="stretch">
                                     {difficultyConfig.map((item) => (
                                         <RadioCardItem
@@ -140,95 +151,157 @@ export default function Landing({ createRoom, joinRoom }: LandingParams) {
                             </RadioCardRoot>
                         </Field>
                         <div className="mt-2">
-                            <button type="submit" className="nes-btn is-primary text-xs">Create</button>
+                            <button type="submit" className="nes-btn is-primary text-xs" aria-label="Create room with selected settings">Create</button>
                         </div>
                     </form>
                     <p className="my-5" id={"horizontal"}>Or</p>
                     <p className="text-xl">Join an Existing Room:</p>
-                    <form onSubmit={joinOnSubmit} className="mt-2">
+                    <form onSubmit={joinOnSubmit} className="mt-2" aria-label="Join existing room form">
                         <Field
                             invalid={!!joinErrors.roomCode}
                             errorText={joinErrors.roomCode?.message}
                         >
 
-                            <input type="text" maxLength={28} placeholder={"Enter Room Code"} className="nes-input text-xs"
+                            <input
+                                type="text"
+                                maxLength={28}
+                                placeholder={"Enter Room Code"}
+                                className="nes-input text-xs"
+                                aria-label="Room code to join"
+                                aria-required="true"
                                 {...joinRegister("roomCode", { required: "Room Code is required." })} />
                         </Field>
                         <div className="mt-4">
-                            <button type="submit" className="nes-btn is-primary text-xs">Join</button>
+                            <button type="submit" className="nes-btn is-primary text-xs" aria-label="Join room">Join</button>
                         </div>
                     </form>
                 </Container>
             </Center>
 
-            <dialog className="nes-dialog absolute left-1/2 top-60 -translate-x-1/2" id="dialog-name-create">
+            <dialog
+                className="nes-dialog absolute left-1/2 top-60 -translate-x-1/2"
+                id="dialog-name-create"
+                aria-labelledby="create-name-title">
                 <form method="dialog">
-                    <p>Enter your Name:</p>
+                    <p id="create-name-title">Enter your Name:</p>
                     <div className="nes-field mb-4">
-                        <input type="text" name="name" maxLength={16} minLength={1} required className="nes-input text-sm" onChange={(e) => setName(e.target.value)} />
+                        <input
+                            type="text"
+                            name="name"
+                            maxLength={16}
+                            minLength={1}
+                            required
+                            className="nes-input text-sm"
+                            aria-label="Your player name"
+                            aria-required="true"
+                            onChange={(e) => setName(e.target.value)} />
                     </div>
                     <div className="flex justify-between">
-                        <button type="button" className="nes-btn" onClick={() => {
-                            (document.getElementById('dialog-name-create') as HTMLDialogElement)?.close();
-                        }}>Cancel</button>
-                        <button onClick={(e) => {
-                            const input = document.querySelector('#dialog-name-create input[name="name"]') as HTMLInputElement;
-                            const nameValue = input?.value || '';
-                            if (!nameValue || nameValue.trim().length === 0) {
-                                e.preventDefault();
-                                alert('Please enter a valid name');
-                                return;
-                            }
-                            setName(nameValue);
-                            setTimeout(() => createRoom(), 0);
-                        }} type="submit" className="nes-btn is-success">Confirm</button>
+                        <button
+                            type="button"
+                            className="nes-btn"
+                            aria-label="Cancel and close dialog"
+                            onClick={() => {
+                                (document.getElementById('dialog-name-create') as HTMLDialogElement)?.close();
+                            }}>Cancel</button>
+                        <button
+                            onClick={(e) => {
+                                const input = document.querySelector('#dialog-name-create input[name="name"]') as HTMLInputElement;
+                                const nameValue = input?.value || '';
+                                if (!nameValue || nameValue.trim().length === 0) {
+                                    e.preventDefault();
+                                    alert('Please enter a valid name');
+                                    return;
+                                }
+                                setName(nameValue);
+                                setTimeout(() => createRoom(), 0);
+                            }}
+                            type="submit"
+                            className="nes-btn is-success"
+                            aria-label="Confirm and create room">Confirm</button>
                     </div>
                 </form>
             </dialog>
-            <dialog className="nes-dialog absolute left-1/2 top-60 -translate-x-1/2" id="dialog-name-join">
+            <dialog
+                className="nes-dialog absolute left-1/2 top-60 -translate-x-1/2"
+                id="dialog-name-join"
+                aria-labelledby="join-name-title">
                 <form method="dialog">
-                    <p>Enter your Name:</p>
+                    <p id="join-name-title">Enter your Name:</p>
                     <div className="nes-field mb-4">
-                        <input type="text" name="name" maxLength={16} minLength={1} required className="nes-input text-sm" onChange={(e) => setName(e.target.value)} />
+                        <input
+                            type="text"
+                            name="name"
+                            maxLength={16}
+                            minLength={1}
+                            required
+                            className="nes-input text-sm"
+                            aria-label="Your player name"
+                            aria-required="true"
+                            onChange={(e) => setName(e.target.value)} />
                     </div>
                     <div className="flex justify-between">
-                        <button type="button" className="nes-btn" onClick={() => {
-                            (document.getElementById('dialog-name-join') as HTMLDialogElement)?.close();
-                        }}>Cancel</button>
-                        <button onClick={(e) => {
-                            const input = document.querySelector('#dialog-name-join input[name="name"]') as HTMLInputElement;
-                            const nameValue = input?.value || '';
-                            if (!nameValue || nameValue.trim().length === 0) {
-                                e.preventDefault();
-                                alert('Please enter a valid name');
-                                return;
-                            }
-                            setName(nameValue);
-                            setTimeout(() => joinRoom(), 0);
-                        }} type="submit" className="nes-btn is-success">Confirm</button>
+                        <button
+                            type="button"
+                            className="nes-btn"
+                            aria-label="Cancel and close dialog"
+                            onClick={() => {
+                                (document.getElementById('dialog-name-join') as HTMLDialogElement)?.close();
+                            }}>Cancel</button>
+                        <button
+                            onClick={(e) => {
+                                const input = document.querySelector('#dialog-name-join input[name="name"]') as HTMLInputElement;
+                                const nameValue = input?.value || '';
+                                if (!nameValue || nameValue.trim().length === 0) {
+                                    e.preventDefault();
+                                    alert('Please enter a valid name');
+                                    return;
+                                }
+                                setName(nameValue);
+                                setTimeout(() => joinRoom(), 0);
+                            }}
+                            type="submit"
+                            className="nes-btn is-success"
+                            aria-label="Confirm and join room">Confirm</button>
                     </div>
                 </form>
             </dialog>
 
-            <dialog className="nes-dialog absolute left-1/2 top-60 -translate-x-1/2" id="dialog-custom-error">
+            <dialog
+                className="nes-dialog absolute left-1/2 top-60 -translate-x-1/2"
+                id="dialog-custom-error"
+                role="alertdialog"
+                aria-labelledby="custom-error-title">
                 <form method="dialog">
-                    <p>There was an error with your customization:</p>
+                    <p id="custom-error-title">There was an error with your customization:</p>
                     <p>1) Mines must be less than half the area of the board.</p>
                     <div className="flex justify-between">
-                        <button className="nes-btn">Cancel</button>
+                        <button className="nes-btn" aria-label="Close error dialog">Cancel</button>
                     </div>
                 </form>
             </dialog>
 
-            <dialog className="nes-dialog absolute left-1/2 top-60 -translate-x-1/2" id="dialog-custom">
+            <dialog
+                className="nes-dialog absolute left-1/2 top-60 -translate-x-1/2"
+                id="dialog-custom"
+                aria-labelledby="custom-board-title">
                 <form onSubmit={customOnSubmit} method="dialog">
-                    <p>Customize your Board:</p>
+                    <p id="custom-board-title">Customize your Board:</p>
                     <Field
                         invalid={!!customErrors.rows}
                         errorText={customErrors.rows?.message}
                     >
                         <p className="mb-0">Number of Rows:</p>
-                        <input type="number" defaultValue={numRows} className="nes-input text-xs" maxLength={28} min={8} max={32} placeholder={"Between 8 - 32"}
+                        <input
+                            type="number"
+                            defaultValue={numRows}
+                            className="nes-input text-xs"
+                            maxLength={28}
+                            min={8}
+                            max={32}
+                            placeholder={"Between 8 - 32"}
+                            aria-label="Number of rows, between 8 and 32"
+                            aria-required="true"
                             {...customRegister("rows", { required: "Number of Rows is Required." })} />
                     </Field>
                     <Field
@@ -236,7 +309,16 @@ export default function Landing({ createRoom, joinRoom }: LandingParams) {
                         errorText={customErrors.cols?.message}
                     >
                         <p className="mb-0 mt-4">Number of Columns:</p>
-                        <input className="nes-input text-xs" defaultValue={numCols} maxLength={28} type="number" min={8} max={16} placeholder={"Between 8 - 16"}
+                        <input
+                            className="nes-input text-xs"
+                            defaultValue={numCols}
+                            maxLength={28}
+                            type="number"
+                            min={8}
+                            max={16}
+                            placeholder={"Between 8 - 16"}
+                            aria-label="Number of columns, between 8 and 16"
+                            aria-required="true"
                             {...customRegister("cols", { required: "Number of Columns is Required." })} />
                     </Field>
                     <Field
@@ -244,12 +326,27 @@ export default function Landing({ createRoom, joinRoom }: LandingParams) {
                         errorText={customErrors.mines?.message}
                     >
                         <p className="mb-0 mt-4">Number of Mines</p>
-                        <input className="nes-input text-xs" defaultValue={numMines} maxLength={28} min={1} type="number" placeholder={"Min: 1"}
+                        <input
+                            className="nes-input text-xs"
+                            defaultValue={numMines}
+                            maxLength={28}
+                            min={1}
+                            type="number"
+                            placeholder={"Min: 1"}
+                            aria-label="Number of mines, minimum 1"
+                            aria-required="true"
                             {...customRegister("mines", { required: "Number of Mines is Required." })} />
                     </Field>
                     <div className="flex justify-between mt-5">
-                        <button onClick={cancelCustom} type="button" className="nes-btn">Cancel</button>
-                        <button type="submit" className="nes-btn is-success">Confirm</button>
+                        <button
+                            onClick={cancelCustom}
+                            type="button"
+                            className="nes-btn"
+                            aria-label="Cancel custom board settings">Cancel</button>
+                        <button
+                            type="submit"
+                            className="nes-btn is-success"
+                            aria-label="Confirm custom board settings">Confirm</button>
                     </div>
                 </form>
             </dialog>
