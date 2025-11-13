@@ -76,6 +76,7 @@ const Cell = React.memo(({ cell, row, col, toggleFlag, openCell, chordCell }: Ce
             }}>💣</div>;
     }
     if (cell.isOpen) {
+        const numClass = cell.nearbyMines > 0 ? styles[`num${cell.nearbyMines}`] : '';
         return (
             <div
                 key={col}
@@ -84,7 +85,7 @@ const Cell = React.memo(({ cell, row, col, toggleFlag, openCell, chordCell }: Ce
                 onContextMenu={(e) => {
                     e.preventDefault();
                 }}
-                className={`${styles.cell} ${styles.open}`}
+                className={`${styles.cell} ${styles.open} ${numClass}`}
                 onMouseDown={handleMouseDown}
                 onMouseUp={handleMouseUp}>
                 {cell.nearbyMines > 0 ? cell.nearbyMines : ''}
