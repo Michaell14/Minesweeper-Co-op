@@ -106,7 +106,7 @@ export default function Landing({ createRoom, joinRoom }: LandingParams) {
             {bannerVisible && (
                 <div className="bg-yellow-400 text-black px-4 py-2 text-center relative flex items-center justify-center" role="banner" aria-label="Website milestone announcement">
                     <p className="text-[10px] md:text-xs m-0">
-                    Thanks for the love, we've hit over 1k monthly users! Got thoughts or ideas? <a href="https://forms.gle/ALpScH8K7K2QsA8M7" target="_blank" rel="noopener noreferrer" className="underline hover:text-gray-700">Tell us!</a>
+                    Thanks for the love, we&apos;ve hit over 1k monthly users! Got thoughts or ideas? <a href="https://forms.gle/ALpScH8K7K2QsA8M7" target="_blank" rel="noopener noreferrer" className="underline hover:text-gray-700">Tell us!</a>
                     </p>
                     <button
                         onClick={() => setBannerVisible(false)}
