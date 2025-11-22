@@ -17,27 +17,13 @@ interface CellParams {
 const Cell = ({ cell, row, col, toggleFlag, openCell, chordCell, emitCellHover }: CellParams) => {
     // Use Zustand selector to only subscribe to hovers for THIS specific cell
     // This prevents re-renders when other cells are hovered
-    // Using shallow equality to prevent re-renders when hover object is recreated with same values
-    const cellHover = useMinesweeperStore(
-        (state) => {
-            const hovers = Object.values(state.playerHovers).filter(
-                hover => hover.row === row && hover.col === col
-            );
-            // Return first hover or null, with stable null reference
-            return hovers.length > 0 ? hovers[0] : null;
-        },
-        (prev, next) => {
-            // Custom equality: only re-render if hover actually changed
-            if (prev === null && next === null) return true;
-            if (prev === null || next === null) return false;
-            return (
-                prev.row === next.row &&
-                prev.col === next.col &&
-                prev.name === next.name &&
-                prev.color === next.color
-            );
-        }
-    );
+    const cellHover = useMinesweeperStore((state) => {
+        const hovers = Object.values(state.playerHovers).filter(
+            hover => hover.row === row && hover.col === col
+        );
+        // Return first hover or null
+        return hovers.length > 0 ? hovers[0] : null;
+    });
     
     // Subscribe to other store values separately to avoid unnecessary re-renders
     const bothPressed = useMinesweeperStore((state) => state.bothPressed);
