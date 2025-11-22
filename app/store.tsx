@@ -25,6 +25,17 @@ export interface PlayerStats {
 }
 
 /**
+ * Player Hover Interface
+ * Track which cell a player is currently hovering over
+ */
+export interface PlayerHover {
+    row: number;
+    col: number;
+    name: string;
+    color: string;
+}
+
+/**
  * Minesweeper State Interface
  * Complete type definition for the game store
  */
@@ -52,6 +63,7 @@ export interface MinesweeperState {
     name: string;           // Current player's display name
     playerStatsInRoom: PlayerStats[]; // All players' scores in current room
     gameOverName: string;   // Name of player who hit a mine
+    playerHovers: Record<string, PlayerHover>; // Real-time hover states by socket ID
 
     // ============================================================================
     // UI STATE (Mobile flag mode, mouse tracking for chording)
@@ -82,6 +94,9 @@ export interface MinesweeperState {
     setBothPressed: (bothPressed: boolean) => void;
     setCell: (row: number, col: number, newCell: Cell) => void;
     setGameOverName: (gameOverName: string) => void;
+    updatePlayerHover: (id: string, row: number, col: number, name: string, color: string) => void;
+    removePlayerHover: (id: string) => void;
+    clearAllHovers: () => void;
 }
 
 /**
@@ -110,6 +125,7 @@ export const useMinesweeperStore = create<MinesweeperState>((set, get) => ({
     playerJoined: false,
     playerStatsInRoom: [],
     gameOverName: "",
+    playerHovers: {},
 
     // UI State
     isChecked: true,        // Default to click mode (not flag mode)
@@ -239,5 +255,35 @@ export const useMinesweeperStore = create<MinesweeperState>((set, get) => ({
      */
     setGameOverName: (gameOverName: string) => {
         set({ gameOverName: gameOverName });
+    },
+
+    /**
+     * Update a player's hover state
+     */
+    updatePlayerHover: (id: string, row: number, col: number, name: string, color: string) => {
+        set((state) => ({
+            playerHovers: {
+                ...state.playerHovers,
+                [id]: { row, col, name, color }
+            }
+        }));
+    },
+
+    /**
+     * Remove a specific player's hover
+     */
+    removePlayerHover: (id: string) => {
+        set((state) => {
+            const newHovers = { ...state.playerHovers };
+            delete newHovers[id];
+            return { playerHovers: newHovers };
+        });
+    },
+
+    /**
+     * Clear all hover states (e.g., on game reset)
+     */
+    clearAllHovers: () => {
+        set({ playerHovers: {} });
     }
 }));

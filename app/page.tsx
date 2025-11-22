@@ -1,11 +1,13 @@
 "use client"
 import { useEffect, useState, useCallback } from "react";
+import React from "react";
 import { Cell, useMinesweeperStore } from './store';
 import Landing from "@/components/Landing";
 import Grid from "@/components/Grid";
 import { shootConfetti } from "@/lib/confetti";
 import { initSocket } from "@/lib/initSocket";
 import { Socket } from "socket.io-client";
+import { throttle, generateColorFromId } from "@/lib/throttle";
 
 /**
  * Home Component
@@ -38,7 +40,10 @@ export default function Home() {
         setDimensions,  // Set board dimensions (rows, cols, mines)
         setPlayerStatsInRoom, // Update player stats/scores
         setCell,        // Update individual cell state
-        setGameOverName // Set name of player who caused game over
+        setGameOverName, // Set name of player who caused game over
+        updatePlayerHover, // Update player hover state
+        removePlayerHover, // Remove player hover
+        clearAllHovers // Clear all hovers
     } = useMinesweeperStore();
 
     // ============================================================================
@@ -69,6 +74,9 @@ export default function Home() {
     const leaveRoom = useCallback(() => {
         if (!socket) return;
 
+        // Clear hover before leaving
+        socket.emit('cellHover', { room, row: -1, col: -1 });
+        
         socket.emit("playerLeave");
         setPlayerJoined(false);
         setBoard([]);
@@ -77,7 +85,8 @@ export default function Home() {
         setName("");
         setDimensions(16, 16, 40); // Default: Medium difficulty
         setDifficulty("Medium");
-    }, [socket, setPlayerJoined, setBoard, setGameWon, setGameOver, setName, setDimensions, setDifficulty]);
+        clearAllHovers(); // Clear all hover states
+    }, [socket, room, setPlayerJoined, setBoard, setGameWon, setGameOver, setName, setDimensions, setDifficulty, clearAllHovers]);
 
     // ============================================================================
     // SOCKET EVENT HANDLERS
@@ -150,6 +159,7 @@ export default function Home() {
         socket.on("resetEveryone", () => {
             setGameOver(false);
             setGameWon(false);
+            clearAllHovers(); // Clear hovers on reset
         });
 
         // --- Room Management Events ---
@@ -195,6 +205,29 @@ export default function Home() {
             shootConfetti();
         });
 
+        // --- Hover Events ---
+
+        /**
+         * Receive hover updates from other players
+         */
+        socket.on('playerHoverUpdate', ({ id, row, col, name }) => {
+            console.log('Received hover update:', { id, row, col, name });
+            const color = generateColorFromId(id);
+            if (row === -1 && col === -1) {
+                // Player cleared their hover
+                removePlayerHover(id);
+            } else {
+                updatePlayerHover(id, row, col, name, color);
+            }
+        });
+
+        /**
+         * Remove hover when player leaves
+         */
+        socket.on('playerLeft', (socketId) => {
+            removePlayerHover(socketId);
+        });
+
         // Cleanup: Remove all event listeners when socket changes or component unmounts
         return () => {
             socket.off('boardUpdate');
@@ -208,8 +241,10 @@ export default function Home() {
             socket.off("createRoomError");
             socket.off("roomDoesNotExistError");
             socket.off("receiveConfetti");
+            socket.off('playerHoverUpdate');
+            socket.off('playerLeft');
         };
-    }, [socket, leaveRoom, setBoard, setCell, setDifficulty, setGameOver, setGameOverName, setGameWon, setPlayerJoined, setPlayerStatsInRoom, setRoom]);
+    }, [socket, leaveRoom, setBoard, setCell, setDifficulty, setGameOver, setGameOverName, setGameWon, setPlayerJoined, setPlayerStatsInRoom, setRoom, updatePlayerHover, removePlayerHover]);
 
     // ============================================================================
     // SOCKET EMIT FUNCTIONS (Client -> Server)
@@ -281,6 +316,30 @@ export default function Home() {
         socket.emit('emitConfetti', { room });
     };
 
+    /**
+     * Emit cell hover event (throttled)
+     * Sends row=-1, col=-1 when leaving cell
+     */
+    const emitCellHover = useCallback((row: number, col: number) => {
+        if (!socket || !room || !playerJoined) return;
+        console.log('Emitting hover:', { room, row, col });
+        socket.emit('cellHover', { room, row, col });
+    }, [socket, room, playerJoined]);
+
+    // Apply throttle using useMemo to avoid recreating throttled function
+    const throttledEmitCellHover = React.useMemo(
+        () => throttle(emitCellHover, 100),
+        [emitCellHover]
+    );
+
+    /**
+     * Clear hover when mouse leaves the entire game board
+     */
+    const handleBoardLeave = useCallback(() => {
+        if (!socket || !room || !playerJoined) return;
+        socket.emit('cellHover', { room, row: -1, col: -1 });
+    }, [socket, room, playerJoined]);
+
     // ============================================================================
     // RENDER
     // ============================================================================
@@ -298,6 +357,8 @@ export default function Home() {
                     openCell={openCell}
                     chordCell={chordCell}
                     emitConfetti={emitConfetti}
+                    emitCellHover={throttledEmitCellHover}
+                    handleBoardLeave={handleBoardLeave}
                 />
             )}
 

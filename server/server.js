@@ -166,6 +166,54 @@ io.on('connection', async (socket) => {
         }
     })
 
+    socket.on('cellHover', async ({ room, row, col }) => {
+        try {
+            console.log('Server received cellHover:', { socketId: socket.id, room, row, col });
+            // Validate input parameters
+            if (!room || typeof room !== 'string') return;
+            if (typeof row !== 'number' || typeof col !== 'number') return;
+            if (!Number.isInteger(row) || !Number.isInteger(col)) return;
+            
+            // Validate bounds (allow -1 for "no hover")
+            if ((row !== -1 && col !== -1) && (row < 0 || row > 100 || col < 0 || col > 100)) return;
+
+            // CRITICAL: Validate that the player is actually in the room
+            // This prevents unauthorized hover spam
+            const roomExists = await client.exists(`room:${room}`);
+            const playerExists = await client.exists(`player:${socket.id}`);
+            if (!roomExists || !playerExists) {
+                console.log('Hover rejected: room or player does not exist');
+                return;
+            }
+
+            // Verify player is actually in the room's player list
+            const roomState = await client.hGetAll(`room:${room}`);
+            const playersInRoom = JSON.parse(roomState.players || '[]');
+            if (!playersInRoom.includes(socket.id)) {
+                console.log('Hover rejected: player not in room');
+                return;
+            }
+
+            // Get player name for the hover event
+            const playerName = await client.hGet(`player:${socket.id}`, 'name');
+            if (!playerName) {
+                console.log('Hover rejected: player has no name');
+                return;
+            }
+
+            console.log('Broadcasting playerHoverUpdate to room:', room, { id: socket.id, row, col, name: playerName });
+            // Broadcast to everyone else in the room
+            socket.to(room).emit('playerHoverUpdate', { 
+                id: socket.id, 
+                row, 
+                col, 
+                name: playerName 
+            });
+        } catch (error) {
+            console.error('Error in cellHover:', error);
+        }
+    });
+
     socket.on('resetGame', async ({ room }) => {
         try {
             // Validate input parameters

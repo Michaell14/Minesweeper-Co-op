@@ -119,6 +119,8 @@ const removePlayer = async (socket, socketId) => {
             // Only update the room and stats if it still has players
             await client.hSet(`room:${room}`, { "players": JSON.stringify(playersInRoom) });
             await updatePlayerStatsInRoom(room);
+            // Notify other players to remove this player's hover
+            socket.to(room).emit("playerLeft", socketId);
         }
     }
     socket.leave(room);

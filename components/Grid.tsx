@@ -21,9 +21,11 @@ interface GridParams {
     openCell: (row: number, col: number) => void;   // Reveal a cell
     chordCell: (row: number, col: number) => void;  // Middle-click chord action
     emitConfetti: () => void;       // Send confetti to all players
+    emitCellHover: (row: number, col: number) => void; // Emit cell hover
+    handleBoardLeave: () => void;   // Clear hover when leaving board
 }
 
-const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell, emitConfetti }: GridParams) => {
+const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell, emitConfetti, emitCellHover, handleBoardLeave }: GridParams) => {
     // ============================================================================
     // STATE
     // ============================================================================
@@ -125,6 +127,7 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
                         </Center>
                         <div
                             className={styles.gameBoard}
+                            onMouseLeave={handleBoardLeave}
                             role="grid"
                             aria-label={`Minesweeper game board, ${board.length} rows by ${board[0]?.length || 0} columns`}>
                             {board.map((row, rowIndex: number) => (
@@ -137,7 +140,8 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
                                             col={colIndex}
                                             toggleFlag={toggleFlag}
                                             openCell={openCell}
-                                            chordCell={chordCell} />
+                                            chordCell={chordCell}
+                                            emitCellHover={emitCellHover} />
                                     ))}
                                 </div>
                             ))}
@@ -235,6 +239,7 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
                         </Center>
                         <div
                             className={styles.gameBoard}
+                            onMouseLeave={handleBoardLeave}
                             role="grid"
                             aria-label={`Minesweeper game board, ${board.length} rows by ${board[0]?.length || 0} columns`}>
                             {board.map((row, rowIndex: number) => (
@@ -247,7 +252,8 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
                                             col={colIndex}
                                             toggleFlag={toggleFlag}
                                             openCell={openCell}
-                                            chordCell={chordCell} />
+                                            chordCell={chordCell}
+                                            emitCellHover={emitCellHover} />
                                     ))}
                                 </div>
                             ))}

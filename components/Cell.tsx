@@ -11,11 +11,53 @@ interface CellParams {
     toggleFlag: (row: number, col: number) => void;
     openCell: (row: number, col: number) => void;
     chordCell: (row: number, col: number) => void;
+    emitCellHover: (row: number, col: number) => void;
 }
 
-const Cell = React.memo(({ cell, row, col, toggleFlag, openCell, chordCell }: CellParams) => {
-    const { bothPressed, isChecked, gameOver,
-        setLeftClick, setRightClick, setCoord } = useMinesweeperStore();
+const Cell = ({ cell, row, col, toggleFlag, openCell, chordCell, emitCellHover }: CellParams) => {
+    // Use Zustand selector to only subscribe to hovers for THIS specific cell
+    // This prevents re-renders when other cells are hovered
+    // Using shallow equality to prevent re-renders when hover object is recreated with same values
+    const cellHover = useMinesweeperStore(
+        (state) => {
+            const hovers = Object.values(state.playerHovers).filter(
+                hover => hover.row === row && hover.col === col
+            );
+            // Return first hover or null, with stable null reference
+            return hovers.length > 0 ? hovers[0] : null;
+        },
+        (prev, next) => {
+            // Custom equality: only re-render if hover actually changed
+            if (prev === null && next === null) return true;
+            if (prev === null || next === null) return false;
+            return (
+                prev.row === next.row &&
+                prev.col === next.col &&
+                prev.name === next.name &&
+                prev.color === next.color
+            );
+        }
+    );
+    
+    // Subscribe to other store values separately to avoid unnecessary re-renders
+    const bothPressed = useMinesweeperStore((state) => state.bothPressed);
+    const isChecked = useMinesweeperStore((state) => state.isChecked);
+    const gameOver = useMinesweeperStore((state) => state.gameOver);
+    const setLeftClick = useMinesweeperStore((state) => state.setLeftClick);
+    const setRightClick = useMinesweeperStore((state) => state.setRightClick);
+    const setCoord = useMinesweeperStore((state) => state.setCoord);
+
+    // Check if any player is hovering over this cell
+    const isHovered = cellHover !== null;
+    const hoverColor = cellHover?.color || null;
+
+    const handleMouseEnter = () => {
+        emitCellHover(row, col);
+    };
+
+    const handleMouseLeave = () => {
+        emitCellHover(-1, -1); // Signal "no hover"
+    };
 
     const handleMouseDown = (event: React.MouseEvent) => {
         setCoord(row, col);
@@ -65,9 +107,12 @@ const Cell = React.memo(({ cell, row, col, toggleFlag, openCell, chordCell }: Ce
     if ((cell.isOpen || gameOver) && cell.isMine) {
         return <div
             key={col}
-            className={`${styles.cell} ${styles.mine}`}
+            className={`${styles.cell} ${styles.mine} ${isHovered ? styles.hovered : ''}`}
+            style={isHovered && hoverColor ? { '--hover-color': hoverColor } as React.CSSProperties : undefined}
             role="gridcell"
             aria-label={getAriaLabel()}
+            onMouseEnter={handleMouseEnter}
+            onMouseLeave={handleMouseLeave}
             onMouseDown={(e) => {
                 // Prevent middle mouse button default behavior (scrolling)
                 if (e.button === 1) {
@@ -85,7 +130,10 @@ const Cell = React.memo(({ cell, row, col, toggleFlag, openCell, chordCell }: Ce
                 onContextMenu={(e) => {
                     e.preventDefault();
                 }}
-                className={`${styles.cell} ${styles.open} ${numClass}`}
+                className={`${styles.cell} ${styles.open} ${numClass} ${isHovered ? styles.hovered : ''}`}
+                style={isHovered && hoverColor ? { '--hover-color': hoverColor } as React.CSSProperties : undefined}
+                onMouseEnter={handleMouseEnter}
+                onMouseLeave={handleMouseLeave}
                 onMouseDown={handleMouseDown}
                 onMouseUp={handleMouseUp}>
                 {cell.nearbyMines > 0 ? cell.nearbyMines : ''}
@@ -99,11 +147,14 @@ const Cell = React.memo(({ cell, row, col, toggleFlag, openCell, chordCell }: Ce
                 key={col}
                 role="gridcell"
                 aria-label={getAriaLabel()}
-                className={`${styles.cell} ${styles.flagged} text-lg`}
+                className={`${styles.cell} ${styles.flagged} ${isHovered ? styles.hovered : ''} text-lg`}
+                style={isHovered && hoverColor ? { '--hover-color': hoverColor } as React.CSSProperties : undefined}
                 onContextMenu={(e) => {
                     e.preventDefault();
                     toggleFlag(row, col);
                 }}
+                onMouseEnter={handleMouseEnter}
+                onMouseLeave={handleMouseLeave}
                 onMouseDown={(e) => {
                     // Prevent middle mouse button default behavior (scrolling)
                     if (e.button === 1) {
@@ -127,11 +178,14 @@ const Cell = React.memo(({ cell, row, col, toggleFlag, openCell, chordCell }: Ce
             key={col}
             role="gridcell"
             aria-label={getAriaLabel()}
-            className={`${styles.cell} ${styles.closed} nes-pointer `}
+            className={`${styles.cell} ${styles.closed} ${isHovered ? styles.hovered : ''} nes-pointer `}
+            style={isHovered && hoverColor ? { '--hover-color': hoverColor } as React.CSSProperties : undefined}
             onContextMenu={(e) => {
                 e.preventDefault();
                 toggleFlag(row, col);
             }}
+            onMouseEnter={handleMouseEnter}
+            onMouseLeave={handleMouseLeave}
             onMouseDown={(e) => {
                 // Prevent middle mouse button default behavior (scrolling)
                 if (e.button === 1) {
@@ -148,8 +202,22 @@ const Cell = React.memo(({ cell, row, col, toggleFlag, openCell, chordCell }: Ce
             </Box>
         </div>
     );
-});
+};
 
 Cell.displayName = 'Cell';
 
-export default Cell;
+// Custom comparison function for React.memo
+// Only re-render if cell state actually changes
+const arePropsEqual = (prevProps: CellParams, nextProps: CellParams) => {
+    return (
+        prevProps.cell.isMine === nextProps.cell.isMine &&
+        prevProps.cell.isOpen === nextProps.cell.isOpen &&
+        prevProps.cell.isFlagged === nextProps.cell.isFlagged &&
+        prevProps.cell.nearbyMines === nextProps.cell.nearbyMines &&
+        prevProps.row === nextProps.row &&
+        prevProps.col === nextProps.col
+        // Note: Functions (toggleFlag, openCell, etc.) are stable and don't need comparison
+    );
+};
+
+export default React.memo(Cell, arePropsEqual);
