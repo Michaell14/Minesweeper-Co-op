@@ -168,7 +168,6 @@ io.on('connection', async (socket) => {
 
     socket.on('cellHover', async ({ room, row, col }) => {
         try {
-            console.log('Server received cellHover:', { socketId: socket.id, room, row, col });
             // Validate input parameters
             if (!room || typeof room !== 'string') return;
             if (typeof row !== 'number' || typeof col !== 'number') return;
@@ -181,27 +180,17 @@ io.on('connection', async (socket) => {
             // This prevents unauthorized hover spam
             const roomExists = await client.exists(`room:${room}`);
             const playerExists = await client.exists(`player:${socket.id}`);
-            if (!roomExists || !playerExists) {
-                console.log('Hover rejected: room or player does not exist');
-                return;
-            }
+            if (!roomExists || !playerExists) return;
 
             // Verify player is actually in the room's player list
             const roomState = await client.hGetAll(`room:${room}`);
             const playersInRoom = JSON.parse(roomState.players || '[]');
-            if (!playersInRoom.includes(socket.id)) {
-                console.log('Hover rejected: player not in room');
-                return;
-            }
+            if (!playersInRoom.includes(socket.id)) return;
 
             // Get player name for the hover event
             const playerName = await client.hGet(`player:${socket.id}`, 'name');
-            if (!playerName) {
-                console.log('Hover rejected: player has no name');
-                return;
-            }
+            if (!playerName) return;
 
-            console.log('Broadcasting playerHoverUpdate to room:', room, { id: socket.id, row, col, name: playerName });
             // Broadcast to everyone else in the room
             socket.to(room).emit('playerHoverUpdate', { 
                 id: socket.id, 

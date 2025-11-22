@@ -211,7 +211,6 @@ export default function Home() {
          * Receive hover updates from other players
          */
         socket.on('playerHoverUpdate', ({ id, row, col, name }) => {
-            console.log('Received hover update:', { id, row, col, name });
             const color = generateColorFromId(id);
             if (row === -1 && col === -1) {
                 // Player cleared their hover
@@ -322,7 +321,6 @@ export default function Home() {
      */
     const emitCellHover = useCallback((row: number, col: number) => {
         if (!socket || !room || !playerJoined) return;
-        console.log('Emitting hover:', { room, row, col });
         socket.emit('cellHover', { room, row, col });
     }, [socket, room, playerJoined]);
 
