@@ -54,6 +54,7 @@ export interface MinesweeperState {
     numCols: number;        // Board width (from difficulty settings)
     numMines: number;       // Number of mines on board
     difficulty: string;     // "Easy", "Medium", "Hard", or "Custom"
+    mode: string;           // "co-op" or "pvp"
 
     // ============================================================================
     // ROOM & PLAYER DATA
@@ -87,6 +88,7 @@ export interface MinesweeperState {
     setName: (newName: string) => void;
     setPlayerStatsInRoom: (newStats: PlayerStats[]) => void;
     setDifficulty: (diff: string) => void;
+    setMode: (mode: string) => void;
     setIsChecked: (checked: boolean) => void;
     setCoord: (newR: number, newC: number) => void;
     setLeftClick: (lClick: boolean) => void;
@@ -118,6 +120,7 @@ export const useMinesweeperStore = create<MinesweeperState>((set, get) => ({
     numCols: 16,
     numMines: 40,
     difficulty: "Medium",
+    mode: "co-op",
 
     // Room & Player Data
     room: "",               // No room until player creates/joins one
@@ -186,6 +189,13 @@ export const useMinesweeperStore = create<MinesweeperState>((set, get) => ({
      */
     setDifficulty: (diff: string) => {
         set({ difficulty: diff });
+    },
+
+    /**
+     * Set game mode (co-op or pvp)
+     */
+    setMode: (mode: string) => {
+        set({ mode: mode });
     },
 
     /**

@@ -29,7 +29,7 @@ interface LandingParams {
 export default function Landing({ createRoom, joinRoom }: LandingParams) {
 
     const [bannerVisible, setBannerVisible] = React.useState(true);
-    const { numRows, numCols, numMines, difficulty, setDifficulty, setDimensions, setRoom, setName } = useMinesweeperStore();
+    const { numRows, numCols, numMines, difficulty, mode, setDifficulty, setMode, setDimensions, setRoom, setName } = useMinesweeperStore();
     const {
         register: createRegister,
         handleSubmit: handleCreateSubmit,
@@ -139,6 +139,29 @@ export default function Landing({ createRoom, joinRoom }: LandingParams) {
                                 aria-label="Room code"
                                 aria-required="true"
                                 {...createRegister("roomCode", { required: "Room Code is required." })} />
+                        </Field>
+                        <Field label={"Select Mode:"} mt={5}>
+                            <RadioCardRoot
+                                maxW={"100%"}
+                                overflowX={{base: "scroll", md: "hidden"}}
+                                variant={"subtle"}
+                                value={mode}
+                                aria-label="Select game mode">
+                                <HStack align="stretch">
+                                    <RadioCardItem
+                                        onClick={() => setMode("co-op")}
+                                        label="Co-op"
+                                        description="Work together on one board"
+                                        value="co-op"
+                                    />
+                                    <RadioCardItem
+                                        disabled
+                                        label="PvP (Coming Soon)"
+                                        description="Compete against each other"
+                                        value="pvp"
+                                    />
+                                </HStack>
+                            </RadioCardRoot>
                         </Field>
                         <Field label={"Select Difficulty:"} mt={5}>
                             <RadioCardRoot

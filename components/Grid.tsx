@@ -188,7 +188,7 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
                             </table>
 
                             {/* Flag counter */}
-                            <div className="bg-slate-100 nes-container is-centered mt-4 py-1" role="status" aria-label={`${remainingFlags} flags remaining`}>
+                            <div className="bg-slate-100 nes-container is-centered mt-4" role="status" aria-label={`${remainingFlags} flags remaining`}>
                                 <p className="text-sm m-0">
                                     🚩 <strong>{remainingFlags}</strong>
                                 </p>
