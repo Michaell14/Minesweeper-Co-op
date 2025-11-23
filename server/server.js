@@ -233,7 +233,7 @@ io.on('connection', async (socket) => {
 });
 
 const PORT = process.env.PORT || 3001;
-// Start the server
+// Start the server, enter
 server.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });
