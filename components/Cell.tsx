@@ -16,13 +16,17 @@ interface CellParams {
 
 const Cell = ({ cell, row, col, toggleFlag, openCell, chordCell, emitCellHover }: CellParams) => {
     // Use Zustand selector to only subscribe to hovers for THIS specific cell
-    // This prevents re-renders when other cells are hovered
+    // Optimization: Use for...in loop to avoid Object.values() array allocation
+    // and return immediately on find (faster than filter)
     const cellHover = useMinesweeperStore((state) => {
-        const hovers = Object.values(state.playerHovers).filter(
-            hover => hover.row === row && hover.col === col
-        );
-        // Return first hover or null
-        return hovers.length > 0 ? hovers[0] : null;
+        const hovers = state.playerHovers;
+        for (const key in hovers) {
+            const hover = hovers[key];
+            if (hover.row === row && hover.col === col) {
+                return hover;
+            }
+        }
+        return null;
     });
     
     // Subscribe to other store values separately to avoid unnecessary re-renders

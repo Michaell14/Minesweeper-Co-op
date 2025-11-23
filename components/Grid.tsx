@@ -41,9 +41,22 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
         board,              // Game board state
         gameOver,           // Game over flag
         gameWon,            // Game won flag
+        numMines,           // Total number of mines
         setIsChecked,       // Toggle mobile mode
         setBothPressed      // Set both-buttons-pressed state
     } = useMinesweeperStore();
+
+    // Calculate remaining flags (total mines - flags placed)
+    // Optimization: Use useMemo to avoid recalculating on every render
+    const remainingFlags = React.useMemo(() => {
+        let flagCount = 0;
+        for (let i = 0; i < board.length; i++) {
+            for (let j = 0; j < board[i].length; j++) {
+                if (board[i][j].isFlagged) flagCount++;
+            }
+        }
+        return numMines - flagCount;
+    }, [board, numMines]);
 
     // ============================================================================
     // DIALOG HELPERS
@@ -174,6 +187,12 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
                                 </tbody>
                             </table>
 
+                            {/* Flag counter */}
+                            <div className="bg-slate-100 nes-container is-centered mt-4 py-1" role="status" aria-label={`${remainingFlags} flags remaining`}>
+                                <p className="text-sm m-0">
+                                    🚩 <strong>{remainingFlags}</strong>
+                                </p>
+                            </div>
                         </div>
                     </div>
                 </Center>
@@ -284,6 +303,13 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
                                 ))}
                             </tbody>
                         </table>
+                        
+                        {/* Flag counter */}
+                        <div className="bg-slate-100 nes-container is-centered mt-4 py-1" role="status" aria-label={`${remainingFlags} flags remaining`}>
+                            <p className="text-sm m-0">
+                                🚩 <strong>{remainingFlags}</strong> left
+                            </p>
+                        </div>
                     </div>
                     <menu className="dialog-menu justify-end flex mt-6">
                         <button className="nes-btn" aria-label="Close players dialog">Cancel</button>
