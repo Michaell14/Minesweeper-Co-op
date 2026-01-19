@@ -23,9 +23,12 @@ interface GridParams {
     emitConfetti: () => void;       // Send confetti to all players
     emitCellHover: (row: number, col: number) => void; // Emit cell hover
     handleBoardLeave: () => void;   // Clear hover when leaving board
+    startPvpGame: () => void;       // PVP: Start game when ready
+    resetMyBoard: () => void;       // PVP: Reset only this player's board
+    pvpRematch: () => void;         // PVP: Request rematch (host only)
 }
 
-const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell, emitConfetti, emitCellHover, handleBoardLeave }: GridParams) => {
+const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell, emitConfetti, emitCellHover, handleBoardLeave, startPvpGame, resetMyBoard, pvpRematch }: GridParams) => {
     // ============================================================================
     // STATE
     // ============================================================================
@@ -37,13 +40,23 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
         rightClick,         // Right mouse button state
         isChecked,          // Mobile mode: click (true) vs flag (false)
         room,               // Current room code
+        mode,               // Game mode (co-op or pvp)
         playerStatsInRoom,  // All players' scores
         board,              // Game board state
         gameOver,           // Game over flag
         gameWon,            // Game won flag
         numMines,           // Total number of mines
         setIsChecked,       // Toggle mobile mode
-        setBothPressed      // Set both-buttons-pressed state
+        setBothPressed,     // Set both-buttons-pressed state
+        // PVP state
+        pvpStarted,
+        pvpRoomReady,
+        pvpOpponentName,
+        pvpOpponentStatus,
+        pvpWinner,
+        pvpIsHost,
+        pvpOpponentProgress,
+        pvpTotalSafeCells
     } = useMinesweeperStore();
 
     // Calculate remaining flags (total mines - flags placed)
@@ -57,6 +70,28 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
         }
         return numMines - flagCount;
     }, [board, numMines]);
+
+    // Calculate opponent's progress percentage for PVP mode
+    const opponentProgressPercent = React.useMemo(() => {
+        if (pvpTotalSafeCells <= 0) return 0;
+        return Math.round((pvpOpponentProgress / pvpTotalSafeCells) * 100);
+    }, [pvpOpponentProgress, pvpTotalSafeCells]);
+
+    // Calculate own progress (cells revealed)
+    const ownProgress = React.useMemo(() => {
+        let revealedCount = 0;
+        for (let i = 0; i < board.length; i++) {
+            for (let j = 0; j < board[i].length; j++) {
+                if (board[i][j].isOpen && !board[i][j].isMine) revealedCount++;
+            }
+        }
+        return revealedCount;
+    }, [board]);
+
+    const ownProgressPercent = React.useMemo(() => {
+        if (pvpTotalSafeCells <= 0) return 0;
+        return Math.round((ownProgress / pvpTotalSafeCells) * 100);
+    }, [ownProgress, pvpTotalSafeCells]);
 
     // ============================================================================
     // DIALOG HELPERS
@@ -127,14 +162,51 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
                     </div>
                     <div>
                         <Center>
-                            {gameWon &&
-                                <div className="nes-badge pb-12" role="status" aria-label="Game won">
-                                    <span className="is-success" onClick={emitConfetti}>GAME WON!</span>
+                            {/* PVP: Waiting for second player */}
+                            {mode === 'pvp' && !pvpRoomReady && !pvpStarted &&
+                                <div className="pb-12" role="status" aria-label="Waiting for opponent">
+                                    <p className="text-sm">Waiting for opponent...</p>
                                 </div>
                             }
-                            {gameOver &&
+                            {/* PVP: Room ready, host sees start button */}
+                            {mode === 'pvp' && pvpRoomReady && !pvpStarted && pvpIsHost &&
+                                <div className="pb-12 text-center">
+                                    <p className="text-sm mb-2">Opponent: <strong>{pvpOpponentName}</strong></p>
+                                    <button
+                                        type="button"
+                                        className="nes-btn is-success"
+                                        style={{ color: 'black' }}
+                                        onClick={startPvpGame}
+                                        aria-label="Start PVP game">
+                                        Start Game
+                                    </button>
+                                </div>
+                            }
+                            {/* PVP: Room ready, non-host waits for host to start */}
+                            {mode === 'pvp' && pvpRoomReady && !pvpStarted && !pvpIsHost &&
+                                <div className="pb-12 text-center">
+                                    <p className="text-sm mb-2">Opponent: <strong>{pvpOpponentName}</strong></p>
+                                    <p className="text-sm">Waiting for host to start...</p>
+                                </div>
+                            }
+                            {/* Co-op or PVP game won */}
+                            {gameWon &&
+                                <div className="nes-badge pb-12" role="status" aria-label="Game won">
+                                    <span className="is-success" onClick={emitConfetti}>
+                                        {mode === 'pvp' && pvpWinner ? `${pvpWinner} WON!` : 'GAME WON!'}
+                                    </span>
+                                </div>
+                            }
+                            {/* Co-op or PVP game lost */}
+                            {gameOver && mode === 'co-op' &&
                                 <div className="nes-badge pb-12" role="status" aria-label="Game lost">
                                     <span className="is-error">GAME LOST!</span>
+                                </div>
+                            }
+                            {/* PVP: This player lost */}
+                            {gameOver && mode === 'pvp' && !gameWon &&
+                                <div className="nes-badge pb-12" role="status" aria-label="You hit a mine">
+                                    <span className="is-error">HIT A MINE!</span>
                                 </div>
                             }
                         </Center>
@@ -161,13 +233,101 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
                         </div>
                     </div>
                     <div className="flex flex-col sticky top-20">
-                        <button
-                            type="button"
-                            className="nes-btn text-xs is-primary"
-                            onClick={resetGame}
-                            aria-label="Reset game board with new mine placement">
-                            Reset Board
-                        </button>
+                        {/* Co-op: Reset Board button */}
+                        {mode === 'co-op' &&
+                            <button
+                                type="button"
+                                className="nes-btn text-xs is-primary"
+                                onClick={resetGame}
+                                aria-label="Reset game board with new mine placement">
+                                Reset Board
+                            </button>
+                        }
+                        {/* PVP: Reset My Board button (only when player failed but game not over) */}
+                        {mode === 'pvp' && gameOver && !gameWon && !pvpWinner &&
+                            <button
+                                type="button"
+                                className="nes-btn text-xs is-primary"
+                                onClick={resetMyBoard}
+                                aria-label="Reset your board after hitting a mine">
+                                Reset My Board
+                            </button>
+                        }
+                        {/* PVP: Rematch button (host only, after game ends) */}
+                        {mode === 'pvp' && pvpWinner && pvpIsHost &&
+                            <button
+                                type="button"
+                                className="nes-btn text-xs is-success"
+                                onClick={pvpRematch}
+                                aria-label="Start a rematch">
+                                Rematch
+                            </button>
+                        }
+                        {/* PVP: Waiting for rematch (non-host, after game ends) */}
+                        {mode === 'pvp' && pvpWinner && !pvpIsHost &&
+                            <div className="text-xs text-gray-600 mt-2">
+                                Waiting for host to start rematch...
+                            </div>
+                        }
+                        {/* PVP: Progress bars and opponent status */}
+                        {mode === 'pvp' && pvpStarted &&
+                            <div className="bg-slate-100 nes-container with-title max-w-60 mt-6" role="region" aria-label="Game progress">
+                                <p className="title text-xs">Progress</p>
+
+                                {/* Your progress */}
+                                <div className="mb-4">
+                                    <p className="text-xs mb-1">You: <strong>{ownProgressPercent}%</strong></p>
+                                    <div className="w-full bg-gray-300 rounded h-4 overflow-hidden">
+                                        <div
+                                            className="bg-blue-500 h-full transition-all duration-300"
+                                            style={{ width: `${ownProgressPercent}%` }}
+                                            role="progressbar"
+                                            aria-valuenow={ownProgressPercent}
+                                            aria-valuemin={0}
+                                            aria-valuemax={100}
+                                            aria-label={`Your progress: ${ownProgressPercent}%`}
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Opponent progress */}
+                                <div className="mb-2">
+                                    <p className="text-xs mb-1">{pvpOpponentName || 'Opponent'}: <strong>{opponentProgressPercent}%</strong></p>
+                                    <div className="w-full bg-gray-300 rounded h-4 overflow-hidden">
+                                        <div
+                                            className={`h-full transition-all duration-300 ${
+                                                pvpOpponentStatus === 'failed' ? 'bg-red-500' :
+                                                pvpOpponentStatus === 'won' ? 'bg-green-500' :
+                                                'bg-orange-500'
+                                            }`}
+                                            style={{ width: `${opponentProgressPercent}%` }}
+                                            role="progressbar"
+                                            aria-valuenow={opponentProgressPercent}
+                                            aria-valuemin={0}
+                                            aria-valuemax={100}
+                                            aria-label={`Opponent progress: ${opponentProgressPercent}%`}
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Opponent status */}
+                                <p className="text-xs mt-3">
+                                    Status: <span className={
+                                        pvpOpponentStatus === 'won' ? 'text-green-600' :
+                                        pvpOpponentStatus === 'failed' ? 'text-red-600' :
+                                        pvpOpponentStatus === 'disconnected' ? 'text-gray-600' :
+                                        pvpOpponentStatus === 'playing' ? 'text-blue-600' :
+                                        'text-gray-600'
+                                    }>
+                                        {pvpOpponentStatus === 'won' ? '✓ Won' :
+                                         pvpOpponentStatus === 'failed' ? '✗ Hit a mine' :
+                                         pvpOpponentStatus === 'disconnected' ? '✗ Disconnected' :
+                                         pvpOpponentStatus === 'playing' ? '▶ Playing' :
+                                         '⏳ Waiting'}
+                                    </span>
+                                </p>
+                            </div>
+                        }
 
                         <div className="nes-table-responsive mt-6" role="region" aria-label="Player scores">
                             <table className="nes-table is-bordered is-centered" aria-label="Leaderboard showing player names and scores">
@@ -207,13 +367,36 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
                                 aria-label="Leave room and return to home page">
                                 Return to Home
                             </button>
-                            <button
-                                type="button"
-                                className="nes-btn text-xs is-primary"
-                                onClick={resetGame}
-                                aria-label="Reset game board with new mine placement">
-                                Reset Board
-                            </button>
+                            {/* Co-op: Reset Board */}
+                            {mode === 'co-op' &&
+                                <button
+                                    type="button"
+                                    className="nes-btn text-xs is-primary"
+                                    onClick={resetGame}
+                                    aria-label="Reset game board with new mine placement">
+                                    Reset Board
+                                </button>
+                            }
+                            {/* PVP: Reset My Board (when failed) */}
+                            {mode === 'pvp' && gameOver && !gameWon && !pvpWinner &&
+                                <button
+                                    type="button"
+                                    className="nes-btn text-xs is-primary"
+                                    onClick={resetMyBoard}
+                                    aria-label="Reset your board after hitting a mine">
+                                    Reset My Board
+                                </button>
+                            }
+                            {/* PVP: Rematch (host only, after game ends) */}
+                            {mode === 'pvp' && pvpWinner && pvpIsHost &&
+                                <button
+                                    type="button"
+                                    className="nes-btn text-xs is-success"
+                                    onClick={pvpRematch}
+                                    aria-label="Start a rematch">
+                                    Rematch
+                                </button>
+                            }
                         </HStack>
 
                         <HStack gap={8}>
@@ -228,6 +411,25 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
                                 style={{ border: 'none', background: 'none', cursor: 'pointer' }}
                             />
                         </HStack>
+
+                        {/* PVP: Progress bars for mobile */}
+                        {mode === 'pvp' && pvpStarted &&
+                            <div className="w-full max-w-60 mb-4">
+                                <div className="mb-2">
+                                    <p className="text-xs mb-1">You: {ownProgressPercent}%</p>
+                                    <div className="w-full bg-gray-300 rounded h-3">
+                                        <div className="bg-blue-500 h-full transition-all duration-300" style={{ width: `${ownProgressPercent}%` }} />
+                                    </div>
+                                </div>
+                                <div>
+                                    <p className="text-xs mb-1">{pvpOpponentName}: {opponentProgressPercent}%</p>
+                                    <div className="w-full bg-gray-300 rounded h-3">
+                                        <div className={`h-full transition-all duration-300 ${pvpOpponentStatus === 'failed' ? 'bg-red-500' : pvpOpponentStatus === 'won' ? 'bg-green-500' : 'bg-orange-500'}`} style={{ width: `${opponentProgressPercent}%` }} />
+                                    </div>
+                                </div>
+                            </div>
+                        }
+
                         <Box hideFrom={"sm"}>
                             <HStack gap={5}>
                                 <Switch
@@ -245,14 +447,41 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
                 <Center hideFrom={"xl"} mt={5}>
                     <div className="overflow-scroll" role="region" aria-label="Game board container">
                         <Center>
-                            {gameWon &&
-                                <div className="nes-badge pb-12" role="status" aria-label="Game won">
-                                    <span className="is-success" onClick={emitConfetti}>GAME WON!</span>
+                            {/* PVP: Waiting for second player */}
+                            {mode === 'pvp' && !pvpRoomReady && !pvpStarted &&
+                                <div className="pb-12" role="status">
+                                    <p className="text-sm">Waiting for opponent...</p>
                                 </div>
                             }
-                            {gameOver &&
+                            {/* PVP: Room ready, host sees start button */}
+                            {mode === 'pvp' && pvpRoomReady && !pvpStarted && pvpIsHost &&
+                                <div className="pb-12 text-center">
+                                    <p className="text-sm mb-2">vs <strong>{pvpOpponentName}</strong></p>
+                                    <button type="button" className="nes-btn is-success" style={{ color: 'black' }} onClick={startPvpGame}>Start Game</button>
+                                </div>
+                            }
+                            {/* PVP: Room ready, non-host waits */}
+                            {mode === 'pvp' && pvpRoomReady && !pvpStarted && !pvpIsHost &&
+                                <div className="pb-12 text-center">
+                                    <p className="text-sm mb-2">vs <strong>{pvpOpponentName}</strong></p>
+                                    <p className="text-sm">Waiting for host...</p>
+                                </div>
+                            }
+                            {gameWon &&
+                                <div className="nes-badge pb-12" role="status" aria-label="Game won">
+                                    <span className="is-success" onClick={emitConfetti}>
+                                        {mode === 'pvp' && pvpWinner ? `${pvpWinner} WON!` : 'GAME WON!'}
+                                    </span>
+                                </div>
+                            }
+                            {gameOver && mode === 'co-op' &&
                                 <div className="nes-badge pb-12" role="status" aria-label="Game lost">
                                     <span className="is-error">GAME LOST!</span>
+                                </div>
+                            }
+                            {gameOver && mode === 'pvp' && !gameWon &&
+                                <div className="nes-badge pb-12" role="status" aria-label="Hit a mine">
+                                    <span className="is-error">HIT A MINE!</span>
                                 </div>
                             }
                         </Center>

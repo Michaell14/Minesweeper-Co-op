@@ -29,6 +29,7 @@ export default function Home() {
         numRows,        // Board height (from difficulty settings)
         numCols,        // Board width (from difficulty settings)
         numMines,       // Number of mines (from difficulty settings)
+        mode,           // Game mode (co-op or pvp)
         gameOverName,   // Name of player who hit a mine
         setBoard,       // Update entire board state
         setGameOver,    // Set game over state
@@ -43,7 +44,18 @@ export default function Home() {
         setGameOverName, // Set name of player who caused game over
         updatePlayerHover, // Update player hover state
         removePlayerHover, // Remove player hover
-        clearAllHovers // Clear all hovers
+        clearAllHovers, // Clear all hovers
+        // PVP state
+        setPvpStarted,
+        setPvpPlayerIndex,
+        setPvpOpponentName,
+        setPvpOpponentStatus,
+        setPvpWinner,
+        setPvpRoomReady,
+        setPvpIsHost,
+        setPvpOpponentProgress,
+        setPvpTotalSafeCells,
+        resetPvpState,
     } = useMinesweeperStore();
 
     // ============================================================================
@@ -69,24 +81,24 @@ export default function Home() {
 
     /**
      * Leave the current room and reset all game state
-     * Resets to Medium difficulty (16x16, 40 mines)
+     * Resets to Medium difficulty (16x16, 40 mines) and co-op mode
      */
     const leaveRoom = useCallback(() => {
         if (!socket) return;
 
         // Clear hover before leaving
         socket.emit('cellHover', { room, row: -1, col: -1 });
-        
+
         socket.emit("playerLeave");
         setPlayerJoined(false);
         setBoard([]);
-        setGameWon(false);
-        setGameOver(false);
         setName("");
         setDimensions(16, 16, 40); // Default: Medium difficulty
         setDifficulty("Medium");
         clearAllHovers(); // Clear all hover states
-    }, [socket, room, setPlayerJoined, setBoard, setGameWon, setGameOver, setName, setDimensions, setDifficulty, clearAllHovers]);
+        resetPvpState(); // Reset all PVP state (also resets gameOver/gameWon)
+        useMinesweeperStore.getState().setMode('co-op'); // Reset to default mode
+    }, [socket, room, setPlayerJoined, setBoard, setName, setDimensions, setDifficulty, clearAllHovers, resetPvpState]);
 
     // ============================================================================
     // SOCKET EVENT HANDLERS
@@ -167,8 +179,19 @@ export default function Home() {
         /**
          * Successfully joined a room
          */
-        socket.on("joinRoomSuccess", (newRoom) => {
-            setRoom(newRoom);
+        socket.on("joinRoomSuccess", (data) => {
+            // Handle both old format (string) and new format (object)
+            if (typeof data === 'string') {
+                setRoom(data);
+            } else {
+                setRoom(data.room);
+                if (data.mode) {
+                    useMinesweeperStore.getState().setMode(data.mode);
+                }
+                if (data.isHost !== undefined) {
+                    setPvpIsHost(data.isHost);
+                }
+            }
             setPlayerJoined(true);
         });
 
@@ -227,6 +250,165 @@ export default function Home() {
             removePlayerHover(socketId);
         });
 
+        // --- PVP Events ---
+
+        /**
+         * PVP: Room is full (max 2 players)
+         */
+        socket.on('pvpRoomFull', () => {
+            (document.getElementById('dialog-pvp-room-full') as HTMLDialogElement)?.showModal();
+        });
+
+        /**
+         * PVP: Second player joined, room ready to start
+         */
+        socket.on('pvpRoomReady', (data: { opponentName: string, isHost: boolean }) => {
+            setPvpRoomReady(true);
+            if (data && data.opponentName) {
+                setPvpOpponentName(data.opponentName);
+            }
+            if (data && data.isHost !== undefined) {
+                setPvpIsHost(data.isHost);
+            }
+        });
+
+        /**
+         * PVP: Game has started
+         */
+        socket.on('pvpGameStarted', (data: { totalSafeCells?: number }) => {
+            setPvpStarted(true);
+            setPvpOpponentStatus('playing');
+            if (data && data.totalSafeCells) {
+                setPvpTotalSafeCells(data.totalSafeCells);
+            }
+            setPvpOpponentProgress(0);
+        });
+
+        /**
+         * PVP: Receive board update for this player
+         */
+        socket.on('pvpBoardUpdate', ({ board, playerIndex, opponentName, opponentProgress, totalSafeCells }: {
+            board: Cell[][],
+            playerIndex: number,
+            opponentName?: string,
+            opponentProgress?: number,
+            totalSafeCells?: number
+        }) => {
+            setBoard(board);
+            if (playerIndex !== undefined) {
+                setPvpPlayerIndex(playerIndex);
+            }
+            if (opponentName) {
+                setPvpOpponentName(opponentName);
+            }
+            if (opponentProgress !== undefined) {
+                setPvpOpponentProgress(opponentProgress);
+            }
+            if (totalSafeCells !== undefined) {
+                setPvpTotalSafeCells(totalSafeCells);
+            }
+        });
+
+        /**
+         * PVP: Receive cell updates for this player
+         */
+        socket.on('pvpUpdateCells', (toUpdate: { row: number, col: number, isMine: boolean, isOpen: boolean, isFlagged: boolean, nearbyMines: number }[]) => {
+            toUpdate.forEach((cell) => {
+                setCell(cell.row, cell.col, {
+                    isMine: cell.isMine,
+                    isOpen: cell.isOpen,
+                    isFlagged: cell.isFlagged,
+                    nearbyMines: cell.nearbyMines,
+                });
+            });
+        });
+
+        /**
+         * PVP: This player lost (hit a mine)
+         */
+        socket.on('pvpGameOver', () => {
+            setGameOver(true);
+            setPvpOpponentStatus('playing'); // Opponent might still be playing
+            (document.getElementById('dialog-pvp-game-over') as HTMLDialogElement)?.showModal();
+        });
+
+        /**
+         * PVP: Opponent hit a mine
+         */
+        socket.on('pvpOpponentFailed', () => {
+            setPvpOpponentStatus('failed');
+        });
+
+        /**
+         * PVP: Opponent reset their board
+         */
+        socket.on('pvpOpponentReset', () => {
+            setPvpOpponentStatus('playing');
+        });
+
+        /**
+         * PVP: Someone won
+         */
+        socket.on('pvpPlayerWon', ({ winnerSocket, winnerName }: { winnerSocket: string, winnerName: string }) => {
+            setPvpWinner(winnerName);
+            setPvpOpponentStatus('won');
+
+            if (socket.id === winnerSocket) {
+                // This player won
+                shootConfetti();
+                setGameWon(true);
+                (document.getElementById('dialog-pvp-you-won') as HTMLDialogElement)?.showModal();
+            } else {
+                // Opponent won
+                (document.getElementById('dialog-pvp-opponent-won') as HTMLDialogElement)?.showModal();
+            }
+        });
+
+        /**
+         * PVP: Receive opponent's progress update
+         */
+        socket.on('pvpOpponentProgress', ({ progress }: { progress: number }) => {
+            setPvpOpponentProgress(progress);
+        });
+
+        /**
+         * PVP: Opponent disconnected, you win!
+         */
+        socket.on('pvpOpponentDisconnected', ({ winnerName }: { winnerSocket: string, winnerName: string }) => {
+            setPvpWinner(winnerName);
+            setPvpOpponentStatus('disconnected');
+            shootConfetti();
+            setGameWon(true);
+            (document.getElementById('dialog-pvp-opponent-disconnected') as HTMLDialogElement)?.showModal();
+        });
+
+        /**
+         * PVP: Opponent left before game started - go back to waiting state
+         */
+        socket.on('pvpOpponentLeftBeforeStart', () => {
+            setPvpRoomReady(false);
+            setPvpOpponentName('');
+        });
+
+        /**
+         * PVP: Host left, you are now the host
+         */
+        socket.on('pvpHostTransferred', () => {
+            setPvpIsHost(true);
+        });
+
+        /**
+         * PVP: Rematch started
+         */
+        socket.on('pvpRematchStarted', ({ totalSafeCells, isHost }: { totalSafeCells: number, isHost: boolean }) => {
+            resetPvpState();
+            setPvpStarted(true);
+            setPvpOpponentStatus('playing');
+            setPvpTotalSafeCells(totalSafeCells);
+            setPvpOpponentProgress(0);
+            setPvpIsHost(isHost); // Restore host status after reset
+        });
+
         // Cleanup: Remove all event listeners when socket changes or component unmounts
         return () => {
             socket.off('boardUpdate');
@@ -242,8 +424,22 @@ export default function Home() {
             socket.off("receiveConfetti");
             socket.off('playerHoverUpdate');
             socket.off('playerLeft');
+            socket.off('pvpRoomFull');
+            socket.off('pvpRoomReady');
+            socket.off('pvpGameStarted');
+            socket.off('pvpBoardUpdate');
+            socket.off('pvpUpdateCells');
+            socket.off('pvpGameOver');
+            socket.off('pvpOpponentFailed');
+            socket.off('pvpOpponentReset');
+            socket.off('pvpPlayerWon');
+            socket.off('pvpOpponentProgress');
+            socket.off('pvpOpponentDisconnected');
+            socket.off('pvpOpponentLeftBeforeStart');
+            socket.off('pvpHostTransferred');
+            socket.off('pvpRematchStarted');
         };
-    }, [socket, leaveRoom, setBoard, setCell, setDifficulty, setGameOver, setGameOverName, setGameWon, setPlayerJoined, setPlayerStatsInRoom, setRoom, updatePlayerHover, removePlayerHover]);
+    }, [socket, leaveRoom, setBoard, setCell, setDifficulty, setGameOver, setGameOverName, setGameWon, setPlayerJoined, setPlayerStatsInRoom, setRoom, updatePlayerHover, removePlayerHover, setPvpStarted, setPvpPlayerIndex, setPvpOpponentName, setPvpOpponentStatus, setPvpWinner, setPvpRoomReady, setPvpIsHost, setPvpOpponentProgress, setPvpTotalSafeCells, resetPvpState, clearAllHovers]);
 
     // ============================================================================
     // SOCKET EMIT FUNCTIONS (Client -> Server)
@@ -255,7 +451,7 @@ export default function Home() {
      */
     const createRoom = () => {
         if (!room || !socket) return;
-        socket.emit("createRoom", { room, numRows, numCols, numMines, name });
+        socket.emit("createRoom", { room, numRows, numCols, numMines, name, mode });
     };
 
     /**
@@ -304,6 +500,31 @@ export default function Home() {
     const resetGame = () => {
         if (!socket) return;
         socket.emit('resetGame', { room });
+    };
+
+    /**
+     * PVP: Start the game (when 2 players ready)
+     */
+    const startPvpGame = () => {
+        if (!socket) return;
+        socket.emit('startPvpGame', { room });
+    };
+
+    /**
+     * PVP: Reset only this player's board
+     */
+    const resetMyBoard = () => {
+        if (!socket) return;
+        socket.emit('resetMyBoard', { room });
+        setGameOver(false);
+    };
+
+    /**
+     * PVP: Request rematch (host only)
+     */
+    const pvpRematch = () => {
+        if (!socket) return;
+        socket.emit('pvpRematch', { room });
     };
 
     /**
@@ -357,6 +578,9 @@ export default function Home() {
                     emitConfetti={emitConfetti}
                     emitCellHover={throttledEmitCellHover}
                     handleBoardLeave={handleBoardLeave}
+                    startPvpGame={startPvpGame}
+                    resetMyBoard={resetMyBoard}
+                    pvpRematch={pvpRematch}
                 />
             )}
 
@@ -418,6 +642,85 @@ export default function Home() {
                     <div className="flex justify-between">
                         <button className="nes-btn" onClick={() => setPlayerJoined(false)} aria-label="Close error dialog">Cancel</button>
                     </div>
+                </form>
+            </dialog>
+
+            {/* ============================================================================ */}
+            {/* PVP-SPECIFIC DIALOGS */}
+            {/* ============================================================================ */}
+
+            {/* PVP Room Full - Cannot join */}
+            <dialog
+                className="nes-dialog absolute left-1/2 top-60 -translate-x-1/2"
+                id="dialog-pvp-room-full"
+                role="alertdialog"
+                aria-labelledby="pvp-room-full-title">
+                <form method="dialog">
+                    <p id="pvp-room-full-title" className="title">Room Full!</p>
+                    <p>This PVP room already has 2 players.</p>
+                    <menu className="dialog-menu">
+                        <button className="nes-btn" aria-label="Close dialog">OK</button>
+                    </menu>
+                </form>
+            </dialog>
+
+            {/* PVP Game Over - This player hit a mine */}
+            <dialog
+                className="nes-dialog absolute left-1/2 top-60 -translate-x-1/2"
+                id="dialog-pvp-game-over"
+                role="alertdialog"
+                aria-labelledby="pvp-game-over-title">
+                <form method="dialog">
+                    <p id="pvp-game-over-title" className="title">Boom!</p>
+                    <p>You hit a mine. Reset your board to try again!</p>
+                    <menu className="dialog-menu">
+                        <button className="nes-btn is-error" aria-label="Close dialog">OK</button>
+                    </menu>
+                </form>
+            </dialog>
+
+            {/* PVP You Won */}
+            <dialog
+                className="nes-dialog absolute left-1/2 top-60 -translate-x-1/2"
+                id="dialog-pvp-you-won"
+                role="alertdialog"
+                aria-labelledby="pvp-you-won-title">
+                <form method="dialog">
+                    <p id="pvp-you-won-title" className="title">Victory!</p>
+                    <p>You completed your board first. You win!</p>
+                    <menu className="dialog-menu">
+                        <button className="nes-btn is-success" aria-label="Close dialog">Awesome!</button>
+                    </menu>
+                </form>
+            </dialog>
+
+            {/* PVP Opponent Won */}
+            <dialog
+                className="nes-dialog absolute left-1/2 top-60 -translate-x-1/2"
+                id="dialog-pvp-opponent-won"
+                role="alertdialog"
+                aria-labelledby="pvp-opponent-won-title">
+                <form method="dialog">
+                    <p id="pvp-opponent-won-title" className="title">Defeat</p>
+                    <p>Your opponent completed their board first.</p>
+                    <menu className="dialog-menu">
+                        <button className="nes-btn" aria-label="Close dialog">OK</button>
+                    </menu>
+                </form>
+            </dialog>
+
+            {/* PVP Opponent Disconnected */}
+            <dialog
+                className="nes-dialog absolute left-1/2 top-60 -translate-x-1/2"
+                id="dialog-pvp-opponent-disconnected"
+                role="alertdialog"
+                aria-labelledby="pvp-opponent-disconnected-title">
+                <form method="dialog">
+                    <p id="pvp-opponent-disconnected-title" className="title">Victory!</p>
+                    <p>Your opponent disconnected. You win by default!</p>
+                    <menu className="dialog-menu">
+                        <button className="nes-btn is-success" aria-label="Close dialog">Nice!</button>
+                    </menu>
                 </form>
             </dialog>
         </>

@@ -110,19 +110,11 @@ const checkWin = async (roomState, board, room) => {
 // nearbyMines: number
 
 // Checked
-const createRoom = async (room, numRows, numCols, numMines) => {
+const createRoom = async (room, numRows, numCols, numMines, mode = 'co-op') => {
     const client = await redisClient;
 
-    await client.hSet(`room:${room}`, {
-        // Initialize empty board for player to visualize before first click
-        board: JSON.stringify(Array.from({ length: numRows }, () =>
-            Array.from({ length: numCols }, () => ({
-                isMine: false,
-                isOpen: false,
-                isFlagged: false,
-                nearbyMines: 0,
-            }))
-        )),
+    const roomData = {
+        mode: mode,
         gameOver: 'false',
         gameWon: 'false',
         initialized: 'false',
@@ -130,8 +122,109 @@ const createRoom = async (room, numRows, numCols, numMines) => {
         numRows: numRows.toString(),
         numCols: numCols.toString(),
         numMines: numMines.toString()
-    })
+    };
+
+    if (mode === 'co-op') {
+        // Initialize empty board for co-op mode
+        roomData.board = JSON.stringify(Array.from({ length: numRows }, () =>
+            Array.from({ length: numCols }, () => ({
+                isMine: false,
+                isOpen: false,
+                isFlagged: false,
+                nearbyMines: 0,
+            }))
+        ));
+    } else if (mode === 'pvp') {
+        // Initialize PVP-specific fields
+        roomData.pvpStarted = 'false';
+        roomData.hostSocket = ''; // Track who the host is (first player to join)
+        roomData.player1Socket = '';
+        roomData.player2Socket = '';
+        roomData.player1Board = '';
+        roomData.player2Board = '';
+        roomData.player1Initialized = 'false';
+        roomData.player2Initialized = 'false';
+        roomData.player1GameOver = 'false';
+        roomData.player2GameOver = 'false';
+        roomData.player1GameWon = 'false';
+        roomData.player2GameWon = 'false';
+        roomData.player1Progress = '0'; // Progress tracking (cells revealed)
+        roomData.player2Progress = '0';
+        roomData.totalSafeCells = '0'; // Set when game starts
+        roomData.winnerSocket = '';
+        roomData.sharedBoardSeed = ''; // For generating identical boards
+    }
+
+    await client.hSet(`room:${room}`, roomData);
     await client.expire(`room:${room}`, 86400); // Deletes room after 24 hours
+}
+
+// Generate a seeded board (for PVP - both players get identical mines)
+const generateSeededBoard = (numRows, numCols, numMines, seed) => {
+    // Seeded random number generator
+    const seededRandom = (seed) => {
+        let s = seed;
+        return () => {
+            s = (s * 1103515245 + 12345) & 0x7fffffff;
+            return s / 0x7fffffff;
+        };
+    };
+
+    const random = seededRandom(seed);
+
+    const board = Array.from({ length: numRows }, () =>
+        Array.from({ length: numCols }, () => ({
+            isMine: false,
+            isOpen: false,
+            isFlagged: false,
+            nearbyMines: 0,
+        }))
+    );
+
+    // Place mines randomly using seeded random
+    const totalCells = numRows * numCols;
+    const actualMines = Math.min(numMines, totalCells - 9); // Leave room for first click safe zone
+
+    // Create array of all positions
+    const allPositions = [];
+    for (let r = 0; r < numRows; r++) {
+        for (let c = 0; c < numCols; c++) {
+            allPositions.push({ row: r, col: c });
+        }
+    }
+
+    // Shuffle using seeded random (Fisher-Yates)
+    for (let i = allPositions.length - 1; i > 0; i--) {
+        const j = Math.floor(random() * (i + 1));
+        [allPositions[i], allPositions[j]] = [allPositions[j], allPositions[i]];
+    }
+
+    // Place mines at first N positions
+    for (let i = 0; i < actualMines; i++) {
+        const { row, col } = allPositions[i];
+        board[row][col].isMine = true;
+    }
+
+    // Calculate nearbyMines for each cell
+    for (let r = 0; r < numRows; r++) {
+        for (let c = 0; c < numCols; c++) {
+            if (!board[r][c].isMine) {
+                let count = 0;
+                for (let dr = -1; dr <= 1; dr++) {
+                    for (let dc = -1; dc <= 1; dc++) {
+                        const nr = r + dr;
+                        const nc = c + dc;
+                        if (nr >= 0 && nr < numRows && nc >= 0 && nc < numCols && board[nr][nc].isMine) {
+                            count++;
+                        }
+                    }
+                }
+                board[r][c].nearbyMines = count;
+            }
+        }
+    }
+
+    return board;
 }
 
 const resetGame = async (room) => {
@@ -172,4 +265,4 @@ const resetGame = async (room) => {
         updatePlayerStatsInRoom(room),
     ]);
 }
-module.exports = { generateBoard, checkWin, createRoom, resetGame };
+module.exports = { generateBoard, generateSeededBoard, checkWin, createRoom, resetGame };

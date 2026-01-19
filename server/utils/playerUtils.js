@@ -61,6 +61,7 @@ const addPlayerToRoom = async (room, socketId, name) => {
 
     // Add the player to the room
     const roomState = await client.hGetAll(`room:${room}`);
+    const mode = roomState.mode || 'co-op';
 
     if (roomState.gameWon === "true") {
         io.to(room).emit("gameWon");
@@ -82,9 +83,26 @@ const addPlayerToRoom = async (room, socketId, name) => {
         await client.hSet(`room:${room}`, { players: JSON.stringify(roomPlayers) });
     }
 
-    // Send the current board to the player who joined
-    const board = JSON.parse(roomState.board);
-    io.to(room).emit('boardUpdate', board);
+    // Send the current board to the player who joined (only for co-op)
+    // For PVP, boards are sent when game starts
+    if (mode === 'co-op') {
+        const board = JSON.parse(roomState.board);
+        io.to(room).emit('boardUpdate', board);
+    } else if (mode === 'pvp') {
+        // For PVP, send empty board to show UI
+        const numRows = parseInt(roomState.numRows, 10);
+        const numCols = parseInt(roomState.numCols, 10);
+        const emptyBoard = Array.from({ length: numRows }, () =>
+            Array.from({ length: numCols }, () => ({
+                isMine: false,
+                isOpen: false,
+                isFlagged: false,
+                nearbyMines: 0,
+            }))
+        );
+        io.to(socketId).emit('boardUpdate', emptyBoard);
+    }
+
     await updatePlayerStatsInRoom(room);
 }
 
@@ -96,18 +114,19 @@ const removePlayer = async (socket, socketId) => {
     const room = await client.hGet(`player:${socketId}`, 'room');
     if (!room) return;
 
-    const playersData = await client.hGet(`room:${room}`, "players");
-    if (!playersData) {
+    const roomState = await client.hGetAll(`room:${room}`);
+    if (!roomState || !roomState.players) {
         // Room already deleted, just clean up player
         socket.leave(room);
         await client.del(`player:${socketId}`);
         return;
     }
 
-    const playersInRoom = JSON.parse(playersData);
+    const playersInRoom = JSON.parse(roomState.players);
+    const mode = roomState.mode || 'co-op';
 
     if (playersInRoom && playersInRoom.includes(socketId)) {
-        const index = playersInRoom.indexOf(socketId); // Find the index of the element
+        const index = playersInRoom.indexOf(socketId);
         if (index > -1) {
             playersInRoom.splice(index, 1);
         }
@@ -116,7 +135,46 @@ const removePlayer = async (socket, socketId) => {
         if (playersInRoom.length === 0) {
             await client.del(`room:${room}`);
         } else {
-            // Only update the room and stats if it still has players
+            // Handle PVP disconnection - award win to remaining player if game is in progress
+            if (mode === 'pvp' && roomState.pvpStarted === 'true' && !roomState.winnerSocket) {
+                const remainingPlayer = playersInRoom[0];
+
+                // Check if game hasn't already ended
+                const player1Won = roomState.player1GameWon === 'true';
+                const player2Won = roomState.player2GameWon === 'true';
+
+                if (!player1Won && !player2Won) {
+                    // Get the remaining player's name
+                    const remainingPlayerName = await client.hGet(`player:${remainingPlayer}`, 'name');
+
+                    // Mark the remaining player as winner
+                    await client.hSet(`room:${room}`, {
+                        winnerSocket: remainingPlayer
+                    });
+
+                    // Notify the remaining player that they won due to opponent disconnect
+                    io.to(remainingPlayer).emit('pvpOpponentDisconnected', {
+                        winnerSocket: remainingPlayer,
+                        winnerName: remainingPlayerName
+                    });
+                }
+            }
+
+            // Handle PVP disconnection before game starts - reset room ready state
+            if (mode === 'pvp' && roomState.pvpStarted !== 'true') {
+                const remainingPlayer = playersInRoom[0];
+
+                // If the leaving player was the host, transfer host to remaining player
+                if (roomState.hostSocket === socketId) {
+                    await client.hSet(`room:${room}`, { hostSocket: remainingPlayer });
+                    io.to(remainingPlayer).emit('pvpHostTransferred');
+                }
+
+                // Notify remaining player to go back to waiting state
+                io.to(remainingPlayer).emit('pvpOpponentLeftBeforeStart');
+            }
+
+            // Update the room players list
             await client.hSet(`room:${room}`, { "players": JSON.stringify(playersInRoom) });
             await updatePlayerStatsInRoom(room);
             // Notify other players to remove this player's hover

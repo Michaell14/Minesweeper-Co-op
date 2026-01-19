@@ -67,6 +67,19 @@ export interface MinesweeperState {
     playerHovers: Record<string, PlayerHover>; // Real-time hover states by socket ID
 
     // ============================================================================
+    // PVP-SPECIFIC STATE
+    // ============================================================================
+    pvpStarted: boolean;    // True when PVP game has started
+    pvpPlayerIndex: number | null; // 0 or 1, which player this is
+    pvpOpponentName: string; // Opponent's display name
+    pvpOpponentStatus: 'waiting' | 'playing' | 'won' | 'failed' | 'disconnected'; // Opponent's current status
+    pvpWinner: string | null; // Name of winner (null if no winner yet)
+    pvpRoomReady: boolean;  // True when 2 players are in room
+    pvpIsHost: boolean;     // True if this player is the room host
+    pvpOpponentProgress: number; // Opponent's cells revealed count
+    pvpTotalSafeCells: number; // Total non-mine cells to reveal
+
+    // ============================================================================
     // UI STATE (Mobile flag mode, mouse tracking for chording)
     // ============================================================================
     isChecked: boolean;     // Mobile: true = click mode, false = flag mode
@@ -99,6 +112,18 @@ export interface MinesweeperState {
     updatePlayerHover: (id: string, row: number, col: number, name: string, color: string) => void;
     removePlayerHover: (id: string) => void;
     clearAllHovers: () => void;
+
+    // PVP Setters
+    setPvpStarted: (started: boolean) => void;
+    setPvpPlayerIndex: (index: number | null) => void;
+    setPvpOpponentName: (name: string) => void;
+    setPvpOpponentStatus: (status: 'waiting' | 'playing' | 'won' | 'failed' | 'disconnected') => void;
+    setPvpWinner: (winner: string | null) => void;
+    setPvpRoomReady: (ready: boolean) => void;
+    setPvpIsHost: (isHost: boolean) => void;
+    setPvpOpponentProgress: (progress: number) => void;
+    setPvpTotalSafeCells: (total: number) => void;
+    resetPvpState: () => void; // Reset all PVP state for rematch
 }
 
 /**
@@ -129,6 +154,17 @@ export const useMinesweeperStore = create<MinesweeperState>((set, get) => ({
     playerStatsInRoom: [],
     gameOverName: "",
     playerHovers: {},
+
+    // PVP State
+    pvpStarted: false,
+    pvpPlayerIndex: null,
+    pvpOpponentName: "",
+    pvpOpponentStatus: 'waiting',
+    pvpWinner: null,
+    pvpRoomReady: false,
+    pvpIsHost: false,
+    pvpOpponentProgress: 0,
+    pvpTotalSafeCells: 0,
 
     // UI State
     isChecked: true,        // Default to click mode (not flag mode)
@@ -295,5 +331,91 @@ export const useMinesweeperStore = create<MinesweeperState>((set, get) => ({
      */
     clearAllHovers: () => {
         set({ playerHovers: {} });
+    },
+
+    // ============================================================================
+    // PVP SETTERS
+    // ============================================================================
+
+    /**
+     * Set whether PVP game has started
+     */
+    setPvpStarted: (started: boolean) => {
+        set({ pvpStarted: started });
+    },
+
+    /**
+     * Set this player's index (0 or 1)
+     */
+    setPvpPlayerIndex: (index: number | null) => {
+        set({ pvpPlayerIndex: index });
+    },
+
+    /**
+     * Set opponent's name
+     */
+    setPvpOpponentName: (name: string) => {
+        set({ pvpOpponentName: name });
+    },
+
+    /**
+     * Set opponent's current status
+     */
+    setPvpOpponentStatus: (status: 'waiting' | 'playing' | 'won' | 'failed' | 'disconnected') => {
+        set({ pvpOpponentStatus: status });
+    },
+
+    /**
+     * Set winner name
+     */
+    setPvpWinner: (winner: string | null) => {
+        set({ pvpWinner: winner });
+    },
+
+    /**
+     * Set whether PVP room has 2 players
+     */
+    setPvpRoomReady: (ready: boolean) => {
+        set({ pvpRoomReady: ready });
+    },
+
+    /**
+     * Set whether this player is the host
+     */
+    setPvpIsHost: (isHost: boolean) => {
+        set({ pvpIsHost: isHost });
+    },
+
+    /**
+     * Set opponent's progress (cells revealed)
+     */
+    setPvpOpponentProgress: (progress: number) => {
+        set({ pvpOpponentProgress: progress });
+    },
+
+    /**
+     * Set total safe cells to reveal
+     */
+    setPvpTotalSafeCells: (total: number) => {
+        set({ pvpTotalSafeCells: total });
+    },
+
+    /**
+     * Reset all PVP state (for leaving room or rematch)
+     */
+    resetPvpState: () => {
+        set({
+            pvpStarted: false,
+            pvpPlayerIndex: null,
+            pvpOpponentName: '',
+            pvpOpponentStatus: 'waiting',
+            pvpWinner: null,
+            pvpRoomReady: false,
+            pvpIsHost: false,
+            pvpOpponentProgress: 0,
+            pvpTotalSafeCells: 0,
+            gameOver: false,
+            gameWon: false,
+        });
     }
 }));

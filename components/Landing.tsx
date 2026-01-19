@@ -155,8 +155,8 @@ export default function Landing({ createRoom, joinRoom }: LandingParams) {
                                         value="co-op"
                                     />
                                     <RadioCardItem
-                                        disabled
-                                        label="PvP (Coming Soon)"
+                                        onClick={() => setMode("pvp")}
+                                        label="PvP"
                                         description="Compete against each other"
                                         value="pvp"
                                     />

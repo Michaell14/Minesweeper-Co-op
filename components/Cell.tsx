@@ -33,9 +33,14 @@ const Cell = ({ cell, row, col, toggleFlag, openCell, chordCell, emitCellHover }
     const bothPressed = useMinesweeperStore((state) => state.bothPressed);
     const isChecked = useMinesweeperStore((state) => state.isChecked);
     const gameOver = useMinesweeperStore((state) => state.gameOver);
+    const mode = useMinesweeperStore((state) => state.mode);
+    const pvpStarted = useMinesweeperStore((state) => state.pvpStarted);
     const setLeftClick = useMinesweeperStore((state) => state.setLeftClick);
     const setRightClick = useMinesweeperStore((state) => state.setRightClick);
     const setCoord = useMinesweeperStore((state) => state.setCoord);
+
+    // Disable cell interaction in PVP mode before game starts
+    const isDisabled = mode === 'pvp' && !pvpStarted;
 
     // Check if any player is hovering over this cell
     const isHovered = cellHover !== null;
@@ -50,6 +55,8 @@ const Cell = ({ cell, row, col, toggleFlag, openCell, chordCell, emitCellHover }
     };
 
     const handleMouseDown = (event: React.MouseEvent) => {
+        if (isDisabled) return; // Prevent interaction before PVP starts
+
         setCoord(row, col);
         if (event.button === 0) {
             setLeftClick(true);
@@ -64,6 +71,8 @@ const Cell = ({ cell, row, col, toggleFlag, openCell, chordCell, emitCellHover }
     };
 
     const handleMouseUp = (event: React.MouseEvent) => {
+        if (isDisabled) return; // Prevent interaction before PVP starts
+
         if (event.button === 0) {
             if (!bothPressed) {
                 openCell(row, col);
@@ -152,7 +161,7 @@ const Cell = ({ cell, row, col, toggleFlag, openCell, chordCell, emitCellHover }
                     }
                 }}>
 
-                <Box h={"full"} w={"full"} hideFrom={"sm"} onClick={() => { !isChecked ? toggleFlag(row, col) : {} }}>
+                <Box h={"full"} w={"full"} hideFrom={"sm"} onClick={() => { if (!isDisabled) { !isChecked ? toggleFlag(row, col) : {} } }}>
                     🚩
                 </Box>
                 <Box h={"full"} w={"full"} hideBelow={"sm"}>
@@ -168,11 +177,11 @@ const Cell = ({ cell, row, col, toggleFlag, openCell, chordCell, emitCellHover }
             key={col}
             role="gridcell"
             aria-label={getAriaLabel()}
-            className={`${styles.cell} ${styles.closed} ${isHovered ? styles.hovered : ''} nes-pointer `}
+            className={`${styles.cell} ${styles.closed} ${isHovered ? styles.hovered : ''} ${isDisabled ? 'opacity-50 cursor-not-allowed' : 'nes-pointer'}`}
             style={isHovered && hoverColor ? { '--hover-color': hoverColor } as React.CSSProperties : undefined}
             onContextMenu={(e) => {
                 e.preventDefault();
-                toggleFlag(row, col);
+                if (!isDisabled) toggleFlag(row, col);
             }}
             onMouseEnter={handleMouseEnter}
             onMouseLeave={handleMouseLeave}
@@ -182,11 +191,11 @@ const Cell = ({ cell, row, col, toggleFlag, openCell, chordCell, emitCellHover }
                     e.preventDefault();
                 }
             }}>
-            <Box h={"full"} w={"full"} hideFrom={"sm"} onClick={() => { isChecked ? openCell(row, col) : toggleFlag(row, col) }}>
+            <Box h={"full"} w={"full"} hideFrom={"sm"} onClick={() => { if (!isDisabled) { isChecked ? openCell(row, col) : toggleFlag(row, col) } }}>
 
             </Box>
             <Box h={"full"} w={"full"} hideBelow={"sm"} onClick={() => {
-                openCell(row, col);
+                if (!isDisabled) openCell(row, col);
             }}>
 
             </Box>
