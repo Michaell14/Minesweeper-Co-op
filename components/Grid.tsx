@@ -330,22 +330,25 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
                         }
 
                         <div className="nes-table-responsive mt-6" role="region" aria-label="Player scores">
-                            <table className="nes-table is-bordered is-centered" aria-label="Leaderboard showing player names and scores">
-                                <thead>
-                                    <tr>
-                                        <th scope="col">Player</th>
-                                        <th scope="col">Score</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {playerStatsInRoom.map((item, index) => (
-                                        <tr key={index}>
-                                            <td className="text-sm max-w-40">{item.name}</td>
-                                            <td className="text-sm">{item.score}</td>
+                            {/* Score table - only show in co-op mode */}
+                            {mode !== 'pvp' &&
+                                <table className="nes-table is-bordered is-centered" aria-label="Leaderboard showing player names and scores">
+                                    <thead>
+                                        <tr>
+                                            <th scope="col">Player</th>
+                                            <th scope="col">Score</th>
                                         </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                                    </thead>
+                                    <tbody>
+                                        {playerStatsInRoom.map((item, index) => (
+                                            <tr key={index}>
+                                                <td className="text-sm max-w-40">{item.name}</td>
+                                                <td className="text-sm">{item.score}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            }
 
                             {/* Flag counter */}
                             <div className="bg-slate-100 nes-container is-centered mt-4" role="status" aria-label={`${remainingFlags} flags remaining`}>
@@ -404,15 +407,18 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
                                 <p className="title text-xs">Room:</p>
                                 <p className="text-sm" aria-label={`Room code: ${room}`}> {room}</p>
                             </div>
-                            <button
-                                className="nes-icon trophy is-medium"
-                                onClick={openPlayersDialog}
-                                aria-label="View player scores"
-                                style={{ border: 'none', background: 'none', cursor: 'pointer' }}
-                            />
+                            {/* Trophy button - only show in co-op mode */}
+                            {mode !== 'pvp' &&
+                                <button
+                                    className="nes-icon trophy is-medium"
+                                    onClick={openPlayersDialog}
+                                    aria-label="View player scores"
+                                    style={{ border: 'none', background: 'none', cursor: 'pointer' }}
+                                />
+                            }
                         </HStack>
 
-                        {/* PVP: Progress bars for mobile */}
+                        {/* PVP: Progress bars and flag counter for mobile */}
                         {mode === 'pvp' && pvpStarted &&
                             <div className="w-full max-w-60 mb-4">
                                 <div className="mb-2">
@@ -427,10 +433,14 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
                                         <div className={`h-full transition-all duration-300 ${pvpOpponentStatus === 'failed' ? 'bg-red-500' : pvpOpponentStatus === 'won' ? 'bg-green-500' : 'bg-orange-500'}`} style={{ width: `${opponentProgressPercent}%` }} />
                                     </div>
                                 </div>
+                                {/* Flag counter for mobile PVP */}
+                                <p className="text-xs mt-4 text-center" role="status" aria-label={`${remainingFlags} flags remaining`}>
+                                    🚩 <strong>{remainingFlags}</strong> left
+                                </p>
                             </div>
                         }
 
-                        <Box hideFrom={"sm"}>
+                        <Box hideFrom={"xl"}>
                             <HStack gap={5}>
                                 <Switch
                                     defaultChecked

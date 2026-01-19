@@ -161,10 +161,10 @@ const Cell = ({ cell, row, col, toggleFlag, openCell, chordCell, emitCellHover }
                     }
                 }}>
 
-                <Box h={"full"} w={"full"} hideFrom={"sm"} onClick={() => { if (!isDisabled) { !isChecked ? toggleFlag(row, col) : {} } }}>
+                <Box h={"full"} w={"full"} hideFrom={"xl"} onClick={() => { if (!isDisabled) { !isChecked ? toggleFlag(row, col) : {} } }}>
                     🚩
                 </Box>
-                <Box h={"full"} w={"full"} hideBelow={"sm"}>
+                <Box h={"full"} w={"full"} hideBelow={"xl"}>
                     🚩
                 </Box>
             </div>
@@ -191,10 +191,10 @@ const Cell = ({ cell, row, col, toggleFlag, openCell, chordCell, emitCellHover }
                     e.preventDefault();
                 }
             }}>
-            <Box h={"full"} w={"full"} hideFrom={"sm"} onClick={() => { if (!isDisabled) { isChecked ? openCell(row, col) : toggleFlag(row, col) } }}>
+            <Box h={"full"} w={"full"} hideFrom={"xl"} onClick={() => { if (!isDisabled) { isChecked ? openCell(row, col) : toggleFlag(row, col) } }}>
 
             </Box>
-            <Box h={"full"} w={"full"} hideBelow={"sm"} onClick={() => {
+            <Box h={"full"} w={"full"} hideBelow={"xl"} onClick={() => {
                 if (!isDisabled) openCell(row, col);
             }}>
 

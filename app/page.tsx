@@ -191,6 +191,10 @@ export default function Home() {
                 if (data.isHost !== undefined) {
                     setPvpIsHost(data.isHost);
                 }
+                // Sync difficulty config for joining players (fixes flag counter bug)
+                if (data.numRows && data.numCols && data.numMines) {
+                    setDimensions(data.numRows, data.numCols, data.numMines);
+                }
             }
             setPlayerJoined(true);
         });

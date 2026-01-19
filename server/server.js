@@ -106,7 +106,15 @@ io.on('connection', async (socket) => {
 
             // For PVP mode, check if this player is the host
             const isHost = mode === 'pvp' && roomState.hostSocket === socket.id;
-            socket.emit("joinRoomSuccess", { room, mode, isHost }); // Send to joining player
+            // Include difficulty config so joining players can set their flag counter correctly
+            socket.emit("joinRoomSuccess", {
+                room,
+                mode,
+                isHost,
+                numRows: parseInt(roomState.numRows),
+                numCols: parseInt(roomState.numCols),
+                numMines: parseInt(roomState.numMines)
+            }); // Send to joining player
 
             // If PVP mode and now 2 players, notify that room is ready
             if (mode === 'pvp') {
