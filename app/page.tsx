@@ -67,7 +67,15 @@ export default function Home() {
      * Cleanup: Disconnect socket when component unmounts
      */
     useEffect(() => {
-        const newSocket = initSocket();
+        let sessionId = "";
+        if (typeof window !== "undefined") {
+            sessionId = localStorage.getItem("minesweeper_session_id") || "";
+            if (!sessionId) {
+                sessionId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2) + Date.now().toString(36);
+                localStorage.setItem("minesweeper_session_id", sessionId);
+            }
+        }
+        const newSocket = initSocket(sessionId);
         setSocket(newSocket);
 
         return () => {

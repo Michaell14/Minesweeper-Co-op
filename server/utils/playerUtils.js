@@ -41,21 +41,41 @@ const resetPlayerScores = async (room) => {
     await Promise.all(resetPromises);
 }
 
-const addPlayerToRoom = async (room, socketId, name) => {
+const addPlayerToRoom = async (room, socketId, name, sessionId) => {
     const client = await redisClient;
+
+    // Reset room expiration timer (cancel grace period if room was empty)
+    await client.expire(`room:${room}`, 86400);
+
+    // If sessionId is provided, handle re-binding for reconnecting sockets
+    if (sessionId) {
+        const oldSocketId = await client.hGet(`session:${sessionId}`, 'socketId');
+        if (oldSocketId && oldSocketId !== socketId) {
+            await client.del(`player:${oldSocketId}`);
+        }
+        await client.hSet(`session:${sessionId}`, {
+            room: room,
+            name: name,
+            socketId: socketId
+        });
+        await client.expire(`session:${sessionId}`, 86400);
+    }
+
     const playerExists = await client.exists(`player:${socketId}`);
     if (!playerExists) {
         await client.hSet(`player:${socketId}`, {
             room: room,
             name: name,
-            score: "0"
-        })
+            score: "0",
+            sessionId: sessionId || ""
+        });
         await client.expire(`player:${socketId}`, 86400); // Deletes a user after a day
     } else {
         // Update room and name (in case player rejoins with different name)
         await client.hSet(`player:${socketId}`, {
             "room": room,
-            "name": name
+            "name": name,
+            "sessionId": sessionId || ""
         });
     }
 
@@ -73,7 +93,7 @@ const addPlayerToRoom = async (room, socketId, name) => {
         io.to(room).emit("gameOver", gameOverName);
     }
 
-    const roomPlayers = JSON.parse(roomState.players);
+    const roomPlayers = JSON.parse(roomState.players || '[]');
 
     // Only add player if not already in the room (prevent duplicates on reconnect)
     if (!roomPlayers.includes(socketId)) {
@@ -122,7 +142,7 @@ const removePlayer = async (socket, socketId) => {
         return;
     }
 
-    const playersInRoom = JSON.parse(roomState.players);
+    const playersInRoom = JSON.parse(roomState.players || '[]');
     const mode = roomState.mode || 'co-op';
 
     if (playersInRoom && playersInRoom.includes(socketId)) {
@@ -131,9 +151,12 @@ const removePlayer = async (socket, socketId) => {
             playersInRoom.splice(index, 1);
         }
 
-        // If the room is empty, delete it immediately
+        // Update the room players list
+        await client.hSet(`room:${room}`, { "players": JSON.stringify(playersInRoom) });
+
+        // If the room is empty, set a 10-minute grace period for reconnecting players instead of deleting immediately
         if (playersInRoom.length === 0) {
-            await client.del(`room:${room}`);
+            await client.expire(`room:${room}`, 600); // 10 minute grace period
         } else {
             // Handle PVP disconnection - award win to remaining player if game is in progress
             if (mode === 'pvp' && roomState.pvpStarted === 'true' && !roomState.winnerSocket) {
@@ -174,8 +197,6 @@ const removePlayer = async (socket, socketId) => {
                 io.to(remainingPlayer).emit('pvpOpponentLeftBeforeStart');
             }
 
-            // Update the room players list
-            await client.hSet(`room:${room}`, { "players": JSON.stringify(playersInRoom) });
             await updatePlayerStatsInRoom(room);
             // Notify other players to remove this player's hover
             socket.to(room).emit("playerLeft", socketId);
