@@ -77,17 +77,12 @@ const checkWin = async (roomState, board, room) => {
         return;
     }
 
-    // Condition 1: All non-mine cells are opened
+    // A game is won IF AND ONLY IF every non-mine cell has been opened
     const allNonMinesOpened = board.every((row) =>
         row.every((cell) => cell.isMine || cell.isOpen)
     );
 
-    // Condition 2: All mines are correctly flagged and no non-mine cells are flagged
-    const allMinesFlagged = board.every((row) =>
-        row.every((cell) => (cell.isMine && cell.isFlagged) || (!cell.isMine && !cell.isFlagged))
-    );
-
-    if (allNonMinesOpened || allMinesFlagged) {
+    if (allNonMinesOpened) {
         const client = await redisClient;
         // Double-check in Redis to prevent race condition
         const currentState = await client.hGet(`room:${room}`, 'gameWon');
@@ -95,7 +90,7 @@ const checkWin = async (roomState, board, room) => {
             return; // Already won, don't emit again
         }
 
-        // Auto-flag all mines for a complete visual finish
+        // Auto-flag all remaining mines for a clean visual completion
         for (let r = 0; r < board.length; r++) {
             for (let c = 0; c < board[r].length; c++) {
                 if (board[r][c].isMine) {
@@ -112,7 +107,7 @@ const checkWin = async (roomState, board, room) => {
         io.to(room).emit('boardUpdate', board);
         io.to(room).emit('gameWon');
     }
-}
+};
 
 // Note that Object properties set in redis must be string
 // ROOM PROPERTIES:

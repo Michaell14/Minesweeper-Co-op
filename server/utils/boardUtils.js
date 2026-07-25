@@ -83,7 +83,7 @@ const checkWinPvp = async (board, room, socketId, playerIndex) => {
     }
 
     const allNonMinesOpened = board.every((row) =>
-        row.every((cell) => (cell.isMine && !cell.isOpen) || (!cell.isMine && cell.isOpen))
+        row.every((cell) => cell.isMine || cell.isOpen)
     );
 
     if (allNonMinesOpened) {
