@@ -1,10 +1,10 @@
 const { addPlayerToRoom, resetPlayerScores, updatePlayerStatsInRoom } = require('./playerUtils');
 const { io } = require('./initializeClient');
 const { redisClient } = require('./initializeRedisClient');
+const { isBoardSolvable } = require('./solverUtils');
 
-// Utility function to generate a board
-// Checked
-const generateBoard = (numRows, numCols, numMines, excludeRow, excludeCol) => {
+// Generates a single random candidate board layout
+const generateSingleCandidateBoard = (numRows, numCols, numMines, excludeRow, excludeCol) => {
     const board = Array.from({ length: numRows }, () =>
         Array.from({ length: numCols }, () => ({
             isMine: false,
@@ -71,6 +71,38 @@ const generateBoard = (numRows, numCols, numMines, excludeRow, excludeCol) => {
     return board;
 };
 
+/**
+ * Utility function to generate a Minesweeper board.
+ * If options.noGuess is true (default), runs a Generate-and-Verify loop with isBoardSolvable
+ * to guarantee that the board can be 100% solved without probabilistic 50:50 guessing.
+ */
+const generateBoard = (numRows, numCols, numMines, excludeRow, excludeCol, options = { noGuess: true, maxAttempts: 50 }) => {
+    const shouldEnsureNoGuess = options && options.noGuess !== false;
+    const maxAttempts = (options && options.maxAttempts) || 50;
+
+    if (!shouldEnsureNoGuess) {
+        return generateSingleCandidateBoard(numRows, numCols, numMines, excludeRow, excludeCol);
+    }
+
+    let fallbackCandidate = null;
+
+    // Retry loop: evaluate candidate layouts until a 100% logic-solvable board is found
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        const candidate = generateSingleCandidateBoard(numRows, numCols, numMines, excludeRow, excludeCol);
+        if (!fallbackCandidate) {
+            fallbackCandidate = candidate;
+        }
+
+        // Test if candidate board is 100% solvable without guesses starting from (excludeRow, excludeCol)
+        if (isBoardSolvable(candidate, excludeRow, excludeCol)) {
+            return candidate;
+        }
+    }
+
+    // Fallback to initial candidate if max attempts reached
+    return fallbackCandidate;
+};
+
 const checkWin = async (roomState, board, room) => {
     // Don't check win if game is already over or won
     if (roomState.gameOver === 'true' || roomState.gameWon === 'true') {
@@ -110,11 +142,12 @@ const checkWin = async (roomState, board, room) => {
 // nearbyMines: number
 
 // Checked
-const createRoom = async (room, numRows, numCols, numMines, mode = 'co-op') => {
+const createRoom = async (room, numRows, numCols, numMines, mode = 'co-op', noGuess = true) => {
     const client = await redisClient;
 
     const roomData = {
         mode: mode,
+        noGuess: noGuess !== false ? 'true' : 'false',
         gameOver: 'false',
         gameWon: 'false',
         initialized: 'false',

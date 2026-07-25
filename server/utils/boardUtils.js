@@ -492,7 +492,8 @@ const openCell = async (row, col, room, socketId) => {
                 board = JSON.parse(updatedBoard);
             } else {
                 // We can safely initialize
-                board = generateBoard(numRows, numCols, numMines, row, col);
+                const shouldNoGuess = roomState.noGuess !== 'false';
+                board = generateBoard(numRows, numCols, numMines, row, col, { noGuess: shouldNoGuess });
                 await client.hSet(`room:${room}`, {
                     initialized: 'true',
                     board: JSON.stringify(board)
