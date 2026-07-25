@@ -8,6 +8,7 @@ import { shootConfetti } from "@/lib/confetti";
 import { initSocket } from "@/lib/initSocket";
 import { Socket } from "socket.io-client";
 import { throttle, generateColorFromId } from "@/lib/throttle";
+import { getOrCreateSessionId } from "@/lib/session";
 
 /**
  * Home Component
@@ -67,7 +68,8 @@ export default function Home() {
      * Cleanup: Disconnect socket when component unmounts
      */
     useEffect(() => {
-        const newSocket = initSocket();
+        const sessionId = getOrCreateSessionId();
+        const newSocket = initSocket(sessionId);
         setSocket(newSocket);
 
         return () => {
