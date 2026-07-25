@@ -1,6 +1,10 @@
 const { io } = require('./initializeClient');
 const { redisClient } = require('./initializeRedisClient');
 
+// Named TTL constants (in seconds)
+const ROOM_TTL_SECONDS = 86400;          // 24 Hours default room TTL
+const ROOM_GRACE_PERIOD_SECONDS = 600;    // 10 Minutes grace period on empty room
+
 // Basically updates the player's stats whenever:
 // 1) A player joins/leaves the room
 // 2) A player increments their score
@@ -45,12 +49,14 @@ const addPlayerToRoom = async (room, socketId, name, sessionId) => {
     const client = await redisClient;
 
     // Reset room expiration timer (cancel grace period if room was empty)
-    await client.expire(`room:${room}`, 86400);
+    await client.expire(`room:${room}`, ROOM_TTL_SECONDS);
 
-    // If sessionId is provided, handle re-binding for reconnecting sockets
+    // Track old socket ID if reconnecting under a new socket connection
+    let oldSocketIdToSwap = null;
     if (sessionId) {
         const oldSocketId = await client.hGet(`session:${sessionId}`, 'socketId');
         if (oldSocketId && oldSocketId !== socketId) {
+            oldSocketIdToSwap = oldSocketId;
             await client.del(`player:${oldSocketId}`);
         }
         await client.hSet(`session:${sessionId}`, {
@@ -58,7 +64,7 @@ const addPlayerToRoom = async (room, socketId, name, sessionId) => {
             name: name,
             socketId: socketId
         });
-        await client.expire(`session:${sessionId}`, 86400);
+        await client.expire(`session:${sessionId}`, ROOM_TTL_SECONDS);
     }
 
     const playerExists = await client.exists(`player:${socketId}`);
@@ -69,7 +75,7 @@ const addPlayerToRoom = async (room, socketId, name, sessionId) => {
             score: "0",
             sessionId: sessionId || ""
         });
-        await client.expire(`player:${socketId}`, 86400); // Deletes a user after a day
+        await client.expire(`player:${socketId}`, ROOM_TTL_SECONDS);
     } else {
         // Update room and name (in case player rejoins with different name)
         await client.hSet(`player:${socketId}`, {
@@ -83,6 +89,11 @@ const addPlayerToRoom = async (room, socketId, name, sessionId) => {
     const roomState = await client.hGetAll(`room:${room}`);
     const mode = roomState.mode || 'co-op';
 
+    // Transfer host socket if reconnecting host
+    if (oldSocketIdToSwap && roomState.hostSocket === oldSocketIdToSwap) {
+        await client.hSet(`room:${room}`, { hostSocket: socketId });
+    }
+
     if (roomState.gameWon === "true") {
         io.to(room).emit("gameWon");
     }
@@ -95,11 +106,13 @@ const addPlayerToRoom = async (room, socketId, name, sessionId) => {
 
     const roomPlayers = JSON.parse(roomState.players || '[]');
 
-    // Only add player if not already in the room (prevent duplicates on reconnect)
-    if (!roomPlayers.includes(socketId)) {
+    // If reconnecting with new socket ID, swap old socket ID with new socket ID
+    if (oldSocketIdToSwap && roomPlayers.includes(oldSocketIdToSwap)) {
+        const oldIdx = roomPlayers.indexOf(oldSocketIdToSwap);
+        roomPlayers[oldIdx] = socketId;
+        await client.hSet(`room:${room}`, { players: JSON.stringify(roomPlayers) });
+    } else if (!roomPlayers.includes(socketId)) {
         roomPlayers.push(socketId);
-
-        // Save the updated players array back to Redis
         await client.hSet(`room:${room}`, { players: JSON.stringify(roomPlayers) });
     }
 
@@ -154,9 +167,9 @@ const removePlayer = async (socket, socketId) => {
         // Update the room players list
         await client.hSet(`room:${room}`, { "players": JSON.stringify(playersInRoom) });
 
-        // If the room is empty, set a 10-minute grace period for reconnecting players instead of deleting immediately
+        // If the room is empty, set a grace period for reconnecting players instead of deleting immediately
         if (playersInRoom.length === 0) {
-            await client.expire(`room:${room}`, 600); // 10 minute grace period
+            await client.expire(`room:${room}`, ROOM_GRACE_PERIOD_SECONDS);
         } else {
             // Handle PVP disconnection - award win to remaining player if game is in progress
             if (mode === 'pvp' && roomState.pvpStarted === 'true' && !roomState.winnerSocket) {
