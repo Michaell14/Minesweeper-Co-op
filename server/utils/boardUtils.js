@@ -531,7 +531,7 @@ const openCell = async (row, col, room, socketId) => {
 
     // Refresh room state to get latest gameOver/gameWon status before checking win
     const freshRoomState = await client.hGetAll(`room:${room}`);
-    checkWin(freshRoomState, board, room);
+    await checkWin(freshRoomState, board, room);
 
     if (justInitialized) {
         io.to(room).emit("boardUpdate", board);
@@ -557,55 +557,41 @@ const chordCell = async (row, col, room, socketId) => {
     if (roomState.board === undefined || !roomState.board) {
         return;
     }
-    let board = JSON.parse(roomState.board);
 
-    // Validate bounds first before accessing array
+    const board = JSON.parse(roomState.board);
+
     if (!board || !Array.isArray(board) || board.length === 0) return;
     if (row < 0 || row >= board.length || col < 0 || col >= board[0].length) return;
-
-    // Chord should only work on already-opened cells
     if (!board[row][col].isOpen) return;
 
     const adjacentCells = getAdjacentCells(row, col, board);
-    // Count the number of flagged cells
     const flaggedCells = adjacentCells.filter((adj) => adj.isFlagged).length;
+
+    let scoreIncrement = 0;
     const toUpdate = [];
 
-    // If the number of flagged cells matches the number on the cell, proceed
     if (flaggedCells === board[row][col].nearbyMines) {
-        // Open all adjacent cells that are not flagged and not already open
         for (const adj of adjacentCells) {
             if (!adj.isFlagged && !adj.isOpen) {
-                const beforeLength = toUpdate.length;
                 await reveal(board, adj.row, adj.col, room, socketId, toUpdate);
-
-                // Check if game ended (hit a mine)
-                const gameOverStatus = await client.hGet(`room:${room}`, "gameOver");
-                if (gameOverStatus === 'true') {
-                    // Game ended, emit updates but don't award points
-                    io.to(room).emit("updateCells", toUpdate);
-                    await client.hSet(`room:${room}`, { board: JSON.stringify(board) });
-                    return;
-                }
-
-                // Calculate score increase based on actual cells opened (not mines)
-                const cellsOpened = toUpdate.slice(beforeLength);
-                const scoreIncrease = cellsOpened.filter(cell => !cell.isMine).length;
-
-                // Update player score incrementally
-                if (scoreIncrease > 0) {
-                    const currentScore = parseInt(await client.hGet(`player:${socketId}`, "score") || '0', 10) || 0;
-                    const newScore = currentScore + scoreIncrease;
-                    await client.hSet(`player:${socketId}`, { score: newScore.toString() });
+                if (!adj.isMine) {
+                    scoreIncrement++;
                 }
             }
         }
     }
 
+    if (scoreIncrement > 0) {
+        const playerScore = await client.hGet(`player:${socketId}`, 'score');
+        const currentScore = parseInt(playerScore || '0', 10) || 0;
+        const newScore = currentScore + scoreIncrement;
+        await client.hSet(`player:${socketId}`, { score: newScore.toString() });
+    }
+
     await updatePlayerStatsInRoom(room);
-    checkWin(roomState, board, room);
-    io.to(room).emit("updateCells", toUpdate);
     await client.hSet(`room:${room}`, { board: JSON.stringify(board) });
+    await checkWin(roomState, board, room);
+    io.to(room).emit("updateCells", toUpdate);
 }
 
 const toggleFlag = async (row, col, room, socketId) => {
@@ -644,6 +630,7 @@ const toggleFlag = async (row, col, room, socketId) => {
     // Emit the cell update and update the board in Redis
     io.to(room).emit('updateCells', toUpdate);
     await client.hSet(`room:${room}`, { board: JSON.stringify(board) });
+    await checkWin(roomState, board, room);
 }
 
 module.exports = { openCell, chordCell, toggleFlag };

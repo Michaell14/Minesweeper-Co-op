@@ -73,22 +73,43 @@ const generateBoard = (numRows, numCols, numMines, excludeRow, excludeCol) => {
 
 const checkWin = async (roomState, board, room) => {
     // Don't check win if game is already over or won
-    if (roomState.gameOver === 'true' || roomState.gameWon === 'true') {
+    if (!roomState || roomState.gameOver === 'true' || roomState.gameWon === 'true') {
         return;
     }
 
+    // Condition 1: All non-mine cells are opened
     const allNonMinesOpened = board.every((row) =>
-        row.every((cell) => (cell.isMine && !cell.isOpen) || (!cell.isMine && cell.isOpen))
+        row.every((cell) => cell.isMine || cell.isOpen)
     );
 
-    if (allNonMinesOpened) {
+    // Condition 2: All mines are correctly flagged and no non-mine cells are flagged
+    const allMinesFlagged = board.every((row) =>
+        row.every((cell) => (cell.isMine && cell.isFlagged) || (!cell.isMine && !cell.isFlagged))
+    );
+
+    if (allNonMinesOpened || allMinesFlagged) {
         const client = await redisClient;
         // Double-check in Redis to prevent race condition
         const currentState = await client.hGet(`room:${room}`, 'gameWon');
         if (currentState === 'true') {
             return; // Already won, don't emit again
         }
-        await client.hSet(`room:${room}`, { gameWon: 'true' });
+
+        // Auto-flag all mines for a complete visual finish
+        for (let r = 0; r < board.length; r++) {
+            for (let c = 0; c < board[r].length; c++) {
+                if (board[r][c].isMine) {
+                    board[r][c].isFlagged = true;
+                }
+            }
+        }
+
+        await client.hSet(`room:${room}`, {
+            gameWon: 'true',
+            board: JSON.stringify(board)
+        });
+
+        io.to(room).emit('boardUpdate', board);
         io.to(room).emit('gameWon');
     }
 }
