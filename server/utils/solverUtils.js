@@ -143,7 +143,6 @@ const isBoardSolvable = (board, startRow, startCol) => {
                     }
                     if (unrevealed.length > 0) {
                         openNumberedCells.push({
-                            r, c,
                             remainingMines: cell.nearbyMines - flagCount,
                             unrevealedSet: new Set(unrevealed),
                             unrevealedArr: unrevealed.map(s => {

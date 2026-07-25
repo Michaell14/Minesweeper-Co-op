@@ -1,4 +1,4 @@
-const { addPlayerToRoom, resetPlayerScores, updatePlayerStatsInRoom } = require('./playerUtils');
+const { resetPlayerScores, updatePlayerStatsInRoom } = require('./playerUtils');
 const { io } = require('./initializeClient');
 const { redisClient } = require('./initializeRedisClient');
 const { isBoardSolvable } = require('./solverUtils');
