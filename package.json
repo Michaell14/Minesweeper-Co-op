@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "dev:all": "npx concurrently -k -n \"SERVER,CLIENT\" -c \"cyan,magenta\" \"npm run start-server\" \"npm run dev\"",
+    "ensure-redis": "nc -z 127.0.0.1 6379 2>/dev/null || brew services start redis 2>/dev/null || true",
+    "dev:all": "npm run ensure-redis && npx concurrently -k -n \"SERVER,CLIENT\" -c \"cyan,magenta\" \"npm run start-server\" \"npm run dev\"",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
