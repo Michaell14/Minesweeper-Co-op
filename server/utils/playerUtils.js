@@ -1,5 +1,6 @@
 const { io } = require('./initializeClient');
 const { redisClient } = require('./initializeRedisClient');
+const { createEmptyBoard } = require('./gameUtils');
 
 // Basically updates the player's stats whenever:
 // 1) A player joins/leaves the room
@@ -92,14 +93,7 @@ const addPlayerToRoom = async (room, socketId, name) => {
         // For PVP, send empty board to show UI
         const numRows = parseInt(roomState.numRows, 10);
         const numCols = parseInt(roomState.numCols, 10);
-        const emptyBoard = Array.from({ length: numRows }, () =>
-            Array.from({ length: numCols }, () => ({
-                isMine: false,
-                isOpen: false,
-                isFlagged: false,
-                nearbyMines: 0,
-            }))
-        );
+        const emptyBoard = createEmptyBoard(numRows, numCols);
         io.to(socketId).emit('boardUpdate', emptyBoard);
     }
 

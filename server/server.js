@@ -1,6 +1,6 @@
 const { server, io } = require('./utils/initializeClient');
-const { removePlayer, addPlayerToRoom } = require('./utils/playerUtils');
-const { createRoom, resetGame } = require('./utils/gameUtils');
+const { removePlayer, addPlayerToRoom, updatePlayerStatsInRoom } = require('./utils/playerUtils');
+const { createRoom, resetGame, createEmptyBoard } = require('./utils/gameUtils');
 const { openCell, chordCell, toggleFlag } = require('./utils/boardUtils');
 const { redisClient } = require('./utils/initializeRedisClient');
 
@@ -312,14 +312,7 @@ io.on('connection', async (socket) => {
             const player2Socket = players.find(p => p !== player1Socket);
 
             // Create empty boards - boards will be generated on first click for each player
-            const emptyBoard = Array.from({ length: numRows }, () =>
-                Array.from({ length: numCols }, () => ({
-                    isMine: false,
-                    isOpen: false,
-                    isFlagged: false,
-                    nearbyMines: 0,
-                }))
-            );
+            const emptyBoard = createEmptyBoard(numRows, numCols);
 
             // Mark game as started with empty boards (NOT initialized - will generate on first click)
             await client.hSet(`room:${room}`, {
@@ -403,14 +396,7 @@ io.on('connection', async (socket) => {
             const numCols = parseInt(roomState.numCols, 10);
 
             // Create empty board - will be generated on next first click
-            const emptyBoard = Array.from({ length: numRows }, () =>
-                Array.from({ length: numCols }, () => ({
-                    isMine: false,
-                    isOpen: false,
-                    isFlagged: false,
-                    nearbyMines: 0,
-                }))
-            );
+            const emptyBoard = createEmptyBoard(numRows, numCols);
 
             // Reset player's board and state - set initialized to false for new first-click
             const boardKey = `player${playerIndex + 1}Board`;
@@ -451,7 +437,6 @@ io.on('connection', async (socket) => {
             }
 
             // Update player stats
-            const { updatePlayerStatsInRoom } = require('./utils/playerUtils');
             await updatePlayerStatsInRoom(room);
         } catch (error) {
             console.error('Error in resetMyBoard:', error);
@@ -485,14 +470,7 @@ io.on('connection', async (socket) => {
             const totalSafeCells = (numRows * numCols) - numMines;
 
             // Create empty boards - will be generated on first click for each player
-            const emptyBoard = Array.from({ length: numRows }, () =>
-                Array.from({ length: numCols }, () => ({
-                    isMine: false,
-                    isOpen: false,
-                    isFlagged: false,
-                    nearbyMines: 0,
-                }))
-            );
+            const emptyBoard = createEmptyBoard(numRows, numCols);
 
             // Reset all game state with uninitialized boards
             await client.hSet(`room:${room}`, {
@@ -544,7 +522,6 @@ io.on('connection', async (socket) => {
             });
 
             // Update player stats
-            const { updatePlayerStatsInRoom } = require('./utils/playerUtils');
             await updatePlayerStatsInRoom(room);
         } catch (error) {
             console.error('Error in pvpRematch:', error);

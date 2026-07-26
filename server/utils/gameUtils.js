@@ -3,9 +3,11 @@ const { io } = require('./initializeClient');
 const { redisClient } = require('./initializeRedisClient');
 const { isBoardSolvable } = require('./solverUtils');
 
-// Generates a single random candidate board layout
-const generateSingleCandidateBoard = (numRows, numCols, numMines, excludeRow, excludeCol) => {
-    const board = Array.from({ length: numRows }, () =>
+/**
+ * Utility function to create an empty board grid.
+ */
+const createEmptyBoard = (numRows, numCols) =>
+    Array.from({ length: numRows }, () =>
         Array.from({ length: numCols }, () => ({
             isMine: false,
             isOpen: false,
@@ -13,6 +15,10 @@ const generateSingleCandidateBoard = (numRows, numCols, numMines, excludeRow, ex
             nearbyMines: 0,
         }))
     );
+
+// Generates a single random candidate board layout
+const generateSingleCandidateBoard = (numRows, numCols, numMines, excludeRow, excludeCol) => {
+    const board = createEmptyBoard(numRows, numCols);
 
     // Calculate available cells (excluding the 3x3 area around first click)
     const totalCells = numRows * numCols;
@@ -175,14 +181,7 @@ const createRoom = async (room, numRows, numCols, numMines, mode = 'co-op', noGu
 
     if (mode === 'co-op') {
         // Initialize empty board for co-op mode
-        roomData.board = JSON.stringify(Array.from({ length: numRows }, () =>
-            Array.from({ length: numCols }, () => ({
-                isMine: false,
-                isOpen: false,
-                isFlagged: false,
-                nearbyMines: 0,
-            }))
-        ));
+        roomData.board = JSON.stringify(createEmptyBoard(numRows, numCols));
     } else if (mode === 'pvp') {
         // Initialize PVP-specific fields
         roomData.pvpStarted = 'false';
@@ -221,14 +220,7 @@ const generateSeededBoard = (numRows, numCols, numMines, seed) => {
 
     const random = seededRandom(seed);
 
-    const board = Array.from({ length: numRows }, () =>
-        Array.from({ length: numCols }, () => ({
-            isMine: false,
-            isOpen: false,
-            isFlagged: false,
-            nearbyMines: 0,
-        }))
-    );
+    const board = createEmptyBoard(numRows, numCols);
 
     // Place mines randomly using seeded random
     const totalCells = numRows * numCols;
@@ -285,15 +277,8 @@ const resetGame = async (room) => {
     const numRows = parseInt(roomState.numRows, 10);
     const numCols = parseInt(roomState.numCols, 10);
 
-    // Create an empty board with a more memory-efficient method
-    const newBoard = Array.from({ length: numRows }, () =>
-        Array.from({ length: numCols }, () => ({
-            isMine: false,
-            isOpen: false,
-            isFlagged: false,
-            nearbyMines: 0,
-        }))
-    );
+    // Create empty board
+    const newBoard = createEmptyBoard(numRows, numCols);
 
     // Emit events to reset the board and players
     io.to(room).emit('boardUpdate', newBoard);
@@ -314,4 +299,4 @@ const resetGame = async (room) => {
         updatePlayerStatsInRoom(room),
     ]);
 }
-module.exports = { generateBoard, generateSeededBoard, checkWin, createRoom, resetGame };
+module.exports = { createEmptyBoard, generateBoard, generateSeededBoard, checkWin, createRoom, resetGame };
