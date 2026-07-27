@@ -2,8 +2,7 @@
  * Characterization tests for server/utils/gameUtils.js
  *
  * These pin the CURRENT behavior of the board factory, the board generator and
- * the co-op win check so that upcoming refactors (splitting boardUtils, moving
- * createEmptyBoard out to break the gameUtils <-> playerUtils require cycle,
+ * the co-op win check so that upcoming refactors (splitting boardUtils,
  * introducing a Redis repository layer) fail loudly if they change semantics.
  *
  * io and Redis are mocked, so nothing here needs a running server.
@@ -25,7 +24,8 @@ jest.mock('../utils/initializeRedisClient', () => ({
     redisClient: Promise.resolve(mockRedisClient),
 }));
 
-const { createEmptyBoard, generateBoard, checkWin } = require('../utils/gameUtils');
+const { generateBoard, checkWin } = require('../utils/gameUtils');
+const { createEmptyBoard } = require('../domain/board');
 
 beforeEach(() => {
     jest.clearAllMocks();

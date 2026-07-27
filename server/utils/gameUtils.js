@@ -2,19 +2,7 @@ const { resetPlayerScores, updatePlayerStatsInRoom } = require('./playerUtils');
 const { io } = require('./initializeClient');
 const { redisClient } = require('./initializeRedisClient');
 const { isBoardSolvable } = require('./solverUtils');
-
-/**
- * Utility function to create an empty board grid.
- */
-const createEmptyBoard = (numRows, numCols) =>
-    Array.from({ length: numRows }, () =>
-        Array.from({ length: numCols }, () => ({
-            isMine: false,
-            isOpen: false,
-            isFlagged: false,
-            nearbyMines: 0,
-        }))
-    );
+const { createEmptyBoard } = require('../domain/board');
 
 // Generates a single random candidate board layout
 const generateSingleCandidateBoard = (numRows, numCols, numMines, excludeRow, excludeCol) => {
@@ -299,4 +287,4 @@ const resetGame = async (room) => {
         updatePlayerStatsInRoom(room),
     ]);
 }
-module.exports = { createEmptyBoard, generateBoard, generateSeededBoard, checkWin, createRoom, resetGame };
+module.exports = { generateBoard, generateSeededBoard, checkWin, createRoom, resetGame };
