@@ -1,19 +1,19 @@
 const { io } = require('./initializeClient');
-const { redisClient } = require('./initializeRedisClient');
 const { createEmptyBoard, projectBoard } = require('../domain/board');
+const roomRepo = require('../data/roomRepo');
+const playerRepo = require('../data/playerRepo');
 
 // Basically updates the player's stats whenever:
 // 1) A player joins/leaves the room
 // 2) A player increments their score
 const updatePlayerStatsInRoom = async (room) => {
     if (!room) return; // Necessary??
-    const client = await redisClient;
-    const playersInRoom = JSON.parse(await client.hGet(`room:${room}`, "players"));
+    const playersInRoom = await roomRepo.getPlayers(room);
     if (!playersInRoom) return;
 
     // Fetch all player data in parallel for better performance
     const playerDataPromises = playersInRoom.map(playerId =>
-        client.hGetAll(`player:${playerId}`)
+        playerRepo.getState(playerId)
     );
     const playerStates = await Promise.all(playerDataPromises);
 
@@ -30,38 +30,28 @@ const updatePlayerStatsInRoom = async (room) => {
 
 const resetPlayerScores = async (room) => {
     if (!room) return;
-    const client = await redisClient;
-    const playersInRoom = JSON.parse(await client.hGet(`room:${room}`, "players"));
+    const playersInRoom = await roomRepo.getPlayers(room);
 
     if (!playersInRoom) return;
 
     // Reset all player scores in parallel for better performance
     const resetPromises = playersInRoom.map(playerId =>
-        client.hSet(`player:${playerId}`, { "score": "0" })
+        playerRepo.resetScore(playerId)
     );
     await Promise.all(resetPromises);
 }
 
 const addPlayerToRoom = async (room, socketId, name) => {
-    const client = await redisClient;
-    const playerExists = await client.exists(`player:${socketId}`);
+    const playerExists = await playerRepo.exists(socketId);
     if (!playerExists) {
-        await client.hSet(`player:${socketId}`, {
-            room: room,
-            name: name,
-            score: "0"
-        })
-        await client.expire(`player:${socketId}`, 86400); // Deletes a user after a day
+        await playerRepo.create(socketId, { room, name });
     } else {
         // Update room and name (in case player rejoins with different name)
-        await client.hSet(`player:${socketId}`, {
-            "room": room,
-            "name": name
-        });
+        await playerRepo.setFields(socketId, { room, name });
     }
 
     // Add the player to the room
-    const roomState = await client.hGetAll(`room:${room}`);
+    const roomState = await roomRepo.getState(room);
     const mode = roomState.mode || 'co-op';
 
     if (roomState.gameWon === "true") {
@@ -74,14 +64,14 @@ const addPlayerToRoom = async (room, socketId, name) => {
         io.to(room).emit("gameOver", gameOverName);
     }
 
-    const roomPlayers = JSON.parse(roomState.players);
+    const roomPlayers = roomRepo.playersFrom(roomState);
 
     // Only add player if not already in the room (prevent duplicates on reconnect)
     if (!roomPlayers.includes(socketId)) {
         roomPlayers.push(socketId);
 
         // Save the updated players array back to Redis
-        await client.hSet(`room:${room}`, { players: JSON.stringify(roomPlayers) });
+        await roomRepo.setPlayers(room, roomPlayers);
     }
 
     // Send the current board to the player who joined (only for co-op)
@@ -104,22 +94,21 @@ const addPlayerToRoom = async (room, socketId, name) => {
 }
 
 const removePlayer = async (socket, socketId) => {
-    const client = await redisClient;
-    const playerExists = await client.exists(`player:${socketId}`);
+    const playerExists = await playerRepo.exists(socketId);
     if (!playerExists) return;
 
-    const room = await client.hGet(`player:${socketId}`, 'room');
+    const room = await playerRepo.getRoom(socketId);
     if (!room) return;
 
-    const roomState = await client.hGetAll(`room:${room}`);
+    const roomState = await roomRepo.getState(room);
     if (!roomState || !roomState.players) {
         // Room already deleted, just clean up player
         socket.leave(room);
-        await client.del(`player:${socketId}`);
+        await playerRepo.remove(socketId);
         return;
     }
 
-    const playersInRoom = JSON.parse(roomState.players);
+    const playersInRoom = roomRepo.playersFrom(roomState);
     const mode = roomState.mode || 'co-op';
 
     if (playersInRoom && playersInRoom.includes(socketId)) {
@@ -130,7 +119,7 @@ const removePlayer = async (socket, socketId) => {
 
         // If the room is empty, delete it immediately
         if (playersInRoom.length === 0) {
-            await client.del(`room:${room}`);
+            await roomRepo.remove(room);
         } else {
             // Handle PVP disconnection - award win to remaining player if game is in progress
             if (mode === 'pvp' && roomState.pvpStarted === 'true' && !roomState.winnerSocket) {
@@ -142,10 +131,10 @@ const removePlayer = async (socket, socketId) => {
 
                 if (!player1Won && !player2Won) {
                     // Get the remaining player's name
-                    const remainingPlayerName = await client.hGet(`player:${remainingPlayer}`, 'name');
+                    const remainingPlayerName = await playerRepo.getName(remainingPlayer);
 
                     // Mark the remaining player as winner
-                    await client.hSet(`room:${room}`, {
+                    await roomRepo.setFields(room, {
                         winnerSocket: remainingPlayer
                     });
 
@@ -163,7 +152,7 @@ const removePlayer = async (socket, socketId) => {
 
                 // If the leaving player was the host, transfer host to remaining player
                 if (roomState.hostSocket === socketId) {
-                    await client.hSet(`room:${room}`, { hostSocket: remainingPlayer });
+                    await roomRepo.setFields(room, { hostSocket: remainingPlayer });
                     io.to(remainingPlayer).emit('pvpHostTransferred');
                 }
 
@@ -172,14 +161,14 @@ const removePlayer = async (socket, socketId) => {
             }
 
             // Update the room players list
-            await client.hSet(`room:${room}`, { "players": JSON.stringify(playersInRoom) });
+            await roomRepo.setPlayers(room, playersInRoom);
             await updatePlayerStatsInRoom(room);
             // Notify other players to remove this player's hover
             socket.to(room).emit("playerLeft", socketId);
         }
     }
     socket.leave(room);
-    await client.del(`player:${socketId}`);
+    await playerRepo.remove(socketId);
 }
 
 module.exports = { updatePlayerStatsInRoom, resetPlayerScores, addPlayerToRoom, removePlayer };

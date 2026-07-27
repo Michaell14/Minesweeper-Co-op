@@ -1,7 +1,7 @@
 const { resetPlayerScores, updatePlayerStatsInRoom } = require('./playerUtils');
 const { io } = require('./initializeClient');
-const { redisClient } = require('./initializeRedisClient');
 const { isBoardSolvable } = require('./solverUtils');
+const roomRepo = require('../data/roomRepo');
 const { createEmptyBoard, projectBoard } = require('../domain/board');
 
 // Generates a single random candidate board layout
@@ -109,9 +109,8 @@ const checkWin = async (roomState, board, room) => {
     );
 
     if (allNonMinesOpened) {
-        const client = await redisClient;
         // Double-check in Redis to prevent race condition
-        const currentState = await client.hGet(`room:${room}`, 'gameWon');
+        const currentState = await roomRepo.getField(room, 'gameWon');
         if (currentState === 'true') {
             return; // Already won, don't emit again
         }
@@ -125,7 +124,7 @@ const checkWin = async (roomState, board, room) => {
             }
         }
 
-        await client.hSet(`room:${room}`, {
+        await roomRepo.setFields(room, {
             gameWon: 'true',
             board: JSON.stringify(board)
         });
@@ -154,8 +153,6 @@ const checkWin = async (roomState, board, room) => {
 
 // Checked
 const createRoom = async (room, numRows, numCols, numMines, mode = 'co-op', noGuess = true) => {
-    const client = await redisClient;
-
     const roomData = {
         mode: mode,
         noGuess: noGuess !== false ? 'true' : 'false',
@@ -192,8 +189,7 @@ const createRoom = async (room, numRows, numCols, numMines, mode = 'co-op', noGu
         roomData.sharedBoardSeed = ''; // For generating identical boards
     }
 
-    await client.hSet(`room:${room}`, roomData);
-    await client.expire(`room:${room}`, 86400); // Deletes room after 24 hours
+    await roomRepo.create(room, roomData);
 }
 
 // Generate a seeded board (for PVP - both players get identical mines)
@@ -258,9 +254,8 @@ const generateSeededBoard = (numRows, numCols, numMines, seed) => {
 }
 
 const resetGame = async (room) => {
-    const client = await redisClient;
     // Fetch room state once
-    const roomState = await client.hGetAll(`room:${room}`);
+    const roomState = await roomRepo.getState(room);
     if (!roomState) return;
 
     const numRows = parseInt(roomState.numRows, 10);
@@ -274,7 +269,7 @@ const resetGame = async (room) => {
     io.to(room).emit('resetEveryone');
 
     // Update room state and reset player scores in Redis
-    await client.hSet(`room:${room}`, {
+    await roomRepo.setFields(room, {
         board: JSON.stringify(newBoard),
         gameOver: 'false',
         gameWon: 'false',

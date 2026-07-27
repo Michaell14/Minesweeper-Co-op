@@ -30,6 +30,7 @@ Backend deps install separately: `npm --prefix server install`.
 - Server is **CommonJS** (`require`/`module.exports`); client is ESM + TypeScript. Do not mix.
 - Client imports use the `@/` alias (`@/components/...`, `@/lib/...`, `@/app/store`).
 - Redis values are all strings — booleans are stored as `'true'`/`'false'` and compared as strings, and numbers need `parseInt(..., 10)`.
+- **Go through `server/data/roomRepo` / `playerRepo`.** Don't import the Redis client or build a key string outside `server/data`. A mistyped key is a silent no-op, not an error.
 - Socket handlers validate payloads with helpers from `server/validation.js`, then call `isValid(room)` before touching state. Follow that order for new handlers, and add new rules to `validation.js` rather than inline.
 - Board cells are always `{ isMine, isOpen, isFlagged, nearbyMines }`.
 - **Never emit a board or cell list straight from Redis.** Run it through `projectBoard` / `projectCells` (`server/domain/board.js`) so closed cells don't leak `isMine` or `nearbyMines`. Pass `{ revealMines: true }` only for terminal states. See ARCHITECTURE.md §4.1.
@@ -46,6 +47,7 @@ Backend deps install separately: `npm --prefix server install`.
 | Board generation, win check, room creation | `server/utils/gameUtils.js` |
 | No-guess solvability | `server/utils/solverUtils.js` (pure — easiest place to add tests) |
 | Join/leave, scores, disconnects | `server/utils/playerUtils.js` |
+| Redis schema / any data access | `server/data/keys.js`, `server/data/roomRepo.js`, `server/data/playerRepo.js` |
 | Client state | `app/store.tsx` |
 | Board/controls UI | `components/Grid.tsx` (desktop **and** mobile trees) |
 | Cell interaction | `components/Cell.tsx` |

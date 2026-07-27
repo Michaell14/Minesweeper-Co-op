@@ -16,16 +16,9 @@ const { generateBoard } = require('../utils/gameUtils');
 const { updatePlayerStatsInRoom } = require('../utils/playerUtils');
 const { getAdjacentCells, revealFrom, projectBoard, projectCells } = require('../domain/board');
 const { io } = require('../utils/initializeClient');
-const { redisClient } = require('../utils/initializeRedisClient');
-
-/** Per-player Redis field names for a given zero-based player index. */
-const playerKeys = (playerIndex) => ({
-    boardKey: `player${playerIndex + 1}Board`,
-    initializedKey: `player${playerIndex + 1}Initialized`,
-    gameOverKey: `player${playerIndex + 1}GameOver`,
-    gameWonKey: `player${playerIndex + 1}GameWon`,
-    progressKey: `player${playerIndex + 1}Progress`,
-});
+const roomRepo = require('../data/roomRepo');
+const playerRepo = require('../data/playerRepo');
+const { pvpPlayerFields: playerKeys } = require('../data/keys');
 
 /**
  * Reveals cells from (r, c) on ONE player's board. Hitting a mine ends the game
@@ -38,9 +31,8 @@ const reveal = async (board, r, c, room, socketId, toUpdate, playerIndex) => {
     const { hitMine, cellsRevealed } = revealFrom(board, r, c, toUpdate);
     if (!hitMine) return cellsRevealed;
 
-    const client = await redisClient;
     const { gameOverKey } = playerKeys(playerIndex);
-    await client.hSet(`room:${room}`, { [gameOverKey]: 'true' });
+    await roomRepo.setFields(room, { [gameOverKey]: 'true' });
 
     // Notify this player they lost
     io.to(socketId).emit('pvpGameOver');
@@ -53,8 +45,7 @@ const reveal = async (board, r, c, room, socketId, toUpdate, playerIndex) => {
     });
 
     // Notify opponent with updated progress info
-    const players = JSON.parse(await client.hGet(`room:${room}`, 'players') || '[]');
-    const opponentSocket = players.find(p => p !== socketId);
+    const opponentSocket = await roomRepo.opponentOf(room, socketId);
     if (opponentSocket) {
         io.to(opponentSocket).emit('pvpOpponentFailed');
     }
@@ -63,12 +54,10 @@ const reveal = async (board, r, c, room, socketId, toUpdate, playerIndex) => {
 
 // Broadcast progress update to opponent
 const broadcastProgressUpdate = async (room, socketId, playerIndex, newProgress) => {
-    const client = await redisClient;
-    const players = JSON.parse(await client.hGet(`room:${room}`, 'players') || '[]');
-    const opponentSocket = players.find(p => p !== socketId);
+    const opponentSocket = await roomRepo.opponentOf(room, socketId);
 
     if (opponentSocket) {
-        const totalSafeCells = parseInt(await client.hGet(`room:${room}`, 'totalSafeCells') || '0', 10);
+        const totalSafeCells = parseInt(await roomRepo.getField(room, 'totalSafeCells') || '0', 10);
         io.to(opponentSocket).emit('pvpOpponentProgress', {
             progress: newProgress,
             totalSafeCells,
@@ -79,10 +68,9 @@ const broadcastProgressUpdate = async (room, socketId, playerIndex, newProgress)
 
 // Check win for PVP
 const checkWin = async (board, room, socketId, playerIndex) => {
-    const client = await redisClient;
     const { gameOverKey, gameWonKey } = playerKeys(playerIndex);
 
-    const roomState = await client.hGetAll(`room:${room}`);
+    const roomState = await roomRepo.getState(room);
 
     // Don't check win if this player already won or lost
     if (roomState[gameOverKey] === 'true' || roomState[gameWonKey] === 'true') {
@@ -99,18 +87,15 @@ const checkWin = async (board, room, socketId, playerIndex) => {
 
         if (!winnerSocket || winnerSocket === '') {
             // This player is the first to win!
-            const lockAcquired = await client.set(`winner_lock:${room}`, socketId, {
-                NX: true,
-                EX: 10
-            });
+            const lockAcquired = await roomRepo.acquireWinnerLock(room, socketId);
 
             if (lockAcquired) {
-                await client.hSet(`room:${room}`, {
+                await roomRepo.setFields(room, {
                     [gameWonKey]: 'true',
                     winnerSocket: socketId
                 });
 
-                const playerName = await client.hGet(`player:${socketId}`, 'name');
+                const playerName = await playerRepo.getName(socketId);
 
                 // Notify both players
                 io.to(room).emit('pvpPlayerWon', {
@@ -118,19 +103,17 @@ const checkWin = async (board, room, socketId, playerIndex) => {
                     winnerName: playerName
                 });
 
-                await client.del(`winner_lock:${room}`);
+                await roomRepo.releaseWinnerLock(room);
             }
         } else {
             // Someone else already won
-            await client.hSet(`room:${room}`, { [gameWonKey]: 'true' });
+            await roomRepo.setFields(room, { [gameWonKey]: 'true' });
         }
     }
 };
 
 // PVP-specific open cell
 const openCell = async (row, col, room, socketId, roomState, playerScore, playerData) => {
-    const client = await redisClient;
-
     // Check if game has started
     if (roomState.pvpStarted !== 'true') {
         return;
@@ -163,40 +146,34 @@ const openCell = async (row, col, room, socketId, roomState, playerScore, player
     // Check if board needs to be initialized (first click)
     if (roomState[initializedKey] !== 'true') {
         // Use a lock to prevent race conditions on first click
-        const initLockKey = `init_lock_pvp:${room}:${playerIndex}`;
-        const lockAcquired = await client.set(initLockKey, socketId, {
-            NX: true,
-            EX: 10
-        });
+        const lockAcquired = await roomRepo.acquirePvpInitLock(room, playerIndex, socketId);
 
         if (lockAcquired) {
             // Double-check initialization state
-            const freshState = await client.hGet(`room:${room}`, initializedKey);
+            const freshState = await roomRepo.getField(room, initializedKey);
             if (freshState === 'true') {
                 // Already initialized by another request
-                await client.del(initLockKey);
-                const updatedBoard = await client.hGet(`room:${room}`, boardKey);
-                board = JSON.parse(updatedBoard);
+                await roomRepo.releasePvpInitLock(room, playerIndex);
+                board = await roomRepo.getPvpBoard(room, playerIndex);
             } else {
                 // Generate new board with first click excluded from mines (safe 3x3 zone)
                 board = generateBoard(numRows, numCols, numMines, row, col);
 
                 // Save the initialized board
-                await client.hSet(`room:${room}`, {
+                await roomRepo.setFields(room, {
                     [initializedKey]: 'true',
                     [boardKey]: JSON.stringify(board)
                 });
-                await client.del(initLockKey);
+                await roomRepo.releasePvpInitLock(room, playerIndex);
                 justInitialized = true;
             }
         } else {
             // Wait for initialization to complete
             for (let i = 0; i < 5; i++) {
                 await new Promise(resolve => setTimeout(resolve, 100));
-                const currentState = await client.hGet(`room:${room}`, initializedKey);
+                const currentState = await roomRepo.getField(room, initializedKey);
                 if (currentState === 'true') {
-                    const updatedBoard = await client.hGet(`room:${room}`, boardKey);
-                    board = JSON.parse(updatedBoard);
+                    board = await roomRepo.getPvpBoard(room, playerIndex);
                     break;
                 }
             }
@@ -233,16 +210,16 @@ const openCell = async (row, col, room, socketId, roomState, playerScore, player
     // If mine was hit, safeCellsRevealed will be -1
     if (safeCellsRevealed === -1) {
         // Save board state with revealed mine
-        await client.hSet(`room:${room}`, { [boardKey]: JSON.stringify(board) });
+        await roomRepo.setPvpBoard(room, playerIndex, board);
         io.to(socketId).emit('pvpUpdateCells', projectCells(toUpdate));
         return;
     }
 
     // Update progress tracking - need to get fresh state since board may have just been initialized
-    const freshRoomState = await client.hGetAll(`room:${room}`);
+    const freshRoomState = await roomRepo.getState(room);
     const currentProgress = parseInt(freshRoomState[progressKey] || '0', 10);
     const newProgress = currentProgress + safeCellsRevealed;
-    await client.hSet(`room:${room}`, { [progressKey]: newProgress.toString() });
+    await roomRepo.setFields(room, { [progressKey]: newProgress.toString() });
 
     // Broadcast progress to opponent
     await broadcastProgressUpdate(room, socketId, playerIndex, newProgress);
@@ -250,13 +227,12 @@ const openCell = async (row, col, room, socketId, roomState, playerScore, player
     // Update player score
     if (safeCellsRevealed > 0) {
         const currentScore = parseInt(playerScore || '0', 10) || 0;
-        const newScore = currentScore + safeCellsRevealed;
-        await client.hSet(`player:${socketId}`, { score: newScore.toString() });
+        await playerRepo.setScore(socketId, currentScore + safeCellsRevealed);
         await updatePlayerStatsInRoom(room);
     }
 
     // Save board
-    await client.hSet(`room:${room}`, { [boardKey]: JSON.stringify(board) });
+    await roomRepo.setPvpBoard(room, playerIndex, board);
 
     // Check win condition
     await checkWin(board, room, socketId, playerIndex);
@@ -272,8 +248,7 @@ const openCell = async (row, col, room, socketId, roomState, playerScore, player
 
 // PVP-specific chord cell
 const chordCell = async (row, col, room, socketId, roomState) => {
-    const client = await redisClient;
-    const playerData = await client.hGetAll(`player:${socketId}`);
+    const playerData = await playerRepo.getState(socketId);
     const playerIndex = parseInt(playerData.pvpPlayerIndex || '0', 10);
     const { boardKey, gameOverKey, gameWonKey, progressKey } = playerKeys(playerIndex);
 
@@ -302,7 +277,7 @@ const chordCell = async (row, col, room, socketId, roomState) => {
                 // If mine was hit, safeCellsRevealed will be -1
                 if (safeCellsRevealed === -1) {
                     io.to(socketId).emit('pvpUpdateCells', projectCells(toUpdate));
-                    await client.hSet(`room:${room}`, { [boardKey]: JSON.stringify(board) });
+                    await roomRepo.setPvpBoard(room, playerIndex, board);
                     return;
                 }
 
@@ -315,27 +290,25 @@ const chordCell = async (row, col, room, socketId, roomState) => {
     if (totalSafeCellsRevealed > 0) {
         const currentProgress = parseInt(roomState[progressKey] || '0', 10);
         const newProgress = currentProgress + totalSafeCellsRevealed;
-        await client.hSet(`room:${room}`, { [progressKey]: newProgress.toString() });
+        await roomRepo.setFields(room, { [progressKey]: newProgress.toString() });
 
         // Broadcast progress to opponent
         await broadcastProgressUpdate(room, socketId, playerIndex, newProgress);
 
         // Update player score
-        const currentScore = parseInt(await client.hGet(`player:${socketId}`, "score") || '0', 10) || 0;
-        const newScore = currentScore + totalSafeCellsRevealed;
-        await client.hSet(`player:${socketId}`, { score: newScore.toString() });
+        const currentScore = await playerRepo.getScore(socketId);
+        await playerRepo.setScore(socketId, currentScore + totalSafeCellsRevealed);
     }
 
     await updatePlayerStatsInRoom(room);
     await checkWin(board, room, socketId, playerIndex);
     io.to(socketId).emit('pvpUpdateCells', projectCells(toUpdate));
-    await client.hSet(`room:${room}`, { [boardKey]: JSON.stringify(board) });
+    await roomRepo.setPvpBoard(room, playerIndex, board);
 };
 
 // PVP-specific toggle flag
 const toggleFlag = async (row, col, room, socketId, roomState) => {
-    const client = await redisClient;
-    const playerData = await client.hGetAll(`player:${socketId}`);
+    const playerData = await playerRepo.getState(socketId);
     const playerIndex = parseInt(playerData.pvpPlayerIndex || '0', 10);
     const { boardKey, gameOverKey, gameWonKey } = playerKeys(playerIndex);
 
@@ -362,7 +335,7 @@ const toggleFlag = async (row, col, room, socketId, roomState) => {
     // The toggled cell is still CLOSED, so projecting keeps a flag from leaking
     // whether that cell is a mine.
     io.to(socketId).emit('pvpUpdateCells', projectCells(toUpdate));
-    await client.hSet(`room:${room}`, { [boardKey]: JSON.stringify(board) });
+    await roomRepo.setPvpBoard(room, playerIndex, board);
 };
 
 module.exports ={ playerKeys, reveal, broadcastProgressUpdate, checkWin, openCell, chordCell, toggleFlag };

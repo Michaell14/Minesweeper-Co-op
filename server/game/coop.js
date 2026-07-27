@@ -9,7 +9,8 @@ const { generateBoard, checkWin } = require('../utils/gameUtils');
 const { updatePlayerStatsInRoom } = require('../utils/playerUtils');
 const { getAdjacentCells, revealFrom, projectBoard, projectCells } = require('../domain/board');
 const { io } = require('../utils/initializeClient');
-const { redisClient } = require('../utils/initializeRedisClient');
+const roomRepo = require('../data/roomRepo');
+const playerRepo = require('../data/playerRepo');
 
 /**
  * Reveals cells from (r, c). Hitting a mine ends the game for the WHOLE room and
@@ -19,10 +20,9 @@ const reveal = async (board, r, c, room, socketId, toUpdate) => {
     const { hitMine } = revealFrom(board, r, c, toUpdate);
     if (!hitMine) return;
 
-    const client = await redisClient;
-    const gameOverName = await client.hGet(`player:${socketId}`, "name");
+    const gameOverName = await playerRepo.getName(socketId);
     io.to(room).emit('gameOver', gameOverName);
-    await client.hSet(`room:${room}`, {
+    await roomRepo.setFields(room, {
         gameOver: 'true',
         gameOverName: gameOverName || 'Unknown'
     });
@@ -35,8 +35,6 @@ const reveal = async (board, r, c, room, socketId, toUpdate) => {
 
 // Opens a cell
 const openCell = async (row, col, room, socketId, roomState, playerScore) => {
-    const client = await redisClient;
-
     // Return when game is over -> no more interactions necessary
     if (roomState.gameOver === 'true' || roomState.gameWon === 'true') {
         return;
@@ -66,29 +64,24 @@ const openCell = async (row, col, room, socketId, roomState, playerScore) => {
     if (roomState.initialized === 'false') {
         // Use Redis SET NX: check and set atomically
         // This prevents race condition where two players initialize simultaneously
-        const initLockKey = `init_lock:${room}`;
-        const lockAcquired = await client.set(initLockKey, socketId, {
-            NX: true, // Only set if doesn't exist
-            EX: 10    // Expire after 10 seconds (timeout protection)
-        });
+        const lockAcquired = await roomRepo.acquireInitLock(room, socketId);
 
         if (lockAcquired) {
             // Double-check after acquiring lock to prevent race condition
-            const freshState = await client.hGet(`room:${room}`, 'initialized');
+            const freshState = await roomRepo.getField(room, 'initialized');
             if (freshState === 'true') {
                 // Someone else initialized while we were waiting for the lock
-                await client.del(initLockKey);
-                const updatedBoard = await client.hGet(`room:${room}`, 'board');
-                board = JSON.parse(updatedBoard);
+                await roomRepo.releaseInitLock(room);
+                board = await roomRepo.getBoard(room);
             } else {
                 // We can safely initialize
                 const shouldNoGuess = roomState.noGuess !== 'false';
                 board = generateBoard(numRows, numCols, numMines, row, col, { noGuess: shouldNoGuess });
-                await client.hSet(`room:${room}`, {
+                await roomRepo.setFields(room, {
                     initialized: 'true',
                     board: JSON.stringify(board)
                 });
-                await client.del(initLockKey); // Release lock
+                await roomRepo.releaseInitLock(room); // Release lock
                 justInitialized = true;
             }
         } else {
@@ -96,10 +89,9 @@ const openCell = async (row, col, room, socketId, roomState, playerScore) => {
             // Poll for completion (max 5 attempts with 100ms delay)
             for (let i = 0; i < 5; i++) {
                 await new Promise(resolve => setTimeout(resolve, 100));
-                const currentState = await client.hGet(`room:${room}`, 'initialized');
+                const currentState = await roomRepo.getField(room, 'initialized');
                 if (currentState === 'true') {
-                    const updatedBoard = await client.hGet(`room:${room}`, 'board');
-                    board = JSON.parse(updatedBoard);
+                    board = await roomRepo.getBoard(room);
                     break;
                 }
             }
@@ -108,8 +100,7 @@ const openCell = async (row, col, room, socketId, roomState, playerScore) => {
     } else if (!board[row][col].isMine) {
         // Update player score in a single database operation
         const currentScore = parseInt(playerScore || '0', 10) || 0;
-        const newScore = currentScore + 1;
-        await client.hSet(`player:${socketId}`, { score: newScore.toString() });
+        await playerRepo.setScore(socketId, currentScore + 1);
         await updatePlayerStatsInRoom(room);
     }
 
@@ -118,10 +109,10 @@ const openCell = async (row, col, room, socketId, roomState, playerScore) => {
     await reveal(board, row, col, room, socketId, toUpdate);
 
     // Save board first before checking win condition
-    await client.hSet(`room:${room}`, { board: JSON.stringify(board) });
+    await roomRepo.setBoard(room, board);
 
     // Refresh room state to get latest gameOver/gameWon status before checking win
-    const freshRoomState = await client.hGetAll(`room:${room}`);
+    const freshRoomState = await roomRepo.getState(room);
     await checkWin(freshRoomState, board, room);
 
     const isOver = freshRoomState.gameOver === 'true' || freshRoomState.gameWon === 'true';
@@ -134,8 +125,6 @@ const openCell = async (row, col, room, socketId, roomState, playerScore) => {
 };
 
 const chordCell = async (row, col, room, socketId, roomState) => {
-    const client = await redisClient;
-
     if (roomState === undefined || !roomState || roomState.gameOver === 'true' || roomState.gameWon === 'true') {
         return;
     }
@@ -167,21 +156,17 @@ const chordCell = async (row, col, room, socketId, roomState) => {
     }
 
     if (scoreIncrement > 0) {
-        const playerScore = await client.hGet(`player:${socketId}`, 'score');
-        const currentScore = parseInt(playerScore || '0', 10) || 0;
-        const newScore = currentScore + scoreIncrement;
-        await client.hSet(`player:${socketId}`, { score: newScore.toString() });
+        const currentScore = await playerRepo.getScore(socketId);
+        await playerRepo.setScore(socketId, currentScore + scoreIncrement);
     }
 
     await updatePlayerStatsInRoom(room);
-    await client.hSet(`room:${room}`, { board: JSON.stringify(board) });
+    await roomRepo.setBoard(room, board);
     await checkWin(roomState, board, room);
     io.to(room).emit("updateCells", projectCells(toUpdate));
 };
 
 const toggleFlag = async (row, col, room, socketId, roomState) => {
-    const client = await redisClient;
-
     if (!roomState || !roomState.board || roomState.gameOver === 'true' || roomState.gameWon === 'true') return;
 
     const board = JSON.parse(roomState.board);
@@ -207,7 +192,7 @@ const toggleFlag = async (row, col, room, socketId, roomState) => {
     // The flagged cell is still CLOSED, so this projection is what stopped a
     // flag toggle from leaking that cell's mine status.
     io.to(room).emit('updateCells', projectCells(toUpdate));
-    await client.hSet(`room:${room}`, { board: JSON.stringify(board) });
+    await roomRepo.setBoard(room, board);
     await checkWin(roomState, board, room);
 };
 

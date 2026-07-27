@@ -1,20 +1,23 @@
 const { createEmptyBoard } = require('../domain/board');
 const { updatePlayerStatsInRoom } = require('../utils/playerUtils');
 const { isValidRoomCode } = require('../validation');
+const roomRepo = require('../data/roomRepo');
+const playerRepo = require('../data/playerRepo');
+const { pvpPlayerFields } = require('../data/keys');
 
 /**
  * Handles 'startPvpGame' event
  */
-const startPvpGame = async ({ socket, room, isValid, client, io }) => {
+const startPvpGame = async ({ socket, room, isValid, io }) => {
     try {
         if (!isValidRoomCode(room)) return;
         if (!(await isValid(room))) return;
 
-        const roomState = await client.hGetAll(`room:${room}`);
+        const roomState = await roomRepo.getState(room);
         const mode = roomState.mode || 'co-op';
         if (mode !== 'pvp') return;
 
-        const players = JSON.parse(roomState.players || '[]');
+        const players = roomRepo.playersFrom(roomState);
         if (players.length !== 2) return;
 
         // Only host can start game
@@ -30,7 +33,7 @@ const startPvpGame = async ({ socket, room, isValid, client, io }) => {
         const player2Socket = players.find(p => p !== player1Socket);
         const emptyBoard = createEmptyBoard(numRows, numCols);
 
-        await client.hSet(`room:${room}`, {
+        await roomRepo.setFields(room, {
             pvpStarted: 'true',
             totalSafeCells: totalSafeCells.toString(),
             player1Socket,
@@ -48,14 +51,14 @@ const startPvpGame = async ({ socket, room, isValid, client, io }) => {
             winnerSocket: '',
         });
 
-        const player1Name = await client.hGet(`player:${player1Socket}`, 'name');
-        const player2Name = await client.hGet(`player:${player2Socket}`, 'name');
+        const player1Name = await playerRepo.getName(player1Socket);
+        const player2Name = await playerRepo.getName(player2Socket);
 
-        await client.hSet(`player:${player1Socket}`, {
+        await playerRepo.setFields(player1Socket, {
             pvpPlayerIndex: '0',
             opponentName: player2Name
         });
-        await client.hSet(`player:${player2Socket}`, {
+        await playerRepo.setFields(player2Socket, {
             pvpPlayerIndex: '1',
             opponentName: player1Name
         });
@@ -85,36 +88,33 @@ const startPvpGame = async ({ socket, room, isValid, client, io }) => {
 /**
  * Handles 'resetMyBoard' event
  */
-const resetMyBoard = async ({ socket, room, isValid, client, io }) => {
+const resetMyBoard = async ({ socket, room, isValid, io }) => {
     try {
         if (!isValidRoomCode(room)) return;
         if (!(await isValid(room))) return;
 
-        const roomState = await client.hGetAll(`room:${room}`);
+        const roomState = await roomRepo.getState(room);
         const mode = roomState.mode || 'co-op';
         if (mode !== 'pvp') return;
 
         if (roomState.winnerSocket && roomState.winnerSocket !== '') return;
 
-        const playerData = await client.hGetAll(`player:${socket.id}`);
+        const playerData = await playerRepo.getState(socket.id);
         const playerIndex = parseInt(playerData.pvpPlayerIndex || '0', 10);
         const numRows = parseInt(roomState.numRows, 10);
         const numCols = parseInt(roomState.numCols, 10);
         const emptyBoard = createEmptyBoard(numRows, numCols);
 
-        const boardKey = `player${playerIndex + 1}Board`;
-        const initializedKey = `player${playerIndex + 1}Initialized`;
-        const gameOverKey = `player${playerIndex + 1}GameOver`;
-        const progressKey = `player${playerIndex + 1}Progress`;
+        const { boardKey, initializedKey, gameOverKey, progressKey } = pvpPlayerFields(playerIndex);
 
-        await client.hSet(`room:${room}`, {
+        await roomRepo.setFields(room, {
             [boardKey]: JSON.stringify(emptyBoard),
             [initializedKey]: 'false',
             [gameOverKey]: 'false',
             [progressKey]: '0',
         });
 
-        await client.hSet(`player:${socket.id}`, { score: '0' });
+        await playerRepo.resetScore(socket.id);
 
         io.to(socket.id).emit('pvpBoardUpdate', {
             board: emptyBoard,
@@ -122,7 +122,7 @@ const resetMyBoard = async ({ socket, room, isValid, client, io }) => {
             opponentName: playerData.opponentName || 'Opponent'
         });
 
-        const players = JSON.parse(roomState.players || '[]');
+        const players = roomRepo.playersFrom(roomState);
         const opponentSocket = players.find(p => p !== socket.id);
         if (opponentSocket) {
             io.to(opponentSocket).emit('pvpOpponentReset');
@@ -144,18 +144,18 @@ const resetMyBoard = async ({ socket, room, isValid, client, io }) => {
 /**
  * Handles 'pvpRematch' event
  */
-const pvpRematch = async ({ socket, room, isValid, client, io }) => {
+const pvpRematch = async ({ socket, room, isValid, io }) => {
     try {
         if (!isValidRoomCode(room)) return;
         if (!(await isValid(room))) return;
 
-        const roomState = await client.hGetAll(`room:${room}`);
+        const roomState = await roomRepo.getState(room);
         const mode = roomState.mode || 'co-op';
         if (mode !== 'pvp') return;
 
         if (roomState.hostSocket !== socket.id) return;
 
-        const players = JSON.parse(roomState.players || '[]');
+        const players = roomRepo.playersFrom(roomState);
         if (players.length !== 2) return;
 
         const numRows = parseInt(roomState.numRows, 10);
@@ -165,7 +165,7 @@ const pvpRematch = async ({ socket, room, isValid, client, io }) => {
 
         const emptyBoard = createEmptyBoard(numRows, numCols);
 
-        await client.hSet(`room:${room}`, {
+        await roomRepo.setFields(room, {
             pvpStarted: 'true',
             totalSafeCells: totalSafeCells.toString(),
             player1Board: JSON.stringify(emptyBoard),
@@ -184,11 +184,11 @@ const pvpRematch = async ({ socket, room, isValid, client, io }) => {
         const player1Socket = roomState.player1Socket;
         const player2Socket = roomState.player2Socket;
 
-        await client.hSet(`player:${player1Socket}`, { score: '0' });
-        await client.hSet(`player:${player2Socket}`, { score: '0' });
+        await playerRepo.resetScore(player1Socket);
+        await playerRepo.resetScore(player2Socket);
 
-        const player1Name = await client.hGet(`player:${player1Socket}`, 'name');
-        const player2Name = await client.hGet(`player:${player2Socket}`, 'name');
+        const player1Name = await playerRepo.getName(player1Socket);
+        const player2Name = await playerRepo.getName(player2Socket);
 
         io.to(player1Socket).emit('pvpRematchStarted', { totalSafeCells, isHost: true });
         io.to(player2Socket).emit('pvpRematchStarted', { totalSafeCells, isHost: false });
