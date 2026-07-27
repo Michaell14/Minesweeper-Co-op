@@ -51,7 +51,6 @@ server/                   Separate npm package (own package.json, lockfile, node
     solverUtils.js        No-guess solvability engine (pure, no I/O — the only dependency-free module)
     initializeClient.js   Express app + io singleton + CORS
     initializeRedisClient.js  Redis singleton (exported as a Promise)
-    types.ts              DEAD: TypeScript types in a CommonJS JS server, imported by nothing
   tests/                  Jest (`npm test` from /server, or `npm test` at the repo root)
 ```
 
@@ -112,7 +111,7 @@ validation ─→ (nothing)
 > reintroduce imports between `gameUtils` and `playerUtils`** —
 > `tests/resetGame.test.js` guards this and depends on its own require order.
 
-`io` and `redisClient` are imported as module-scope singletons in five files, so no handler can be exercised without a live Redis unless those modules are mocked (see `server/tests/gameUtils.test.js` for the mocking pattern).
+`redisClient` is imported only by `data/`. `io` is still a module-scope singleton imported wherever something emits, so handlers need it mocked to be tested (see `server/tests/setup/mockInfra.js`, which mocks both globally).
 
 ### Request path
 
@@ -120,9 +119,9 @@ validation ─→ (nothing)
 2. Payload validation via `server/validation.js` (pure, no I/O), then `isValid(room)` — room exists, player exists, player is in the room's `players` array
 3. `game/index.js` loads the room hash from Redis and **dispatches on `roomState.mode`** to `game/coop.js` or `game/pvp.js`, passing the state it already read
 4. Board JSON is mutated and written back
-5. The result is **projected** (see §4.1) and emitted via `io.to(room)` (co-op) or `io.to(socketId)` (PVP)
+5. The result is **projected** (see §3.1) and emitted via `io.to(room)` (co-op) or `io.to(socketId)` (PVP)
 
-### 4.1 Board projection — what a client is allowed to see
+### 3.1 Board projection — what a client is allowed to see
 
 Redis holds the full truth; clients never do. Every board or cell payload passes
 through `projectBoard` / `projectCells` in `domain/board.js` first:
@@ -193,7 +192,7 @@ Players are keyed by socket id, so a reconnect is a new player row.
 |---|---|
 | `joinRoomSuccess` | `{room, mode, isHost, numRows?, numCols?, numMines?}` |
 | `joinRoomError` / `createRoomError` / `roomDoesNotExistError` | — |
-| `boardUpdate` | `Cell[][]` (full board: join, reset, first click, win, loss). **Projected** — see §4.1 |
+| `boardUpdate` | `Cell[][]` (full board: join, reset, first click, win, loss). **Projected** — see §3.1 |
 | `updateCells` | `{row, col, isMine, isOpen, isFlagged, nearbyMines}[]` |
 | `playerStatsUpdate` | `{name, score}[]` |
 | `gameWon` | — |
@@ -274,10 +273,9 @@ These are real, currently unfixed, and worth knowing before changing related cod
 3. **Scoring differs per mode.** Co-op awards +1 per click regardless of cascade size and nothing on the board-initializing click (`game/coop.js`); PVP awards +1 per revealed cell (`game/pvp.js`).
 4. **Stale room state on win checks.** `openCell` re-reads room state before `checkWin`; `chordCell` and `toggleFlag` pass their pre-reveal snapshot.
 5. **Missing `pvpPlayerIndex` is handled inconsistently** — `pvp.openCell` bails out, `pvp.chordCell`/`pvp.toggleFlag` default to index 0 and would mutate player 1's board.
-6. **`boardUpdate` forces difficulty to "Medium"** on the client (`page.tsx:123`), regardless of the room's actual difficulty.
-7. **`socket.off(event)` removes all handlers for that event**, not just this component's.
-8. **Two Procfiles.** `/Procfile` (`cd server && node server.js`, paired with `heroku-postbuild`) and `/server/Procfile` (`node server.js`, paired with the `git subtree push --prefix server heroku main` deploy). Confirm which one Heroku actually uses before touching either.
-9. **Server deps are declared twice** — in the root `package.json` and in `server/package.json`, with separate lockfiles.
+6. **`socket.off(event)` removes all handlers for that event**, not just this component's.
+7. **Two Procfiles.** `/Procfile` (`cd server && node server.js`, paired with `heroku-postbuild`) and `/server/Procfile` (`node server.js`, paired with the `git subtree push --prefix server heroku main` deploy). Confirm which one Heroku actually uses before touching either.
+8. **Server deps are declared twice** — in the root `package.json` and in `server/package.json`, with separate lockfiles.
 
 *Fixed, kept here so it isn't reintroduced:* the `gameUtils` ⇄ `playerUtils` require cycle that silently broke co-op score resets — see the note in §3.
 
