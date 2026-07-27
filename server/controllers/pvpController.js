@@ -1,4 +1,4 @@
-const { createEmptyBoard } = require('../utils/gameUtils');
+const { createEmptyBoard } = require('../domain/board');
 const { updatePlayerStatsInRoom } = require('../utils/playerUtils');
 
 /**

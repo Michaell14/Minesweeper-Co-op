@@ -1,6 +1,6 @@
 const { io } = require('./initializeClient');
 const { redisClient } = require('./initializeRedisClient');
-const { createEmptyBoard } = require('./gameUtils');
+const { createEmptyBoard } = require('../domain/board');
 
 // Basically updates the player's stats whenever:
 // 1) A player joins/leaves the room
