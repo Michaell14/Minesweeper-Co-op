@@ -235,13 +235,14 @@ Local Redis is expected on `127.0.0.1:6379`; `scripts/ensure-redis.js` will try 
 
 These are real, currently unfixed, and worth knowing before changing related code.
 
-1. **Errors are broadcast to the whole room.** `joinRoomError` (`server.js:85`) and `roomDoesNotExistError` (`server.js:152`, `:161`) go to `io.to(room)`. Because the client's `roomDoesNotExistError` handler calls `leaveRoom()`, one client with stale state ejects everyone.
-2. **PVP boards differ per player** (see §5).
-3. **Scoring differs per mode.** Co-op awards +1 per click regardless of cascade size and nothing on the board-initializing click (`game/coop.js`); PVP awards +1 per revealed cell (`game/pvp.js`).
-4. **Stale room state on win checks.** `openCell` re-reads room state before `checkWin`; `chordCell` and `toggleFlag` pass their pre-reveal snapshot.
-5. **Missing `pvpPlayerIndex` is handled inconsistently** — `openCellPvp` bails out, `chordCellPvp`/`toggleFlagPvp` default to index 0 and would mutate player 1's board.
-6. **`boardUpdate` forces difficulty to "Medium"** on the client (`page.tsx:123`), regardless of the room's actual difficulty.
-7. **`socket.off(event)` removes all handlers for that event**, not just this component's.
+1. **Every client is sent the full mine layout.** `boardUpdate` and `pvpBoardUpdate` serialize the whole board, `isMine` included, for *unopened* cells — so from the first click onward any client can read every mine position straight off the socket (confirmed by driving a real client against the server). Fixing it means projecting the board per recipient before emitting: send `isMine` only for cells that are open, or that are revealed on game over. That is a protocol change affecting the client's `Cell` type, so it is not a drive-by fix.
+2. **Errors are broadcast to the whole room.** `joinRoomError` (`server.js:85`) and `roomDoesNotExistError` (`server.js:152`, `:161`) go to `io.to(room)`. Because the client's `roomDoesNotExistError` handler calls `leaveRoom()`, one client with stale state ejects everyone.
+3. **PVP boards differ per player** (see §5).
+4. **Scoring differs per mode.** Co-op awards +1 per click regardless of cascade size and nothing on the board-initializing click (`game/coop.js`); PVP awards +1 per revealed cell (`game/pvp.js`).
+5. **Stale room state on win checks.** `openCell` re-reads room state before `checkWin`; `chordCell` and `toggleFlag` pass their pre-reveal snapshot.
+6. **Missing `pvpPlayerIndex` is handled inconsistently** — `pvp.openCell` bails out, `pvp.chordCell`/`pvp.toggleFlag` default to index 0 and would mutate player 1's board.
+7. **`boardUpdate` forces difficulty to "Medium"** on the client (`page.tsx:123`), regardless of the room's actual difficulty.
+8. **`socket.off(event)` removes all handlers for that event**, not just this component's.
 8. **Two Procfiles.** `/Procfile` (`cd server && node server.js`, paired with `heroku-postbuild`) and `/server/Procfile` (`node server.js`, paired with the `git subtree push --prefix server heroku main` deploy). Confirm which one Heroku actually uses before touching either.
 9. **Server deps are declared twice** — in the root `package.json` and in `server/package.json`, with separate lockfiles.
 
@@ -257,6 +258,6 @@ These are real, currently unfixed, and worth knowing before changing related cod
 | Redis key names | nowhere — inline template strings | `server.js`, `game/coop.js`, `game/pvp.js`, `gameUtils.js`, `playerUtils.js`, `pvpController.js` (PVP's per-player field names are at least centralized in `game/pvp.js` `playerKeys()`) |
 | CORS origins | `server/utils/initializeClient.js` | listed twice in that same file (Express middleware + Socket.io config) |
 | Backend URL | `lib/initSocket.js:3-5` | hardcoded per `NODE_ENV`, not env-driven |
-| Cell reveal (flood fill) | still duplicated | `game/coop.js` `reveal()` and `game/pvp.js` `reveal()` remain near-identical — unifying them is the next planned step |
+| Cell reveal (flood fill) | `domain/board.js` `revealFrom()` | each mode wraps it to react to a mine: co-op ends the room's game, PVP ends only that player's |
 | Neighbor enumeration | `domain/board.js` `getAdjacentCells()` | plus `solverUtils.js:10` (`getAdjacentCoords`) and inline loops in `gameUtils.js:56` and `:250` |
 | Board rendering | `components/Grid.tsx` | desktop tree `:149-361` and mobile tree `:363-520` render the board independently |

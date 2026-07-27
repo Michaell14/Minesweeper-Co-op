@@ -6,7 +6,41 @@
  * co-op and PVP cell logic were split, since both modes chord through it.
  */
 
-const { createEmptyBoard, getAdjacentCells } = require('../domain/board');
+const { createEmptyBoard, getAdjacentCells, revealFrom } = require('../domain/board');
+
+/**
+ * Builds a board from an ASCII grid and fills in nearbyMines.
+ *   '*' mine   'F' flagged   'o' already open   '.' plain closed cell
+ */
+const boardFrom = (rows) => {
+    const board = rows.map((line) =>
+        [...line].map((ch) => ({
+            isMine: ch === '*',
+            isOpen: ch === 'o',
+            isFlagged: ch === 'F',
+            nearbyMines: 0,
+        }))
+    );
+
+    for (let r = 0; r < board.length; r++) {
+        for (let c = 0; c < board[0].length; c++) {
+            if (board[r][c].isMine) continue;
+            let count = 0;
+            for (let dr = -1; dr <= 1; dr++) {
+                for (let dc = -1; dc <= 1; dc++) {
+                    const nr = r + dr;
+                    const nc = c + dc;
+                    if (nr >= 0 && nr < board.length && nc >= 0 && nc < board[0].length && board[nr][nc].isMine) count++;
+                }
+            }
+            board[r][c].nearbyMines = count;
+        }
+    }
+
+    return board;
+};
+
+const openCount = (board) => board.flat().filter((cell) => cell.isOpen).length;
 
 describe('createEmptyBoard', () => {
     test('builds a rows x cols grid of closed, unflagged, mine-free cells', () => {
@@ -101,5 +135,131 @@ describe('getAdjacentCells', () => {
 
         expect(getAdjacentCells(0, 4, board)).toHaveLength(3);
         expect(getAdjacentCells(1, 2, board)).toHaveLength(5);
+    });
+});
+
+describe('revealFrom', () => {
+    test('opens a single numbered cell without cascading', () => {
+        // (1,1) sits next to the mine, so it has a number and must not spread.
+        const board = boardFrom([
+            '*..',
+            '...',
+            '...',
+        ]);
+        const toUpdate = [];
+
+        const result = revealFrom(board, 1, 1, toUpdate);
+
+        expect(result).toEqual({ hitMine: false, cellsRevealed: 1 });
+        expect(toUpdate).toHaveLength(1);
+        expect(openCount(board)).toBe(1);
+        expect(board[1][1]).toMatchObject({ isOpen: true, nearbyMines: 1 });
+    });
+
+    test('cascades through zero cells and stops at numbered ones', () => {
+        // One mine in the corner: every other cell is reachable from (4,4).
+        const board = boardFrom([
+            '*....',
+            '.....',
+            '.....',
+            '.....',
+            '.....',
+        ]);
+        const toUpdate = [];
+
+        const result = revealFrom(board, 4, 4, toUpdate);
+
+        expect(result).toEqual({ hitMine: false, cellsRevealed: 24 });
+        expect(openCount(board)).toBe(24);
+        expect(board[0][0].isOpen).toBe(false); // the mine is never opened
+        expect(toUpdate).toHaveLength(24);
+    });
+
+    test('never spreads through a flagged cell', () => {
+        const board = boardFrom([
+            '...',
+            '.F.',
+            '...',
+        ]);
+        const toUpdate = [];
+
+        const result = revealFrom(board, 0, 0, toUpdate);
+
+        expect(result).toEqual({ hitMine: false, cellsRevealed: 8 });
+        expect(board[1][1].isOpen).toBe(false);
+    });
+
+    test('reports a mine, opens it, and abandons the rest of the traversal', () => {
+        const board = boardFrom([
+            '*..',
+            '...',
+            '...',
+        ]);
+        const toUpdate = [];
+
+        const result = revealFrom(board, 0, 0, toUpdate);
+
+        expect(result).toEqual({ hitMine: true, cellsRevealed: 0 });
+        expect(board[0][0].isOpen).toBe(true); // the mine itself is revealed
+        expect(toUpdate).toEqual([expect.objectContaining({ row: 0, col: 0, isMine: true })]);
+        expect(openCount(board)).toBe(1); // nothing else was touched
+    });
+
+    test.each([
+        ['an already-open cell', 'o', 1],
+        ['a flagged cell', 'F', 0],
+    ])('does nothing when started on %s', (_label, ch, alreadyOpen) => {
+        const board = boardFrom(['...', `.${ch}.`, '...']);
+        const toUpdate = [];
+
+        const result = revealFrom(board, 1, 1, toUpdate);
+
+        expect(result).toEqual({ hitMine: false, cellsRevealed: 0 });
+        expect(toUpdate).toHaveLength(0);
+        expect(openCount(board)).toBe(alreadyOpen);
+    });
+
+    test('ignores an out-of-bounds start without throwing', () => {
+        const board = boardFrom(['...', '...', '...']);
+        const toUpdate = [];
+
+        expect(revealFrom(board, -1, 0, toUpdate)).toEqual({ hitMine: false, cellsRevealed: 0 });
+        expect(revealFrom(board, 0, 99, toUpdate)).toEqual({ hitMine: false, cellsRevealed: 0 });
+        expect(toUpdate).toHaveLength(0);
+    });
+
+    test('emits each opened cell exactly once, with coordinates and state', () => {
+        const board = boardFrom([
+            '*....',
+            '.....',
+            '.....',
+        ]);
+        const toUpdate = [];
+
+        revealFrom(board, 2, 4, toUpdate);
+
+        const keys = toUpdate.map(({ row, col }) => `${row},${col}`);
+        expect(new Set(keys).size).toBe(keys.length); // no duplicates
+        for (const entry of toUpdate) {
+            expect(entry).toMatchObject({ isOpen: true });
+            expect(typeof entry.nearbyMines).toBe('number');
+            expect(board[entry.row][entry.col].isOpen).toBe(true);
+        }
+    });
+
+    test('a cascade can never reach a mine, so only a direct click loses', () => {
+        // Cells that cascade have nearbyMines === 0, meaning no adjacent mines --
+        // so the flood fill can only ever push safe neighbours.
+        const board = boardFrom([
+            '*.*',
+            '...',
+            '*.*',
+        ]);
+        const toUpdate = [];
+
+        const result = revealFrom(board, 1, 1, toUpdate);
+
+        expect(result.hitMine).toBe(false);
+        expect(board.flat().filter((c) => c.isMine && c.isOpen)).toHaveLength(0);
     });
 });

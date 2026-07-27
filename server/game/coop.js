@@ -7,46 +7,25 @@
 
 const { generateBoard, checkWin } = require('../utils/gameUtils');
 const { updatePlayerStatsInRoom } = require('../utils/playerUtils');
-const { getAdjacentCells } = require('../domain/board');
+const { getAdjacentCells, revealFrom } = require('../domain/board');
 const { io } = require('../utils/initializeClient');
 const { redisClient } = require('../utils/initializeRedisClient');
 
-// Reveals a cell to player
+/**
+ * Reveals cells from (r, c). Hitting a mine ends the game for the WHOLE room and
+ * records who did it, which is the only way this differs from the PVP version.
+ */
 const reveal = async (board, r, c, room, socketId, toUpdate) => {
+    const { hitMine } = revealFrom(board, r, c, toUpdate);
+    if (!hitMine) return;
+
     const client = await redisClient;
-    const stack = [[r, c]];
-
-    // Iteratively reveals open cells
-    while (stack.length > 0) {
-        const [row, col] = stack.pop();
-
-        if (row < 0 || row >= board.length || col < 0 || col >= board[0].length || board[row][col].isOpen || board[row][col].isFlagged) continue;
-
-        board[row][col].isOpen = true;
-        toUpdate.push({
-            ...board[row][col],
-            row: row,
-            col: col,
-        });
-
-        if (board[row][col].isMine) {
-            const gameOverName = await client.hGet(`player:${socketId}`, "name");
-            io.to(room).emit('gameOver', gameOverName);
-            await client.hSet(`room:${room}`, {
-                gameOver: 'true',
-                gameOverName: gameOverName || 'Unknown'
-            });
-            return;
-        }
-
-        if (board[row][col].nearbyMines === 0) {
-            for (let dr = -1; dr <= 1; dr++) {
-                for (let dc = -1; dc <= 1; dc++) {
-                    stack.push([row + dr, col + dc]);
-                }
-            }
-        }
-    }
+    const gameOverName = await client.hGet(`player:${socketId}`, "name");
+    io.to(room).emit('gameOver', gameOverName);
+    await client.hSet(`room:${room}`, {
+        gameOver: 'true',
+        gameOverName: gameOverName || 'Unknown'
+    });
 };
 
 // Opens a cell
