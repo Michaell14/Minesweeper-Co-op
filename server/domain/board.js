@@ -103,4 +103,43 @@ const revealFrom = (board, r, c, toUpdate) => {
     return { hitMine: false, cellsRevealed };
 };
 
-module.exports = { createEmptyBoard, getAdjacentCells, revealFrom };
+/**
+ * Hides everything a player is not entitled to know about one cell.
+ *
+ * A closed cell must give away neither `isMine` nor `nearbyMines`: the mine flag
+ * is the answer outright, and the neighbour count of an unopened cell is nearly
+ * as good, since it lets you solve the board offline. Both are reported as the
+ * neutral 0/false that a closed cell renders as anyway.
+ *
+ * Open cells always tell the truth, and `isFlagged` is public in co-op by
+ * design — flags are shared state that every player can see.
+ */
+const projectCell = (cell, revealMines) => {
+    const visible = revealMines || cell.isOpen;
+    return {
+        isMine: visible ? cell.isMine : false,
+        isOpen: cell.isOpen,
+        isFlagged: cell.isFlagged,
+        nearbyMines: visible ? cell.nearbyMines : 0,
+    };
+};
+
+/**
+ * Board as a specific recipient is allowed to see it. Never mutates the input —
+ * Redis keeps the full truth.
+ *
+ * Pass `revealMines: true` only for terminal states (that player lost, or the
+ * game was won), where the UI is meant to show every mine.
+ */
+const projectBoard = (board, { revealMines = false } = {}) =>
+    board.map((row) => row.map((cell) => projectCell(cell, revealMines)));
+
+/** Same projection for an incremental `{...cell, row, col}` update list. */
+const projectCells = (cells, { revealMines = false } = {}) =>
+    cells.map((cell) => ({
+        ...projectCell(cell, revealMines),
+        row: cell.row,
+        col: cell.col,
+    }));
+
+module.exports = { createEmptyBoard, getAdjacentCells, revealFrom, projectBoard, projectCells };

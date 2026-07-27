@@ -6,7 +6,7 @@
  * co-op and PVP cell logic were split, since both modes chord through it.
  */
 
-const { createEmptyBoard, getAdjacentCells, revealFrom } = require('../domain/board');
+const { createEmptyBoard, getAdjacentCells, revealFrom, projectBoard, projectCells } = require('../domain/board');
 
 /**
  * Builds a board from an ASCII grid and fills in nearbyMines.
@@ -261,5 +261,91 @@ describe('revealFrom', () => {
 
         expect(result.hitMine).toBe(false);
         expect(board.flat().filter((c) => c.isMine && c.isOpen)).toHaveLength(0);
+    });
+});
+
+describe('projectBoard', () => {
+    // '*' mine, 'o' already open, 'F' flagged, '.' plain closed
+    const mixed = () => boardFrom([
+        '*..',
+        'oo.',
+        '.F.',
+    ]);
+
+    test('hides isMine and nearbyMines on closed cells', () => {
+        const projected = projectBoard(mixed());
+
+        expect(projected[0][0]).toEqual({ isMine: false, isOpen: false, isFlagged: false, nearbyMines: 0 });
+        expect(projected[0][1]).toEqual({ isMine: false, isOpen: false, isFlagged: false, nearbyMines: 0 });
+    });
+
+    test('tells the truth about open cells', () => {
+        const board = mixed();
+        const projected = projectBoard(board);
+
+        // (1,0) is open and touches the mine at (0,0)
+        expect(board[1][0].nearbyMines).toBe(1);
+        expect(projected[1][0]).toEqual({ isMine: false, isOpen: true, isFlagged: false, nearbyMines: 1 });
+    });
+
+    test('keeps flags visible, since they are shared state', () => {
+        const projected = projectBoard(mixed());
+
+        expect(projected[2][1].isFlagged).toBe(true);
+    });
+
+    test('reveals everything when revealMines is set', () => {
+        const board = mixed();
+        const projected = projectBoard(board, { revealMines: true });
+
+        expect(projected).toEqual(board);
+        expect(projected[0][0].isMine).toBe(true);
+    });
+
+    test('never mutates the board it was given', () => {
+        const board = mixed();
+        const before = JSON.stringify(board);
+
+        const projected = projectBoard(board);
+        projected[0][0].isFlagged = true;
+
+        expect(JSON.stringify(board)).toBe(before);
+        expect(board[0][0].isMine).toBe(true); // Redis keeps the truth
+    });
+
+    test('leaks nothing about an untouched board', () => {
+        const board = boardFrom([
+            '*.*',
+            '...',
+            '*.*',
+        ]);
+
+        const projected = projectBoard(board);
+
+        expect(projected.flat().some((cell) => cell.isMine)).toBe(false);
+        expect(projected.flat().every((cell) => cell.nearbyMines === 0)).toBe(true);
+    });
+});
+
+describe('projectCells', () => {
+    test('keeps row and col alongside the projected state', () => {
+        const cells = [{ isMine: true, isOpen: false, isFlagged: true, nearbyMines: 3, row: 2, col: 5 }];
+
+        expect(projectCells(cells)).toEqual([
+            { isMine: false, isOpen: false, isFlagged: true, nearbyMines: 0, row: 2, col: 5 },
+        ]);
+    });
+
+    test('hides a flagged mine, which is how a flag toggle used to leak', () => {
+        // toggleFlag emits the cell it just flagged, and that cell is closed.
+        const cells = [{ isMine: true, isOpen: false, isFlagged: true, nearbyMines: 0, row: 0, col: 0 }];
+
+        expect(projectCells(cells)[0].isMine).toBe(false);
+    });
+
+    test('reports opened cells truthfully, including a detonated mine', () => {
+        const cells = [{ isMine: true, isOpen: true, isFlagged: false, nearbyMines: 0, row: 1, col: 1 }];
+
+        expect(projectCells(cells)[0].isMine).toBe(true);
     });
 });

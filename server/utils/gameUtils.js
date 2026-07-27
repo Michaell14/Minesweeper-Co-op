@@ -2,7 +2,7 @@ const { resetPlayerScores, updatePlayerStatsInRoom } = require('./playerUtils');
 const { io } = require('./initializeClient');
 const { redisClient } = require('./initializeRedisClient');
 const { isBoardSolvable } = require('./solverUtils');
-const { createEmptyBoard } = require('../domain/board');
+const { createEmptyBoard, projectBoard } = require('../domain/board');
 
 // Generates a single random candidate board layout
 const generateSingleCandidateBoard = (numRows, numCols, numMines, excludeRow, excludeCol) => {
@@ -130,7 +130,8 @@ const checkWin = async (roomState, board, room) => {
             board: JSON.stringify(board)
         });
 
-        io.to(room).emit('boardUpdate', board);
+        // Terminal state: the game is won, so the full layout can be shown.
+        io.to(room).emit('boardUpdate', projectBoard(board, { revealMines: true }));
         io.to(room).emit('gameWon');
     }
 };
