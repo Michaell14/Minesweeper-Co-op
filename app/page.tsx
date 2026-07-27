@@ -120,7 +120,6 @@ export default function Home() {
          * Triggered when: joining room, board reset, game start
          */
         socket.on('boardUpdate', (updatedBoard: Cell[][]) => {
-            setDifficulty("Medium");
             setBoard(updatedBoard);
         });
 
@@ -180,21 +179,16 @@ export default function Home() {
          * Successfully joined a room
          */
         socket.on("joinRoomSuccess", (data) => {
-            // Handle both old format (string) and new format (object)
-            if (typeof data === 'string') {
-                setRoom(data);
-            } else {
-                setRoom(data.room);
-                if (data.mode) {
-                    useMinesweeperStore.getState().setMode(data.mode);
-                }
-                if (data.isHost !== undefined) {
-                    setPvpIsHost(data.isHost);
-                }
-                // Sync difficulty config for joining players (fixes flag counter bug)
-                if (data.numRows && data.numCols && data.numMines) {
-                    setDimensions(data.numRows, data.numCols, data.numMines);
-                }
+            setRoom(data.room);
+            if (data.mode) {
+                useMinesweeperStore.getState().setMode(data.mode);
+            }
+            if (data.isHost !== undefined) {
+                setPvpIsHost(data.isHost);
+            }
+            // Sync difficulty config for joining players (fixes flag counter bug)
+            if (data.numRows && data.numCols && data.numMines) {
+                setDimensions(data.numRows, data.numCols, data.numMines);
             }
             setPlayerJoined(true);
         });
@@ -443,7 +437,7 @@ export default function Home() {
             socket.off('pvpHostTransferred');
             socket.off('pvpRematchStarted');
         };
-    }, [socket, leaveRoom, setBoard, setCell, setDifficulty, setGameOver, setGameOverName, setGameWon, setPlayerJoined, setPlayerStatsInRoom, setRoom, updatePlayerHover, removePlayerHover, setPvpStarted, setPvpPlayerIndex, setPvpOpponentName, setPvpOpponentStatus, setPvpWinner, setPvpRoomReady, setPvpIsHost, setPvpOpponentProgress, setPvpTotalSafeCells, resetPvpState, clearAllHovers]);
+    }, [socket, leaveRoom, setBoard, setCell, setDimensions, setGameOver, setGameOverName, setGameWon, setPlayerJoined, setPlayerStatsInRoom, setRoom, updatePlayerHover, removePlayerHover, setPvpStarted, setPvpPlayerIndex, setPvpOpponentName, setPvpOpponentStatus, setPvpWinner, setPvpRoomReady, setPvpIsHost, setPvpOpponentProgress, setPvpTotalSafeCells, resetPvpState, clearAllHovers]);
 
     // ============================================================================
     // SOCKET EMIT FUNCTIONS (Client -> Server)
