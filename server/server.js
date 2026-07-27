@@ -4,6 +4,15 @@ const { createRoom, resetGame } = require('./utils/gameUtils');
 const { openCell, chordCell, toggleFlag } = require('./utils/boardUtils');
 const { redisClient } = require('./utils/initializeRedisClient');
 const { startPvpGame, resetMyBoard, pvpRematch } = require('./controllers/pvpController');
+const {
+    isValidRoomCode,
+    isValidPlayerName,
+    isValidMode,
+    isValidBoardConfig,
+    isValidCoordinate,
+    isValidHoverCoordinate,
+    isPlayerInRoom,
+} = require('./validation');
 
 // When a new socket connects
 io.on('connection', async (socket) => {
@@ -12,27 +21,12 @@ io.on('connection', async (socket) => {
     socket.on('createRoom', async ({ room, numRows, numCols, numMines, name, mode }) => {
         try {
             // Validate input parameters
-            if (!room || typeof room !== 'string' || room.length === 0 || room.length > 100) {
-                socket.emit("createRoomError");
-                return;
-            }
-            if (!name || typeof name !== 'string' || name.length === 0 || name.length > 50) {
-                socket.emit("createRoomError");
-                return;
-            }
-            if (typeof numRows !== 'number' || numRows < 8 || numRows > 32) {
-                socket.emit("createRoomError");
-                return;
-            }
-            if (typeof numCols !== 'number' || numCols < 8 || numCols > 16) {
-                socket.emit("createRoomError");
-                return;
-            }
-            if (typeof numMines !== 'number' || numMines < 1 || numMines >= (numRows * numCols) / 2) {
-                socket.emit("createRoomError");
-                return;
-            }
-            if (!mode || (mode !== 'co-op' && mode !== 'pvp')) {
+            if (
+                !isValidRoomCode(room) ||
+                !isValidPlayerName(name) ||
+                !isValidBoardConfig(numRows, numCols, numMines) ||
+                !isValidMode(mode)
+            ) {
                 socket.emit("createRoomError");
                 return;
             }
@@ -67,11 +61,7 @@ io.on('connection', async (socket) => {
     socket.on('joinRoom', async ({ room, name }) => {
         try {
             // Validate input parameters
-            if (!room || typeof room !== 'string' || room.length === 0 || room.length > 100) {
-                socket.emit("joinRoomError");
-                return;
-            }
-            if (!name || typeof name !== 'string' || name.length === 0 || name.length > 50) {
+            if (!isValidRoomCode(room) || !isValidPlayerName(name)) {
                 socket.emit("joinRoomError");
                 return;
             }
@@ -156,8 +146,7 @@ io.on('connection', async (socket) => {
 
         // Verify player is actually in the room's player list
         const roomState = await client.hGetAll(`room:${room}`);
-        const playersInRoom = JSON.parse(roomState.players || '[]');
-        if (!playersInRoom.includes(socket.id)) {
+        if (!isPlayerInRoom(roomState, socket.id)) {
             io.to(room).emit("roomDoesNotExistError");
             socket.leave(room);
             return false;
@@ -170,10 +159,7 @@ io.on('connection', async (socket) => {
     socket.on('openCell', async ({ room, row, col }) => {
         try {
             // Validate input parameters
-            if (!room || typeof room !== 'string') return;
-            if (typeof row !== 'number' || typeof col !== 'number') return;
-            if (!Number.isInteger(row) || !Number.isInteger(col)) return;
-            if (row < 0 || row > 100 || col < 0 || col > 100) return;
+            if (!isValidRoomCode(room) || !isValidCoordinate(row, col)) return;
 
             // If player is somehow clicking on a cell, but they haven't managed to enter a room, then return
             // Scenario: Room times out and gets deleted
@@ -187,10 +173,7 @@ io.on('connection', async (socket) => {
     socket.on("chordCell", async ({ room, row, col }) => {
         try {
             // Validate input parameters
-            if (!room || typeof room !== 'string') return;
-            if (typeof row !== 'number' || typeof col !== 'number') return;
-            if (!Number.isInteger(row) || !Number.isInteger(col)) return;
-            if (row < 0 || row > 100 || col < 0 || col > 100) return;
+            if (!isValidRoomCode(room) || !isValidCoordinate(row, col)) return;
 
             if (!(await isValid(room))) return;
             await chordCell(row, col, room, socket.id);
@@ -202,10 +185,7 @@ io.on('connection', async (socket) => {
     socket.on('toggleFlag', async ({ room, row, col }) => {
         try {
             // Validate input parameters
-            if (!room || typeof room !== 'string') return;
-            if (typeof row !== 'number' || typeof col !== 'number') return;
-            if (!Number.isInteger(row) || !Number.isInteger(col)) return;
-            if (row < 0 || row > 100 || col < 0 || col > 100) return;
+            if (!isValidRoomCode(room) || !isValidCoordinate(row, col)) return;
 
             if (!(await isValid(room))) return;
             await toggleFlag(row, col, room, socket.id);
@@ -217,7 +197,7 @@ io.on('connection', async (socket) => {
     socket.on("emitConfetti", async ({ room }) => {
         try {
             // Validate input parameters
-            if (!room || typeof room !== 'string') return;
+            if (!isValidRoomCode(room)) return;
 
             if (!(await isValid(room))) return;
             io.to(room).emit("receiveConfetti");
@@ -228,13 +208,8 @@ io.on('connection', async (socket) => {
 
     socket.on('cellHover', async ({ room, row, col }) => {
         try {
-            // Validate input parameters
-            if (!room || typeof room !== 'string') return;
-            if (typeof row !== 'number' || typeof col !== 'number') return;
-            if (!Number.isInteger(row) || !Number.isInteger(col)) return;
-            
-            // Validate bounds (allow -1 for "no hover")
-            if ((row !== -1 && col !== -1) && (row < 0 || row > 100 || col < 0 || col > 100)) return;
+            // Validate input parameters (row/col of -1 means "no hover")
+            if (!isValidRoomCode(room) || !isValidHoverCoordinate(row, col)) return;
 
             // CRITICAL: Validate that the player is actually in the room
             // This prevents unauthorized hover spam
@@ -244,8 +219,7 @@ io.on('connection', async (socket) => {
 
             // Verify player is actually in the room's player list
             const roomState = await client.hGetAll(`room:${room}`);
-            const playersInRoom = JSON.parse(roomState.players || '[]');
-            if (!playersInRoom.includes(socket.id)) return;
+            if (!isPlayerInRoom(roomState, socket.id)) return;
 
             // Skip hover broadcasting in PVP mode - players shouldn't see opponent's cursor
             if (roomState.mode === 'pvp') return;
@@ -269,7 +243,7 @@ io.on('connection', async (socket) => {
     socket.on('resetGame', async ({ room }) => {
         try {
             // Validate input parameters
-            if (!room || typeof room !== 'string') return;
+            if (!isValidRoomCode(room)) return;
 
             if (!(await isValid(room))) return;
             await resetGame(room);

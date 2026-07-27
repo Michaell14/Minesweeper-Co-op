@@ -30,7 +30,8 @@ lib/
   confetti.js             canvas-confetti wrapper
 scripts/ensure-redis.js   Dev helper: starts local Redis if port 6379 is closed
 server/                   Separate npm package (own package.json, lockfile, node_modules)
-  server.js               Every socket.on handler + payload validation + isValid()
+  server.js               Every socket.on handler + isValid() room/membership guard
+  validation.js           Pure socket payload validators (limits, coords, membership)
   domain/
     board.js              Dependency-free board primitives (createEmptyBoard). No io, no Redis
   controllers/
@@ -103,7 +104,7 @@ domain/board ─→ (nothing)
 ### Request path
 
 1. Client emits → handler in `server.js`
-2. Inline payload validation (type/bounds), then `isValid(room)` — room exists, player exists, player is in the room's `players` array
+2. Payload validation via `server/validation.js` (pure, no I/O), then `isValid(room)` — room exists, player exists, player is in the room's `players` array
 3. `boardUtils` loads the room hash from Redis and **dispatches on `roomState.mode`** to the co-op or PVP implementation (`boardUtils.js:443`, `:548`, `:603`)
 4. Board JSON is mutated and written back
 5. `io.to(room)` (co-op) or `io.to(socketId)` (PVP) emits the result
@@ -245,7 +246,7 @@ These are real, currently unfixed, and worth knowing before changing related cod
 | Concept | Where it lives | Duplicates to keep in sync |
 |---|---|---|
 | Difficulty presets | `lib/difficultyConfig.tsx` | defaults `16,16,40` also hardcoded in `app/store.tsx:144`, `app/page.tsx:96`, `components/Landing.tsx:92` |
-| Board size/mine rules | `server/server.js:23-34` | client copy with *different* limits in `components/Landing.tsx:71-85` |
+| Board size/mine rules | `server/validation.js` | client copy with *different* limits in `components/Landing.tsx:71-85` |
 | Socket event names | nowhere — string literals on both sides | `app/page.tsx`, `server/server.js`, `server/utils/*`, `server/controllers/pvpController.js` |
 | Redis key names | nowhere — inline template strings | `server.js`, `boardUtils.js`, `gameUtils.js`, `playerUtils.js`, `pvpController.js` |
 | CORS origins | `server/utils/initializeClient.js` | listed twice in that same file (Express middleware + Socket.io config) |
