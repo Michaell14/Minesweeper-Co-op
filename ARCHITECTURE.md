@@ -14,15 +14,22 @@ Real-time multiplayer Minesweeper with two modes: **co-op** (everyone shares one
 app/                      Next.js App Router (client-side app; no server components, no API routes)
   page.tsx                "Home" — picks Landing vs Grid, owns the top-level dialogs
   store.tsx               Zustand store: game + room + PVP + mouse/UI state
+  layout.tsx              Metadata/SEO, fonts, Chakra provider, Footer
+  globals.css
 hooks/
   useSocket.ts            Socket lifecycle (create on mount, disconnect on unmount)
   useSocketEvents.ts      Registers a handler table; derives its own cleanup
   useGameEvents.ts        The server -> client handler table, co-op + PVP
   useGameActions.ts       Every client -> server emit
-  layout.tsx              Metadata/SEO, fonts, Chakra provider, Footer
-  globals.css
+  useGameStats.ts         Remaining flags and PVP progress percentages
 components/
-  Grid.tsx                Board, controls, stats, PVP progress. Renders a desktop tree AND a mobile tree
+  Grid.tsx                Layout only: a desktop arrangement and a mobile one
+  game/                   Shared pieces used by both layouts
+    Board.tsx             The grid of cells
+    StatusBanner.tsx      PVP lobby states and win/loss badges
+    ProgressBar.tsx       One PVP progress bar
+    ScoreTable.tsx        Co-op leaderboard
+    FlagCounter.tsx       Mines remaining
   Cell.tsx                One cell: mouse handling, hover highlight, memoized
   Landing.tsx             Create/join forms, custom-difficulty dialog, name dialogs
   Footer.tsx              GitHub link + how-to-play dialog
@@ -92,7 +99,11 @@ One store, four concerns:
 
 Every field has its own setter, plus `resetPvpState()` (which also clears `gameOver`/`gameWon`).
 
-**Subscription note:** `Cell.tsx` subscribes with fine-grained selectors. `page.tsx` and `Grid.tsx` call `useMinesweeperStore()` with no selector, so both re-render on *any* store write — including `playerHovers`, which updates on every remote hover event.
+**Subscription note:** every consumer now subscribes with per-field selectors —
+`page.tsx` to just `playerJoined` and `gameOverName`, `Grid.tsx` to the fields it
+renders, and `Cell.tsx` to its own cell's hover. Nothing calls
+`useMinesweeperStore()` bare any more, so a remote hover update no longer
+re-renders the page and the whole grid. Keep it that way when adding state.
 
 ---
 
@@ -300,4 +311,4 @@ These are real, currently unfixed, and worth knowing before changing related cod
 | Backend URL | `lib/initSocket.js:3-5` | hardcoded per `NODE_ENV`, not env-driven |
 | Cell reveal (flood fill) | `domain/board.js` `revealFrom()` | each mode wraps it to react to a mine: co-op ends the room's game, PVP ends only that player's |
 | Neighbor enumeration | `domain/board.js` `getAdjacentCells()` | plus `solverUtils.js:10` (`getAdjacentCoords`) and inline loops in `gameUtils.js:56` and `:250` |
-| Board rendering | `components/Grid.tsx` | desktop tree `:149-361` and mobile tree `:363-520` render the board independently |
+| Board rendering | `components/game/Board.tsx` | still mounted by both layout wrappers, so the DOM holds two copies; the markup exists once |
