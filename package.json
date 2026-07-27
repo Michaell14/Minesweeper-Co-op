@@ -9,6 +9,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "test": "npm --prefix server test",
     "start-server": "cd server && node server.js",
     "heroku-postbuild": "cd server && npm install"
   },
