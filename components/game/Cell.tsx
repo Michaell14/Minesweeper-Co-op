@@ -1,5 +1,5 @@
 import React from 'react';
-import styles from "./Home.module.css";
+import styles from "./board.module.css";
 import { useMinesweeperStore, Cell as CellType } from '@/app/store';
 import { Box } from "@chakra-ui/react";
 

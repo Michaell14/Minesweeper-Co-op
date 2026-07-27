@@ -1,7 +1,7 @@
 import React from 'react';
 import { useMinesweeperStore } from '@/app/store';
-import Cell from '@/components/Cell';
-import styles from '@/components/Home.module.css';
+import Cell from '@/components/game/Cell';
+import styles from '@/components/game/board.module.css';
 
 export interface BoardProps {
     toggleFlag: (row: number, col: number) => void;
