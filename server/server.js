@@ -2,8 +2,9 @@ const { server, io } = require('./utils/initializeClient');
 const { removePlayer, addPlayerToRoom } = require('./utils/playerUtils');
 const { createRoom, resetGame } = require('./utils/gameUtils');
 const { openCell, chordCell, toggleFlag } = require('./game');
-const { redisClient } = require('./utils/initializeRedisClient');
 const { startPvpGame, resetMyBoard, pvpRematch } = require('./controllers/pvpController');
+const roomRepo = require('./data/roomRepo');
+const playerRepo = require('./data/playerRepo');
 const {
     isValidRoomCode,
     isValidPlayerName,
@@ -16,7 +17,6 @@ const {
 
 // When a new socket connects
 io.on('connection', async (socket) => {
-    const client = await redisClient;
     
     socket.on('createRoom', async ({ room, numRows, numCols, numMines, name, mode }) => {
         try {
@@ -31,7 +31,7 @@ io.on('connection', async (socket) => {
                 return;
             }
 
-            const roomExists = await client.exists(`room:${room}`);
+            const roomExists = await roomRepo.exists(room);
 
             // If the room exists, emit an error
             if (roomExists) {
@@ -46,7 +46,7 @@ io.on('connection', async (socket) => {
 
             // For PVP mode, the creator is the host
             if (mode === 'pvp') {
-                await client.hSet(`room:${room}`, { hostSocket: socket.id });
+                await roomRepo.setFields(room, { hostSocket: socket.id });
             }
 
             await addPlayerToRoom(room, socket.id, name); // Adds player's socket_id to current room
@@ -66,7 +66,7 @@ io.on('connection', async (socket) => {
                 return;
             }
 
-            const roomExists = await client.exists(`room:${room}`);
+            const roomExists = await roomRepo.exists(room);
 
             socket.join(room);
 
@@ -78,11 +78,11 @@ io.on('connection', async (socket) => {
             }
 
             // Check if it's a PVP room and if it's full
-            const roomState = await client.hGetAll(`room:${room}`);
+            const roomState = await roomRepo.getState(room);
             const mode = roomState.mode || 'co-op';
 
             if (mode === 'pvp') {
-                const players = JSON.parse(roomState.players || '[]');
+                const players = roomRepo.playersFrom(roomState);
                 // Check if player is already in the room (reconnecting)
                 const isReconnecting = players.includes(socket.id);
 
@@ -109,13 +109,13 @@ io.on('connection', async (socket) => {
 
             // If PVP mode and now 2 players, notify that room is ready
             if (mode === 'pvp') {
-                const updatedPlayers = JSON.parse(await client.hGet(`room:${room}`, 'players') || '[]');
+                const updatedPlayers = await roomRepo.getPlayers(room);
                 if (updatedPlayers.length === 2) {
                     // Get host and player names
                     const hostSocket = roomState.hostSocket;
                     const guestSocket = updatedPlayers.find(p => p !== hostSocket);
-                    const hostName = await client.hGet(`player:${hostSocket}`, 'name');
-                    const guestName = await client.hGet(`player:${guestSocket}`, 'name');
+                    const hostName = await playerRepo.getName(hostSocket);
+                    const guestName = await playerRepo.getName(guestSocket);
 
                     // Notify both players that room is ready with player info
                     io.to(hostSocket).emit("pvpRoomReady", {
@@ -136,8 +136,8 @@ io.on('connection', async (socket) => {
     });
 
     const isValid = async (room) => {
-        const roomExists = await client.exists(`room:${room}`);
-        const playerExists = await client.exists(`player:${socket.id}`);
+        const roomExists = await roomRepo.exists(room);
+        const playerExists = await playerRepo.exists(socket.id);
         if (!roomExists || !playerExists) {
             io.to(room).emit("roomDoesNotExistError");
             socket.leave(room);
@@ -145,7 +145,7 @@ io.on('connection', async (socket) => {
         }
 
         // Verify player is actually in the room's player list
-        const roomState = await client.hGetAll(`room:${room}`);
+        const roomState = await roomRepo.getState(room);
         if (!isPlayerInRoom(roomState, socket.id)) {
             io.to(room).emit("roomDoesNotExistError");
             socket.leave(room);
@@ -213,19 +213,19 @@ io.on('connection', async (socket) => {
 
             // CRITICAL: Validate that the player is actually in the room
             // This prevents unauthorized hover spam
-            const roomExists = await client.exists(`room:${room}`);
-            const playerExists = await client.exists(`player:${socket.id}`);
+            const roomExists = await roomRepo.exists(room);
+            const playerExists = await playerRepo.exists(socket.id);
             if (!roomExists || !playerExists) return;
 
             // Verify player is actually in the room's player list
-            const roomState = await client.hGetAll(`room:${room}`);
+            const roomState = await roomRepo.getState(room);
             if (!isPlayerInRoom(roomState, socket.id)) return;
 
             // Skip hover broadcasting in PVP mode - players shouldn't see opponent's cursor
             if (roomState.mode === 'pvp') return;
 
             // Get player name for the hover event
-            const playerName = await client.hGet(`player:${socket.id}`, 'name');
+            const playerName = await playerRepo.getName(socket.id);
             if (!playerName) return;
 
             // Broadcast to everyone else in the room
@@ -253,15 +253,15 @@ io.on('connection', async (socket) => {
     });
 
     socket.on('startPvpGame', async ({ room }) => {
-        await startPvpGame({ socket, room, isValid, client, io });
+        await startPvpGame({ socket, room, isValid, io });
     });
 
     socket.on('resetMyBoard', async ({ room }) => {
-        await resetMyBoard({ socket, room, isValid, client, io });
+        await resetMyBoard({ socket, room, isValid, io });
     });
 
     socket.on('pvpRematch', async ({ room }) => {
-        await pvpRematch({ socket, room, isValid, client, io });
+        await pvpRematch({ socket, room, isValid, io });
     });
 
     socket.on("playerLeave", async () => {

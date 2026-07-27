@@ -32,8 +32,13 @@ scripts/ensure-redis.js   Dev helper: starts local Redis if port 6379 is closed
 server/                   Separate npm package (own package.json, lockfile, node_modules)
   server.js               Every socket.on handler + isValid() room/membership guard
   validation.js           Pure socket payload validators (limits, coords, membership)
+  data/
+    keys.js               Every Redis key and TTL. Nothing else builds a key by hand
+    roomRepo.js           All room reads/writes, incl. board JSON, players list and locks
+    playerRepo.js         All player reads/writes
   domain/
-    board.js              Dependency-free board primitives (createEmptyBoard, getAdjacentCells)
+    board.js              Dependency-free board primitives (createEmptyBoard, getAdjacentCells,
+                          revealFrom, projectBoard/projectCells)
   game/
     index.js              Mode dispatch — the ONLY place that decides co-op vs PVP
     coop.js               Shared-board cell actions, broadcast to the room
@@ -87,13 +92,15 @@ Every field has its own setter, plus `resetPvpState()` (which also clears `gameO
 ### Module dependencies
 
 ```
-server.js ─→ initializeClient (io) , validation , playerUtils , gameUtils , game , redis , pvpController
-game/index ─→ game/coop , game/pvp , redis
-game/coop ─→ gameUtils , playerUtils , domain/board , io , redis
-game/pvp ─→ gameUtils , playerUtils , domain/board , io , redis
-pvpController ─→ domain/board , playerUtils , validation
-gameUtils ─→ solverUtils , domain/board , io , redis
-playerUtils ─→ domain/board , io , redis
+server.js ─→ initializeClient (io) , validation , playerUtils , gameUtils , game , data/* , pvpController
+game/index ─→ game/coop , game/pvp , data/*
+game/coop ─→ gameUtils , playerUtils , domain/board , data/* , io
+game/pvp ─→ gameUtils , playerUtils , domain/board , data/* , io
+pvpController ─→ domain/board , playerUtils , validation , data/*
+gameUtils ─→ solverUtils , domain/board , data/roomRepo , io
+playerUtils ─→ domain/board , data/* , io
+data/roomRepo , data/playerRepo ─→ data/keys , redis
+data/keys ─→ (nothing)
 domain/board ─→ (nothing)
 validation ─→ (nothing)
 ```
@@ -143,7 +150,8 @@ the guardrails.
 
 ### Redis data model
 
-Keys are built inline as template strings in four files. There is no schema module.
+Defined in `server/data/keys.js`; all access goes through `roomRepo` / `playerRepo`.
+Nothing outside `server/data` should build a key or touch the Redis client directly.
 
 **`room:<roomCode>`** — TTL 24h
 `mode` `noGuess` `gameOver` `gameWon` `gameOverName` `initialized` `players` (JSON array of socket ids) `numRows` `numCols` `numMines` `board` (co-op only, JSON)
@@ -280,7 +288,7 @@ These are real, currently unfixed, and worth knowing before changing related cod
 | Difficulty presets | `lib/difficultyConfig.tsx` | defaults `16,16,40` also hardcoded in `app/store.tsx:144`, `app/page.tsx:96`, `components/Landing.tsx:92` |
 | Board size/mine rules | `server/validation.js` | client copy with *different* limits in `components/Landing.tsx:71-85` |
 | Socket event names | nowhere — string literals on both sides | `app/page.tsx`, `server/server.js`, `server/utils/*`, `server/controllers/pvpController.js` |
-| Redis key names | nowhere — inline template strings | `server.js`, `game/coop.js`, `game/pvp.js`, `gameUtils.js`, `playerUtils.js`, `pvpController.js` (PVP's per-player field names are at least centralized in `game/pvp.js` `playerKeys()`) |
+| Redis key names | `server/data/keys.js` | — |
 | CORS origins | `server/utils/initializeClient.js` | listed twice in that same file (Express middleware + Socket.io config) |
 | Backend URL | `lib/initSocket.js:3-5` | hardcoded per `NODE_ENV`, not env-driven |
 | Cell reveal (flood fill) | `domain/board.js` `revealFrom()` | each mode wraps it to react to a mine: co-op ends the room's game, PVP ends only that player's |

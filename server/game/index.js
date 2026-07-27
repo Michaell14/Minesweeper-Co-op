@@ -13,19 +13,18 @@
 
 const coop = require('./coop');
 const pvp = require('./pvp');
-const { redisClient } = require('../utils/initializeRedisClient');
+const roomRepo = require('../data/roomRepo');
+const playerRepo = require('../data/playerRepo');
 
 /** Rooms created before `mode` existed have no such field; those are co-op. */
 const modeOf = (roomState) => (roomState && roomState.mode) || 'co-op';
 
 const openCell = async (row, col, room, socketId) => {
-    const client = await redisClient;
-
     // Fetch room state and board in parallel to save time
     const [roomState, playerScore, playerData] = await Promise.all([
-        client.hGetAll(`room:${room}`),
-        client.hGet(`player:${socketId}`, "score"), // Retrieves the player score to later increment it
-        client.hGetAll(`player:${socketId}`),
+        roomRepo.getState(room),
+        playerRepo.getField(socketId, "score"), // Retrieves the player score to later increment it
+        playerRepo.getState(socketId),
     ]);
 
     if (modeOf(roomState) === 'pvp') {
@@ -36,8 +35,7 @@ const openCell = async (row, col, room, socketId) => {
 };
 
 const chordCell = async (row, col, room, socketId) => {
-    const client = await redisClient;
-    const roomState = await client.hGetAll(`room:${room}`);
+    const roomState = await roomRepo.getState(room);
 
     if (modeOf(roomState) === 'pvp') {
         return await pvp.chordCell(row, col, room, socketId, roomState);
@@ -47,8 +45,7 @@ const chordCell = async (row, col, room, socketId) => {
 };
 
 const toggleFlag = async (row, col, room, socketId) => {
-    const client = await redisClient;
-    const roomState = await client.hGetAll(`room:${room}`);
+    const roomState = await roomRepo.getState(room);
 
     if (modeOf(roomState) === 'pvp') {
         return await pvp.toggleFlag(row, col, room, socketId, roomState);
