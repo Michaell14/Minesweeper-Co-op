@@ -14,7 +14,7 @@
 
 const { generateBoard } = require('../utils/gameUtils');
 const { updatePlayerStatsInRoom } = require('../utils/playerUtils');
-const { getAdjacentCells } = require('../domain/board');
+const { getAdjacentCells, revealFrom } = require('../domain/board');
 const { io } = require('../utils/initializeClient');
 const { redisClient } = require('../utils/initializeRedisClient');
 
@@ -27,54 +27,31 @@ const playerKeys = (playerIndex) => ({
     progressKey: `player${playerIndex + 1}Progress`,
 });
 
-// PVP-specific reveal function - returns number of safe cells revealed
+/**
+ * Reveals cells from (r, c) on ONE player's board. Hitting a mine ends the game
+ * for that player only; the opponent keeps playing and is told they failed.
+ *
+ * Returns the number of safe cells revealed, or -1 if a mine was hit. Callers
+ * branch on that -1, so it is kept as-is.
+ */
 const reveal = async (board, r, c, room, socketId, toUpdate, playerIndex) => {
+    const { hitMine, cellsRevealed } = revealFrom(board, r, c, toUpdate);
+    if (!hitMine) return cellsRevealed;
+
     const client = await redisClient;
-    const stack = [[r, c]];
-    let safeCellsRevealed = 0;
+    const { gameOverKey } = playerKeys(playerIndex);
+    await client.hSet(`room:${room}`, { [gameOverKey]: 'true' });
 
-    // Iteratively reveals open cells
-    while (stack.length > 0) {
-        const [row, col] = stack.pop();
+    // Notify this player they lost
+    io.to(socketId).emit('pvpGameOver');
 
-        if (row < 0 || row >= board.length || col < 0 || col >= board[0].length || board[row][col].isOpen || board[row][col].isFlagged) continue;
-
-        board[row][col].isOpen = true;
-        toUpdate.push({
-            ...board[row][col],
-            row: row,
-            col: col,
-        });
-
-        if (board[row][col].isMine) {
-            const { gameOverKey } = playerKeys(playerIndex);
-            await client.hSet(`room:${room}`, { [gameOverKey]: 'true' });
-
-            // Notify this player they lost
-            io.to(socketId).emit('pvpGameOver');
-
-            // Notify opponent with updated progress info
-            const players = JSON.parse(await client.hGet(`room:${room}`, 'players') || '[]');
-            const opponentSocket = players.find(p => p !== socketId);
-            if (opponentSocket) {
-                io.to(opponentSocket).emit('pvpOpponentFailed');
-            }
-            return -1; // Signal that mine was hit
-        }
-
-        // Count safe cell revealed
-        safeCellsRevealed++;
-
-        if (board[row][col].nearbyMines === 0) {
-            for (let dr = -1; dr <= 1; dr++) {
-                for (let dc = -1; dc <= 1; dc++) {
-                    stack.push([row + dr, col + dc]);
-                }
-            }
-        }
+    // Notify opponent with updated progress info
+    const players = JSON.parse(await client.hGet(`room:${room}`, 'players') || '[]');
+    const opponentSocket = players.find(p => p !== socketId);
+    if (opponentSocket) {
+        io.to(opponentSocket).emit('pvpOpponentFailed');
     }
-
-    return safeCellsRevealed;
+    return -1; // Signal that mine was hit
 };
 
 // Broadcast progress update to opponent

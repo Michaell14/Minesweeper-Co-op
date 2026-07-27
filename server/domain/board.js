@@ -52,4 +52,55 @@ const getAdjacentCells = (row, col, grid) => {
     return adjacentCells;
 };
 
-module.exports = { createEmptyBoard, getAdjacentCells };
+/**
+ * Flood-fill reveal, shared by both game modes.
+ *
+ * Mutates `board` (opening cells) and appends every opened cell to `toUpdate` as
+ * `{...cell, row, col}`, ready to emit. Traversal rules:
+ *   - out-of-bounds, already-open and flagged cells are skipped
+ *   - opening a cell with no adjacent mines cascades to its neighbours
+ *   - opening a MINE stops immediately: the mine is opened and pushed, and the
+ *     rest of the stack is abandoned
+ *
+ * Returns `{ hitMine, cellsRevealed }`, where cellsRevealed counts safe cells
+ * only. Deciding what hitting a mine *means* is left to the caller, which is the
+ * only thing the co-op and PVP versions of this ever disagreed on: co-op ends
+ * the game for the whole room, PVP only for that player.
+ *
+ * Pure — no io, no Redis.
+ */
+const revealFrom = (board, r, c, toUpdate) => {
+    const stack = [[r, c]];
+    let cellsRevealed = 0;
+
+    while (stack.length > 0) {
+        const [row, col] = stack.pop();
+
+        if (row < 0 || row >= board.length || col < 0 || col >= board[0].length || board[row][col].isOpen || board[row][col].isFlagged) continue;
+
+        board[row][col].isOpen = true;
+        toUpdate.push({
+            ...board[row][col],
+            row: row,
+            col: col,
+        });
+
+        if (board[row][col].isMine) {
+            return { hitMine: true, cellsRevealed };
+        }
+
+        cellsRevealed++;
+
+        if (board[row][col].nearbyMines === 0) {
+            for (let dr = -1; dr <= 1; dr++) {
+                for (let dc = -1; dc <= 1; dc++) {
+                    stack.push([row + dr, col + dc]);
+                }
+            }
+        }
+    }
+
+    return { hitMine: false, cellsRevealed };
+};
+
+module.exports = { createEmptyBoard, getAdjacentCells, revealFrom };
