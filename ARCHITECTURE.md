@@ -12,8 +12,13 @@ Real-time multiplayer Minesweeper with two modes: **co-op** (everyone shares one
 
 ```
 app/                      Next.js App Router (client-side app; no server components, no API routes)
-  page.tsx                "Home" — owns the socket, all 27 listeners, all emit fns, top-level dialogs
+  page.tsx                "Home" — picks Landing vs Grid, owns the top-level dialogs
   store.tsx               Zustand store: game + room + PVP + mouse/UI state
+hooks/
+  useSocket.ts            Socket lifecycle (create on mount, disconnect on unmount)
+  useSocketEvents.ts      Registers a handler table; derives its own cleanup
+  useGameEvents.ts        The server -> client handler table, co-op + PVP
+  useGameActions.ts       Every client -> server emit
   layout.tsx              Metadata/SEO, fonts, Chakra provider, Footer
   globals.css
 components/
@@ -66,7 +71,12 @@ page.tsx ──┬→ Landing   (when !playerJoined)
            └→ Grid      (when playerJoined) → Cell[][]
 ```
 
-`page.tsx` owns the socket in `useState` and drills 11 callbacks into `Grid`, which drills 4 into each `Cell`. There is no socket service or context; everything else flows through the Zustand store.
+`page.tsx` drills 11 callbacks from `useGameActions` into `Grid`, which drills 4 into each `Cell`. Everything else flows through the Zustand store.
+
+Socket wiring lives in `hooks/`. Handlers and actions read and write the store
+through `useMinesweeperStore.getState()` rather than subscribing, so they cause
+no re-renders and the callbacks stay referentially stable for the life of a
+socket. `page.tsx` itself subscribes only to `playerJoined` and `gameOverName`.
 
 ### State (`app/store.tsx`)
 
@@ -218,7 +228,7 @@ Players are keyed by socket id, so a reconnect is a new player row.
 | `pvpOpponentDisconnected` | `{winnerSocket, winnerName}` |
 | `pvpRematchStarted` | `{totalSafeCells, isHost}` |
 
-Listeners are registered in `page.tsx:111-446` and torn down by a **hand-maintained** `socket.off` list at `page.tsx:417-445`. Adding an event means editing the emit site, the `on`, the `off` list, and the effect's dependency array.
+Listeners live in one table in `hooks/useGameEvents.ts`. `useSocketEvents` registers it and derives the teardown from what it registered, unregistering the specific handler rather than every listener for that event name. Adding an event means adding one entry to that table (plus the server emit).
 
 ---
 
@@ -273,9 +283,8 @@ These are real, currently unfixed, and worth knowing before changing related cod
 3. **Scoring differs per mode.** Co-op awards +1 per click regardless of cascade size and nothing on the board-initializing click (`game/coop.js`); PVP awards +1 per revealed cell (`game/pvp.js`).
 4. **Stale room state on win checks.** `openCell` re-reads room state before `checkWin`; `chordCell` and `toggleFlag` pass their pre-reveal snapshot.
 5. **Missing `pvpPlayerIndex` is handled inconsistently** — `pvp.openCell` bails out, `pvp.chordCell`/`pvp.toggleFlag` default to index 0 and would mutate player 1's board.
-6. **`socket.off(event)` removes all handlers for that event**, not just this component's.
-7. **Two Procfiles.** `/Procfile` (`cd server && node server.js`, paired with `heroku-postbuild`) and `/server/Procfile` (`node server.js`, paired with the `git subtree push --prefix server heroku main` deploy). Confirm which one Heroku actually uses before touching either.
-8. **Server deps are declared twice** — in the root `package.json` and in `server/package.json`, with separate lockfiles.
+6. **Two Procfiles.** `/Procfile` (`cd server && node server.js`, paired with `heroku-postbuild`) and `/server/Procfile` (`node server.js`, paired with the `git subtree push --prefix server heroku main` deploy). Confirm which one Heroku actually uses before touching either.
+7. **Server deps are declared twice** — in the root `package.json` and in `server/package.json`, with separate lockfiles.
 
 *Fixed, kept here so it isn't reintroduced:* the `gameUtils` ⇄ `playerUtils` require cycle that silently broke co-op score resets — see the note in §3.
 

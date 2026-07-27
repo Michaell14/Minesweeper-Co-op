@@ -39,7 +39,7 @@ Backend deps install separately: `npm --prefix server install`.
 
 | Task | File |
 |---|---|
-| Add/modify a socket event | `app/page.tsx` (emit + `on` + `off` list + dep array), `server/server.js` |
+| Add/modify a socket event | `hooks/useGameEvents.ts` (handler table) or `hooks/useGameActions.ts` (emit), `server/server.js` |
 | Co-op cell actions | `server/game/coop.js` |
 | PVP cell actions | `server/game/pvp.js` |
 | Deciding which mode handles an action | `server/game/index.js` — the only dispatch point |
@@ -60,7 +60,7 @@ Read `ARCHITECTURE.md` §7-8 before changing server code. The ones most likely t
 1. **Don't reintroduce imports between `gameUtils` and `playerUtils`.** They used to require each other, which made `resetGame()` throw silently depending on load order. Shared board helpers go in `server/domain/board.js`, which must stay dependency-free. `tests/resetGame.test.js` guards this and its require order is load-bearing.
 2. **Some things still need multi-file edits.** Difficulty defaults live in 4 places, board-size rules in 2 (with different limits), and socket event names are string literals on both sides. Grep before assuming one edit is enough — ARCHITECTURE.md §8 has the table. (Redis keys and validation rules are no longer in this category.)
 3. **`components/Grid.tsx` renders the board twice** (desktop `hideBelow="xl"`, mobile `hideFrom="xl"`). A UI change usually needs both, and the two copies have already diverged.
-4. **`page.tsx` cleanup is hand-maintained.** New `socket.on` needs a matching `socket.off` or the listener leaks across reconnects.
+4. **Socket handlers go in the `hooks/useGameEvents.ts` table**, not in a component. Registration and cleanup are derived from that table; don't call `socket.on` directly.
 5. **`components/ui/` is generated Chakra code.** Don't hand-edit it.
 6. **PVP players get different boards** — this is current behavior, not a bug to "fix" incidentally.
 7. **Two Procfiles exist** with different deploy models. Don't delete either without confirming which one Heroku uses.
