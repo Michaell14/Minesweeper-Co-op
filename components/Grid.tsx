@@ -19,6 +19,7 @@ import ProgressBar, { opponentBarColor } from '@/components/game/ProgressBar';
 import ScoreTable from '@/components/game/ScoreTable';
 import FlagCounter from '@/components/game/FlagCounter';
 import { useGameStats } from '@/hooks/useGameStats';
+import { DIALOGS, openDialog } from '@/lib/dialogs';
 
 /**
  * Grid Component Props
@@ -63,9 +64,7 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
     /**
      * Open the player stats dialog (mobile view only)
      */
-    const openPlayersDialog = () => {
-        (document.getElementById('dialog-players') as HTMLDialogElement)?.showModal();
-    };
+    const openPlayersDialog = () => openDialog(DIALOGS.players);
 
     // ============================================================================
     // CHORDING DETECTION
@@ -298,7 +297,7 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
 
             <dialog
                 className="nes-dialog absolute left-1/2 top-60 -translate-x-1/2"
-                id="dialog-players"
+                id={DIALOGS.players}
                 aria-labelledby="players-dialog-title">
                 <form method="dialog">
                     <p id="players-dialog-title" className="title">Players Online!</p>
