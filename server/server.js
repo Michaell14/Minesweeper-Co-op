@@ -3,6 +3,7 @@ const { removePlayer, addPlayerToRoom } = require('./utils/playerUtils');
 const { createRoom, resetGame } = require('./utils/gameUtils');
 const { openCell, chordCell, toggleFlag } = require('./game');
 const { startPvpGame, resetMyBoard, pvpRematch } = require('./controllers/pvpController');
+const { PORT } = require('./config');
 const roomRepo = require('./data/roomRepo');
 const playerRepo = require('./data/playerRepo');
 const {
@@ -281,7 +282,6 @@ io.on('connection', async (socket) => {
     });
 });
 
-const PORT = process.env.PORT || 3001;
 // Start the server, enter
 server.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
