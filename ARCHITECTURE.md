@@ -113,7 +113,33 @@ validation ─→ (nothing)
 2. Payload validation via `server/validation.js` (pure, no I/O), then `isValid(room)` — room exists, player exists, player is in the room's `players` array
 3. `game/index.js` loads the room hash from Redis and **dispatches on `roomState.mode`** to `game/coop.js` or `game/pvp.js`, passing the state it already read
 4. Board JSON is mutated and written back
-5. `io.to(room)` (co-op) or `io.to(socketId)` (PVP) emits the result
+5. The result is **projected** (see §4.1) and emitted via `io.to(room)` (co-op) or `io.to(socketId)` (PVP)
+
+### 4.1 Board projection — what a client is allowed to see
+
+Redis holds the full truth; clients never do. Every board or cell payload passes
+through `projectBoard` / `projectCells` in `domain/board.js` first:
+
+| Cell state | `isMine` | `nearbyMines` | `isFlagged` |
+|---|---|---|---|
+| open | real | real | real |
+| closed | always `false` | always `0` | real (flags are shared state) |
+| any, once that player's game is over or won | real | real | real |
+
+Closed cells hide `nearbyMines` as well as `isMine` — the neighbour count of an
+unopened cell is nearly as good as the answer, since it lets you solve the board
+offline.
+
+**Consequence for terminal states:** because clients are no longer told the
+layout up front, the server must actively push a revealed board when a game
+ends, or the UI would show a single detonated mine and nothing else. That is why
+`coop.reveal` emits a revealed `boardUpdate` to the room on a loss, `pvp.reveal`
+emits a revealed `pvpBoardUpdate` to the losing player only, and `checkWin` emits
+a revealed board on a win.
+
+Anything added here that emits a board or cell list **must** project it. The
+`server/tests/board.test.js` projection suite and the mid-game-joiner case are
+the guardrails.
 
 ### Redis data model
 
@@ -159,7 +185,7 @@ Players are keyed by socket id, so a reconnect is a new player row.
 |---|---|
 | `joinRoomSuccess` | `{room, mode, isHost, numRows?, numCols?, numMines?}` |
 | `joinRoomError` / `createRoomError` / `roomDoesNotExistError` | — |
-| `boardUpdate` | `Cell[][]` (full board: join, reset, first click, win) |
+| `boardUpdate` | `Cell[][]` (full board: join, reset, first click, win, loss). **Projected** — see §4.1 |
 | `updateCells` | `{row, col, isMine, isOpen, isFlagged, nearbyMines}[]` |
 | `playerStatsUpdate` | `{name, score}[]` |
 | `gameWon` | — |
@@ -235,14 +261,13 @@ Local Redis is expected on `127.0.0.1:6379`; `scripts/ensure-redis.js` will try 
 
 These are real, currently unfixed, and worth knowing before changing related code.
 
-1. **Every client is sent the full mine layout.** `boardUpdate` and `pvpBoardUpdate` serialize the whole board, `isMine` included, for *unopened* cells — so from the first click onward any client can read every mine position straight off the socket (confirmed by driving a real client against the server). Fixing it means projecting the board per recipient before emitting: send `isMine` only for cells that are open, or that are revealed on game over. That is a protocol change affecting the client's `Cell` type, so it is not a drive-by fix.
-2. **Errors are broadcast to the whole room.** `joinRoomError` (`server.js:85`) and `roomDoesNotExistError` (`server.js:152`, `:161`) go to `io.to(room)`. Because the client's `roomDoesNotExistError` handler calls `leaveRoom()`, one client with stale state ejects everyone.
-3. **PVP boards differ per player** (see §5).
-4. **Scoring differs per mode.** Co-op awards +1 per click regardless of cascade size and nothing on the board-initializing click (`game/coop.js`); PVP awards +1 per revealed cell (`game/pvp.js`).
-5. **Stale room state on win checks.** `openCell` re-reads room state before `checkWin`; `chordCell` and `toggleFlag` pass their pre-reveal snapshot.
-6. **Missing `pvpPlayerIndex` is handled inconsistently** — `pvp.openCell` bails out, `pvp.chordCell`/`pvp.toggleFlag` default to index 0 and would mutate player 1's board.
-7. **`boardUpdate` forces difficulty to "Medium"** on the client (`page.tsx:123`), regardless of the room's actual difficulty.
-8. **`socket.off(event)` removes all handlers for that event**, not just this component's.
+1. **Errors are broadcast to the whole room.** `joinRoomError` (`server.js:85`) and `roomDoesNotExistError` (`server.js:152`, `:161`) go to `io.to(room)`. Because the client's `roomDoesNotExistError` handler calls `leaveRoom()`, one client with stale state ejects everyone.
+2. **PVP boards differ per player** (see §5).
+3. **Scoring differs per mode.** Co-op awards +1 per click regardless of cascade size and nothing on the board-initializing click (`game/coop.js`); PVP awards +1 per revealed cell (`game/pvp.js`).
+4. **Stale room state on win checks.** `openCell` re-reads room state before `checkWin`; `chordCell` and `toggleFlag` pass their pre-reveal snapshot.
+5. **Missing `pvpPlayerIndex` is handled inconsistently** — `pvp.openCell` bails out, `pvp.chordCell`/`pvp.toggleFlag` default to index 0 and would mutate player 1's board.
+6. **`boardUpdate` forces difficulty to "Medium"** on the client (`page.tsx:123`), regardless of the room's actual difficulty.
+7. **`socket.off(event)` removes all handlers for that event**, not just this component's.
 8. **Two Procfiles.** `/Procfile` (`cd server && node server.js`, paired with `heroku-postbuild`) and `/server/Procfile` (`node server.js`, paired with the `git subtree push --prefix server heroku main` deploy). Confirm which one Heroku actually uses before touching either.
 9. **Server deps are declared twice** — in the root `package.json` and in `server/package.json`, with separate lockfiles.
 

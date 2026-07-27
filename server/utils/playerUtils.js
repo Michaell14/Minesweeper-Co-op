@@ -1,6 +1,6 @@
 const { io } = require('./initializeClient');
 const { redisClient } = require('./initializeRedisClient');
-const { createEmptyBoard } = require('../domain/board');
+const { createEmptyBoard, projectBoard } = require('../domain/board');
 
 // Basically updates the player's stats whenever:
 // 1) A player joins/leaves the room
@@ -88,7 +88,10 @@ const addPlayerToRoom = async (room, socketId, name) => {
     // For PVP, boards are sent when game starts
     if (mode === 'co-op') {
         const board = JSON.parse(roomState.board);
-        io.to(room).emit('boardUpdate', board);
+        // Someone joining a finished game should see the mines; mid-game they
+        // must not. Without this a player could join, read the layout, and leave.
+        const isOver = roomState.gameOver === 'true' || roomState.gameWon === 'true';
+        io.to(room).emit('boardUpdate', projectBoard(board, { revealMines: isOver }));
     } else if (mode === 'pvp') {
         // For PVP, send empty board to show UI
         const numRows = parseInt(roomState.numRows, 10);

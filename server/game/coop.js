@@ -7,7 +7,7 @@
 
 const { generateBoard, checkWin } = require('../utils/gameUtils');
 const { updatePlayerStatsInRoom } = require('../utils/playerUtils');
-const { getAdjacentCells, revealFrom } = require('../domain/board');
+const { getAdjacentCells, revealFrom, projectBoard, projectCells } = require('../domain/board');
 const { io } = require('../utils/initializeClient');
 const { redisClient } = require('../utils/initializeRedisClient');
 
@@ -26,6 +26,11 @@ const reveal = async (board, r, c, room, socketId, toUpdate) => {
         gameOver: 'true',
         gameOverName: gameOverName || 'Unknown'
     });
+
+    // The game is over, so every mine becomes visible. This send is required:
+    // clients are no longer given mine positions up front, so without it the
+    // board would show a single detonated mine and nothing else.
+    io.to(room).emit('boardUpdate', projectBoard(board, { revealMines: true }));
 };
 
 // Opens a cell
@@ -119,10 +124,12 @@ const openCell = async (row, col, room, socketId, roomState, playerScore) => {
     const freshRoomState = await client.hGetAll(`room:${room}`);
     await checkWin(freshRoomState, board, room);
 
+    const isOver = freshRoomState.gameOver === 'true' || freshRoomState.gameWon === 'true';
+
     if (justInitialized) {
-        io.to(room).emit("boardUpdate", board);
+        io.to(room).emit("boardUpdate", projectBoard(board, { revealMines: isOver }));
     } else {
-        io.to(room).emit('updateCells', toUpdate);
+        io.to(room).emit('updateCells', projectCells(toUpdate, { revealMines: isOver }));
     }
 };
 
@@ -169,7 +176,7 @@ const chordCell = async (row, col, room, socketId, roomState) => {
     await updatePlayerStatsInRoom(room);
     await client.hSet(`room:${room}`, { board: JSON.stringify(board) });
     await checkWin(roomState, board, room);
-    io.to(room).emit("updateCells", toUpdate);
+    io.to(room).emit("updateCells", projectCells(toUpdate));
 };
 
 const toggleFlag = async (row, col, room, socketId, roomState) => {
@@ -196,8 +203,10 @@ const toggleFlag = async (row, col, room, socketId, roomState) => {
         col,
     }];
 
-    // Emit the cell update and update the board in Redis
-    io.to(room).emit('updateCells', toUpdate);
+    // Emit the cell update and update the board in Redis.
+    // The flagged cell is still CLOSED, so this projection is what stopped a
+    // flag toggle from leaking that cell's mine status.
+    io.to(room).emit('updateCells', projectCells(toUpdate));
     await client.hSet(`room:${room}`, { board: JSON.stringify(board) });
     await checkWin(roomState, board, room);
 };
