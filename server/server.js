@@ -1,7 +1,7 @@
 const { server, io } = require('./utils/initializeClient');
 const { removePlayer, addPlayerToRoom } = require('./utils/playerUtils');
 const { createRoom, resetGame } = require('./utils/gameUtils');
-const { openCell, chordCell, toggleFlag } = require('./utils/boardUtils');
+const { openCell, chordCell, toggleFlag } = require('./game');
 const { redisClient } = require('./utils/initializeRedisClient');
 const { startPvpGame, resetMyBoard, pvpRematch } = require('./controllers/pvpController');
 const {

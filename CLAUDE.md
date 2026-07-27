@@ -38,7 +38,9 @@ Backend deps install separately: `npm --prefix server install`.
 | Task | File |
 |---|---|
 | Add/modify a socket event | `app/page.tsx` (emit + `on` + `off` list + dep array), `server/server.js` |
-| Co-op or PVP cell actions | `server/utils/boardUtils.js` (both modes; dispatch on `roomState.mode`) |
+| Co-op cell actions | `server/game/coop.js` |
+| PVP cell actions | `server/game/pvp.js` |
+| Deciding which mode handles an action | `server/game/index.js` — the only dispatch point |
 | PVP lifecycle (start/reset/rematch) | `server/controllers/pvpController.js` |
 | Board generation, win check, room creation | `server/utils/gameUtils.js` |
 | No-guess solvability | `server/utils/solverUtils.js` (pure — easiest place to add tests) |

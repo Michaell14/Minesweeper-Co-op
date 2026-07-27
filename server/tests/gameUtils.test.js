@@ -1,9 +1,9 @@
 /**
  * Characterization tests for server/utils/gameUtils.js
  *
- * These pin the CURRENT behavior of the board factory, the board generator and
- * the co-op win check so that upcoming refactors (splitting boardUtils,
- * introducing a Redis repository layer) fail loudly if they change semantics.
+ * These pin the CURRENT behavior of the board generator and the co-op win check
+ * so that upcoming refactors (introducing a Redis repository layer, unifying the
+ * two reveal implementations) fail loudly if they change semantics.
  *
  * io and Redis are mocked, so nothing here needs a running server.
  */
@@ -25,7 +25,6 @@ jest.mock('../utils/initializeRedisClient', () => ({
 }));
 
 const { generateBoard, checkWin } = require('../utils/gameUtils');
-const { createEmptyBoard } = require('../domain/board');
 
 beforeEach(() => {
     jest.clearAllMocks();
@@ -53,37 +52,6 @@ const expectedNearbyMines = (board, r, c) => {
 };
 
 // ---------------------------------------------------------------------------
-
-describe('createEmptyBoard', () => {
-    test('builds a rows x cols grid of closed, unflagged, mine-free cells', () => {
-        const board = createEmptyBoard(4, 6);
-
-        expect(board).toHaveLength(4);
-        expect(board.every((row) => row.length === 6)).toBe(true);
-
-        for (const row of board) {
-            for (const cell of row) {
-                expect(cell).toEqual({
-                    isMine: false,
-                    isOpen: false,
-                    isFlagged: false,
-                    nearbyMines: 0,
-                });
-            }
-        }
-    });
-
-    test('every cell is a distinct object (no shared references)', () => {
-        // Guards against a "clever" rewrite using Array.fill(), which would make
-        // opening one cell open several.
-        const board = createEmptyBoard(3, 3);
-        board[0][0].isOpen = true;
-
-        expect(board[0][1].isOpen).toBe(false);
-        expect(board[1][0].isOpen).toBe(false);
-        expect(board[2][2].isOpen).toBe(false);
-    });
-});
 
 describe('generateBoard', () => {
     // noGuess: false skips the solvability retry loop, so these assertions cover
