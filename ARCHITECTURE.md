@@ -24,6 +24,8 @@ hooks/
   useGameStats.ts         Remaining flags and PVP progress percentages
 components/
   Grid.tsx                Layout only: a desktop arrangement and a mobile one
+  dialogs/
+    GameDialogs.tsx       Game-over, room errors and PVP outcome dialogs
   game/                   Shared pieces used by both layouts
     Board.tsx             The grid of cells
     StatusBanner.tsx      PVP lobby states and win/loss badges
@@ -36,6 +38,7 @@ components/
   Home.module.css         Board/cell styles (used by Grid and Cell — the name is historical)
   ui/                     Generated Chakra snippets. Not hand-maintained
 lib/
+  dialogs.ts              Every dialog id, plus openDialog/closeDialog
   difficultyConfig.tsx    Easy/Medium/Hard presets
   initSocket.js           socket.io-client factory (server URL is hardcoded per NODE_ENV)
   throttle.ts             throttle() + generateColorFromId() for hover colors

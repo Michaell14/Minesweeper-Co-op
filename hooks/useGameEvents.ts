@@ -4,13 +4,11 @@ import { Socket } from "socket.io-client";
 import { Cell, PlayerStats, useMinesweeperStore } from "@/app/store";
 import { shootConfetti } from "@/lib/confetti";
 import { generateColorFromId } from "@/lib/throttle";
+import { DIALOGS, openDialog } from "@/lib/dialogs";
 import type { SocketHandlers } from "./useSocketEvents";
 
 /** A partial cell update as sent by `updateCells` / `pvpUpdateCells`. */
 type CellUpdate = Cell & { row: number; col: number };
-
-/** Dialogs are native <dialog> elements addressed by id. See ARCHITECTURE.md. */
-const openDialog = (id: string) => (document.getElementById(id) as HTMLDialogElement | null)?.showModal();
 
 const applyCellUpdates = (updates: CellUpdate[]) => {
     const { setCell } = useMinesweeperStore.getState();
@@ -43,7 +41,7 @@ const coopHandlers = (leaveRoom: () => void): SocketHandlers => ({
         const store = useMinesweeperStore.getState();
         store.setGameOver(true);
         store.setGameOverName(name);
-        openDialog("dialog-game-over");
+        openDialog(DIALOGS.gameOver);
     },
 
     resetEveryone: () => {
@@ -66,12 +64,12 @@ const coopHandlers = (leaveRoom: () => void): SocketHandlers => ({
         store.setPlayerJoined(true);
     },
 
-    joinRoomError: () => openDialog("dialog-join-room-error"),
-    createRoomError: () => openDialog("dialog-create-room-error"),
+    joinRoomError: () => openDialog(DIALOGS.joinRoomError),
+    createRoomError: () => openDialog(DIALOGS.createRoomError),
 
     roomDoesNotExistError: () => {
         leaveRoom();
-        openDialog("dialog-room-does-not-exist-error");
+        openDialog(DIALOGS.roomDoesNotExist);
     },
 
     receiveConfetti: () => shootConfetti(),
@@ -91,7 +89,7 @@ const coopHandlers = (leaveRoom: () => void): SocketHandlers => ({
 
 /** PVP events. `socket` is needed to tell "I won" from "they won". */
 const pvpHandlers = (socket: Socket): SocketHandlers => ({
-    pvpRoomFull: () => openDialog("dialog-pvp-room-full"),
+    pvpRoomFull: () => openDialog(DIALOGS.pvpRoomFull),
 
     pvpRoomReady: (data: { opponentName?: string; isHost?: boolean }) => {
         const store = useMinesweeperStore.getState();
@@ -129,7 +127,7 @@ const pvpHandlers = (socket: Socket): SocketHandlers => ({
         const store = useMinesweeperStore.getState();
         store.setGameOver(true);
         store.setPvpOpponentStatus("playing"); // Opponent might still be playing
-        openDialog("dialog-pvp-game-over");
+        openDialog(DIALOGS.pvpGameOver);
     },
 
     pvpOpponentFailed: () => useMinesweeperStore.getState().setPvpOpponentStatus("failed"),
@@ -143,9 +141,9 @@ const pvpHandlers = (socket: Socket): SocketHandlers => ({
         if (socket.id === winnerSocket) {
             shootConfetti();
             store.setGameWon(true);
-            openDialog("dialog-pvp-you-won");
+            openDialog(DIALOGS.pvpYouWon);
         } else {
-            openDialog("dialog-pvp-opponent-won");
+            openDialog(DIALOGS.pvpOpponentWon);
         }
     },
 
@@ -157,7 +155,7 @@ const pvpHandlers = (socket: Socket): SocketHandlers => ({
         store.setPvpOpponentStatus("disconnected");
         shootConfetti();
         store.setGameWon(true);
-        openDialog("dialog-pvp-opponent-disconnected");
+        openDialog(DIALOGS.pvpOpponentDisconnected);
     },
 
     pvpOpponentLeftBeforeStart: () => {

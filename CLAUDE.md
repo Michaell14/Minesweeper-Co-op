@@ -52,6 +52,7 @@ Backend deps install separately: `npm --prefix server install`.
 | Board/controls UI | `components/game/` (Board, StatusBanner, ProgressBar, ScoreTable, FlagCounter); `components/Grid.tsx` is layout only |
 | Cell interaction | `components/Cell.tsx` |
 | Room create/join UI | `components/Landing.tsx` |
+| Dialogs | `lib/dialogs.ts` for ids and `openDialog`/`closeDialog`; markup in `components/dialogs/GameDialogs.tsx`, `Grid.tsx`, `Landing.tsx`, `Footer.tsx` |
 
 ## Traps
 
@@ -61,9 +62,10 @@ Read `ARCHITECTURE.md` §7-8 before changing server code. The ones most likely t
 2. **Some things still need multi-file edits.** Difficulty defaults live in 4 places, board-size rules in 2 (with different limits), and socket event names are string literals on both sides. Grep before assuming one edit is enough — ARCHITECTURE.md §8 has the table. (Redis keys and validation rules are no longer in this category.)
 3. **`components/Grid.tsx` still has two layout wrappers** (desktop `hideBelow="xl"`, mobile `hideFrom="xl"`), so the board mounts twice in the DOM. Their *content* is now shared via `components/game/`, so edit the component, not the wrapper. Where the layouts genuinely differ, it is an explicit prop (`variant`), not a second copy.
 4. **Socket handlers go in the `hooks/useGameEvents.ts` table**, not in a component. Registration and cleanup are derived from that table; don't call `socket.on` directly.
-5. **`components/ui/` is generated Chakra code.** Don't hand-edit it.
-6. **PVP players get different boards** — this is current behavior, not a bug to "fix" incidentally.
-7. **Two Procfiles exist** with different deploy models. Don't delete either without confirming which one Heroku uses.
+5. **Dialogs are native `<dialog>` elements**, opened imperatively via `openDialog(DIALOGS.x)`. NES.css styling and the `form method="dialog"` close behaviour depend on that, so don't convert them to conditional rendering casually. Never type a dialog id as a string literal — import it from `lib/dialogs.ts`.
+6. **`components/ui/` is generated Chakra code.** Don't hand-edit it.
+7. **PVP players get different boards** — this is current behavior, not a bug to "fix" incidentally.
+8. **Two Procfiles exist** with different deploy models. Don't delete either without confirming which one Heroku uses.
 
 ## Testing
 
