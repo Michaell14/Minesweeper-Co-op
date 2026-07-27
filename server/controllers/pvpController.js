@@ -1,12 +1,13 @@
 const { createEmptyBoard } = require('../domain/board');
 const { updatePlayerStatsInRoom } = require('../utils/playerUtils');
+const { isValidRoomCode } = require('../validation');
 
 /**
  * Handles 'startPvpGame' event
  */
 const startPvpGame = async ({ socket, room, isValid, client, io }) => {
     try {
-        if (!room || typeof room !== 'string') return;
+        if (!isValidRoomCode(room)) return;
         if (!(await isValid(room))) return;
 
         const roomState = await client.hGetAll(`room:${room}`);
@@ -86,7 +87,7 @@ const startPvpGame = async ({ socket, room, isValid, client, io }) => {
  */
 const resetMyBoard = async ({ socket, room, isValid, client, io }) => {
     try {
-        if (!room || typeof room !== 'string') return;
+        if (!isValidRoomCode(room)) return;
         if (!(await isValid(room))) return;
 
         const roomState = await client.hGetAll(`room:${room}`);
@@ -145,7 +146,7 @@ const resetMyBoard = async ({ socket, room, isValid, client, io }) => {
  */
 const pvpRematch = async ({ socket, room, isValid, client, io }) => {
     try {
-        if (!room || typeof room !== 'string') return;
+        if (!isValidRoomCode(room)) return;
         if (!(await isValid(room))) return;
 
         const roomState = await client.hGetAll(`room:${room}`);

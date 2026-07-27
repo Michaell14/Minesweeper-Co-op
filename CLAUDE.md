@@ -30,7 +30,7 @@ Backend deps install separately: `npm --prefix server install`.
 - Server is **CommonJS** (`require`/`module.exports`); client is ESM + TypeScript. Do not mix.
 - Client imports use the `@/` alias (`@/components/...`, `@/lib/...`, `@/app/store`).
 - Redis values are all strings — booleans are stored as `'true'`/`'false'` and compared as strings, and numbers need `parseInt(..., 10)`.
-- Socket handlers validate payloads inline, then call `isValid(room)` before touching state. Follow that order for new handlers.
+- Socket handlers validate payloads with helpers from `server/validation.js`, then call `isValid(room)` before touching state. Follow that order for new handlers, and add new rules to `validation.js` rather than inline.
 - Board cells are always `{ isMine, isOpen, isFlagged, nearbyMines }`.
 
 ## Where things live
