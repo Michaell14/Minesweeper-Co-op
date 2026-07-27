@@ -6,7 +6,7 @@
  *
  * NOTE: generateSeededBoard is currently NOT used by any production code path.
  * PVP generates a separate board per player via generateBoard (see
- * server/utils/boardUtils.js openCellPvp), so the two players do not race the
+ * server/game/pvp.js openCell), so the two players do not race the
  * same mine layout. These tests characterize the seeded generator as written;
  * whether it should be wired up is an open product decision.
  */

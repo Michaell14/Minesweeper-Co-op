@@ -21,4 +21,35 @@ const createEmptyBoard = (numRows, numCols) =>
         }))
     );
 
-module.exports = { createEmptyBoard };
+/**
+ * Returns the up-to-8 neighbours of (row, col), each shallow-copied with its own
+ * row/col attached. Callers rely on the copy: mutating a returned entry does NOT
+ * affect the board, which is why chording re-reads through `board[r][c]`.
+ */
+const getAdjacentCells = (row, col, grid) => {
+    const directions = [
+        [-1, -1], [-1, 0], [-1, 1],
+        [0, -1], [0, 1],
+        [1, -1], [1, 0], [1, 1],
+    ];
+
+    const adjacentCells = [];
+
+    directions.forEach(([dx, dy]) => {
+        const newRow = row + dx;
+        const newCol = col + dy;
+
+        // Check boundaries
+        if (newRow >= 0 && newRow < grid.length && newCol >= 0 && newCol < grid[0].length) {
+            adjacentCells.push({
+                ...grid[newRow][newCol], // Include cell properties (e.g., isOpen, isFlagged)
+                row: newRow,
+                col: newCol,
+            });
+        }
+    });
+
+    return adjacentCells;
+};
+
+module.exports = { createEmptyBoard, getAdjacentCells };

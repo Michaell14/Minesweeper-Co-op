@@ -33,11 +33,14 @@ server/                   Separate npm package (own package.json, lockfile, node
   server.js               Every socket.on handler + isValid() room/membership guard
   validation.js           Pure socket payload validators (limits, coords, membership)
   domain/
-    board.js              Dependency-free board primitives (createEmptyBoard). No io, no Redis
+    board.js              Dependency-free board primitives (createEmptyBoard, getAdjacentCells)
+  game/
+    index.js              Mode dispatch — the ONLY place that decides co-op vs PVP
+    coop.js               Shared-board cell actions, broadcast to the room
+    pvp.js                Per-player cell actions, emitted to one socket
   controllers/
-    pvpController.js      startPvpGame / resetMyBoard / pvpRematch
+    pvpController.js      PVP lifecycle: startPvpGame / resetMyBoard / pvpRematch
   utils/
-    boardUtils.js         openCell / chordCell / toggleFlag for BOTH modes, plus all PVP cell logic
     gameUtils.js          Board generation, checkWin, createRoom, resetGame
     playerUtils.js        Join/leave, score stats, PVP disconnect handling
     solverUtils.js        No-guess solvability engine (pure, no I/O — the only dependency-free module)
@@ -84,12 +87,15 @@ Every field has its own setter, plus `resetPvpState()` (which also clears `gameO
 ### Module dependencies
 
 ```
-server.js ─→ initializeClient (io) , playerUtils , gameUtils , boardUtils , initializeRedisClient , pvpController
-boardUtils ─→ gameUtils , playerUtils , io , redis
-pvpController ─→ domain/board , playerUtils
+server.js ─→ initializeClient (io) , validation , playerUtils , gameUtils , game , redis , pvpController
+game/index ─→ game/coop , game/pvp , redis
+game/coop ─→ gameUtils , playerUtils , domain/board , io , redis
+game/pvp ─→ gameUtils , playerUtils , domain/board , io , redis
+pvpController ─→ domain/board , playerUtils , validation
 gameUtils ─→ solverUtils , domain/board , io , redis
 playerUtils ─→ domain/board , io , redis
 domain/board ─→ (nothing)
+validation ─→ (nothing)
 ```
 
 > `gameUtils` and `playerUtils` used to require each other, which meant `gameUtils`
@@ -105,7 +111,7 @@ domain/board ─→ (nothing)
 
 1. Client emits → handler in `server.js`
 2. Payload validation via `server/validation.js` (pure, no I/O), then `isValid(room)` — room exists, player exists, player is in the room's `players` array
-3. `boardUtils` loads the room hash from Redis and **dispatches on `roomState.mode`** to the co-op or PVP implementation (`boardUtils.js:443`, `:548`, `:603`)
+3. `game/index.js` loads the room hash from Redis and **dispatches on `roomState.mode`** to `game/coop.js` or `game/pvp.js`, passing the state it already read
 4. Board JSON is mutated and written back
 5. `io.to(room)` (co-op) or `io.to(socketId)` (PVP) emits the result
 
@@ -231,7 +237,7 @@ These are real, currently unfixed, and worth knowing before changing related cod
 
 1. **Errors are broadcast to the whole room.** `joinRoomError` (`server.js:85`) and `roomDoesNotExistError` (`server.js:152`, `:161`) go to `io.to(room)`. Because the client's `roomDoesNotExistError` handler calls `leaveRoom()`, one client with stale state ejects everyone.
 2. **PVP boards differ per player** (see §5).
-3. **Scoring differs per mode.** Co-op awards +1 per click regardless of cascade size and nothing on the board-initializing click (`boardUtils.js:518`); PVP awards +1 per revealed cell (`boardUtils.js:248`).
+3. **Scoring differs per mode.** Co-op awards +1 per click regardless of cascade size and nothing on the board-initializing click (`game/coop.js`); PVP awards +1 per revealed cell (`game/pvp.js`).
 4. **Stale room state on win checks.** `openCell` re-reads room state before `checkWin`; `chordCell` and `toggleFlag` pass their pre-reveal snapshot.
 5. **Missing `pvpPlayerIndex` is handled inconsistently** — `openCellPvp` bails out, `chordCellPvp`/`toggleFlagPvp` default to index 0 and would mutate player 1's board.
 6. **`boardUpdate` forces difficulty to "Medium"** on the client (`page.tsx:123`), regardless of the room's actual difficulty.
@@ -248,9 +254,9 @@ These are real, currently unfixed, and worth knowing before changing related cod
 | Difficulty presets | `lib/difficultyConfig.tsx` | defaults `16,16,40` also hardcoded in `app/store.tsx:144`, `app/page.tsx:96`, `components/Landing.tsx:92` |
 | Board size/mine rules | `server/validation.js` | client copy with *different* limits in `components/Landing.tsx:71-85` |
 | Socket event names | nowhere — string literals on both sides | `app/page.tsx`, `server/server.js`, `server/utils/*`, `server/controllers/pvpController.js` |
-| Redis key names | nowhere — inline template strings | `server.js`, `boardUtils.js`, `gameUtils.js`, `playerUtils.js`, `pvpController.js` |
+| Redis key names | nowhere — inline template strings | `server.js`, `game/coop.js`, `game/pvp.js`, `gameUtils.js`, `playerUtils.js`, `pvpController.js` (PVP's per-player field names are at least centralized in `game/pvp.js` `playerKeys()`) |
 | CORS origins | `server/utils/initializeClient.js` | listed twice in that same file (Express middleware + Socket.io config) |
 | Backend URL | `lib/initSocket.js:3-5` | hardcoded per `NODE_ENV`, not env-driven |
-| Cell reveal (flood fill) | `boardUtils.js:395` (`reveal`) | near-identical copy at `boardUtils.js:7` (`revealPvp`) |
-| Neighbor enumeration | four implementations | `boardUtils.js:368`, `solverUtils.js:10`, inline loops in `gameUtils.js:56` and `:250` |
+| Cell reveal (flood fill) | still duplicated | `game/coop.js` `reveal()` and `game/pvp.js` `reveal()` remain near-identical — unifying them is the next planned step |
+| Neighbor enumeration | `domain/board.js` `getAdjacentCells()` | plus `solverUtils.js:10` (`getAdjacentCoords`) and inline loops in `gameUtils.js:56` and `:250` |
 | Board rendering | `components/Grid.tsx` | desktop tree `:149-361` and mobile tree `:363-520` render the board independently |
