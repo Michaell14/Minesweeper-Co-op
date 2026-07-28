@@ -27,7 +27,6 @@ describe('keys', () => {
 
     test('lock keys match the deployed format', () => {
         expect(keys.initLockKey('abc')).toBe('init_lock:abc');
-        expect(keys.pvpInitLockKey('abc', 1)).toBe('init_lock_pvp:abc:1');
         expect(keys.winnerLockKey('abc')).toBe('winner_lock:abc');
     });
 
@@ -142,9 +141,6 @@ describe('roomRepo', () => {
     test('locks use SET NX with a 10s expiry', async () => {
         await roomRepo.acquireInitLock('r1', 'sock-1');
         expect(client.set).toHaveBeenCalledWith('init_lock:r1', 'sock-1', { NX: true, EX: 10 });
-
-        await roomRepo.acquirePvpInitLock('r1', 1, 'sock-1');
-        expect(client.set).toHaveBeenCalledWith('init_lock_pvp:r1:1', 'sock-1', { NX: true, EX: 10 });
 
         await roomRepo.acquireWinnerLock('r1', 'sock-1');
         expect(client.set).toHaveBeenCalledWith('winner_lock:r1', 'sock-1', { NX: true, EX: 10 });

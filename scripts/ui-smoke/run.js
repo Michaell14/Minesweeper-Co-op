@@ -179,17 +179,46 @@ async function pvp(host, guest) {
     await guest.waitFor(`document.body.textContent.includes('Progress')`, { label: 'guest progress panel' });
     pass('starting the game gives both players a progress panel');
 
-    await host.click('[role=grid] [role=gridcell]', { nth: 100 });
-    await host.waitFor(`${revealedCount} > 0`, { label: 'host board reveals' });
-    pass("the host's first click reveals their own board");
-
-    await guest.waitFor(`!document.body.textContent.includes('Host: 0%')`, { label: 'guest sees host progress' });
-    const seen = await guest.evaluate(`
+    // Both players now start from the SAME board with a shared opening already
+    // revealed, so these are measured as deltas rather than against zero.
+    const hostProgress = () => host.evaluate(`
+        const m = document.body.textContent.match(/You:\\s*(\\d+)%/);
+        return m ? parseInt(m[1], 10) : -1;
+    `);
+    const guestSeesHost = () => guest.evaluate(`
         const m = document.body.textContent.match(/Host:\\s*(\\d+)%/);
         return m ? parseInt(m[1], 10) : -1;
     `);
-    check(seen > 0, `the guest sees the host's progress (${seen}%)`);
-    check(await guest.evaluate(`return ${revealedCount};`) === 0, "the guest's own board is untouched");
+
+    const hostBoardAtStart = await host.evaluate(`return ${revealedCount};`);
+    const guestBoardAtStart = await guest.evaluate(`return ${revealedCount};`);
+    check(hostBoardAtStart > 0 && hostBoardAtStart === guestBoardAtStart,
+        `both players start from the same opening (${hostBoardAtStart} cells each)`);
+
+    const hostBefore = await hostProgress();
+    const seenBefore = await guestSeesHost();
+
+    // Click a cell that is still closed, so the move actually reveals something.
+    await host.evaluate(`
+        const grids = [...document.querySelectorAll('[role=grid]')];
+        const grid = grids.find(g => g.offsetParent !== null) || grids[0];
+        const closed = [...grid.querySelectorAll('[role=gridcell]')].find(c => (c.getAttribute('aria-label') || '').startsWith('Unrevealed'));
+        if (!closed) throw new Error('no closed cell to open');
+        closed.children[1].click();
+        return true;
+    `);
+    await host.waitFor(`${revealedCount} > ${hostBoardAtStart}`, { label: 'host reveals more' });
+    pass("the host's move reveals more of their own board");
+
+    check(await settles(guest, `(() => {
+        const m = document.body.textContent.match(/Host:\\s*(\\d+)%/);
+        return m && parseInt(m[1], 10) > ${seenBefore};
+    })()`), `the guest sees the host's progress rise (from ${seenBefore}%)`);
+
+    const guestBoardAfter = await guest.evaluate(`return ${revealedCount};`);
+    check(guestBoardAfter === guestBoardAtStart,
+        "the guest's own board is unchanged by the host's move",
+        `expected ${guestBoardAtStart}, got ${guestBoardAfter}`);
 }
 
 (async () => {

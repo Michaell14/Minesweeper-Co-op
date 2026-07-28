@@ -12,7 +12,6 @@
  * Lifecycle events (start, reset, rematch) live in controllers/pvpController.js.
  */
 
-const { generateBoard } = require('../utils/gameUtils');
 const { updatePlayerStatsInRoom } = require('../utils/playerUtils');
 const { getAdjacentCells, revealFrom, projectBoard, projectCells } = require('../domain/board');
 const { io } = require('../utils/initializeClient');
@@ -152,57 +151,19 @@ const openCell = async (row, col, room, socketId, roomState, playerScore, player
     // Validate bounds
     if (row < 0 || row >= numRows || col < 0 || col >= numCols) return;
 
-    let board;
-    let justInitialized = false;
-
-    // Check if board needs to be initialized (first click)
+    // Boards are created for both players by startPvpGame, so one always exists
+    // by the time a cell can be clicked. There is no per-player lazy generation:
+    // that is what used to give the two players different mine layouts.
     if (roomState[initializedKey] !== 'true') {
-        // Use a lock to prevent race conditions on first click
-        const lockAcquired = await roomRepo.acquirePvpInitLock(room, playerIndex, socketId);
-
-        if (lockAcquired) {
-            // Double-check initialization state
-            const freshState = await roomRepo.getField(room, initializedKey);
-            if (freshState === 'true') {
-                // Already initialized by another request
-                await roomRepo.releasePvpInitLock(room, playerIndex);
-                board = await roomRepo.getPvpBoard(room, playerIndex);
-            } else {
-                // Generate new board with first click excluded from mines (safe 3x3 zone)
-                board = generateBoard(numRows, numCols, numMines, row, col);
-
-                // Save the initialized board
-                await roomRepo.setFields(room, {
-                    [initializedKey]: 'true',
-                    [boardKey]: JSON.stringify(board)
-                });
-                await roomRepo.releasePvpInitLock(room, playerIndex);
-                justInitialized = true;
-            }
-        } else {
-            // Wait for initialization to complete
-            for (let i = 0; i < 5; i++) {
-                await new Promise(resolve => setTimeout(resolve, 100));
-                const currentState = await roomRepo.getField(room, initializedKey);
-                if (currentState === 'true') {
-                    board = await roomRepo.getPvpBoard(room, playerIndex);
-                    break;
-                }
-            }
-            if (!board) {
-                console.error(`[PVP] Failed to get initialized board for player ${playerIndex}`);
-                return;
-            }
-        }
-    } else {
-        // Board already initialized, get it
-        const boardData = roomState[boardKey];
-        if (!boardData || boardData === '') {
-            console.error(`[PVP] Board data missing for player ${playerIndex}`);
-            return;
-        }
-        board = JSON.parse(boardData);
+        console.error(`[PVP] board not initialised for player ${playerIndex}`);
+        return;
     }
+    const boardData = roomState[boardKey];
+    if (!boardData || boardData === '') {
+        console.error(`[PVP] Board data missing for player ${playerIndex}`);
+        return;
+    }
+    const board = JSON.parse(boardData);
 
     // Validate board
     if (!board || !Array.isArray(board) || board.length === 0) return;
@@ -250,12 +211,7 @@ const openCell = async (row, col, room, socketId, roomState, playerScore, player
     await checkWin(board, room, socketId, playerIndex);
 
     // Send update to this player
-    if (justInitialized) {
-        // Send full board on first click
-        io.to(socketId).emit(SERVER_EVENTS.PVP_BOARD_UPDATE, { board: projectBoard(board), playerIndex });
-    } else {
-        io.to(socketId).emit(SERVER_EVENTS.PVP_UPDATE_CELLS, projectCells(toUpdate));
-    }
+    io.to(socketId).emit(SERVER_EVENTS.PVP_UPDATE_CELLS, projectCells(toUpdate));
 };
 
 // PVP-specific chord cell

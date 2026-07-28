@@ -201,6 +201,10 @@ Nothing outside `server/data` should build a key or touch the Redis client direc
 
 PVP adds: `pvpStarted` `hostSocket` `player1Socket` `player2Socket` `player{1,2}Board` `player{1,2}Initialized` `player{1,2}GameOver` `player{1,2}GameWon` `player{1,2}Progress` `totalSafeCells` `winnerSocket` `sharedBoardSeed` *(written, never read)*
 
+PVP additionally stores `sharedBoard` and `sharedOpenedCells`: the pristine
+starting layout and how many cells its opening revealed, so `resetMyBoard` can
+put a player back to the start rather than onto a board of their own.
+
 **`session:<sessionId>`** — TTL 24h
 `room` `name` `socketId`. The client keeps `sessionId` in sessionStorage (per tab,
 survives reload) and sends it in the socket handshake, so a reconnecting player
@@ -286,9 +290,17 @@ Boards are generated lazily on the **first click**, guarded by a Redis `SET NX` 
 Create room → board is an empty grid → first click generates mines → `reveal()` flood-fills → `updateCells` broadcast to the room → `checkWin` auto-flags remaining mines and emits `gameWon`. Hitting a mine sets `gameOver` for everyone and names the player who hit it.
 
 ### PVP flow
-Create room with `mode: 'pvp'` (creator becomes `hostSocket`) → second player joins (a third gets `pvpRoomFull`) → both receive `pvpRoomReady` → **host** emits `startPvpGame` → each player gets their own empty board and a `pvpPlayerIndex` (0/1) → each player's first click generates *their own* board → progress is broadcast to the opponent as a percentage → first to clear wins (guarded by `winner_lock`). A player who hits a mine can `resetMyBoard` and keep racing. The host can trigger `pvpRematch`. Disconnecting mid-game hands the win to the opponent.
+Create room with `mode: 'pvp'` (creator becomes `hostSocket`) → second player joins (a third gets `pvpRoomFull`) → both receive `pvpRoomReady` → **host** emits `startPvpGame`, which builds ONE board and gives it to both players → progress is broadcast to the opponent as a percentage → first to clear wins (guarded by `winner_lock`). A player who hits a mine can `resetMyBoard` and keep racing. The host can trigger `pvpRematch`. Disconnecting mid-game hands the win to the opponent.
 
-> **Boards are not shared in PVP.** Each player's board is generated independently on their own first click, so the two races are over different mine layouts. `generateSeededBoard()` and the `sharedBoardSeed` room field exist for shared boards but are not wired up.
+> **Both players race the same board.** `startPvpGame` generates one layout,
+> no-guess verified around a cell at the centre, opens that cell, and stores it as
+> both `player1Board` and `player2Board` (plus a pristine `sharedBoard` copy for
+> resets). The boards then diverge only through play.
+>
+> The first-click guarantee moves rather than disappearing. Generating around
+> each player's own first click is what used to make the layouts differ, so
+> instead the game opens a safe cell for both players before either clicks —
+> nobody can lose on move one, and neither starts from a blank grid.
 
 ### Chording
 Both mouse buttons pressed together, or the middle button. `Cell.tsx` writes `leftClick`/`rightClick`/`r`/`c` into the store; `Grid.tsx:119` watches for both being true and calls `chordCell(r, c)`; `bothPressed` suppresses the open/flag that would otherwise fire on mouse-up. The server opens all unflagged neighbors when the flag count matches the cell's number.
@@ -376,10 +388,9 @@ backend — the only automated frontend coverage there is. See CLAUDE.md.
 
 These are real, currently unfixed, and worth knowing before changing related code.
 
-1. **PVP boards differ per player** (see §5).
-2. **Scoring differs per mode.** Co-op awards +1 per click regardless of cascade size and nothing on the board-initializing click (`game/coop.js`); PVP awards +1 per revealed cell (`game/pvp.js`).
-3. **`server/Procfile` is inert.** The deploy uses the root `/Procfile`; this one is a leftover from the subtree-push model — see §6.
-4. **Heroku installs the whole frontend dependency tree and never uses it.** The root `npm install` pulls Next, React, Chakra and the rest onto a dyno that only runs `cd server && node server.js`; `heroku-postbuild` replaces the `build` script, so the frontend is never built there. Wasted build time and slug size, not a correctness problem.
+1. **Scoring differs per mode.** Co-op awards +1 per click regardless of cascade size and nothing on the board-initializing click (`game/coop.js`); PVP awards +1 per revealed cell (`game/pvp.js`).
+2. **`server/Procfile` is inert.** The deploy uses the root `/Procfile`; this one is a leftover from the subtree-push model — see §6.
+3. **Heroku installs the whole frontend dependency tree and never uses it.** The root `npm install` pulls Next, React, Chakra and the rest onto a dyno that only runs `cd server && node server.js`; `heroku-postbuild` replaces the `build` script, so the frontend is never built there. Wasted build time and slug size, not a correctness problem.
 
 *Fixed, kept here so they aren't reintroduced:* the `gameUtils` ⇄ `playerUtils`
 require cycle that silently broke co-op score resets (see §3); the stale room
