@@ -64,6 +64,7 @@ server/                   Separate npm package (own package.json, lockfile, node
     keys.js               Every Redis key and TTL. Nothing else builds a key by hand
     roomRepo.js           All room reads/writes, incl. board JSON, players list and locks
     playerRepo.js         All player reads/writes
+    sessionRepo.js        Browser sessions, mapping a stable id onto the current socket
   domain/
     board.js              Dependency-free board primitives (createEmptyBoard, getAdjacentCells,
                           revealFrom, projectBoard/projectCells)
@@ -198,6 +199,11 @@ Nothing outside `server/data` should build a key or touch the Redis client direc
 
 PVP adds: `pvpStarted` `hostSocket` `player1Socket` `player2Socket` `player{1,2}Board` `player{1,2}Initialized` `player{1,2}GameOver` `player{1,2}GameWon` `player{1,2}Progress` `totalSafeCells` `winnerSocket` `sharedBoardSeed` *(written, never read)*
 
+**`session:<sessionId>`** — TTL 24h
+`room` `name` `socketId`. The client keeps `sessionId` in sessionStorage (per tab,
+survives reload) and sends it in the socket handshake, so a reconnecting player
+can be swapped back into their slot instead of joining as a stranger.
+
 **`player:<socketId>`** — TTL 24h
 `room` `name` `score`, plus `pvpPlayerIndex` and `opponentName` in PVP
 
@@ -322,13 +328,12 @@ backend — the only automated frontend coverage there is. See CLAUDE.md.
 
 These are real, currently unfixed, and worth knowing before changing related code.
 
-1. **Errors are broadcast to the whole room.** `joinRoomError` (`server.js:85`) and `roomDoesNotExistError` (`server.js:152`, `:161`) go to `io.to(room)`. Because the client's `roomDoesNotExistError` handler calls `leaveRoom()`, one client with stale state ejects everyone.
-2. **PVP boards differ per player** (see §5).
-3. **Scoring differs per mode.** Co-op awards +1 per click regardless of cascade size and nothing on the board-initializing click (`game/coop.js`); PVP awards +1 per revealed cell (`game/pvp.js`).
-4. **Stale room state on win checks.** `openCell` re-reads room state before `checkWin`; `chordCell` and `toggleFlag` pass their pre-reveal snapshot.
-5. **Missing `pvpPlayerIndex` is handled inconsistently** — `pvp.openCell` bails out, `pvp.chordCell`/`pvp.toggleFlag` default to index 0 and would mutate player 1's board.
-6. **Two Procfiles.** `/Procfile` (`cd server && node server.js`, paired with `heroku-postbuild`) and `/server/Procfile` (`node server.js`, paired with the `git subtree push --prefix server heroku main` deploy). Confirm which one Heroku actually uses before touching either.
-7. **Server deps are declared twice** — in the root `package.json` and in `server/package.json`, with separate lockfiles.
+1. **PVP boards differ per player** (see §5).
+2. **Scoring differs per mode.** Co-op awards +1 per click regardless of cascade size and nothing on the board-initializing click (`game/coop.js`); PVP awards +1 per revealed cell (`game/pvp.js`).
+3. **Stale room state on win checks.** `openCell` re-reads room state before `checkWin`; `chordCell` and `toggleFlag` pass their pre-reveal snapshot.
+4. **Missing `pvpPlayerIndex` is handled inconsistently** — `pvp.openCell` bails out, `pvp.chordCell`/`pvp.toggleFlag` default to index 0 and would mutate player 1's board.
+5. **Two Procfiles.** `/Procfile` (`cd server && node server.js`, paired with `heroku-postbuild`) and `/server/Procfile` (`node server.js`, paired with the `git subtree push --prefix server heroku main` deploy). Confirm which one Heroku actually uses before touching either.
+6. **Server deps are declared twice** — in the root `package.json` and in `server/package.json`, with separate lockfiles.
 
 *Fixed, kept here so it isn't reintroduced:* the `gameUtils` ⇄ `playerUtils` require cycle that silently broke co-op score resets — see the note in §3.
 

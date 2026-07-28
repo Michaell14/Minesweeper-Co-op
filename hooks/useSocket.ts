@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Socket } from "socket.io-client";
 import { initSocket } from "@/lib/initSocket";
+import { getOrCreateSessionId } from "@/lib/session";
 
 /**
  * Creates the socket for this session and disconnects it on unmount.
@@ -14,7 +15,9 @@ export function useSocket(): Socket | null {
     const [socket, setSocket] = useState<Socket | null>(null);
 
     useEffect(() => {
-        const newSocket = initSocket();
+        // Persistent per-browser id, so a reload reconnects rather than
+        // arriving as a new player.
+        const newSocket = initSocket(getOrCreateSessionId());
         setSocket(newSocket);
 
         return () => {

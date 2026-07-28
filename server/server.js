@@ -34,11 +34,9 @@ io.on('connection', async (socket) => {
 
             const roomExists = await roomRepo.exists(room);
 
-            // If the room exists, emit an error
+            // If the room exists, emit an error to this socket only
             if (roomExists) {
-                socket.join(`${socket.id}:${room}`);
-                io.to(`${socket.id}:${room}`).emit("createRoomError");
-                socket.leave(`${socket.id}:${room}`);
+                socket.emit("createRoomError");
                 return;
             }
             socket.join(room);
@@ -50,11 +48,11 @@ io.on('connection', async (socket) => {
                 await roomRepo.setFields(room, { hostSocket: socket.id });
             }
 
-            await addPlayerToRoom(room, socket.id, name); // Adds player's socket_id to current room
+            await addPlayerToRoom(room, socket.id, name, socket.handshake.auth?.sessionId);
             io.to(room).emit("joinRoomSuccess", { room, mode, isHost: mode === 'pvp' }); // Returns success with mode and host status
         } catch (error) {
             console.error('Error in createRoom:', error);
-            io.to(`${socket.id}:${room}`).emit("createRoomError");
+            socket.emit("createRoomError");
         }
     })
 
@@ -73,7 +71,7 @@ io.on('connection', async (socket) => {
 
             // If room does not exist, emit error + leave room
             if (!roomExists) {
-                io.to(room).emit("joinRoomError");
+                socket.emit("joinRoomError");
                 socket.leave(room);
                 return;
             }
@@ -94,7 +92,7 @@ io.on('connection', async (socket) => {
                 }
             }
 
-            await addPlayerToRoom(room, socket.id, name); // Adds player's socket_id to current room
+            await addPlayerToRoom(room, socket.id, name, socket.handshake.auth?.sessionId);
 
             // For PVP mode, check if this player is the host
             const isHost = mode === 'pvp' && roomState.hostSocket === socket.id;
@@ -131,7 +129,7 @@ io.on('connection', async (socket) => {
             }
         } catch (error) {
             console.error('Error in joinRoom:', error);
-            io.to(room).emit("joinRoomError");
+            socket.emit("joinRoomError");
             socket.leave(room);
         }
     });
@@ -140,7 +138,7 @@ io.on('connection', async (socket) => {
         const roomExists = await roomRepo.exists(room);
         const playerExists = await playerRepo.exists(socket.id);
         if (!roomExists || !playerExists) {
-            io.to(room).emit("roomDoesNotExistError");
+            socket.emit("roomDoesNotExistError");
             socket.leave(room);
             return false;
         }
@@ -148,7 +146,7 @@ io.on('connection', async (socket) => {
         // Verify player is actually in the room's player list
         const roomState = await roomRepo.getState(room);
         if (!isPlayerInRoom(roomState, socket.id)) {
-            io.to(room).emit("roomDoesNotExistError");
+            socket.emit("roomDoesNotExistError");
             socket.leave(room);
             return false;
         }

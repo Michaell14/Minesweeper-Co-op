@@ -36,9 +36,9 @@ const remove = async (socketId) => {
 };
 
 /** Creates the record and starts its 24h expiry. */
-const create = async (socketId, { room, name }) => {
+const create = async (socketId, { room, name, sessionId }) => {
     const client = await redisClient;
-    await client.hSet(playerKey(socketId), { room, name, score: '0' });
+    await client.hSet(playerKey(socketId), { room, name, score: '0', sessionId: sessionId || '' });
     await client.expire(playerKey(socketId), PLAYER_TTL_SECONDS);
 };
 

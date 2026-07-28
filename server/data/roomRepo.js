@@ -15,6 +15,7 @@ const {
     winnerLockKey,
     pvpPlayerFields,
     ROOM_TTL_SECONDS,
+    ROOM_GRACE_PERIOD_SECONDS,
     LOCK_TTL_SECONDS,
 } = require('./keys');
 
@@ -49,6 +50,21 @@ const create = async (room, roomData) => {
     const client = await redisClient;
     await client.hSet(roomKey(room), roomData);
     await client.expire(roomKey(room), ROOM_TTL_SECONDS);
+};
+
+/** Resets the room's full lifetime, cancelling any grace period it was under. */
+const touch = async (room) => {
+    const client = await redisClient;
+    return await client.expire(roomKey(room), ROOM_TTL_SECONDS);
+};
+
+/**
+ * Shortens an emptied room's lifetime instead of deleting it, so a player who
+ * dropped out can reconnect into the same room within the grace window.
+ */
+const startGracePeriod = async (room) => {
+    const client = await redisClient;
+    return await client.expire(roomKey(room), ROOM_GRACE_PERIOD_SECONDS);
 };
 
 /** Socket ids currently in the room. Always an array. */
@@ -135,6 +151,8 @@ module.exports = {
     setFields,
     remove,
     create,
+    touch,
+    startGracePeriod,
     getPlayers,
     setPlayers,
     playersFrom,

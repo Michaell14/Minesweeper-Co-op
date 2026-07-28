@@ -45,10 +45,15 @@ describe('keys', () => {
         expect(keys.pvpPlayerFields(1).boardKey).toBe('player2Board');
     });
 
-    test('TTLs are 24h for data and 10s for locks', () => {
+    test('TTLs are 24h for data, 10s for locks and 10min for the room grace period', () => {
         expect(keys.ROOM_TTL_SECONDS).toBe(86400);
         expect(keys.PLAYER_TTL_SECONDS).toBe(86400);
         expect(keys.LOCK_TTL_SECONDS).toBe(10);
+        expect(keys.ROOM_GRACE_PERIOD_SECONDS).toBe(600);
+    });
+
+    test('session keys match the deployed format', () => {
+        expect(keys.sessionKey('abc')).toBe('session:abc');
     });
 });
 
@@ -121,6 +126,19 @@ describe('roomRepo', () => {
         expect(client.hSet).toHaveBeenCalledWith('room:r1', { player2Board: JSON.stringify(board) });
     });
 
+    test('touch restores the full room lifetime, cancelling a grace period', async () => {
+        await roomRepo.touch('r1');
+
+        expect(client.expire).toHaveBeenCalledWith('room:r1', 86400);
+    });
+
+    test('startGracePeriod shortens the room rather than deleting it', async () => {
+        await roomRepo.startGracePeriod('r1');
+
+        expect(client.expire).toHaveBeenCalledWith('room:r1', 600);
+        expect(client.del).not.toHaveBeenCalled();
+    });
+
     test('locks use SET NX with a 10s expiry', async () => {
         await roomRepo.acquireInitLock('r1', 'sock-1');
         expect(client.set).toHaveBeenCalledWith('init_lock:r1', 'sock-1', { NX: true, EX: 10 });
@@ -147,8 +165,14 @@ describe('playerRepo', () => {
     test('create seeds a zero score and starts the 24h expiry', async () => {
         await playerRepo.create('sock-1', { room: 'r1', name: 'Mike' });
 
-        expect(client.hSet).toHaveBeenCalledWith('player:sock-1', { room: 'r1', name: 'Mike', score: '0' });
+        expect(client.hSet).toHaveBeenCalledWith('player:sock-1', { room: 'r1', name: 'Mike', score: '0', sessionId: '' });
         expect(client.expire).toHaveBeenCalledWith('player:sock-1', 86400);
+    });
+
+    test('create records the session id when one is supplied', async () => {
+        await playerRepo.create('sock-1', { room: 'r1', name: 'Mike', sessionId: 'sess-9' });
+
+        expect(client.hSet).toHaveBeenCalledWith('player:sock-1', expect.objectContaining({ sessionId: 'sess-9' }));
     });
 
     test('scores are stored as strings and read back as numbers', async () => {

@@ -2,6 +2,7 @@ const { io } = require('./initializeClient');
 const { createEmptyBoard, projectBoard } = require('../domain/board');
 const roomRepo = require('../data/roomRepo');
 const playerRepo = require('../data/playerRepo');
+const sessionRepo = require('../data/sessionRepo');
 
 // Basically updates the player's stats whenever:
 // 1) A player joins/leaves the room
@@ -41,18 +42,45 @@ const resetPlayerScores = async (room) => {
     await Promise.all(resetPromises);
 }
 
-const addPlayerToRoom = async (room, socketId, name) => {
+/**
+ * Adds a player to a room, or restores one that reconnected.
+ *
+ * `sessionId` is the browser's persistent id. When it is supplied and already
+ * points at a different socket, this is a reconnect rather than a new player:
+ * the old socket's record is dropped and its place in the room is handed to the
+ * new socket, so a reload does not leave a ghost behind or lose the host.
+ */
+const addPlayerToRoom = async (room, socketId, name, sessionId) => {
+    // Rejoining cancels any grace period the room was counting down.
+    await roomRepo.touch(room);
+
+    // Was this browser previously here under a different socket?
+    let reconnectedFrom = null;
+    if (sessionId) {
+        const previousSocketId = await sessionRepo.getSocketId(sessionId);
+        if (previousSocketId && previousSocketId !== socketId) {
+            reconnectedFrom = previousSocketId;
+            await playerRepo.remove(previousSocketId);
+        }
+        await sessionRepo.save(sessionId, { room, name, socketId });
+    }
+
     const playerExists = await playerRepo.exists(socketId);
     if (!playerExists) {
-        await playerRepo.create(socketId, { room, name });
+        await playerRepo.create(socketId, { room, name, sessionId });
     } else {
         // Update room and name (in case player rejoins with different name)
-        await playerRepo.setFields(socketId, { room, name });
+        await playerRepo.setFields(socketId, { room, name, sessionId: sessionId || '' });
     }
 
     // Add the player to the room
     const roomState = await roomRepo.getState(room);
     const mode = roomState.mode || 'co-op';
+
+    // A reconnecting host keeps the host role.
+    if (reconnectedFrom && roomState.hostSocket === reconnectedFrom) {
+        await roomRepo.setFields(room, { hostSocket: socketId });
+    }
 
     if (roomState.gameWon === "true") {
         io.to(room).emit("gameWon");
@@ -66,11 +94,13 @@ const addPlayerToRoom = async (room, socketId, name) => {
 
     const roomPlayers = roomRepo.playersFrom(roomState);
 
-    // Only add player if not already in the room (prevent duplicates on reconnect)
-    if (!roomPlayers.includes(socketId)) {
+    if (reconnectedFrom && roomPlayers.includes(reconnectedFrom)) {
+        // Take the old socket's slot rather than joining as an extra player,
+        // which in PVP would otherwise read as a third player and be rejected.
+        roomPlayers[roomPlayers.indexOf(reconnectedFrom)] = socketId;
+        await roomRepo.setPlayers(room, roomPlayers);
+    } else if (!roomPlayers.includes(socketId)) {
         roomPlayers.push(socketId);
-
-        // Save the updated players array back to Redis
         await roomRepo.setPlayers(room, roomPlayers);
     }
 
@@ -117,9 +147,13 @@ const removePlayer = async (socket, socketId) => {
             playersInRoom.splice(index, 1);
         }
 
-        // If the room is empty, delete it immediately
+        // Persist the departure before deciding what happens to the room.
+        await roomRepo.setPlayers(room, playersInRoom);
+
+        // An emptied room is kept briefly rather than deleted, so a player who
+        // dropped out can reconnect straight back into it.
         if (playersInRoom.length === 0) {
-            await roomRepo.remove(room);
+            await roomRepo.startGracePeriod(room);
         } else {
             // Handle PVP disconnection - award win to remaining player if game is in progress
             if (mode === 'pvp' && roomState.pvpStarted === 'true' && !roomState.winnerSocket) {
@@ -160,8 +194,6 @@ const removePlayer = async (socket, socketId) => {
                 io.to(remainingPlayer).emit('pvpOpponentLeftBeforeStart');
             }
 
-            // Update the room players list
-            await roomRepo.setPlayers(room, playersInRoom);
             await updatePlayerStatsInRoom(room);
             // Notify other players to remove this player's hover
             socket.to(room).emit("playerLeft", socketId);
