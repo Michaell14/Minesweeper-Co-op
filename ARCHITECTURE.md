@@ -388,15 +388,22 @@ backend — the only automated frontend coverage there is. See CLAUDE.md.
 
 These are real, currently unfixed, and worth knowing before changing related code.
 
-1. **Scoring differs per mode.** Co-op awards +1 per click regardless of cascade size and nothing on the board-initializing click (`game/coop.js`); PVP awards +1 per revealed cell (`game/pvp.js`).
-2. **`server/Procfile` is inert.** The deploy uses the root `/Procfile`; this one is a leftover from the subtree-push model — see §6.
-3. **Heroku installs the whole frontend dependency tree and never uses it.** The root `npm install` pulls Next, React, Chakra and the rest onto a dyno that only runs `cd server && node server.js`; `heroku-postbuild` replaces the `build` script, so the frontend is never built there. Wasted build time and slug size, not a correctness problem.
+1. **`server/Procfile` is inert.** The deploy uses the root `/Procfile`; this one is a leftover from the subtree-push model — see §6.
+2. **Heroku installs the whole frontend dependency tree and never uses it.** The root `npm install` pulls Next, React, Chakra and the rest onto a dyno that only runs `cd server && node server.js`; `heroku-postbuild` replaces the `build` script, so the frontend is never built there. Wasted build time and slug size, not a correctness problem.
 
 *Fixed, kept here so they aren't reintroduced:* the `gameUtils` ⇄ `playerUtils`
 require cycle that silently broke co-op score resets (see §3); the stale room
-snapshot that let a chord into a mine also announce a win; and the
+snapshot that let a chord into a mine also announce a win; the
 `pvpPlayerIndex || '0'` fallback that let an unassigned socket write another
-player's board. All three are covered by tests.
+player's board; and the per-mode scoring split (below). All are covered by tests.
+
+**Scoring, both modes.** One point per safe cell a move opens, cascades
+included, whether the move was a click or a chord and whether the room is co-op
+or PVP. Co-op used to score one point per *click* — so a click that cascaded
+fifty cells open was worth the same as one that opened a single square, and it
+disagreed with co-op's own chording, which already scored per cell.
+`server/tests/scoringParity.test.js` runs the same board and the same move
+through both modes and compares, so the two can't drift apart again.
 
 ## 9. Single sources of truth (and where they aren't)
 
