@@ -1,0 +1,59 @@
+name: CI
+
+# Runs on every PR, and on main after merge as a post-merge signal — main
+# auto-deploys to both Vercel and Heroku, so a red main means production is
+# about to be, or already is, broken.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# A new push supersedes an in-flight run for the same branch.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: lint, types, tests, build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # 22.x matches what Vercel builds the frontend with, so a version-specific
+      # failure shows up here rather than in a production build.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            server/package-lock.json
+
+      # Two packages, two installs: server/ is its own npm package with its own
+      # lockfile and node_modules.
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Install server dependencies
+        run: npm ci --prefix server
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      # Redis and socket.io are mocked globally by server/tests/setup/mockInfra.js,
+      # so this needs no service containers.
+      - name: Server tests
+        run: npm test
+
+      - name: Production build
+        run: npm run build
+
+# Deliberately not here: scripts/ui-smoke (npm run test:ui). It drives real
+# Chrome against a running client, server and Redis, which is slower and
+# inherently racier than the checks above. Better run on a schedule or on
+# demand than as a required check — see CLAUDE.md.

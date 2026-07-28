@@ -77,6 +77,17 @@ Read `ARCHITECTURE.md` §8-9 before changing server code. The ones most likely t
 7. **PVP players get different boards** — this is current behavior, not a bug to "fix" incidentally.
 8. **The root `/Procfile` and `heroku-postbuild` are load-bearing** — Heroku deploys the whole repo and starts it with them. `server/Procfile` is an inert leftover. Don't "tidy" the root ones, and see ARCHITECTURE.md §6 before touching the duplicated server deps in the root `package.json`.
 
+## CI
+
+`.github/workflows/ci.yml` runs lint, `tsc --noEmit`, the server tests and a
+production build on every PR and on `main` after merge. `main` auto-deploys to
+Vercel and Heroku, so a red `main` means production is about to be broken —
+treat it as an incident, not a chore.
+
+`npm run test:ui` is **not** in CI: it drives real Chrome against a running
+client, server and Redis, which is slower and racier than the checks above. Run
+it locally before merging anything under `app/`, `components/` or `hooks/`.
+
 ## Testing
 
 Jest, in `server/tests/`, run from the repo root with `npm test`. Covers board

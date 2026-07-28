@@ -345,6 +345,7 @@ npm --prefix server install   # backend deps
 npm run dev:all            # starts local Redis if needed, then server (:3001) + Next (:3000)
 npm test                   # server test suite (Jest) — proxies to `npm --prefix server test`
 npm run test:ui            # client smoke test in headless Chrome (needs dev:all running)
+                           # not run in CI — see .github/workflows/ci.yml
 npm run lint
 ```
 
