@@ -22,6 +22,21 @@ const { pvpPlayerFields: playerKeys } = require('../data/keys');
 const { SERVER_EVENTS } = require('../../shared/events');
 
 /**
+ * This player's zero-based index, or null if startPvpGame never assigned one.
+ *
+ * Never fall back to 0 here: index 0 addresses player1Board, so a fallback lets
+ * an unassigned socket read and write the FIRST player's board. `pvpPlayerIndex`
+ * is a Redis string, so '0' is truthy and a genuine index 0 survives this check.
+ */
+const playerIndexOf = (playerData, socketId) => {
+    if (!playerData || !playerData.pvpPlayerIndex) {
+        console.error(`Player ${socketId} has no pvpPlayerIndex set!`);
+        return null;
+    }
+    return parseInt(playerData.pvpPlayerIndex, 10);
+};
+
+/**
  * Reveals cells from (r, c) on ONE player's board. Hitting a mine ends the game
  * for that player only; the opponent keeps playing and is told they failed.
  *
@@ -121,12 +136,8 @@ const openCell = async (row, col, room, socketId, roomState, playerScore, player
     }
 
     // Get player index - must be set by startPvpGame
-    if (!playerData.pvpPlayerIndex) {
-        console.error(`Player ${socketId} has no pvpPlayerIndex set!`);
-        return;
-    }
-
-    const playerIndex = parseInt(playerData.pvpPlayerIndex, 10);
+    const playerIndex = playerIndexOf(playerData, socketId);
+    if (playerIndex === null) return;
     const { boardKey, initializedKey, gameOverKey, gameWonKey, progressKey } = playerKeys(playerIndex);
 
     // Return if this player's game is over or won
@@ -250,7 +261,8 @@ const openCell = async (row, col, room, socketId, roomState, playerScore, player
 // PVP-specific chord cell
 const chordCell = async (row, col, room, socketId, roomState) => {
     const playerData = await playerRepo.getState(socketId);
-    const playerIndex = parseInt(playerData.pvpPlayerIndex || '0', 10);
+    const playerIndex = playerIndexOf(playerData, socketId);
+    if (playerIndex === null) return;
     const { boardKey, gameOverKey, gameWonKey, progressKey } = playerKeys(playerIndex);
 
     if (roomState.pvpStarted !== 'true') return;
@@ -310,7 +322,8 @@ const chordCell = async (row, col, room, socketId, roomState) => {
 // PVP-specific toggle flag
 const toggleFlag = async (row, col, room, socketId, roomState) => {
     const playerData = await playerRepo.getState(socketId);
-    const playerIndex = parseInt(playerData.pvpPlayerIndex || '0', 10);
+    const playerIndex = playerIndexOf(playerData, socketId);
+    if (playerIndex === null) return;
     const { boardKey, gameOverKey, gameWonKey } = playerKeys(playerIndex);
 
     if (roomState.pvpStarted !== 'true') return;
@@ -339,4 +352,4 @@ const toggleFlag = async (row, col, room, socketId, roomState) => {
     await roomRepo.setPvpBoard(room, playerIndex, board);
 };
 
-module.exports ={ playerKeys, reveal, broadcastProgressUpdate, checkWin, openCell, chordCell, toggleFlag };
+module.exports = { playerKeys, playerIndexOf, reveal, broadcastProgressUpdate, checkWin, openCell, chordCell, toggleFlag };
