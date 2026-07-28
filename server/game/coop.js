@@ -163,7 +163,10 @@ const chordCell = async (row, col, room, socketId, roomState) => {
 
     await updatePlayerStatsInRoom(room);
     await roomRepo.setBoard(room, board);
-    await checkWin(roomState, board, room);
+    // Re-read: revealing may have just ended the game, and the snapshot this
+    // was called with predates that. Passing the stale one lets a chord that
+    // detonates a mine also report a win.
+    await checkWin(await roomRepo.getState(room), board, room);
     io.to(room).emit(SERVER_EVENTS.UPDATE_CELLS, projectCells(toUpdate));
 };
 
@@ -194,7 +197,7 @@ const toggleFlag = async (row, col, room, socketId, roomState) => {
     // flag toggle from leaking that cell's mine status.
     io.to(room).emit(SERVER_EVENTS.UPDATE_CELLS, projectCells(toUpdate));
     await roomRepo.setBoard(room, board);
-    await checkWin(roomState, board, room);
+    await checkWin(await roomRepo.getState(room), board, room);
 };
 
 module.exports = { reveal, openCell, chordCell, toggleFlag };

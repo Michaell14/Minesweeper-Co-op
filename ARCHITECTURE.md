@@ -373,12 +373,14 @@ These are real, currently unfixed, and worth knowing before changing related cod
 
 1. **PVP boards differ per player** (see §5).
 2. **Scoring differs per mode.** Co-op awards +1 per click regardless of cascade size and nothing on the board-initializing click (`game/coop.js`); PVP awards +1 per revealed cell (`game/pvp.js`).
-3. **Stale room state on win checks.** `openCell` re-reads room state before `checkWin`; `chordCell` and `toggleFlag` pass their pre-reveal snapshot.
-4. **Missing `pvpPlayerIndex` is handled inconsistently** — `pvp.openCell` bails out, `pvp.chordCell`/`pvp.toggleFlag` default to index 0 and would mutate player 1's board.
-5. **`server/Procfile` is inert.** The deploy uses the root `/Procfile`; this one is a leftover from the subtree-push model — see §6.
-6. **Server deps are declared twice** — in the root `package.json` and in `server/package.json`, with separate lockfiles. Under the current deploy this is not purely redundant; see the note in §6 before removing either copy.
+3. **`server/Procfile` is inert.** The deploy uses the root `/Procfile`; this one is a leftover from the subtree-push model — see §6.
+4. **Server deps are declared twice** — in the root `package.json` and in `server/package.json`, with separate lockfiles. Under the current deploy this is not purely redundant; see the note in §6 before removing either copy.
 
-*Fixed, kept here so it isn't reintroduced:* the `gameUtils` ⇄ `playerUtils` require cycle that silently broke co-op score resets — see the note in §3.
+*Fixed, kept here so they aren't reintroduced:* the `gameUtils` ⇄ `playerUtils`
+require cycle that silently broke co-op score resets (see §3); the stale room
+snapshot that let a chord into a mine also announce a win; and the
+`pvpPlayerIndex || '0'` fallback that let an unassigned socket write another
+player's board. All three are covered by tests.
 
 ## 9. Single sources of truth (and where they aren't)
 
