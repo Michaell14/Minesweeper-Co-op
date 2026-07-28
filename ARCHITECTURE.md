@@ -306,20 +306,30 @@ was never deployed. It has been retired; do not recreate that pattern.
 
 | Target | Source | How |
 |---|---|---|
-| Frontend (Vercel) | `main` | automatic on push |
-| Backend (Heroku) | `server/` only | `git subtree push --prefix server heroku main` |
+| Frontend (Vercel) | `main` | on push |
+| Backend (Heroku) | `main` | GitHub auto-deploy, whole repo |
 
-The backend deploy pushes the **contents of `server/`** to Heroku as its own
-repo root. Two consequences worth knowing:
+**Heroku deploys the whole repository**, not just `server/`. The Node buildpack
+runs `npm install` at the root, then `heroku-postbuild` (`cd server && npm
+install`), and the root `/Procfile` starts it with `web: cd server && node
+server.js`.
 
-- `server/Procfile` is the one that runs. The root `/Procfile` and the
-  `heroku-postbuild` script in the root `package.json` belong to a whole-repo
-  deploy model that is not in use.
-- **Server code cannot import anything outside `server/`.** A `require('../shared/…')`
-  would work locally and break the deploy, because that path does not exist in
-  what gets pushed. Anything the client and server must share has to live inside
-  `server/` and be imported from there by the client, or be duplicated with a
-  test asserting the copies agree.
+So the **root `/Procfile` and the root `heroku-postbuild` script are
+load-bearing** — editing or removing either breaks the deploy. `server/Procfile`
+is the leftover: it belongs to an older `git subtree push --prefix server heroku
+main` model that is no longer in use. It is kept in case that model is ever
+restored, and is otherwise inert.
+
+Because the whole repo ships, server code *may* import from outside `server/`,
+which is what makes a shared client/server module possible. That is a property
+of this deploy model, not of the code: switching back to a subtree push would
+break any such import, since only `server/` would be pushed.
+
+The duplicated `express`/`redis`/`socket.io`/`dotenv` entries in the root
+`package.json` are entangled with this. Node resolves them from
+`server/node_modules` first and falls back to the root, so the server may be
+running on either copy depending on whether `heroku-postbuild` succeeded. Check a
+Heroku build log before removing them.
 
 ## 7. Development
 
@@ -358,8 +368,8 @@ These are real, currently unfixed, and worth knowing before changing related cod
 2. **Scoring differs per mode.** Co-op awards +1 per click regardless of cascade size and nothing on the board-initializing click (`game/coop.js`); PVP awards +1 per revealed cell (`game/pvp.js`).
 3. **Stale room state on win checks.** `openCell` re-reads room state before `checkWin`; `chordCell` and `toggleFlag` pass their pre-reveal snapshot.
 4. **Missing `pvpPlayerIndex` is handled inconsistently** — `pvp.openCell` bails out, `pvp.chordCell`/`pvp.toggleFlag` default to index 0 and would mutate player 1's board.
-5. **An unused Procfile.** `/Procfile` and the root `heroku-postbuild` script serve a whole-repo deploy that is not in use; `server/Procfile` is what runs. Harmless, but they invite the wrong assumption — see §6.
-6. **Server deps are declared twice** — in the root `package.json` and in `server/package.json`, with separate lockfiles.
+5. **`server/Procfile` is inert.** The deploy uses the root `/Procfile`; this one is a leftover from the subtree-push model — see §6.
+6. **Server deps are declared twice** — in the root `package.json` and in `server/package.json`, with separate lockfiles. Under the current deploy this is not purely redundant; see the note in §6 before removing either copy.
 
 *Fixed, kept here so it isn't reintroduced:* the `gameUtils` ⇄ `playerUtils` require cycle that silently broke co-op score resets — see the note in §3.
 
