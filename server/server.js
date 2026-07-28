@@ -6,6 +6,7 @@ const { startPvpGame, resetMyBoard, pvpRematch } = require('./controllers/pvpCon
 const { PORT } = require('./config');
 const roomRepo = require('./data/roomRepo');
 const playerRepo = require('./data/playerRepo');
+const { CLIENT_EVENTS, SERVER_EVENTS } = require('../shared/events');
 const {
     isValidRoomCode,
     isValidPlayerName,
@@ -19,7 +20,7 @@ const {
 // When a new socket connects
 io.on('connection', async (socket) => {
     
-    socket.on('createRoom', async ({ room, numRows, numCols, numMines, name, mode }) => {
+    socket.on(CLIENT_EVENTS.CREATE_ROOM, async ({ room, numRows, numCols, numMines, name, mode }) => {
         try {
             // Validate input parameters
             if (
@@ -28,7 +29,7 @@ io.on('connection', async (socket) => {
                 !isValidBoardConfig(numRows, numCols, numMines) ||
                 !isValidMode(mode)
             ) {
-                socket.emit("createRoomError");
+                socket.emit(SERVER_EVENTS.CREATE_ROOM_ERROR);
                 return;
             }
 
@@ -36,7 +37,7 @@ io.on('connection', async (socket) => {
 
             // If the room exists, emit an error to this socket only
             if (roomExists) {
-                socket.emit("createRoomError");
+                socket.emit(SERVER_EVENTS.CREATE_ROOM_ERROR);
                 return;
             }
             socket.join(room);
@@ -49,19 +50,19 @@ io.on('connection', async (socket) => {
             }
 
             await addPlayerToRoom(room, socket.id, name, socket.handshake.auth?.sessionId);
-            io.to(room).emit("joinRoomSuccess", { room, mode, isHost: mode === 'pvp' }); // Returns success with mode and host status
+            io.to(room).emit(SERVER_EVENTS.JOIN_ROOM_SUCCESS, { room, mode, isHost: mode === 'pvp' }); // Returns success with mode and host status
         } catch (error) {
             console.error('Error in createRoom:', error);
-            socket.emit("createRoomError");
+            socket.emit(SERVER_EVENTS.CREATE_ROOM_ERROR);
         }
     })
 
     // When a player joins a room
-    socket.on('joinRoom', async ({ room, name }) => {
+    socket.on(CLIENT_EVENTS.JOIN_ROOM, async ({ room, name }) => {
         try {
             // Validate input parameters
             if (!isValidRoomCode(room) || !isValidPlayerName(name)) {
-                socket.emit("joinRoomError");
+                socket.emit(SERVER_EVENTS.JOIN_ROOM_ERROR);
                 return;
             }
 
@@ -71,7 +72,7 @@ io.on('connection', async (socket) => {
 
             // If room does not exist, emit error + leave room
             if (!roomExists) {
-                socket.emit("joinRoomError");
+                socket.emit(SERVER_EVENTS.JOIN_ROOM_ERROR);
                 socket.leave(room);
                 return;
             }
@@ -86,7 +87,7 @@ io.on('connection', async (socket) => {
                 const isReconnecting = players.includes(socket.id);
 
                 if (!isReconnecting && players.length >= 2) {
-                    socket.emit("pvpRoomFull");
+                    socket.emit(SERVER_EVENTS.PVP_ROOM_FULL);
                     socket.leave(room);
                     return;
                 }
@@ -97,7 +98,7 @@ io.on('connection', async (socket) => {
             // For PVP mode, check if this player is the host
             const isHost = mode === 'pvp' && roomState.hostSocket === socket.id;
             // Include difficulty config so joining players can set their flag counter correctly
-            socket.emit("joinRoomSuccess", {
+            socket.emit(SERVER_EVENTS.JOIN_ROOM_SUCCESS, {
                 room,
                 mode,
                 isHost,
@@ -117,11 +118,11 @@ io.on('connection', async (socket) => {
                     const guestName = await playerRepo.getName(guestSocket);
 
                     // Notify both players that room is ready with player info
-                    io.to(hostSocket).emit("pvpRoomReady", {
+                    io.to(hostSocket).emit(SERVER_EVENTS.PVP_ROOM_READY, {
                         opponentName: guestName,
                         isHost: true
                     });
-                    io.to(guestSocket).emit("pvpRoomReady", {
+                    io.to(guestSocket).emit(SERVER_EVENTS.PVP_ROOM_READY, {
                         opponentName: hostName,
                         isHost: false
                     });
@@ -129,7 +130,7 @@ io.on('connection', async (socket) => {
             }
         } catch (error) {
             console.error('Error in joinRoom:', error);
-            socket.emit("joinRoomError");
+            socket.emit(SERVER_EVENTS.JOIN_ROOM_ERROR);
             socket.leave(room);
         }
     });
@@ -138,7 +139,7 @@ io.on('connection', async (socket) => {
         const roomExists = await roomRepo.exists(room);
         const playerExists = await playerRepo.exists(socket.id);
         if (!roomExists || !playerExists) {
-            socket.emit("roomDoesNotExistError");
+            socket.emit(SERVER_EVENTS.ROOM_DOES_NOT_EXIST_ERROR);
             socket.leave(room);
             return false;
         }
@@ -146,7 +147,7 @@ io.on('connection', async (socket) => {
         // Verify player is actually in the room's player list
         const roomState = await roomRepo.getState(room);
         if (!isPlayerInRoom(roomState, socket.id)) {
-            socket.emit("roomDoesNotExistError");
+            socket.emit(SERVER_EVENTS.ROOM_DOES_NOT_EXIST_ERROR);
             socket.leave(room);
             return false;
         }
@@ -155,7 +156,7 @@ io.on('connection', async (socket) => {
     }
 
     // When a player opens a cell
-    socket.on('openCell', async ({ room, row, col }) => {
+    socket.on(CLIENT_EVENTS.OPEN_CELL, async ({ room, row, col }) => {
         try {
             // Validate input parameters
             if (!isValidRoomCode(room) || !isValidCoordinate(row, col)) return;
@@ -169,7 +170,7 @@ io.on('connection', async (socket) => {
         }
     });
 
-    socket.on("chordCell", async ({ room, row, col }) => {
+    socket.on(CLIENT_EVENTS.CHORD_CELL, async ({ room, row, col }) => {
         try {
             // Validate input parameters
             if (!isValidRoomCode(room) || !isValidCoordinate(row, col)) return;
@@ -181,7 +182,7 @@ io.on('connection', async (socket) => {
         }
     });
 
-    socket.on('toggleFlag', async ({ room, row, col }) => {
+    socket.on(CLIENT_EVENTS.TOGGLE_FLAG, async ({ room, row, col }) => {
         try {
             // Validate input parameters
             if (!isValidRoomCode(room) || !isValidCoordinate(row, col)) return;
@@ -193,19 +194,19 @@ io.on('connection', async (socket) => {
         }
     });
 
-    socket.on("emitConfetti", async ({ room }) => {
+    socket.on(CLIENT_EVENTS.EMIT_CONFETTI, async ({ room }) => {
         try {
             // Validate input parameters
             if (!isValidRoomCode(room)) return;
 
             if (!(await isValid(room))) return;
-            io.to(room).emit("receiveConfetti");
+            io.to(room).emit(SERVER_EVENTS.RECEIVE_CONFETTI);
         } catch (error) {
             console.error('Error in emitConfetti:', error);
         }
     })
 
-    socket.on('cellHover', async ({ room, row, col }) => {
+    socket.on(CLIENT_EVENTS.CELL_HOVER, async ({ room, row, col }) => {
         try {
             // Validate input parameters (row/col of -1 means "no hover")
             if (!isValidRoomCode(room) || !isValidHoverCoordinate(row, col)) return;
@@ -228,7 +229,7 @@ io.on('connection', async (socket) => {
             if (!playerName) return;
 
             // Broadcast to everyone else in the room
-            socket.to(room).emit('playerHoverUpdate', { 
+            socket.to(room).emit(SERVER_EVENTS.PLAYER_HOVER_UPDATE, { 
                 id: socket.id, 
                 row, 
                 col, 
@@ -239,7 +240,7 @@ io.on('connection', async (socket) => {
         }
     });
 
-    socket.on('resetGame', async ({ room }) => {
+    socket.on(CLIENT_EVENTS.RESET_GAME, async ({ room }) => {
         try {
             // Validate input parameters
             if (!isValidRoomCode(room)) return;
@@ -251,19 +252,19 @@ io.on('connection', async (socket) => {
         }
     });
 
-    socket.on('startPvpGame', async ({ room }) => {
+    socket.on(CLIENT_EVENTS.START_PVP_GAME, async ({ room }) => {
         await startPvpGame({ socket, room, isValid, io });
     });
 
-    socket.on('resetMyBoard', async ({ room }) => {
+    socket.on(CLIENT_EVENTS.RESET_MY_BOARD, async ({ room }) => {
         await resetMyBoard({ socket, room, isValid, io });
     });
 
-    socket.on('pvpRematch', async ({ room }) => {
+    socket.on(CLIENT_EVENTS.PVP_REMATCH, async ({ room }) => {
         await pvpRematch({ socket, room, isValid, io });
     });
 
-    socket.on("playerLeave", async () => {
+    socket.on(CLIENT_EVENTS.PLAYER_LEAVE, async () => {
         try {
             await removePlayer(socket, socket.id);
         } catch (error) {

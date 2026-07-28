@@ -3,6 +3,7 @@ const { io } = require('./initializeClient');
 const { isBoardSolvable } = require('./solverUtils');
 const roomRepo = require('../data/roomRepo');
 const { createEmptyBoard, projectBoard } = require('../domain/board');
+const { SERVER_EVENTS } = require('../../shared/events');
 
 // Generates a single random candidate board layout
 const generateSingleCandidateBoard = (numRows, numCols, numMines, excludeRow, excludeCol) => {
@@ -130,8 +131,8 @@ const checkWin = async (roomState, board, room) => {
         });
 
         // Terminal state: the game is won, so the full layout can be shown.
-        io.to(room).emit('boardUpdate', projectBoard(board, { revealMines: true }));
-        io.to(room).emit('gameWon');
+        io.to(room).emit(SERVER_EVENTS.BOARD_UPDATE, projectBoard(board, { revealMines: true }));
+        io.to(room).emit(SERVER_EVENTS.GAME_WON);
     }
 };
 
@@ -265,8 +266,8 @@ const resetGame = async (room) => {
     const newBoard = createEmptyBoard(numRows, numCols);
 
     // Emit events to reset the board and players
-    io.to(room).emit('boardUpdate', newBoard);
-    io.to(room).emit('resetEveryone');
+    io.to(room).emit(SERVER_EVENTS.BOARD_UPDATE, newBoard);
+    io.to(room).emit(SERVER_EVENTS.RESET_EVERYONE);
 
     // Update room state and reset player scores in Redis
     await roomRepo.setFields(room, {

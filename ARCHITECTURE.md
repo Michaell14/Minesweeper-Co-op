@@ -47,6 +47,7 @@ components/
   ui/                     Generated Chakra snippets. Not hand-maintained
 shared/                   Imported by BOTH halves; viable because the whole repo deploys (§6)
   boardConfig.js          Difficulty presets, size limits, the validity rule
+  events.js               Every socket event name, both directions
 lib/
   dialogs.ts              Every dialog id, plus openDialog/closeDialog
   initSocket.ts           socket.io-client factory (URL from NEXT_PUBLIC_SOCKET_URL)
@@ -266,6 +267,10 @@ Players are keyed by socket id, so a reconnect is a new player row.
 | `pvpOpponentDisconnected` | `{winnerSocket, winnerName}` |
 | `pvpRematchStarted` | `{totalSafeCells, isHost}` |
 
+Event names come from `shared/events.js`, and `server/tests/events.test.js`
+enforces that both halves use the constants and that the client's table covers
+exactly what the server sends.
+
 Listeners live in one table in `hooks/useGameEvents.ts`. `useSocketEvents` registers it and derives the teardown from what it registered, unregistering the specific handler rather than every listener for that event name. Adding an event means adding one entry to that table (plus the server emit).
 
 ---
@@ -380,7 +385,7 @@ These are real, currently unfixed, and worth knowing before changing related cod
 |---|---|---|
 | Difficulty presets | `shared/boardConfig.js` | — |
 | Board size/mine rules | `shared/boardConfig.js` | — |
-| Socket event names | nowhere — string literals on both sides | `app/page.tsx`, `server/server.js`, `server/utils/*`, `server/controllers/pvpController.js` |
+| Socket event names | `shared/events.js` | — |
 | Redis key names | `server/data/keys.js` | — |
 | CORS origins | `server/config.js` | — |
 | Backend URL | `lib/initSocket.ts` (`NEXT_PUBLIC_SOCKET_URL`) | — |
