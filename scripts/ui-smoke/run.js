@@ -27,6 +27,13 @@ const pass = (label) => console.log(`  \x1b[32mPASS\x1b[0m  ${label}`);
 const fail = (label, detail) => { failures++; console.log(`  \x1b[31mFAIL\x1b[0m  ${label}${detail ? '\n        ' + detail : ''}`); };
 const check = (condition, label, detail) => (condition ? pass(label) : fail(label, detail));
 
+/**
+ * Waits for an expression to become true and reports whether it did, instead of
+ * throwing. For assertions about a second client, which may lag the first.
+ */
+const settles = (page, expression, timeout = 8000) =>
+    page.waitFor(expression, { timeout }).then(() => true).catch(() => false);
+
 /** The board is rendered by both layout wrappers; only one is visible. */
 const VISIBLE_CELLS = `
     const grids = [...document.querySelectorAll('[role=grid]')];
@@ -158,7 +165,9 @@ async function pvp(host, guest) {
     await enterRoom(guest, { room, name: 'Guest', mode: 'join' });
     await host.waitFor(`document.body.textContent.includes('Guest')`, { label: 'host sees guest' });
     pass('both players see each other in the lobby');
-    check(await guest.evaluate(`return document.body.textContent.includes('Waiting for host');`), 'the non-host is told to wait');
+    // Poll rather than read once: the two clients render the lobby independently,
+    // and against a real deployment the guest can trail the host by a beat.
+    check(await settles(guest, `document.body.textContent.includes('Waiting for host')`), 'the non-host is told to wait');
 
     await host.evaluate(`
         const btn = [...document.querySelectorAll('button')].find(b => b.offsetParent !== null && b.textContent.includes('Start Game'));
