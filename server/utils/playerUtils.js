@@ -3,6 +3,7 @@ const { createEmptyBoard, projectBoard } = require('../domain/board');
 const roomRepo = require('../data/roomRepo');
 const playerRepo = require('../data/playerRepo');
 const sessionRepo = require('../data/sessionRepo');
+const { SERVER_EVENTS } = require('../../shared/events');
 
 // Basically updates the player's stats whenever:
 // 1) A player joins/leaves the room
@@ -26,7 +27,7 @@ const updatePlayerStatsInRoom = async (room) => {
             score: parseInt(playerState.score || '0', 10) || 0
         }));
 
-    io.to(room).emit("playerStatsUpdate", updatedStats);
+    io.to(room).emit(SERVER_EVENTS.PLAYER_STATS_UPDATE, updatedStats);
 }
 
 const resetPlayerScores = async (room) => {
@@ -83,13 +84,13 @@ const addPlayerToRoom = async (room, socketId, name, sessionId) => {
     }
 
     if (roomState.gameWon === "true") {
-        io.to(room).emit("gameWon");
+        io.to(room).emit(SERVER_EVENTS.GAME_WON);
     }
 
     if (roomState.gameOver === "true") {
         // Get the name of whoever hit the mine (stored in room state or empty)
         const gameOverName = roomState.gameOverName || "Someone";
-        io.to(room).emit("gameOver", gameOverName);
+        io.to(room).emit(SERVER_EVENTS.GAME_OVER, gameOverName);
     }
 
     const roomPlayers = roomRepo.playersFrom(roomState);
@@ -111,13 +112,13 @@ const addPlayerToRoom = async (room, socketId, name, sessionId) => {
         // Someone joining a finished game should see the mines; mid-game they
         // must not. Without this a player could join, read the layout, and leave.
         const isOver = roomState.gameOver === 'true' || roomState.gameWon === 'true';
-        io.to(room).emit('boardUpdate', projectBoard(board, { revealMines: isOver }));
+        io.to(room).emit(SERVER_EVENTS.BOARD_UPDATE, projectBoard(board, { revealMines: isOver }));
     } else if (mode === 'pvp') {
         // For PVP, send empty board to show UI
         const numRows = parseInt(roomState.numRows, 10);
         const numCols = parseInt(roomState.numCols, 10);
         const emptyBoard = createEmptyBoard(numRows, numCols);
-        io.to(socketId).emit('boardUpdate', emptyBoard);
+        io.to(socketId).emit(SERVER_EVENTS.BOARD_UPDATE, emptyBoard);
     }
 
     await updatePlayerStatsInRoom(room);
@@ -173,7 +174,7 @@ const removePlayer = async (socket, socketId) => {
                     });
 
                     // Notify the remaining player that they won due to opponent disconnect
-                    io.to(remainingPlayer).emit('pvpOpponentDisconnected', {
+                    io.to(remainingPlayer).emit(SERVER_EVENTS.PVP_OPPONENT_DISCONNECTED, {
                         winnerSocket: remainingPlayer,
                         winnerName: remainingPlayerName
                     });
@@ -187,16 +188,16 @@ const removePlayer = async (socket, socketId) => {
                 // If the leaving player was the host, transfer host to remaining player
                 if (roomState.hostSocket === socketId) {
                     await roomRepo.setFields(room, { hostSocket: remainingPlayer });
-                    io.to(remainingPlayer).emit('pvpHostTransferred');
+                    io.to(remainingPlayer).emit(SERVER_EVENTS.PVP_HOST_TRANSFERRED);
                 }
 
                 // Notify remaining player to go back to waiting state
-                io.to(remainingPlayer).emit('pvpOpponentLeftBeforeStart');
+                io.to(remainingPlayer).emit(SERVER_EVENTS.PVP_OPPONENT_LEFT_BEFORE_START);
             }
 
             await updatePlayerStatsInRoom(room);
             // Notify other players to remove this player's hover
-            socket.to(room).emit("playerLeft", socketId);
+            socket.to(room).emit(SERVER_EVENTS.PLAYER_LEFT, socketId);
         }
     }
     socket.leave(room);

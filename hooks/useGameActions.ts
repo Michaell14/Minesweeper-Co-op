@@ -4,6 +4,8 @@ import { useCallback, useMemo } from "react";
 import { Socket } from "socket.io-client";
 import { useMinesweeperStore } from "@/app/store";
 import { throttle } from "@/lib/throttle";
+import { DEFAULT_DIFFICULTY, DEFAULT_PRESET } from "@/shared/boardConfig";
+import { CLIENT_EVENTS } from "@/shared/events";
 
 /**
  * Every client -> server emit, in one place.
@@ -21,14 +23,14 @@ export function useGameActions(socket: Socket | null) {
         const store = useMinesweeperStore.getState();
 
         // Clear hover before leaving
-        socket.emit("cellHover", { room: store.room, row: -1, col: -1 });
-        socket.emit("playerLeave");
+        socket.emit(CLIENT_EVENTS.CELL_HOVER, { room: store.room, row: -1, col: -1 });
+        socket.emit(CLIENT_EVENTS.PLAYER_LEAVE);
 
         store.setPlayerJoined(false);
         store.setBoard([]);
         store.setName("");
-        store.setDimensions(16, 16, 40); // Default: Medium difficulty
-        store.setDifficulty("Medium");
+        store.setDimensions(DEFAULT_PRESET.rows, DEFAULT_PRESET.cols, DEFAULT_PRESET.mines);
+        store.setDifficulty(DEFAULT_DIFFICULTY);
         store.clearAllHovers();
         store.resetPvpState(); // also resets gameOver/gameWon
         store.setMode("co-op");
@@ -37,13 +39,13 @@ export function useGameActions(socket: Socket | null) {
     const createRoom = useCallback(() => {
         const { room, numRows, numCols, numMines, name, mode } = useMinesweeperStore.getState();
         if (!room || !socket) return;
-        socket.emit("createRoom", { room, numRows, numCols, numMines, name, mode });
+        socket.emit(CLIENT_EVENTS.CREATE_ROOM, { room, numRows, numCols, numMines, name, mode });
     }, [socket]);
 
     const joinRoom = useCallback(() => {
         const { room, name } = useMinesweeperStore.getState();
         if (!room || !socket) return;
-        socket.emit("joinRoom", { room, name });
+        socket.emit(CLIENT_EVENTS.JOIN_ROOM, { room, name });
     }, [socket]);
 
     /** Guarded the same way the inline versions were: no room, no action. */
@@ -56,9 +58,9 @@ export function useGameActions(socket: Socket | null) {
         [socket]
     );
 
-    const openCell = useCallback((row: number, col: number) => emitCellAction("openCell", row, col), [emitCellAction]);
-    const chordCell = useCallback((row: number, col: number) => emitCellAction("chordCell", row, col), [emitCellAction]);
-    const toggleFlag = useCallback((row: number, col: number) => emitCellAction("toggleFlag", row, col), [emitCellAction]);
+    const openCell = useCallback((row: number, col: number) => emitCellAction(CLIENT_EVENTS.OPEN_CELL, row, col), [emitCellAction]);
+    const chordCell = useCallback((row: number, col: number) => emitCellAction(CLIENT_EVENTS.CHORD_CELL, row, col), [emitCellAction]);
+    const toggleFlag = useCallback((row: number, col: number) => emitCellAction(CLIENT_EVENTS.TOGGLE_FLAG, row, col), [emitCellAction]);
 
     /** Room-scoped emits with no payload beyond the room code. */
     const emitForRoom = useCallback(
@@ -69,13 +71,13 @@ export function useGameActions(socket: Socket | null) {
         [socket]
     );
 
-    const resetGame = useCallback(() => emitForRoom("resetGame"), [emitForRoom]);
-    const emitConfetti = useCallback(() => emitForRoom("emitConfetti"), [emitForRoom]);
-    const startPvpGame = useCallback(() => emitForRoom("startPvpGame"), [emitForRoom]);
-    const pvpRematch = useCallback(() => emitForRoom("pvpRematch"), [emitForRoom]);
+    const resetGame = useCallback(() => emitForRoom(CLIENT_EVENTS.RESET_GAME), [emitForRoom]);
+    const emitConfetti = useCallback(() => emitForRoom(CLIENT_EVENTS.EMIT_CONFETTI), [emitForRoom]);
+    const startPvpGame = useCallback(() => emitForRoom(CLIENT_EVENTS.START_PVP_GAME), [emitForRoom]);
+    const pvpRematch = useCallback(() => emitForRoom(CLIENT_EVENTS.PVP_REMATCH), [emitForRoom]);
 
     const resetMyBoard = useCallback(() => {
-        emitForRoom("resetMyBoard");
+        emitForRoom(CLIENT_EVENTS.RESET_MY_BOARD);
         useMinesweeperStore.getState().setGameOver(false);
     }, [emitForRoom]);
 
@@ -83,7 +85,7 @@ export function useGameActions(socket: Socket | null) {
         (row: number, col: number) => {
             const { room, playerJoined } = useMinesweeperStore.getState();
             if (!socket || !room || !playerJoined) return;
-            socket.emit("cellHover", { room, row, col });
+            socket.emit(CLIENT_EVENTS.CELL_HOVER, { room, row, col });
         },
         [socket]
     );

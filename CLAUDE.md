@@ -9,7 +9,9 @@ Real-time multiplayer Minesweeper. Two deployables in one repo:
 - **Frontend** — Next.js 14 App Router at the repo root (`app/`, `components/`, `lib/`). TypeScript, Zustand, Chakra + Tailwind + NES.css. Vercel.
 - **Backend** — `server/`, a **separate npm package** with its own `package.json`, lockfile, and `node_modules`. CommonJS, Express + Socket.io, state in Redis. Heroku.
 
-They share no code. The socket protocol is the only contract and it is untyped on both sides — event names are string literals in both halves.
+They share code only through `shared/` (see below). The socket protocol is the
+contract; its event names live in `shared/events.js` and its payload shapes are
+documented in ARCHITECTURE.md §4 but not typed.
 
 **`main` is the trunk** — the GitHub default and the only branch anything deploys
 from. Heroku auto-deploys the whole repo from `main` and starts it with the root
@@ -58,6 +60,8 @@ Backend deps install separately: `npm --prefix server install`.
 | Board/controls UI | `components/game/` (Board, StatusBanner, ProgressBar, ScoreTable, FlagCounter); `components/Grid.tsx` is layout only |
 | Cell interaction | `components/game/Cell.tsx` |
 | Room create/join UI | `components/Landing.tsx` |
+| Difficulty presets, board limits, validity rule | `shared/boardConfig.js` — imported by both halves |
+| Socket event names | `shared/events.js` — imported by both halves |
 | Dialogs | `lib/dialogs.ts` for ids and `openDialog`/`closeDialog`; markup in `components/dialogs/GameDialogs.tsx`, `Grid.tsx`, `Landing.tsx`, `Footer.tsx` |
 
 ## Traps
@@ -65,7 +69,7 @@ Backend deps install separately: `npm --prefix server install`.
 Read `ARCHITECTURE.md` §8-9 before changing server code. The ones most likely to bite:
 
 1. **Don't reintroduce imports between `gameUtils` and `playerUtils`.** They used to require each other, which made `resetGame()` throw silently depending on load order. Shared board helpers go in `server/domain/board.js`, which must stay dependency-free. `tests/resetGame.test.js` guards this and its require order is load-bearing.
-2. **Some things still need multi-file edits.** Difficulty defaults live in 4 places, board-size rules in 2 (with different limits), and socket event names are string literals on both sides. Grep before assuming one edit is enough — ARCHITECTURE.md §9 has the table. (Redis keys and validation rules are no longer in this category.)
+2. **Adding a socket event touches three places**: `shared/events.js`, the server handler/emit, and the client table in `hooks/useGameEvents.ts`. `server/tests/events.test.js` fails if they drift. (Redis keys, validation rules, board config and event names are all single-source now.)
 3. **`components/Grid.tsx` still has two layout wrappers** (desktop `hideBelow="xl"`, mobile `hideFrom="xl"`), so the board mounts twice in the DOM. Their *content* is now shared via `components/game/`, so edit the component, not the wrapper. Where the layouts genuinely differ, it is an explicit prop (`variant`), not a second copy.
 4. **Socket handlers go in the `hooks/useGameEvents.ts` table**, not in a component. Registration and cleanup are derived from that table; don't call `socket.on` directly.
 5. **Dialogs are native `<dialog>` elements**, opened imperatively via `openDialog(DIALOGS.x)`. NES.css styling and the `form method="dialog"` close behaviour depend on that, so don't convert them to conditional rendering casually. Never type a dialog id as a string literal — import it from `lib/dialogs.ts`.

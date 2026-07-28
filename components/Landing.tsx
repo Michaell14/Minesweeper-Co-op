@@ -7,7 +7,7 @@ import {
     RadioCardItem,
     RadioCardRoot,
 } from "@/components/ui/radio-card";
-import { difficultyConfig } from "@/lib/difficultyConfig";
+import { DIFFICULTY_PRESETS, CUSTOM_DIFFICULTY, DEFAULT_DIFFICULTY, DEFAULT_PRESET, BOARD_LIMITS, isValidBoardConfig } from "@/shared/boardConfig";
 import { DIALOGS, openDialog, closeDialog } from "@/lib/dialogs";
 import "nes.css/css/nes.min.css";
 
@@ -50,7 +50,7 @@ export default function Landing({ createRoom, joinRoom }: LandingParams) {
     } = useForm<CustomFormValues>()
 
     const createOnSubmit = handleCreateSubmit((data) => {
-        if (difficulty === "Custom" && (numRows === 0 || numCols === 0 || numMines === 0)) {
+        if (difficulty === CUSTOM_DIFFICULTY && (numRows === 0 || numCols === 0 || numMines === 0)) {
             openDialog(DIALOGS.customError);
             return;
         }
@@ -68,19 +68,9 @@ export default function Landing({ createRoom, joinRoom }: LandingParams) {
         const cols = parseInt(data.cols.toString())
         const mines = parseInt(data.mines.toString())
 
-        // Validate board size and mine count
-        if (mines >= (rows * cols) / 2){
-            openDialog(DIALOGS.customError);
-            return;
-        }
-        // Ensure board is large enough for exclusion zone (3x3 = 9 cells)
-        if (rows * cols < 20 || rows < 3 || cols < 3){
-            openDialog(DIALOGS.customError);
-            return;
-        }
-        // Ensure there's at least some safe spaces after exclusion
-        const availableSpaces = (rows * cols) - 9; // Exclude 3x3 around first click
-        if (mines > availableSpaces - 5){
+        // The same check the server will run, so a board the server would
+        // reject can no longer be accepted here and fail later.
+        if (!isValidBoardConfig(rows, cols, mines)) {
             openDialog(DIALOGS.customError);
             return;
         }
@@ -90,14 +80,14 @@ export default function Landing({ createRoom, joinRoom }: LandingParams) {
     })
 
     const cancelCustom = () => {
-        // Reset to Medium difficulty instead of invalid 0,0,0
-        setDimensions(16, 16, 40);
-        setDifficulty("Medium");
+        // Reset to the default preset instead of invalid 0,0,0
+        setDimensions(DEFAULT_PRESET.rows, DEFAULT_PRESET.cols, DEFAULT_PRESET.mines);
+        setDifficulty(DEFAULT_DIFFICULTY);
         closeDialog(DIALOGS.custom);
     }
 
     const openCustom = () => {
-        setDifficulty("Custom");
+        setDifficulty(CUSTOM_DIFFICULTY);
         openDialog(DIALOGS.custom);
     }
 
@@ -172,7 +162,7 @@ export default function Landing({ createRoom, joinRoom }: LandingParams) {
                                 value={difficulty}
                                 aria-label="Select game difficulty">
                                 <HStack align="stretch">
-                                    {difficultyConfig.map((item) => (
+                                    {DIFFICULTY_PRESETS.map((item) => (
                                         <RadioCardItem
                                             onClick={() => { setDimensions(item.rows, item.cols, item.mines); setDifficulty(item.title) }}
                                             label={item.title}
@@ -183,10 +173,10 @@ export default function Landing({ createRoom, joinRoom }: LandingParams) {
                                     ))}
                                     <RadioCardItem
                                         
-                                        description={(difficulty === "Custom" && (numRows !== 0)) ? `${numRows}x${numCols}, ${numMines} mines` : `__x__, __ mines`}
-                                        label={"Custom"}
-                                        value={"Custom"}
-                                        onClick={() => {setDifficulty("Custom"); openCustom() }}
+                                        description={(difficulty === CUSTOM_DIFFICULTY && (numRows !== 0)) ? `${numRows}x${numCols}, ${numMines} mines` : `__x__, __ mines`}
+                                        label={CUSTOM_DIFFICULTY}
+                                        value={CUSTOM_DIFFICULTY}
+                                        onClick={() => {setDifficulty(CUSTOM_DIFFICULTY); openCustom() }}
                                     />
                                 </HStack>
                             </RadioCardRoot>
@@ -338,10 +328,10 @@ export default function Landing({ createRoom, joinRoom }: LandingParams) {
                             defaultValue={numRows}
                             className="nes-input text-xs"
                             maxLength={28}
-                            min={8}
-                            max={32}
-                            placeholder={"Between 8 - 32"}
-                            aria-label="Number of rows, between 8 and 32"
+                            min={BOARD_LIMITS.MIN_ROWS}
+                            max={BOARD_LIMITS.MAX_ROWS}
+                            placeholder={`Between ${BOARD_LIMITS.MIN_ROWS} - ${BOARD_LIMITS.MAX_ROWS}`}
+                            aria-label={`Number of rows, between ${BOARD_LIMITS.MIN_ROWS} and ${BOARD_LIMITS.MAX_ROWS}`}
                             aria-required="true"
                             {...customRegister("rows", { required: "Number of Rows is Required." })} />
                     </Field>
@@ -355,10 +345,10 @@ export default function Landing({ createRoom, joinRoom }: LandingParams) {
                             defaultValue={numCols}
                             maxLength={28}
                             type="number"
-                            min={8}
-                            max={16}
-                            placeholder={"Between 8 - 16"}
-                            aria-label="Number of columns, between 8 and 16"
+                            min={BOARD_LIMITS.MIN_COLS}
+                            max={BOARD_LIMITS.MAX_COLS}
+                            placeholder={`Between ${BOARD_LIMITS.MIN_COLS} - ${BOARD_LIMITS.MAX_COLS}`}
+                            aria-label={`Number of columns, between ${BOARD_LIMITS.MIN_COLS} and ${BOARD_LIMITS.MAX_COLS}`}
                             aria-required="true"
                             {...customRegister("cols", { required: "Number of Columns is Required." })} />
                     </Field>
@@ -371,10 +361,10 @@ export default function Landing({ createRoom, joinRoom }: LandingParams) {
                             className="nes-input text-xs"
                             defaultValue={numMines}
                             maxLength={28}
-                            min={1}
+                            min={BOARD_LIMITS.MIN_MINES}
                             type="number"
-                            placeholder={"Min: 1"}
-                            aria-label="Number of mines, minimum 1"
+                            placeholder={`Min: ${BOARD_LIMITS.MIN_MINES}`}
+                            aria-label={`Number of mines, minimum ${BOARD_LIMITS.MIN_MINES}`}
                             aria-required="true"
                             {...customRegister("mines", { required: "Number of Mines is Required." })} />
                     </Field>

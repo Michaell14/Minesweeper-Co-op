@@ -4,6 +4,7 @@ const { isValidRoomCode } = require('../validation');
 const roomRepo = require('../data/roomRepo');
 const playerRepo = require('../data/playerRepo');
 const { pvpPlayerFields } = require('../data/keys');
+const { SERVER_EVENTS } = require('../../shared/events');
 
 /**
  * Handles 'startPvpGame' event
@@ -63,9 +64,9 @@ const startPvpGame = async ({ socket, room, isValid, io }) => {
             opponentName: player1Name
         });
 
-        io.to(room).emit('pvpGameStarted', { totalSafeCells });
+        io.to(room).emit(SERVER_EVENTS.PVP_GAME_STARTED, { totalSafeCells });
 
-        io.to(player1Socket).emit('pvpBoardUpdate', {
+        io.to(player1Socket).emit(SERVER_EVENTS.PVP_BOARD_UPDATE, {
             board: emptyBoard,
             playerIndex: 0,
             opponentName: player2Name,
@@ -73,7 +74,7 @@ const startPvpGame = async ({ socket, room, isValid, io }) => {
             totalSafeCells
         });
 
-        io.to(player2Socket).emit('pvpBoardUpdate', {
+        io.to(player2Socket).emit(SERVER_EVENTS.PVP_BOARD_UPDATE, {
             board: emptyBoard,
             playerIndex: 1,
             opponentName: player1Name,
@@ -116,7 +117,7 @@ const resetMyBoard = async ({ socket, room, isValid, io }) => {
 
         await playerRepo.resetScore(socket.id);
 
-        io.to(socket.id).emit('pvpBoardUpdate', {
+        io.to(socket.id).emit(SERVER_EVENTS.PVP_BOARD_UPDATE, {
             board: emptyBoard,
             playerIndex,
             opponentName: playerData.opponentName || 'Opponent'
@@ -125,10 +126,10 @@ const resetMyBoard = async ({ socket, room, isValid, io }) => {
         const players = roomRepo.playersFrom(roomState);
         const opponentSocket = players.find(p => p !== socket.id);
         if (opponentSocket) {
-            io.to(opponentSocket).emit('pvpOpponentReset');
+            io.to(opponentSocket).emit(SERVER_EVENTS.PVP_OPPONENT_RESET);
             const numMines = parseInt(roomState.numMines, 10);
             const totalSafeCells = (numRows * numCols) - numMines;
-            io.to(opponentSocket).emit('pvpOpponentProgress', {
+            io.to(opponentSocket).emit(SERVER_EVENTS.PVP_OPPONENT_PROGRESS, {
                 progress: 0,
                 totalSafeCells,
                 percentage: 0
@@ -190,10 +191,10 @@ const pvpRematch = async ({ socket, room, isValid, io }) => {
         const player1Name = await playerRepo.getName(player1Socket);
         const player2Name = await playerRepo.getName(player2Socket);
 
-        io.to(player1Socket).emit('pvpRematchStarted', { totalSafeCells, isHost: true });
-        io.to(player2Socket).emit('pvpRematchStarted', { totalSafeCells, isHost: false });
+        io.to(player1Socket).emit(SERVER_EVENTS.PVP_REMATCH_STARTED, { totalSafeCells, isHost: true });
+        io.to(player2Socket).emit(SERVER_EVENTS.PVP_REMATCH_STARTED, { totalSafeCells, isHost: false });
 
-        io.to(player1Socket).emit('pvpBoardUpdate', {
+        io.to(player1Socket).emit(SERVER_EVENTS.PVP_BOARD_UPDATE, {
             board: emptyBoard,
             playerIndex: 0,
             opponentName: player2Name,
@@ -201,7 +202,7 @@ const pvpRematch = async ({ socket, room, isValid, io }) => {
             totalSafeCells
         });
 
-        io.to(player2Socket).emit('pvpBoardUpdate', {
+        io.to(player2Socket).emit(SERVER_EVENTS.PVP_BOARD_UPDATE, {
             board: emptyBoard,
             playerIndex: 1,
             opponentName: player1Name,

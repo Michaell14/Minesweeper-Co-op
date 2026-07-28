@@ -19,6 +19,7 @@ const { io } = require('../utils/initializeClient');
 const roomRepo = require('../data/roomRepo');
 const playerRepo = require('../data/playerRepo');
 const { pvpPlayerFields: playerKeys } = require('../data/keys');
+const { SERVER_EVENTS } = require('../../shared/events');
 
 /**
  * Reveals cells from (r, c) on ONE player's board. Hitting a mine ends the game
@@ -35,11 +36,11 @@ const reveal = async (board, r, c, room, socketId, toUpdate, playerIndex) => {
     await roomRepo.setFields(room, { [gameOverKey]: 'true' });
 
     // Notify this player they lost
-    io.to(socketId).emit('pvpGameOver');
+    io.to(socketId).emit(SERVER_EVENTS.PVP_GAME_OVER);
 
     // This player's game is over, so reveal their mines -- to them only. The
     // opponent is still playing on their own board and learns nothing.
-    io.to(socketId).emit('pvpBoardUpdate', {
+    io.to(socketId).emit(SERVER_EVENTS.PVP_BOARD_UPDATE, {
         board: projectBoard(board, { revealMines: true }),
         playerIndex,
     });
@@ -47,7 +48,7 @@ const reveal = async (board, r, c, room, socketId, toUpdate, playerIndex) => {
     // Notify opponent with updated progress info
     const opponentSocket = await roomRepo.opponentOf(room, socketId);
     if (opponentSocket) {
-        io.to(opponentSocket).emit('pvpOpponentFailed');
+        io.to(opponentSocket).emit(SERVER_EVENTS.PVP_OPPONENT_FAILED);
     }
     return -1; // Signal that mine was hit
 };
@@ -58,7 +59,7 @@ const broadcastProgressUpdate = async (room, socketId, playerIndex, newProgress)
 
     if (opponentSocket) {
         const totalSafeCells = parseInt(await roomRepo.getField(room, 'totalSafeCells') || '0', 10);
-        io.to(opponentSocket).emit('pvpOpponentProgress', {
+        io.to(opponentSocket).emit(SERVER_EVENTS.PVP_OPPONENT_PROGRESS, {
             progress: newProgress,
             totalSafeCells,
             percentage: totalSafeCells > 0 ? Math.round((newProgress / totalSafeCells) * 100) : 0
@@ -98,7 +99,7 @@ const checkWin = async (board, room, socketId, playerIndex) => {
                 const playerName = await playerRepo.getName(socketId);
 
                 // Notify both players
-                io.to(room).emit('pvpPlayerWon', {
+                io.to(room).emit(SERVER_EVENTS.PVP_PLAYER_WON, {
                     winnerSocket: socketId,
                     winnerName: playerName
                 });
@@ -211,7 +212,7 @@ const openCell = async (row, col, room, socketId, roomState, playerScore, player
     if (safeCellsRevealed === -1) {
         // Save board state with revealed mine
         await roomRepo.setPvpBoard(room, playerIndex, board);
-        io.to(socketId).emit('pvpUpdateCells', projectCells(toUpdate));
+        io.to(socketId).emit(SERVER_EVENTS.PVP_UPDATE_CELLS, projectCells(toUpdate));
         return;
     }
 
@@ -240,9 +241,9 @@ const openCell = async (row, col, room, socketId, roomState, playerScore, player
     // Send update to this player
     if (justInitialized) {
         // Send full board on first click
-        io.to(socketId).emit('pvpBoardUpdate', { board: projectBoard(board), playerIndex });
+        io.to(socketId).emit(SERVER_EVENTS.PVP_BOARD_UPDATE, { board: projectBoard(board), playerIndex });
     } else {
-        io.to(socketId).emit('pvpUpdateCells', projectCells(toUpdate));
+        io.to(socketId).emit(SERVER_EVENTS.PVP_UPDATE_CELLS, projectCells(toUpdate));
     }
 };
 
@@ -276,7 +277,7 @@ const chordCell = async (row, col, room, socketId, roomState) => {
 
                 // If mine was hit, safeCellsRevealed will be -1
                 if (safeCellsRevealed === -1) {
-                    io.to(socketId).emit('pvpUpdateCells', projectCells(toUpdate));
+                    io.to(socketId).emit(SERVER_EVENTS.PVP_UPDATE_CELLS, projectCells(toUpdate));
                     await roomRepo.setPvpBoard(room, playerIndex, board);
                     return;
                 }
@@ -302,7 +303,7 @@ const chordCell = async (row, col, room, socketId, roomState) => {
 
     await updatePlayerStatsInRoom(room);
     await checkWin(board, room, socketId, playerIndex);
-    io.to(socketId).emit('pvpUpdateCells', projectCells(toUpdate));
+    io.to(socketId).emit(SERVER_EVENTS.PVP_UPDATE_CELLS, projectCells(toUpdate));
     await roomRepo.setPvpBoard(room, playerIndex, board);
 };
 
@@ -334,7 +335,7 @@ const toggleFlag = async (row, col, room, socketId, roomState) => {
 
     // The toggled cell is still CLOSED, so projecting keeps a flag from leaking
     // whether that cell is a mine.
-    io.to(socketId).emit('pvpUpdateCells', projectCells(toUpdate));
+    io.to(socketId).emit(SERVER_EVENTS.PVP_UPDATE_CELLS, projectCells(toUpdate));
     await roomRepo.setPvpBoard(room, playerIndex, board);
 };
 

@@ -11,13 +11,13 @@
  * is a separate change (see ARCHITECTURE.md §8).
  */
 
+const { BOARD_LIMITS, isValidBoardConfig } = require('../shared/boardConfig');
+
 const MAX_ROOM_CODE_LENGTH = 100;
 const MAX_PLAYER_NAME_LENGTH = 50;
 
-const MIN_ROWS = 8;
-const MAX_ROWS = 32;
-const MIN_COLS = 8;
-const MAX_COLS = 16;
+// Re-exported for callers that want the numbers; the source is shared/boardConfig.
+const { MIN_ROWS, MAX_ROWS, MIN_COLS, MAX_COLS } = BOARD_LIMITS;
 
 /** Upper bound on a cell coordinate, independent of the room's real dimensions. */
 const MAX_COORDINATE = 100;
@@ -41,22 +41,14 @@ const isValidPlayerName = (name) =>
 const isValidMode = (mode) => mode === 'co-op' || mode === 'pvp';
 
 /**
- * Board dimensions and mine count. Mines must stay under half the board so the
- * generator always has room to place them outside the first-click safe zone.
+ * Board dimensions and mine count. The rule itself lives in
+ * shared/boardConfig.js so the client checks the same thing before it ever
+ * emits; this is only the socket-layer entry point.
  *
- * INTENTIONAL DIVERGENCE from the inline version this replaces: the old code
- * asked "is this INVALID?" via `numMines >= (numRows * numCols) / 2`, and every
- * comparison against NaN is false, so a NaN dimension slipped through and
- * produced a room with a zero-length board. Asking "is this VALID?" with `<`
- * rejects NaN instead. Unreachable over socket.io in any case, since its JSON
- * encoding turns NaN into null, which both versions reject.
+ * NOTE ON NaN: the rule asks "is this VALID?" with `<` rather than "is this
+ * invalid?" with `>=`. Every comparison against NaN is false, so the `>=` form
+ * used to let a NaN dimension through and create a zero-length board.
  */
-const isValidBoardConfig = (numRows, numCols, numMines) => {
-    if (typeof numRows !== 'number' || numRows < MIN_ROWS || numRows > MAX_ROWS) return false;
-    if (typeof numCols !== 'number' || numCols < MIN_COLS || numCols > MAX_COLS) return false;
-    if (typeof numMines !== 'number' || numMines < 1) return false;
-    return numMines < (numRows * numCols) / 2;
-};
 
 /** Cell coordinates for openCell / chordCell / toggleFlag. */
 const isValidCoordinate = (row, col) => {
