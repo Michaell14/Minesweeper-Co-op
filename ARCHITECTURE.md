@@ -13,9 +13,17 @@ Real-time multiplayer Minesweeper with two modes: **co-op** (everyone shares one
 ```
 app/                      Next.js App Router (client-side app; no server components, no API routes)
   page.tsx                "Home" — picks Landing vs Grid, owns the top-level dialogs
-  store.ts                Zustand store: game + room + PVP + mouse/UI state
+  store.ts                Re-exports the store from state/ (keeps the @/app/store path)
   layout.tsx              Metadata/SEO, fonts, Chakra provider, Footer
   globals.css
+state/                    The Zustand store, one file per concern
+  store.ts                Composes the slices
+  types.ts                Cell, PlayerStats, PlayerHover
+  gameSlice.ts            board, gameOver, gameWon
+  boardConfigSlice.ts     rows/cols/mines, difficulty, mode
+  roomSlice.ts            room, players, scores, hovers
+  pvpSlice.ts             everything 1v1
+  inputSlice.ts           pointer state for chording and mobile flag mode
 hooks/
   useSocket.ts            Socket lifecycle (create on mount, disconnect on unmount)
   useSocketEvents.ts      Registers a handler table; derives its own cleanup
@@ -92,9 +100,9 @@ through `useMinesweeperStore.getState()` rather than subscribing, so they cause
 no re-renders and the callbacks stay referentially stable for the life of a
 socket. `page.tsx` itself subscribes only to `playerJoined` and `gameOverName`.
 
-### State (`app/store.ts`)
+### State (`state/`, re-exported by `app/store.ts`)
 
-One store, four concerns:
+One store, assembled from five slices:
 
 | Group | Fields |
 |---|---|
@@ -103,6 +111,10 @@ One store, four concerns:
 | Room/player | `room`, `playerJoined`, `name`, `playerStatsInRoom`, `gameOverName`, `playerHovers` |
 | PVP | `pvpStarted`, `pvpPlayerIndex`, `pvpOpponentName`, `pvpOpponentStatus`, `pvpWinner`, `pvpRoomReady`, `pvpIsHost`, `pvpOpponentProgress`, `pvpTotalSafeCells` |
 | Mouse/UI | `isChecked` (mobile click-vs-flag), `r`, `c`, `leftClick`, `rightClick`, `bothPressed` |
+
+Each row above is one slice file. Slices are plain creators sharing one `set`, so
+a slice can write another's fields where that is genuinely the behaviour —
+`resetPvpState` clears `gameOver`/`gameWon` because a rematch must.
 
 Every field has its own setter, plus `resetPvpState()` (which also clears `gameOver`/`gameWon`).
 

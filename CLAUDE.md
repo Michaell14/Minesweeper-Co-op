@@ -49,7 +49,7 @@ Backend deps install separately: `npm --prefix server install`.
 | No-guess solvability | `server/utils/solverUtils.js` (pure — easiest place to add tests) |
 | Join/leave, scores, disconnects | `server/utils/playerUtils.js` |
 | Redis schema / any data access | `server/data/keys.js`, `server/data/roomRepo.js`, `server/data/playerRepo.js` |
-| Client state | `app/store.ts` |
+| Client state | `state/` (one slice per concern); import from `@/app/store` |
 | Board/controls UI | `components/game/` (Board, StatusBanner, ProgressBar, ScoreTable, FlagCounter); `components/Grid.tsx` is layout only |
 | Cell interaction | `components/game/Cell.tsx` |
 | Room create/join UI | `components/Landing.tsx` |
