@@ -331,11 +331,10 @@ which is what makes a shared client/server module possible. That is a property
 of this deploy model, not of the code: switching back to a subtree push would
 break any such import, since only `server/` would be pushed.
 
-The duplicated `express`/`redis`/`socket.io`/`dotenv` entries in the root
-`package.json` are entangled with this. Node resolves them from
-`server/node_modules` first and falls back to the root, so the server may be
-running on either copy depending on whether `heroku-postbuild` succeeded. Check a
-Heroku build log before removing them.
+`heroku-postbuild` is confirmed to run and succeed in the build log, so
+`server/node_modules` exists on the dyno and the server resolves its own
+dependencies. The root `package.json` therefore lists only what the frontend
+needs; the server's are declared once, in `server/package.json`.
 
 ## 7. Development
 
@@ -374,7 +373,8 @@ These are real, currently unfixed, and worth knowing before changing related cod
 1. **PVP boards differ per player** (see §5).
 2. **Scoring differs per mode.** Co-op awards +1 per click regardless of cascade size and nothing on the board-initializing click (`game/coop.js`); PVP awards +1 per revealed cell (`game/pvp.js`).
 3. **`server/Procfile` is inert.** The deploy uses the root `/Procfile`; this one is a leftover from the subtree-push model — see §6.
-4. **Server deps are declared twice** — in the root `package.json` and in `server/package.json`, with separate lockfiles. Under the current deploy this is not purely redundant; see the note in §6 before removing either copy.
+4. **Heroku installs the whole frontend dependency tree and never uses it.** The root `npm install` pulls Next, React, Chakra and the rest onto a dyno that only runs `cd server && node server.js`; `heroku-postbuild` replaces the `build` script, so the frontend is never built there. Wasted build time and slug size, not a correctness problem.
+5. **The dyno's Node version is unpinned.** `engines.node` is unspecified, so the buildpack resolves "current LTS" — Node 24 as of the last build, while Vercel and CI use 22. A future LTS release changes the backend runtime with no commit.
 
 *Fixed, kept here so they aren't reintroduced:* the `gameUtils` ⇄ `playerUtils`
 require cycle that silently broke co-op score resets (see §3); the stale room
