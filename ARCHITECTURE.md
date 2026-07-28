@@ -295,7 +295,33 @@ Both mouse buttons pressed together, or the middle button. `Cell.tsx` writes `le
 
 ---
 
-## 6. Development
+## 6. Branches and deploys
+
+**`main` is the trunk.** It is the GitHub default branch and the only branch
+anything deploys from. Branch off it, PR back into it.
+
+There used to be a second long-lived branch, `stable`, which drifted 49 commits
+ahead of `main` while `main` was what actually shipped — so a lot of merged work
+was never deployed. It has been retired; do not recreate that pattern.
+
+| Target | Source | How |
+|---|---|---|
+| Frontend (Vercel) | `main` | automatic on push |
+| Backend (Heroku) | `server/` only | `git subtree push --prefix server heroku main` |
+
+The backend deploy pushes the **contents of `server/`** to Heroku as its own
+repo root. Two consequences worth knowing:
+
+- `server/Procfile` is the one that runs. The root `/Procfile` and the
+  `heroku-postbuild` script in the root `package.json` belong to a whole-repo
+  deploy model that is not in use.
+- **Server code cannot import anything outside `server/`.** A `require('../shared/…')`
+  would work locally and break the deploy, because that path does not exist in
+  what gets pushed. Anything the client and server must share has to live inside
+  `server/` and be imported from there by the client, or be duplicated with a
+  test asserting the copies agree.
+
+## 7. Development
 
 ```bash
 npm install                # frontend deps (repo root)
@@ -324,7 +350,7 @@ backend — the only automated frontend coverage there is. See CLAUDE.md.
 
 ---
 
-## 7. Known issues and gotchas
+## 8. Known issues and gotchas
 
 These are real, currently unfixed, and worth knowing before changing related code.
 
@@ -332,12 +358,12 @@ These are real, currently unfixed, and worth knowing before changing related cod
 2. **Scoring differs per mode.** Co-op awards +1 per click regardless of cascade size and nothing on the board-initializing click (`game/coop.js`); PVP awards +1 per revealed cell (`game/pvp.js`).
 3. **Stale room state on win checks.** `openCell` re-reads room state before `checkWin`; `chordCell` and `toggleFlag` pass their pre-reveal snapshot.
 4. **Missing `pvpPlayerIndex` is handled inconsistently** — `pvp.openCell` bails out, `pvp.chordCell`/`pvp.toggleFlag` default to index 0 and would mutate player 1's board.
-5. **Two Procfiles.** `/Procfile` (`cd server && node server.js`, paired with `heroku-postbuild`) and `/server/Procfile` (`node server.js`, paired with the `git subtree push --prefix server heroku main` deploy). Confirm which one Heroku actually uses before touching either.
+5. **An unused Procfile.** `/Procfile` and the root `heroku-postbuild` script serve a whole-repo deploy that is not in use; `server/Procfile` is what runs. Harmless, but they invite the wrong assumption — see §6.
 6. **Server deps are declared twice** — in the root `package.json` and in `server/package.json`, with separate lockfiles.
 
 *Fixed, kept here so it isn't reintroduced:* the `gameUtils` ⇄ `playerUtils` require cycle that silently broke co-op score resets — see the note in §3.
 
-## 8. Single sources of truth (and where they aren't)
+## 9. Single sources of truth (and where they aren't)
 
 | Concept | Where it lives | Duplicates to keep in sync |
 |---|---|---|
