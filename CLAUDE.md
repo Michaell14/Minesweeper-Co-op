@@ -88,7 +88,8 @@ leaving, and a two-client PVP round. **Run it after touching `app/`,
 
 It does not cover chording: making a chord do something visible requires knowing
 where the mines are, and the client deliberately cannot see that (boards are
-projected server-side). Test chording against the server.
+projected server-side). Chording is covered server-side instead, in
+`server/tests/chord.test.js`.
 
 There are no component unit tests, so anything below that level still needs a
 manual pass.
