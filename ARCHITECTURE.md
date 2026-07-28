@@ -48,7 +48,7 @@ components/
 lib/
   dialogs.ts              Every dialog id, plus openDialog/closeDialog
   difficultyConfig.ts     Easy/Medium/Hard presets
-  initSocket.ts           socket.io-client factory (server URL is hardcoded per NODE_ENV)
+  initSocket.ts           socket.io-client factory (URL from NEXT_PUBLIC_SOCKET_URL)
   throttle.ts             throttle() + generateColorFromId() for hover colors
   confetti.ts             canvas-confetti wrapper
 types/
@@ -58,6 +58,7 @@ scripts/
   ui-smoke/               Headless-Chrome smoke test for the client (npm run test:ui)
 server/                   Separate npm package (own package.json, lockfile, node_modules)
   server.js               Every socket.on handler + isValid() room/membership guard
+  config.js               Env-resolved settings: allowed CORS origins, PORT
   validation.js           Pure socket payload validators (limits, coords, membership)
   data/
     keys.js               Every Redis key and TTL. Nothing else builds a key by hand
@@ -299,7 +300,17 @@ npm run test:ui            # client smoke test in headless Chrome (needs dev:all
 npm run lint
 ```
 
-Local Redis is expected on `127.0.0.1:6379`; `scripts/ensure-redis.js` will try to start it. The server reads `DB_PASS`, `HOST`, `REDIS_PORT` from `server/.env` (gitignored) and falls back to localhost defaults.
+Local Redis is expected on `127.0.0.1:6379`; `scripts/ensure-redis.js` will try to start it.
+
+**Configuration.** Every variable has a working default, so an unset one keeps
+the previous hardcoded behaviour. See `.env.example` and `server/.env.example`.
+
+| Variable | Where | Default |
+|---|---|---|
+| `NEXT_PUBLIC_SOCKET_URL` | client | localhost:3001 in dev, the Heroku app in prod. Inlined at build time |
+| `ALLOWED_ORIGINS` | server | comma-separated; falls back to localhost:3000 plus the deployed frontends |
+| `PORT` | server | 3001 |
+| `HOST`, `REDIS_PORT`, `DB_PASS` | server | local Redis with no auth |
 
 **Tests.** `server/tests/` covers the server with Jest and no real infrastructure.
 `scripts/ui-smoke/` drives the actual client in headless Chrome against a local
@@ -329,8 +340,8 @@ These are real, currently unfixed, and worth knowing before changing related cod
 | Board size/mine rules | `server/validation.js` | client copy with *different* limits in `components/Landing.tsx:71-85` |
 | Socket event names | nowhere — string literals on both sides | `app/page.tsx`, `server/server.js`, `server/utils/*`, `server/controllers/pvpController.js` |
 | Redis key names | `server/data/keys.js` | — |
-| CORS origins | `server/utils/initializeClient.js` | listed twice in that same file (Express middleware + Socket.io config) |
-| Backend URL | `lib/initSocket.js:3-5` | hardcoded per `NODE_ENV`, not env-driven |
+| CORS origins | `server/config.js` | — |
+| Backend URL | `lib/initSocket.ts` (`NEXT_PUBLIC_SOCKET_URL`) | — |
 | Cell reveal (flood fill) | `domain/board.js` `revealFrom()` | each mode wraps it to react to a mine: co-op ends the room's game, PVP ends only that player's |
 | Neighbor enumeration | `domain/board.js` `getAdjacentCells()` | plus `solverUtils.js:10` (`getAdjacentCoords`) and inline loops in `gameUtils.js:56` and `:250` |
 | Board rendering | `components/game/Board.tsx` | still mounted by both layout wrappers, so the DOM holds two copies; the markup exists once |
