@@ -113,6 +113,24 @@ async function coop(page) {
     const revealed = await page.evaluate(`return ${revealedCount};`);
     check(revealed > 1, `first click cascaded (${revealed} cells revealed)`, 'expected a cascade, not a single cell');
 
+    // Scoring is a point per cell opened, so a cascade of N is worth N — the
+    // leaderboard is where a regression to one-point-per-click would show.
+    const leaderboardScore = () => page.evaluate(`
+        const table = [...document.querySelectorAll('table')].find(t => t.offsetParent !== null);
+        if (!table) return null;
+        const row = table.querySelector('tbody tr');
+        return row ? parseInt(row.cells[1].textContent, 10) : null;
+    `);
+    await page.waitFor(`(() => {
+        const table = [...document.querySelectorAll('table')].find(t => t.offsetParent !== null);
+        const row = table && table.querySelector('tbody tr');
+        return !!row && parseInt(row.cells[1].textContent, 10) > 0;
+    })()`, { label: 'the leaderboard shows a score' });
+    const score = await leaderboardScore();
+    check(score === revealed,
+        `the cascade scored a point per cell (${score} for ${revealed} cells)`,
+        `expected ${revealed}, got ${score} — one point per click would show 1`);
+
     // Flagging a closed cell.
     const before = await flagsRemaining();
     await page.evaluate(`
