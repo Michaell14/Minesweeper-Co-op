@@ -13,7 +13,7 @@ Real-time multiplayer Minesweeper with two modes: **co-op** (everyone shares one
 ```
 app/                      Next.js App Router (client-side app; no server components, no API routes)
   page.tsx                "Home" — picks Landing vs Grid, owns the top-level dialogs
-  store.tsx               Zustand store: game + room + PVP + mouse/UI state
+  store.ts                Zustand store: game + room + PVP + mouse/UI state
   layout.tsx              Metadata/SEO, fonts, Chakra provider, Footer
   globals.css
 hooks/
@@ -32,17 +32,19 @@ components/
     ProgressBar.tsx       One PVP progress bar
     ScoreTable.tsx        Co-op leaderboard
     FlagCounter.tsx       Mines remaining
-  Cell.tsx                One cell: mouse handling, hover highlight, memoized
+    Cell.tsx              One cell: mouse handling, hover highlight, memoized
+    board.module.css      Board and cell styles
   Landing.tsx             Create/join forms, custom-difficulty dialog, name dialogs
   Footer.tsx              GitHub link + how-to-play dialog
-  Home.module.css         Board/cell styles (used by Grid and Cell — the name is historical)
   ui/                     Generated Chakra snippets. Not hand-maintained
 lib/
   dialogs.ts              Every dialog id, plus openDialog/closeDialog
-  difficultyConfig.tsx    Easy/Medium/Hard presets
-  initSocket.js           socket.io-client factory (server URL is hardcoded per NODE_ENV)
+  difficultyConfig.ts     Easy/Medium/Hard presets
+  initSocket.ts           socket.io-client factory (server URL is hardcoded per NODE_ENV)
   throttle.ts             throttle() + generateColorFromId() for hover colors
-  confetti.js             canvas-confetti wrapper
+  confetti.ts             canvas-confetti wrapper
+types/
+  canvas-confetti.d.ts    Local typings for a dependency that ships none
 scripts/ensure-redis.js   Dev helper: starts local Redis if port 6379 is closed
 server/                   Separate npm package (own package.json, lockfile, node_modules)
   server.js               Every socket.on handler + isValid() room/membership guard
@@ -88,7 +90,7 @@ through `useMinesweeperStore.getState()` rather than subscribing, so they cause
 no re-renders and the callbacks stay referentially stable for the life of a
 socket. `page.tsx` itself subscribes only to `playerJoined` and `gameOverName`.
 
-### State (`app/store.tsx`)
+### State (`app/store.ts`)
 
 One store, four concerns:
 
