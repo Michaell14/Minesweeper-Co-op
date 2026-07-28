@@ -1,17 +1,13 @@
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
+const { allowedOrigins } = require('../config');
 
 const app = express();
 const server = http.createServer(app);
 
 // Add CORS middleware to Express (handles preflight requests)
 app.use((req, res, next) => {
-    const allowedOrigins = [
-        'http://localhost:3000',
-        'https://minesweeper-test.vercel.app',
-        'https://www.minesweepercoop.com'
-    ];
     const origin = req.headers.origin;
     if (allowedOrigins.includes(origin)) {
         res.setHeader('Access-Control-Allow-Origin', origin);
@@ -41,11 +37,6 @@ const io = new Server(server, {
     path: '/socket.io',
     cors: {
         origin: function(origin, callback) {
-            const allowedOrigins = [
-                'http://localhost:3000',
-                'https://minesweeper-test.vercel.app',
-                'https://www.minesweepercoop.com'
-            ];
             // Allow requests with no origin (mobile apps, curl, etc.)
             if (!origin) return callback(null, true);
             if (allowedOrigins.includes(origin)) {

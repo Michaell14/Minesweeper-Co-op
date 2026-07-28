@@ -8,6 +8,7 @@ import {
     RadioCardRoot,
 } from "@/components/ui/radio-card";
 import { difficultyConfig } from "@/lib/difficultyConfig";
+import { DIALOGS, openDialog, closeDialog } from "@/lib/dialogs";
 import "nes.css/css/nes.min.css";
 
 interface FormValues {
@@ -50,16 +51,16 @@ export default function Landing({ createRoom, joinRoom }: LandingParams) {
 
     const createOnSubmit = handleCreateSubmit((data) => {
         if (difficulty === "Custom" && (numRows === 0 || numCols === 0 || numMines === 0)) {
-            (document.getElementById('dialog-custom-error') as HTMLDialogElement)?.showModal();
+            openDialog(DIALOGS.customError);
             return;
         }
         setRoom(data.roomCode);
-        (document.getElementById('dialog-name-create') as HTMLDialogElement)?.showModal();
+        openDialog(DIALOGS.nameCreate);
     });
 
     const joinOnSubmit = handleJoinSubmit((data) => {
         setRoom(data.roomCode);
-        (document.getElementById('dialog-name-join') as HTMLDialogElement)?.showModal();
+        openDialog(DIALOGS.nameJoin);
     });
 
     const customOnSubmit = handleCustomSubmit((data) => {
@@ -69,35 +70,35 @@ export default function Landing({ createRoom, joinRoom }: LandingParams) {
 
         // Validate board size and mine count
         if (mines >= (rows * cols) / 2){
-            (document.getElementById('dialog-custom-error') as HTMLDialogElement)?.showModal();
+            openDialog(DIALOGS.customError);
             return;
         }
         // Ensure board is large enough for exclusion zone (3x3 = 9 cells)
         if (rows * cols < 20 || rows < 3 || cols < 3){
-            (document.getElementById('dialog-custom-error') as HTMLDialogElement)?.showModal();
+            openDialog(DIALOGS.customError);
             return;
         }
         // Ensure there's at least some safe spaces after exclusion
         const availableSpaces = (rows * cols) - 9; // Exclude 3x3 around first click
         if (mines > availableSpaces - 5){
-            (document.getElementById('dialog-custom-error') as HTMLDialogElement)?.showModal();
+            openDialog(DIALOGS.customError);
             return;
         }
 
         setDimensions(rows, cols, mines);
-        (document.getElementById('dialog-custom') as HTMLDialogElement)?.close();
+        closeDialog(DIALOGS.custom);
     })
 
     const cancelCustom = () => {
         // Reset to Medium difficulty instead of invalid 0,0,0
         setDimensions(16, 16, 40);
         setDifficulty("Medium");
-        (document.getElementById('dialog-custom') as HTMLDialogElement)?.close();
+        closeDialog(DIALOGS.custom);
     }
 
     const openCustom = () => {
         setDifficulty("Custom");
-        (document.getElementById('dialog-custom') as HTMLDialogElement)?.showModal();
+        openDialog(DIALOGS.custom);
     }
 
     return (
@@ -220,7 +221,7 @@ export default function Landing({ createRoom, joinRoom }: LandingParams) {
 
             <dialog
                 className="nes-dialog absolute left-1/2 top-60 -translate-x-1/2"
-                id="dialog-name-create"
+                id={DIALOGS.nameCreate}
                 aria-labelledby="create-name-title">
                 <form method="dialog">
                     <p id="create-name-title">Enter your Name:</p>
@@ -242,7 +243,7 @@ export default function Landing({ createRoom, joinRoom }: LandingParams) {
                             className="nes-btn"
                             aria-label="Cancel and close dialog"
                             onClick={() => {
-                                (document.getElementById('dialog-name-create') as HTMLDialogElement)?.close();
+                                closeDialog(DIALOGS.nameCreate);
                             }}>Cancel</button>
                         <button
                             onClick={(e) => {
@@ -254,7 +255,7 @@ export default function Landing({ createRoom, joinRoom }: LandingParams) {
                                     return;
                                 }
                                 setName(nameValue);
-                                setTimeout(() => createRoom(), 0);
+                                createRoom();
                             }}
                             type="submit"
                             className="nes-btn is-success"
@@ -264,7 +265,7 @@ export default function Landing({ createRoom, joinRoom }: LandingParams) {
             </dialog>
             <dialog
                 className="nes-dialog absolute left-1/2 top-60 -translate-x-1/2"
-                id="dialog-name-join"
+                id={DIALOGS.nameJoin}
                 aria-labelledby="join-name-title">
                 <form method="dialog">
                     <p id="join-name-title">Enter your Name:</p>
@@ -286,7 +287,7 @@ export default function Landing({ createRoom, joinRoom }: LandingParams) {
                             className="nes-btn"
                             aria-label="Cancel and close dialog"
                             onClick={() => {
-                                (document.getElementById('dialog-name-join') as HTMLDialogElement)?.close();
+                                closeDialog(DIALOGS.nameJoin);
                             }}>Cancel</button>
                         <button
                             onClick={(e) => {
@@ -298,7 +299,7 @@ export default function Landing({ createRoom, joinRoom }: LandingParams) {
                                     return;
                                 }
                                 setName(nameValue);
-                                setTimeout(() => joinRoom(), 0);
+                                joinRoom();
                             }}
                             type="submit"
                             className="nes-btn is-success"
@@ -309,7 +310,7 @@ export default function Landing({ createRoom, joinRoom }: LandingParams) {
 
             <dialog
                 className="nes-dialog absolute left-1/2 top-60 -translate-x-1/2"
-                id="dialog-custom-error"
+                id={DIALOGS.customError}
                 role="alertdialog"
                 aria-labelledby="custom-error-title">
                 <form method="dialog">
@@ -323,7 +324,7 @@ export default function Landing({ createRoom, joinRoom }: LandingParams) {
 
             <dialog
                 className="nes-dialog absolute left-1/2 top-60 -translate-x-1/2"
-                id="dialog-custom"
+                id={DIALOGS.custom}
                 aria-labelledby="custom-board-title">
                 <form onSubmit={customOnSubmit} method="dialog">
                     <p id="custom-board-title">Customize your Board:</p>

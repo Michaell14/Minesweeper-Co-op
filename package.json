@@ -9,7 +9,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "start-server": "cd server && node server.js"
+    "test": "npm --prefix server test",
+    "test:ui": "node scripts/ui-smoke/run.js",
+    "start-server": "cd server && node server.js",
+    "heroku-postbuild": "cd server && npm install"
   },
   "dependencies": {
     "@chakra-ui/react": "^3.2.3",

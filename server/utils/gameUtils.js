@@ -1,18 +1,12 @@
-const { addPlayerToRoom, resetPlayerScores, updatePlayerStatsInRoom } = require('./playerUtils');
+const { resetPlayerScores, updatePlayerStatsInRoom } = require('./playerUtils');
 const { io } = require('./initializeClient');
-const { redisClient } = require('./initializeRedisClient');
+const { isBoardSolvable } = require('./solverUtils');
+const roomRepo = require('../data/roomRepo');
+const { createEmptyBoard, projectBoard } = require('../domain/board');
 
-// Utility function to generate a board
-// Checked
-const generateBoard = (numRows, numCols, numMines, excludeRow, excludeCol) => {
-    const board = Array.from({ length: numRows }, () =>
-        Array.from({ length: numCols }, () => ({
-            isMine: false,
-            isOpen: false,
-            isFlagged: false,
-            nearbyMines: 0,
-        }))
-    );
+// Generates a single random candidate board layout
+const generateSingleCandidateBoard = (numRows, numCols, numMines, excludeRow, excludeCol) => {
+    const board = createEmptyBoard(numRows, numCols);
 
     // Calculate available cells (excluding the 3x3 area around first click)
     const totalCells = numRows * numCols;
@@ -71,27 +65,75 @@ const generateBoard = (numRows, numCols, numMines, excludeRow, excludeCol) => {
     return board;
 };
 
+/**
+ * Utility function to generate a Minesweeper board.
+ * If options.noGuess is true (default), runs a Generate-and-Verify loop with isBoardSolvable
+ * to guarantee that the board can be 100% solved without probabilistic 50:50 guessing.
+ */
+const generateBoard = (numRows, numCols, numMines, excludeRow, excludeCol, options = { noGuess: true, maxAttempts: 50 }) => {
+    const shouldEnsureNoGuess = options && options.noGuess !== false;
+    const maxAttempts = (options && options.maxAttempts) || 50;
+
+    if (!shouldEnsureNoGuess) {
+        return generateSingleCandidateBoard(numRows, numCols, numMines, excludeRow, excludeCol);
+    }
+
+    let fallbackCandidate = null;
+
+    // Retry loop: evaluate candidate layouts until a 100% logic-solvable board is found
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        const candidate = generateSingleCandidateBoard(numRows, numCols, numMines, excludeRow, excludeCol);
+        if (!fallbackCandidate) {
+            fallbackCandidate = candidate;
+        }
+
+        // Test if candidate board is 100% solvable without guesses starting from (excludeRow, excludeCol)
+        if (isBoardSolvable(candidate, excludeRow, excludeCol)) {
+            return candidate;
+        }
+    }
+
+    // Fallback to initial candidate if max attempts reached
+    return fallbackCandidate;
+};
+
 const checkWin = async (roomState, board, room) => {
     // Don't check win if game is already over or won
-    if (roomState.gameOver === 'true' || roomState.gameWon === 'true') {
+    if (!roomState || roomState.gameOver === 'true' || roomState.gameWon === 'true') {
         return;
     }
 
+    // A game is won IF AND ONLY IF every non-mine cell has been opened
     const allNonMinesOpened = board.every((row) =>
-        row.every((cell) => (cell.isMine && !cell.isOpen) || (!cell.isMine && cell.isOpen))
+        row.every((cell) => cell.isMine || cell.isOpen)
     );
 
     if (allNonMinesOpened) {
-        const client = await redisClient;
         // Double-check in Redis to prevent race condition
-        const currentState = await client.hGet(`room:${room}`, 'gameWon');
+        const currentState = await roomRepo.getField(room, 'gameWon');
         if (currentState === 'true') {
             return; // Already won, don't emit again
         }
-        await client.hSet(`room:${room}`, { gameWon: 'true' });
+
+        // Auto-flag all remaining mines for a clean visual completion
+        for (let r = 0; r < board.length; r++) {
+            for (let c = 0; c < board[r].length; c++) {
+                if (board[r][c].isMine) {
+                    board[r][c].isFlagged = true;
+                }
+            }
+        }
+
+        await roomRepo.setFields(room, {
+            gameWon: 'true',
+            board: JSON.stringify(board)
+        });
+
+        // Terminal state: the game is won, so the full layout can be shown.
+        io.to(room).emit('boardUpdate', projectBoard(board, { revealMines: true }));
         io.to(room).emit('gameWon');
     }
-}
+};
 
 // Note that Object properties set in redis must be string
 // ROOM PROPERTIES:
@@ -110,11 +152,10 @@ const checkWin = async (roomState, board, room) => {
 // nearbyMines: number
 
 // Checked
-const createRoom = async (room, numRows, numCols, numMines, mode = 'co-op') => {
-    const client = await redisClient;
-
+const createRoom = async (room, numRows, numCols, numMines, mode = 'co-op', noGuess = true) => {
     const roomData = {
         mode: mode,
+        noGuess: noGuess !== false ? 'true' : 'false',
         gameOver: 'false',
         gameWon: 'false',
         initialized: 'false',
@@ -126,14 +167,7 @@ const createRoom = async (room, numRows, numCols, numMines, mode = 'co-op') => {
 
     if (mode === 'co-op') {
         // Initialize empty board for co-op mode
-        roomData.board = JSON.stringify(Array.from({ length: numRows }, () =>
-            Array.from({ length: numCols }, () => ({
-                isMine: false,
-                isOpen: false,
-                isFlagged: false,
-                nearbyMines: 0,
-            }))
-        ));
+        roomData.board = JSON.stringify(createEmptyBoard(numRows, numCols));
     } else if (mode === 'pvp') {
         // Initialize PVP-specific fields
         roomData.pvpStarted = 'false';
@@ -155,8 +189,7 @@ const createRoom = async (room, numRows, numCols, numMines, mode = 'co-op') => {
         roomData.sharedBoardSeed = ''; // For generating identical boards
     }
 
-    await client.hSet(`room:${room}`, roomData);
-    await client.expire(`room:${room}`, 86400); // Deletes room after 24 hours
+    await roomRepo.create(room, roomData);
 }
 
 // Generate a seeded board (for PVP - both players get identical mines)
@@ -172,14 +205,7 @@ const generateSeededBoard = (numRows, numCols, numMines, seed) => {
 
     const random = seededRandom(seed);
 
-    const board = Array.from({ length: numRows }, () =>
-        Array.from({ length: numCols }, () => ({
-            isMine: false,
-            isOpen: false,
-            isFlagged: false,
-            nearbyMines: 0,
-        }))
-    );
+    const board = createEmptyBoard(numRows, numCols);
 
     // Place mines randomly using seeded random
     const totalCells = numRows * numCols;
@@ -228,30 +254,22 @@ const generateSeededBoard = (numRows, numCols, numMines, seed) => {
 }
 
 const resetGame = async (room) => {
-    const client = await redisClient;
     // Fetch room state once
-    const roomState = await client.hGetAll(`room:${room}`);
+    const roomState = await roomRepo.getState(room);
     if (!roomState) return;
 
     const numRows = parseInt(roomState.numRows, 10);
     const numCols = parseInt(roomState.numCols, 10);
 
-    // Create an empty board with a more memory-efficient method
-    const newBoard = Array.from({ length: numRows }, () =>
-        Array.from({ length: numCols }, () => ({
-            isMine: false,
-            isOpen: false,
-            isFlagged: false,
-            nearbyMines: 0,
-        }))
-    );
+    // Create empty board
+    const newBoard = createEmptyBoard(numRows, numCols);
 
     // Emit events to reset the board and players
     io.to(room).emit('boardUpdate', newBoard);
     io.to(room).emit('resetEveryone');
 
     // Update room state and reset player scores in Redis
-    await client.hSet(`room:${room}`, {
+    await roomRepo.setFields(room, {
         board: JSON.stringify(newBoard),
         gameOver: 'false',
         gameWon: 'false',
