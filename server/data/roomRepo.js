@@ -11,7 +11,6 @@ const { redisClient } = require('../utils/initializeRedisClient');
 const {
     roomKey,
     initLockKey,
-    pvpInitLockKey,
     winnerLockKey,
     pvpPlayerFields,
     ROOM_TTL_SECONDS,
@@ -138,9 +137,6 @@ const releaseLock = async (key) => {
 const acquireInitLock = (room, owner) => acquireLock(initLockKey(room), owner);
 const releaseInitLock = (room) => releaseLock(initLockKey(room));
 
-const acquirePvpInitLock = (room, playerIndex, owner) => acquireLock(pvpInitLockKey(room, playerIndex), owner);
-const releasePvpInitLock = (room, playerIndex) => releaseLock(pvpInitLockKey(room, playerIndex));
-
 const acquireWinnerLock = (room, owner) => acquireLock(winnerLockKey(room), owner);
 const releaseWinnerLock = (room) => releaseLock(winnerLockKey(room));
 
@@ -163,8 +159,6 @@ module.exports = {
     setPvpBoard,
     acquireInitLock,
     releaseInitLock,
-    acquirePvpInitLock,
-    releasePvpInitLock,
     acquireWinnerLock,
     releaseWinnerLock,
 };

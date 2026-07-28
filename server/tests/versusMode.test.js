@@ -1,17 +1,13 @@
 /**
- * Versus Mode Test Suite
- * Covers board generation used by 1v1 PVP mode.
+ * Board generation for PVP.
  *
- * Run with: npm test  (from /server, or `npm test` at the repo root)
- *
- * NOTE: generateSeededBoard is currently NOT used by any production code path.
- * PVP generates a separate board per player via generateBoard (see
- * server/game/pvp.js openCell), so the two players do not race the
- * same mine layout. These tests characterize the seeded generator as written;
- * whether it should be wired up is an open product decision.
+ * Both players race ONE board now: startPvpGame generates it, no-guess verified
+ * around a shared start cell, and hands the same layout to both. The sharing
+ * itself is covered in sharedPvpBoard.test.js; this file covers the generator's
+ * first-click safe zone, which that shared start cell relies on.
  */
 
-const { generateSeededBoard, generateBoard } = require('../utils/gameUtils');
+const { generateBoard } = require('../utils/gameUtils');
 
 // ---------------------------------------------------------------------------
 // helpers
@@ -53,75 +49,6 @@ const safeZoneCells = (board, row, col) => {
 };
 
 // ---------------------------------------------------------------------------
-
-describe('generateSeededBoard', () => {
-    test('same seed produces an identical board', () => {
-        const a = generateSeededBoard(16, 16, 40, 12345);
-        const b = generateSeededBoard(16, 16, 40, 12345);
-
-        expect(mineLayout(a)).toEqual(mineLayout(b));
-        expect(a).toEqual(b);
-    });
-
-    test('same seed is stable across repeated generations', () => {
-        const first = generateSeededBoard(16, 16, 40, 777777);
-        for (let i = 0; i < 4; i++) {
-            expect(mineLayout(generateSeededBoard(16, 16, 40, 777777))).toEqual(mineLayout(first));
-        }
-    });
-
-    test('different seeds produce different mine placements', () => {
-        const a = generateSeededBoard(16, 16, 40, 11111);
-        const b = generateSeededBoard(16, 16, 40, 22222);
-
-        expect(mineLayout(a)).not.toEqual(mineLayout(b));
-    });
-
-    test.each([
-        { rows: 8, cols: 8, mines: 10, seed: 101 },
-        { rows: 16, cols: 16, mines: 40, seed: 202 },
-        { rows: 32, cols: 16, mines: 99, seed: 303 },
-    ])('produces a $rows x $cols board with $mines mines', ({ rows, cols, mines, seed }) => {
-        const board = generateSeededBoard(rows, cols, mines, seed);
-
-        expect(board).toHaveLength(rows);
-        expect(board[0]).toHaveLength(cols);
-        expect(countMines(board)).toBe(mines);
-    });
-
-    test('nearbyMines is correct for every non-mine cell', () => {
-        const board = generateSeededBoard(10, 10, 15, 54321);
-
-        for (let r = 0; r < board.length; r++) {
-            for (let c = 0; c < board[0].length; c++) {
-                if (!board[r][c].isMine) {
-                    expect(board[r][c].nearbyMines).toBe(expectedNearbyMines(board, r, c));
-                }
-            }
-        }
-    });
-
-    test('cells start closed and unflagged', () => {
-        const board = generateSeededBoard(16, 16, 40, 99999);
-
-        for (const row of board) {
-            for (const cell of row) {
-                expect(cell.isOpen).toBe(false);
-                expect(cell.isFlagged).toBe(false);
-                expect(typeof cell.isMine).toBe('boolean');
-                expect(typeof cell.nearbyMines).toBe('number');
-            }
-        }
-    });
-
-    test('caps mine count at totalCells - 9 when more mines are requested than fit', () => {
-        const rows = 8;
-        const cols = 8;
-        const board = generateSeededBoard(rows, cols, 100, 12345);
-
-        expect(countMines(board)).toBe(rows * cols - 9);
-    });
-});
 
 describe('generateBoard first-click safe zone', () => {
     test('keeps the 3x3 zone around the first click clear', () => {

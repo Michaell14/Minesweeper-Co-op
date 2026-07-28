@@ -38,9 +38,6 @@ const sessionKey = (sessionId) => `session:${sessionId}`;
 /** Lock: co-op first-click board generation. */
 const initLockKey = (room) => `init_lock:${room}`;
 
-/** Lock: PVP first-click board generation, per player. */
-const pvpInitLockKey = (room, playerIndex) => `init_lock_pvp:${room}:${playerIndex}`;
-
 /** Lock: claiming the PVP win, so a simultaneous finish has exactly one winner. */
 const winnerLockKey = (room) => `winner_lock:${room}`;
 
@@ -66,7 +63,6 @@ module.exports = {
     playerKey,
     sessionKey,
     initLockKey,
-    pvpInitLockKey,
     winnerLockKey,
     pvpPlayerFields,
 };
