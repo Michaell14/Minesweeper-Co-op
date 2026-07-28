@@ -12,8 +12,9 @@ Real-time multiplayer Minesweeper. Two deployables in one repo:
 They share no code. The socket protocol is the only contract and it is untyped on both sides — event names are string literals in both halves.
 
 **`main` is the trunk** — the GitHub default and the only branch anything deploys
-from. The backend deploy pushes only the contents of `server/`, so server code
-must never import from outside that directory. See ARCHITECTURE.md §6.
+from. Heroku auto-deploys the whole repo from `main` and starts it with the root
+`/Procfile`; Vercel builds the frontend from the same branch. See
+ARCHITECTURE.md §6.
 
 ## Commands
 
@@ -70,7 +71,7 @@ Read `ARCHITECTURE.md` §8-9 before changing server code. The ones most likely t
 5. **Dialogs are native `<dialog>` elements**, opened imperatively via `openDialog(DIALOGS.x)`. NES.css styling and the `form method="dialog"` close behaviour depend on that, so don't convert them to conditional rendering casually. Never type a dialog id as a string literal — import it from `lib/dialogs.ts`.
 6. **`components/ui/` is generated Chakra code.** Don't hand-edit it.
 7. **PVP players get different boards** — this is current behavior, not a bug to "fix" incidentally.
-8. **`server/Procfile` is the live one.** The root `/Procfile` and `heroku-postbuild` belong to an unused whole-repo deploy model. Don't "fix" the deploy by editing them.
+8. **The root `/Procfile` and `heroku-postbuild` are load-bearing** — Heroku deploys the whole repo and starts it with them. `server/Procfile` is an inert leftover. Don't "tidy" the root ones, and see ARCHITECTURE.md §6 before touching the duplicated server deps in the root `package.json`.
 
 ## Testing
 
