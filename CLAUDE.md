@@ -88,6 +88,12 @@ treat it as an incident, not a chore.
 client, server and Redis, which is slower and racier than the checks above. Run
 it locally before merging anything under `app/`, `components/` or `hooks/`.
 
+## Scoring
+
+One point per safe cell a move opens, cascades included — the same rule for
+clicks and chords, co-op and PVP. Both modes are compared directly in
+`server/tests/scoringParity.test.js`; change one and that suite fails.
+
 ## Testing
 
 Jest, in `server/tests/`, run from the repo root with `npm test`. Covers board

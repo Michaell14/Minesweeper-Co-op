@@ -122,10 +122,12 @@ describe('the first click on a room', () => {
         expect(savedBoard().flat().filter((cell) => cell.isMine)).toHaveLength(2);
     });
 
-    test('awards no score, since the click only initialised the board', async () => {
+    test('scores every cell the opening cascade revealed, not one for the click', async () => {
         await coop.openCell(1, 1, ROOM, SOCKET, firstClickState(), '0');
 
-        expect(scoreWrites()).toHaveLength(0);
+        const opened = savedBoard().flat().filter((cell) => cell.isOpen).length;
+        expect(opened).toBeGreaterThan(1);            // it really did cascade
+        expect(scoreWrites()).toEqual([[`player:${SOCKET}`, { score: String(opened) }]]);
     });
 
     test('releases the init lock', async () => {
@@ -145,10 +147,22 @@ describe('a later click on an initialised board', () => {
         expect(emitted('boardUpdate')).toBeNull();
     });
 
-    test('awards exactly one point regardless of how the cell was reached', async () => {
+    test('awards one point for a click that opens exactly one cell', async () => {
         await coop.openCell(0, 0, ROOM, SOCKET, roomStateWith(playedBoard()), '4');
 
         expect(client.hSet).toHaveBeenCalledWith(`player:${SOCKET}`, { score: '5' });
+    });
+
+    test('awards a point per cell when the click cascades', async () => {
+        // (0,0) claims 0 adjacent mines, so opening it also opens its neighbours.
+        const board = playedBoard();
+        board[0][0].nearbyMines = 0;
+
+        await coop.openCell(0, 0, ROOM, SOCKET, roomStateWith(board), '4');
+
+        const opened = savedBoard().flat().filter((cell) => cell.isOpen).length;
+        expect(opened).toBe(4);                        // (0,0) plus three neighbours
+        expect(client.hSet).toHaveBeenCalledWith(`player:${SOCKET}`, { score: '8' });
     });
 
     test('persists the opened board', async () => {
@@ -236,8 +250,8 @@ describe('when another player is initialising the same room', () => {
         // The loser of the race must not generate a board of its own...
         const init = client.hSet.mock.calls.find((c) => c[1] && c[1].initialized);
         expect(init).toBeUndefined();
-        // ...nor score for a click that only waited.
-        expect(scoreWrites()).toHaveLength(0);
+        // ...but it still scores what its own click opened on the board it loaded.
+        expect(scoreWrites()).toEqual([[`player:${SOCKET}`, { score: '1' }]]);
         expect(emitted('updateCells')).not.toBeNull();
     });
 });

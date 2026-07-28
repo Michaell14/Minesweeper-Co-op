@@ -14,12 +14,13 @@ const playerRepo = require('../data/playerRepo');
 const { SERVER_EVENTS } = require('../../shared/events');
 
 /**
- * Reveals cells from (r, c). Hitting a mine ends the game for the WHOLE room and
+ * Reveals cells from (r, c) and returns how many SAFE cells were opened, which
+ * is what the player scores. Hitting a mine ends the game for the WHOLE room and
  * records who did it, which is the only way this differs from the PVP version.
  */
 const reveal = async (board, r, c, room, socketId, toUpdate) => {
-    const { hitMine } = revealFrom(board, r, c, toUpdate);
-    if (!hitMine) return;
+    const { hitMine, cellsRevealed } = revealFrom(board, r, c, toUpdate);
+    if (!hitMine) return cellsRevealed;
 
     const gameOverName = await playerRepo.getName(socketId);
     io.to(room).emit(SERVER_EVENTS.GAME_OVER, gameOverName);
@@ -32,6 +33,7 @@ const reveal = async (board, r, c, room, socketId, toUpdate) => {
     // clients are no longer given mine positions up front, so without it the
     // board would show a single detonated mine and nothing else.
     io.to(room).emit(SERVER_EVENTS.BOARD_UPDATE, projectBoard(board, { revealMines: true }));
+    return cellsRevealed;
 };
 
 // Opens a cell
@@ -96,18 +98,21 @@ const openCell = async (row, col, room, socketId, roomState, playerScore) => {
                     break;
                 }
             }
-            // Don't award score for this click since we didn't initialize
         }
-    } else if (!board[row][col].isMine) {
-        // Update player score in a single database operation
-        const currentScore = parseInt(playerScore || '0', 10) || 0;
-        await playerRepo.setScore(socketId, currentScore + 1);
-        await updatePlayerStatsInRoom(room);
     }
 
     // Reveal cells and update board state
     const toUpdate = [];
-    await reveal(board, row, col, room, socketId, toUpdate);
+    const cellsRevealed = await reveal(board, row, col, room, socketId, toUpdate);
+
+    // One point per safe cell opened, cascades included — the same rule PVP
+    // uses. Scoring per click instead undercounted the player who triggered a
+    // large cascade, and disagreed with chording, which already scored per cell.
+    if (cellsRevealed > 0) {
+        const currentScore = parseInt(playerScore || '0', 10) || 0;
+        await playerRepo.setScore(socketId, currentScore + cellsRevealed);
+        await updatePlayerStatsInRoom(room);
+    }
 
     // Save board first before checking win condition
     await roomRepo.setBoard(room, board);
@@ -148,10 +153,7 @@ const chordCell = async (row, col, room, socketId, roomState) => {
     if (flaggedCells === board[row][col].nearbyMines) {
         for (const adj of adjacentCells) {
             if (!adj.isFlagged && !adj.isOpen) {
-                await reveal(board, adj.row, adj.col, room, socketId, toUpdate);
-                if (!adj.isMine) {
-                    scoreIncrement++;
-                }
+                scoreIncrement += await reveal(board, adj.row, adj.col, room, socketId, toUpdate);
             }
         }
     }
