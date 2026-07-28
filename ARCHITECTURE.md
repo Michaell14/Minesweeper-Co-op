@@ -45,7 +45,9 @@ lib/
   confetti.ts             canvas-confetti wrapper
 types/
   canvas-confetti.d.ts    Local typings for a dependency that ships none
-scripts/ensure-redis.js   Dev helper: starts local Redis if port 6379 is closed
+scripts/
+  ensure-redis.js         Dev helper: starts local Redis if port 6379 is closed
+  ui-smoke/               Headless-Chrome smoke test for the client (npm run test:ui)
 server/                   Separate npm package (own package.json, lockfile, node_modules)
   server.js               Every socket.on handler + isValid() room/membership guard
   validation.js           Pure socket payload validators (limits, coords, membership)
@@ -281,12 +283,15 @@ npm install                # frontend deps (repo root)
 npm --prefix server install   # backend deps
 npm run dev:all            # starts local Redis if needed, then server (:3001) + Next (:3000)
 npm test                   # server test suite (Jest) — proxies to `npm --prefix server test`
+npm run test:ui            # client smoke test in headless Chrome (needs dev:all running)
 npm run lint
 ```
 
 Local Redis is expected on `127.0.0.1:6379`; `scripts/ensure-redis.js` will try to start it. The server reads `DB_PASS`, `HOST`, `REDIS_PORT` from `server/.env` (gitignored) and falls back to localhost defaults.
 
-**Tests** live in `server/tests/` and cover the pure layer only: board generation, the solvability engine, and `checkWin` with `io`/Redis mocked. There are no client tests.
+**Tests.** `server/tests/` covers the server with Jest and no real infrastructure.
+`scripts/ui-smoke/` drives the actual client in headless Chrome against a local
+backend — the only automated frontend coverage there is. See CLAUDE.md.
 
 ---
 

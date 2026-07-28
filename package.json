@@ -10,6 +10,7 @@
     "start": "next start",
     "lint": "next lint",
     "test": "npm --prefix server test",
+    "test:ui": "node scripts/ui-smoke/run.js",
     "start-server": "cd server && node server.js",
     "heroku-postbuild": "cd server && npm install"
   },

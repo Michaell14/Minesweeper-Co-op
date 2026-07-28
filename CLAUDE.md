@@ -18,6 +18,7 @@ npm run dev:all            # Redis (auto-start) + backend :3001 + frontend :3000
 npm run dev                # frontend only
 npm run start-server       # backend only
 npm test                   # server Jest suite (proxies to `npm --prefix server test`)
+npm run test:ui            # browser smoke test; needs dev:all running
 npm run lint
 npm run build
 ```
@@ -78,8 +79,16 @@ require-order regression.
 test reaches real infrastructure; declare a per-file `jest.mock` when you need to
 assert on them (`gameUtils.test.js` shows the pattern).
 
-There are **no client tests** and no integration tests in the repo. Changes to
-`Grid`/`Cell`/`page` must be verified by running the app, and anything touching
-socket payloads end-to-end is worth driving with a throwaway script against a
-local server plus Redis — that is how the mine-projection and mode-split work was
-checked.
+For the client, `npm run test:ui` drives the real app in headless Chrome against
+a local backend (`scripts/ui-smoke/`). It needs `npm run dev:all` running first,
+and uses the Chrome already on the machine — no extra dependencies. It covers
+room creation, the first-click cascade, flagging, the flag counter, reset,
+leaving, and a two-client PVP round. **Run it after touching `app/`,
+`components/` or `hooks/`.**
+
+It does not cover chording: making a chord do something visible requires knowing
+where the mines are, and the client deliberately cannot see that (boards are
+projected server-side). Test chording against the server.
+
+There are no component unit tests, so anything below that level still needs a
+manual pass.
