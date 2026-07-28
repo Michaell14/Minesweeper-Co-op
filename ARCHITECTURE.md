@@ -45,9 +45,10 @@ components/
   Landing.tsx             Create/join forms, custom-difficulty dialog, name dialogs
   Footer.tsx              GitHub link + how-to-play dialog
   ui/                     Generated Chakra snippets. Not hand-maintained
+shared/                   Imported by BOTH halves; viable because the whole repo deploys (§6)
+  boardConfig.js          Difficulty presets, size limits, the validity rule
 lib/
   dialogs.ts              Every dialog id, plus openDialog/closeDialog
-  difficultyConfig.ts     Easy/Medium/Hard presets
   initSocket.ts           socket.io-client factory (URL from NEXT_PUBLIC_SOCKET_URL)
   throttle.ts             throttle() + generateColorFromId() for hover colors
   confetti.ts             canvas-confetti wrapper
@@ -377,8 +378,8 @@ These are real, currently unfixed, and worth knowing before changing related cod
 
 | Concept | Where it lives | Duplicates to keep in sync |
 |---|---|---|
-| Difficulty presets | `lib/difficultyConfig.tsx` | defaults `16,16,40` also hardcoded in `app/store.tsx:144`, `app/page.tsx:96`, `components/Landing.tsx:92` |
-| Board size/mine rules | `server/validation.js` | client copy with *different* limits in `components/Landing.tsx:71-85` |
+| Difficulty presets | `shared/boardConfig.js` | — |
+| Board size/mine rules | `shared/boardConfig.js` | — |
 | Socket event names | nowhere — string literals on both sides | `app/page.tsx`, `server/server.js`, `server/utils/*`, `server/controllers/pvpController.js` |
 | Redis key names | `server/data/keys.js` | — |
 | CORS origins | `server/config.js` | — |

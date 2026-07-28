@@ -4,6 +4,7 @@ import { useCallback, useMemo } from "react";
 import { Socket } from "socket.io-client";
 import { useMinesweeperStore } from "@/app/store";
 import { throttle } from "@/lib/throttle";
+import { DEFAULT_DIFFICULTY, DEFAULT_PRESET } from "@/shared/boardConfig";
 
 /**
  * Every client -> server emit, in one place.
@@ -27,8 +28,8 @@ export function useGameActions(socket: Socket | null) {
         store.setPlayerJoined(false);
         store.setBoard([]);
         store.setName("");
-        store.setDimensions(16, 16, 40); // Default: Medium difficulty
-        store.setDifficulty("Medium");
+        store.setDimensions(DEFAULT_PRESET.rows, DEFAULT_PRESET.cols, DEFAULT_PRESET.mines);
+        store.setDifficulty(DEFAULT_DIFFICULTY);
         store.clearAllHovers();
         store.resetPvpState(); // also resets gameOver/gameWon
         store.setMode("co-op");

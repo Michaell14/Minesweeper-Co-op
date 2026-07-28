@@ -1,12 +1,11 @@
 import { StateCreator } from 'zustand';
+import { DEFAULT_DIFFICULTY, DEFAULT_PRESET } from '@/shared/boardConfig';
 import type { MinesweeperState } from './store';
 
 /**
  * Board dimensions, difficulty label and game mode.
  *
- * The 16/16/40 defaults are Medium. They are also hardcoded in
- * hooks/useGameActions (leaveRoom) and components/Landing (cancelCustom) —
- * see ARCHITECTURE.md §8.
+ * Defaults come from shared/boardConfig, which the server validates against too.
  */
 export interface BoardConfigSlice {
     numRows: number;
@@ -21,10 +20,10 @@ export interface BoardConfigSlice {
 }
 
 export const createBoardConfigSlice: StateCreator<MinesweeperState, [], [], BoardConfigSlice> = (set) => ({
-    numRows: 16,
-    numCols: 16,
-    numMines: 40,
-    difficulty: 'Medium',
+    numRows: DEFAULT_PRESET.rows,
+    numCols: DEFAULT_PRESET.cols,
+    numMines: DEFAULT_PRESET.mines,
+    difficulty: DEFAULT_DIFFICULTY,
     mode: 'co-op',
 
     setDimensions: (rows, cols, mines) => set({ numRows: rows, numCols: cols, numMines: mines }),
