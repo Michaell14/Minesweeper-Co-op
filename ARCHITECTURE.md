@@ -315,6 +315,12 @@ was never deployed. It has been retired; do not recreate that pattern.
 | Frontend (Vercel) | `main` | on push |
 | Backend (Heroku) | `main` | GitHub auto-deploy, whole repo |
 
+**Node is pinned to 22.x** via `engines.node` in the root `package.json`, which
+is what the Heroku buildpack reads. Vercel and CI use 22 too, so the runtime that
+serves production is the one the tests run on. `.nvmrc` mirrors it for local
+work. Before this was pinned the buildpack took "current LTS" and the dyno drifted
+to Node 24 while everything else stayed on 22.
+
 **Heroku deploys the whole repository**, not just `server/`. The Node buildpack
 runs `npm install` at the root, then `heroku-postbuild` (`cd server && npm
 install`), and the root `/Procfile` starts it with `web: cd server && node
@@ -374,7 +380,6 @@ These are real, currently unfixed, and worth knowing before changing related cod
 2. **Scoring differs per mode.** Co-op awards +1 per click regardless of cascade size and nothing on the board-initializing click (`game/coop.js`); PVP awards +1 per revealed cell (`game/pvp.js`).
 3. **`server/Procfile` is inert.** The deploy uses the root `/Procfile`; this one is a leftover from the subtree-push model — see §6.
 4. **Heroku installs the whole frontend dependency tree and never uses it.** The root `npm install` pulls Next, React, Chakra and the rest onto a dyno that only runs `cd server && node server.js`; `heroku-postbuild` replaces the `build` script, so the frontend is never built there. Wasted build time and slug size, not a correctness problem.
-5. **The dyno's Node version is unpinned.** `engines.node` is unspecified, so the buildpack resolves "current LTS" — Node 24 as of the last build, while Vercel and CI use 22. A future LTS release changes the backend runtime with no commit.
 
 *Fixed, kept here so they aren't reintroduced:* the `gameUtils` ⇄ `playerUtils`
 require cycle that silently broke co-op score resets (see §3); the stale room
