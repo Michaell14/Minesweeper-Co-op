@@ -80,7 +80,7 @@ Read `ARCHITECTURE.md` §8-9 before changing server code. The ones most likely t
 5. **Dialogs are native `<dialog>` elements**, opened imperatively via `openDialog(DIALOGS.x)`. NES.css styling and the `form method="dialog"` close behaviour depend on that, so don't convert them to conditional rendering casually. Never type a dialog id as a string literal — import it from `lib/dialogs.ts`.
 6. **`components/ui/` is generated Chakra code.** Don't hand-edit it.
 7. **PVP players race the SAME board**, generated once by `startPvpGame` with a shared opening already revealed. Don't reintroduce per-player generation on first click — that is what used to make the layouts differ.
-8. **The root `/Procfile` and `heroku-postbuild` are load-bearing** — Heroku deploys the whole repo and starts it with them. `server/Procfile` is an inert leftover. Don't "tidy" the root ones, and see ARCHITECTURE.md §6 before touching the duplicated server deps in the root `package.json`.
+8. **The root `/Procfile` and `heroku-postbuild` are load-bearing** — Heroku deploys the whole repo and starts it with them, and it is now the only Procfile (a second, inert one under `server/` was removed). Don't "tidy" the root ones, and see ARCHITECTURE.md §6 before touching the duplicated server deps in the root `package.json`.
 
 ## CI
 
