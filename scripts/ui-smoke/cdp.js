@@ -4,6 +4,12 @@
  * Uses the Chrome already installed on the machine plus Node's global WebSocket,
  * so the UI smoke test needs no extra dependencies. Set CHROME_PATH to override
  * the binary.
+ *
+ * On CI (anywhere `CI` is set) two extra flags go on. Chrome's sandbox needs
+ * user namespaces, which a CI container may not grant, and /dev/shm is often
+ * small enough there that the renderer dies partway through a run — a failure
+ * that reads like a flaky test rather than a missing flag. Neither flag is
+ * wanted locally, where the sandbox works and should stay on.
  */
 const { spawn } = require('child_process');
 
@@ -36,6 +42,7 @@ function findChrome() {
 
 async function launchChrome() {
     const binary = findChrome();
+    const ciFlags = process.env.CI ? ['--no-sandbox', '--disable-dev-shm-usage'] : [];
     const proc = spawn(binary, [
         '--headless=new',
         `--remote-debugging-port=${PORT}`,
@@ -44,6 +51,7 @@ async function launchChrome() {
         '--no-default-browser-check',
         '--disable-gpu',
         '--window-size=1440,900',
+        ...ciFlags,
         'about:blank',
     ], { stdio: 'ignore' });
 

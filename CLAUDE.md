@@ -84,14 +84,25 @@ Read `ARCHITECTURE.md` §8-9 before changing server code. The ones most likely t
 
 ## CI
 
-`.github/workflows/ci.yml` runs lint, `tsc --noEmit`, the server tests and a
-production build on every PR and on `main` after merge. `main` auto-deploys to
-Vercel and Heroku, so a red `main` means production is about to be broken —
-treat it as an incident, not a chore.
+`.github/workflows/ci.yml` runs on every PR and on `main` after merge, in two
+jobs:
 
-`npm run test:ui` is **not** in CI: it drives real Chrome against a running
-client, server and Redis, which is slower and racier than the checks above. Run
-it locally before merging anything under `app/`, `components/` or `hooks/`.
+- **`checks`** — lint, `tsc --noEmit`, the server tests, a production build.
+- **`ui-smoke`** — `npm run test:ui` against a real stack: a `redis:7` service
+  container, the backend and the Next dev server, driven through headless
+  Chrome. Roughly two minutes.
+
+`main` auto-deploys to Vercel and Heroku, so a red `main` means production is
+about to be broken — treat it as an incident, not a chore.
+
+They are separate jobs deliberately. `ui-smoke` is the flakiest thing in the
+pipeline, and when it fails the lint and test results should still be readable
+rather than buried under a browser timeout. Running it locally is still faster
+than waiting for CI, but it is no longer the only thing standing between a
+client regression and `main`.
+
+`npm run verify:deploy` is NOT in CI: it plays a real game against production.
+Run it after a release, by hand.
 
 ## Scoring
 
@@ -115,7 +126,10 @@ a local backend (`scripts/ui-smoke/`). It needs `npm run dev:all` running first,
 and uses the Chrome already on the machine — no extra dependencies. It covers
 room creation, the first-click cascade, flagging, the flag counter, reset,
 leaving, and a two-client PVP round. **Run it after touching `app/`,
-`components/` or `hooks/`.**
+`components/` or `hooks/`** — CI runs it too, but locally it is the faster loop.
+
+`CI=1` adds `--no-sandbox` and `--disable-dev-shm-usage`, which the runner needs
+and a laptop does not. Set it if you ever reproduce a CI-only browser failure.
 
 It does not cover chording: making a chord do something visible requires knowing
 where the mines are, and the client deliberately cannot see that (boards are
