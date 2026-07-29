@@ -28,6 +28,7 @@ npm run dev                # frontend only
 npm run start-server       # backend only
 npm test                   # server Jest suite (proxies to `npm --prefix server test`)
 npm run test:ui            # browser smoke test; needs dev:all running
+npm run verify:deploy      # plays a real game against the DEPLOYED backend
 npm run lint
 npm run build
 ```
@@ -65,6 +66,7 @@ Backend deps install separately: `npm --prefix server install`.
 | Difficulty presets, board limits, validity rule | `shared/boardConfig.js` — imported by both halves |
 | Socket event names | `shared/events.js` — imported by both halves |
 | Socket payload types | `shared/socketPayloads.ts` (+ `shared/events.d.ts` for literal names) |
+| Post-deploy check | `scripts/verify-deploy/` — `npm run verify:deploy` |
 | Dialogs | `lib/dialogs.ts` for ids and `openDialog`/`closeDialog`; markup in `components/dialogs/GameDialogs.tsx`, `Grid.tsx`, `Landing.tsx`, `Footer.tsx` |
 
 ## Traps
@@ -122,3 +124,15 @@ projected server-side). Chording is covered server-side instead, in
 
 There are no component unit tests, so anything below that level still needs a
 manual pass.
+
+`npm run verify:deploy` (`scripts/verify-deploy/`) is the only check that touches
+the deployed stack. It connects real sockets to production — override with
+`VERIFY_SERVER` — and plays enough of a game to prove the shared PVP board, the
+scoring rule and the projection guarantee survived the deploy. Run it after a
+release; it needs no local stack.
+
+Note what it does NOT prove on its own: comparing the two `pvpBoardUpdate`
+payloads passes even when the boards stored per player differ, because
+`startPvpGame` emits the board it just built rather than what it wrote. That is
+why the check plays a cell on both sides and compares the answers — only that
+reads the stored boards back.
