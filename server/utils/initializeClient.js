@@ -27,9 +27,28 @@ app.get('/', (req, res) => {
     res.send('Hello World! Server is running.')
 });
 
-// Health check route
+/**
+ * Which commit this process is running.
+ *
+ * HEROKU_SLUG_COMMIT is only set when dyno metadata is enabled, so the usual
+ * source is version.json, written at build time by scripts/write-version.js.
+ * Read once: it cannot change without a restart.
+ */
+const buildCommit = (() => {
+    if (process.env.HEROKU_SLUG_COMMIT) return process.env.HEROKU_SLUG_COMMIT;
+    try {
+        return require('../version.json').commit || 'unknown';
+    } catch {
+        return 'unknown';   // local dev, or a build that skipped the hook
+    }
+})();
+
+/**
+ * Health check. `commit` is what lets the post-deploy check tell a finished
+ * release from the one it replaced — see .github/workflows/ci.yml.
+ */
 app.get('/health', (req, res) => {
-    res.json({ status: 'ok', socketio: 'initialized' });
+    res.json({ status: 'ok', socketio: 'initialized', commit: buildCommit });
 });
 
 // Initialize Socket.io with explicit path and CORS settings

@@ -16,6 +16,9 @@
 # production
 /build
 
+# written at build time by scripts/write-version.js
+server/version.json
+
 # misc
 .DS_Store
 *.pem

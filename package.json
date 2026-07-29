@@ -16,7 +16,7 @@
     "test:ui": "node scripts/ui-smoke/run.js",
     "verify:deploy": "node scripts/verify-deploy/run.js",
     "start-server": "cd server && node server.js",
-    "heroku-postbuild": "cd server && npm install"
+    "heroku-postbuild": "node scripts/write-version.js && cd server && npm install"
   },
   "dependencies": {
     "@chakra-ui/react": "^3.2.3",

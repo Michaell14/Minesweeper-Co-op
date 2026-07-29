@@ -141,3 +141,58 @@ jobs:
         run: |
           echo "--- server ---"; cat /tmp/server.log || true
           echo "--- client ---"; cat /tmp/client.log || true
+
+  # Proves the RELEASE works, not just the code: main auto-deploys, so by the
+  # time this runs production is already serving whatever just merged.
+  #
+  # Only after both jobs pass, and never on a PR — it plays real games against
+  # production, creating (short-lived, randomly named) rooms.
+  verify-deploy:
+    name: verify production
+    runs-on: ubuntu-latest
+    needs: [checks, ui-smoke]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      # THE IMPORTANT STEP. This job starts the moment main moves, while Heroku
+      # is still building, so without waiting it would test the release this one
+      # REPLACED — and pass, reporting a deploy as verified that never happened.
+      # /health reports the commit the running slug was built from
+      # (scripts/write-version.js), so we wait for it to become ours.
+      - name: Wait for the backend to be running this commit
+        run: |
+          BACKEND=https://nameless-coast-33840-33c3fd45fe2d.herokuapp.com
+          for i in $(seq 1 60); do
+            # `|| ""` keeps this a plain string: a bare `undefined` comes back
+            # ANSI-coloured from node -pe and reads as garbage in the log.
+            LIVE=$(curl -sf --max-time 10 "$BACKEND/health" \
+              | node -pe 'const j=JSON.parse(require("fs").readFileSync(0,"utf8")); j.commit || ""' 2>/dev/null || echo "")
+            if [ "$LIVE" = "${{ github.sha }}" ]; then
+              echo "backend is running ${LIVE:0:9} after $((i * 10))s"
+              exit 0
+            fi
+            SHORT=${LIVE:0:9}
+            echo "waiting: live=${SHORT:-<none reported>} want=$(echo ${{ github.sha }} | cut -c1-9)"
+            sleep 10
+          done
+          echo
+          echo "The backend never reported this commit."
+          echo "Either the Heroku deploy failed or did not finish within 10 minutes,"
+          echo "or heroku-postbuild did not run scripts/write-version.js (a live"
+          echo "commit of 'unknown' means the latter)."
+          exit 1
+
+      - name: Verify the deployed backend
+        run: npm run verify:deploy
