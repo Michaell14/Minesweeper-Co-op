@@ -10,8 +10,10 @@
  * event nobody listened to and no error anywhere. `server/tests/events.test.js`
  * enforces that the server's source uses these constants rather than literals.
  *
- * Payload shapes are documented in ARCHITECTURE.md §4; they are not typed here,
- * because the server is plain JS and would gain nothing from a TS-only type.
+ * Payload shapes live in `shared/socketPayloads.ts`, and `shared/events.d.ts`
+ * gives these names literal types so the client can look a payload up by event.
+ * Both are TypeScript, so they bind the client only — this file stays plain JS
+ * because the server requires it at runtime.
  */
 
 /** Client -> server. Every one is a `socket.on` handler in server/server.js. */

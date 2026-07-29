@@ -1,10 +1,17 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { Socket } from "socket.io-client";
+import type { AppSocket } from "@/lib/initSocket";
+import type { ServerToClientEvents } from "@/shared/socketPayloads";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type SocketHandlers = Record<string, (...args: any[]) => void>;
+/**
+ * A table of listeners, keyed by event name and typed by the protocol.
+ *
+ * This was `Record<string, (...args: any[]) => void>`, which accepted a handler
+ * for an event that doesn't exist and told you nothing about its argument. Now
+ * an unknown key or a mistyped payload is a compile error.
+ */
+export type SocketHandlers = { [E in keyof ServerToClientEvents]?: ServerToClientEvents[E] };
 
 /**
  * Registers a table of socket listeners and tears down exactly what it added.
@@ -25,7 +32,7 @@ export type SocketHandlers = Record<string, (...args: any[]) => void>;
  * The set of event NAMES is assumed stable for a given socket; only the function
  * bodies are allowed to change between renders.
  */
-export function useSocketEvents(socket: Socket | null, handlers: SocketHandlers): void {
+export function useSocketEvents(socket: AppSocket | null, handlers: SocketHandlers): void {
     const handlersRef = useRef(handlers);
     handlersRef.current = handlers;
 
@@ -35,10 +42,14 @@ export function useSocketEvents(socket: Socket | null, handlers: SocketHandlers)
     useEffect(() => {
         if (!socket) return;
 
-        const registered = eventNames.split("|").map((event) => {
+        // Registration is by name at runtime, so the types are erased here and
+        // restored at the boundary. The casts are confined to these four lines;
+        // everything a caller touches stays typed.
+        const registered = (eventNames.split("|") as (keyof ServerToClientEvents)[]).map((event) => {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const listener = (...args: any[]) => handlersRef.current[event]?.(...args);
-            socket.on(event, listener);
+            const listener = (...args: any[]) => (handlersRef.current[event] as any)?.(...args);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            socket.on(event as any, listener);
             return { event, listener };
         });
 
@@ -47,7 +58,8 @@ export function useSocketEvents(socket: Socket | null, handlers: SocketHandlers)
         socket.connect();
 
         return () => {
-            registered.forEach(({ event, listener }) => socket.off(event, listener));
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            registered.forEach(({ event, listener }) => socket.off(event as any, listener));
         };
     }, [socket, eventNames]);
 }

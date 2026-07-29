@@ -239,6 +239,8 @@ Players are keyed by socket id, so a reconnect is a new player row.
 | `pvpRematch` | `{room}` | `pvpController.js:146` |
 | `playerLeave` | — | `server.js:293` |
 
+Shapes are typed in `shared/socketPayloads.ts` (`ClientToServerEvents`).
+
 ### Server → Client — shared / co-op
 
 | Event | Payload |
@@ -271,9 +273,22 @@ Players are keyed by socket id, so a reconnect is a new player row.
 | `pvpOpponentDisconnected` | `{winnerSocket, winnerName}` |
 | `pvpRematchStarted` | `{totalSafeCells, isHost}` |
 
-Event names come from `shared/events.js`, and `server/tests/events.test.js`
-enforces that both halves use the constants and that the client's table covers
-exactly what the server sends.
+Shapes are typed in `shared/socketPayloads.ts` (`ServerToClientEvents`).
+
+Event names come from `shared/events.js` and the payload shapes above are typed
+in `shared/socketPayloads.ts`, so the tables in this section describe the
+protocol but are no longer the only record of it.
+
+`server/tests/events.test.js` enforces that both halves use the constants, that
+the client's table covers exactly what the server sends, that
+`shared/events.d.ts` matches the runtime names, and that every event has a
+declared payload type.
+
+**The types bind the client only.** They are TypeScript, and the server is
+CommonJS, so `tsc` checks every client emit and handler against them while the
+server could still send something else. The server's own guard for INBOUND
+payloads is `server/validation.js`; what it SENDS is kept in step by hand. That
+is the one seam in the protocol without a mechanical check.
 
 Listeners live in one table in `hooks/useGameEvents.ts`. `useSocketEvents` registers it and derives the teardown from what it registered, unregistering the specific handler rather than every listener for that event name. Adding an event means adding one entry to that table (plus the server emit).
 
@@ -409,6 +424,7 @@ through both modes and compares, so the two can't drift apart again.
 
 | Concept | Where it lives | Duplicates to keep in sync |
 |---|---|---|
+| Socket payload shapes | `shared/socketPayloads.ts` | Client-side only; the server is unchecked (§4) |
 | Difficulty presets | `shared/boardConfig.js` | — |
 | Board size/mine rules | `shared/boardConfig.js` | — |
 | Socket event names | `shared/events.js` | — |

@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Socket } from "socket.io-client";
-import { initSocket } from "@/lib/initSocket";
+import { initSocket, type AppSocket } from "@/lib/initSocket";
 import { getOrCreateSessionId } from "@/lib/session";
 
 /**
@@ -11,8 +10,8 @@ import { getOrCreateSessionId } from "@/lib/session";
  * The socket is created but NOT connected here: `useSocketEvents` connects it
  * after listeners are attached, matching the original ordering.
  */
-export function useSocket(): Socket | null {
-    const [socket, setSocket] = useState<Socket | null>(null);
+export function useSocket(): AppSocket | null {
+    const [socket, setSocket] = useState<AppSocket | null>(null);
 
     useEffect(() => {
         // Persistent per-browser id, so a reload reconnects rather than

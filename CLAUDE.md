@@ -10,8 +10,10 @@ Real-time multiplayer Minesweeper. Two deployables in one repo:
 - **Backend** — `server/`, a **separate npm package** with its own `package.json`, lockfile, and `node_modules`. CommonJS, Express + Socket.io, state in Redis. Heroku.
 
 They share code only through `shared/` (see below). The socket protocol is the
-contract; its event names live in `shared/events.js` and its payload shapes are
-documented in ARCHITECTURE.md §4 but not typed.
+contract: event names live in `shared/events.js`, payload shapes in
+`shared/socketPayloads.ts`. The types bind the **client only** — the server is
+CommonJS and can't import them, so it validates inbound payloads with
+`server/validation.js` and its emits are kept in step by hand.
 
 **`main` is the trunk** — the GitHub default and the only branch anything deploys
 from. Heroku auto-deploys the whole repo from `main` and starts it with the root
@@ -26,6 +28,7 @@ npm run dev                # frontend only
 npm run start-server       # backend only
 npm test                   # server Jest suite (proxies to `npm --prefix server test`)
 npm run test:ui            # browser smoke test; needs dev:all running
+npm run verify:deploy      # plays a real game against the DEPLOYED backend
 npm run lint
 npm run build
 ```
@@ -62,6 +65,8 @@ Backend deps install separately: `npm --prefix server install`.
 | Room create/join UI | `components/Landing.tsx` |
 | Difficulty presets, board limits, validity rule | `shared/boardConfig.js` — imported by both halves |
 | Socket event names | `shared/events.js` — imported by both halves |
+| Socket payload types | `shared/socketPayloads.ts` (+ `shared/events.d.ts` for literal names) |
+| Post-deploy check | `scripts/verify-deploy/` — `npm run verify:deploy` |
 | Dialogs | `lib/dialogs.ts` for ids and `openDialog`/`closeDialog`; markup in `components/dialogs/GameDialogs.tsx`, `Grid.tsx`, `Landing.tsx`, `Footer.tsx` |
 
 ## Traps
@@ -69,7 +74,7 @@ Backend deps install separately: `npm --prefix server install`.
 Read `ARCHITECTURE.md` §8-9 before changing server code. The ones most likely to bite:
 
 1. **Don't reintroduce imports between `gameUtils` and `playerUtils`.** They used to require each other, which made `resetGame()` throw silently depending on load order. Shared board helpers go in `server/domain/board.js`, which must stay dependency-free. `tests/resetGame.test.js` guards this and its require order is load-bearing.
-2. **Adding a socket event touches three places**: `shared/events.js`, the server handler/emit, and the client table in `hooks/useGameEvents.ts`. `server/tests/events.test.js` fails if they drift. (Redis keys, validation rules, board config and event names are all single-source now.)
+2. **Adding a socket event touches five places**: `shared/events.js`, `shared/events.d.ts`, `shared/socketPayloads.ts`, the server handler/emit, and the client table in `hooks/useGameEvents.ts`. `server/tests/events.test.js` fails if they drift. (Redis keys, validation rules, board config and event names are all single-source now.)
 3. **`components/Grid.tsx` still has two layout wrappers** (desktop `hideBelow="xl"`, mobile `hideFrom="xl"`), so the board mounts twice in the DOM. Their *content* is now shared via `components/game/`, so edit the component, not the wrapper. Where the layouts genuinely differ, it is an explicit prop (`variant`), not a second copy.
 4. **Socket handlers go in the `hooks/useGameEvents.ts` table**, not in a component. Registration and cleanup are derived from that table; don't call `socket.on` directly.
 5. **Dialogs are native `<dialog>` elements**, opened imperatively via `openDialog(DIALOGS.x)`. NES.css styling and the `form method="dialog"` close behaviour depend on that, so don't convert them to conditional rendering casually. Never type a dialog id as a string literal — import it from `lib/dialogs.ts`.
@@ -119,3 +124,15 @@ projected server-side). Chording is covered server-side instead, in
 
 There are no component unit tests, so anything below that level still needs a
 manual pass.
+
+`npm run verify:deploy` (`scripts/verify-deploy/`) is the only check that touches
+the deployed stack. It connects real sockets to production — override with
+`VERIFY_SERVER` — and plays enough of a game to prove the shared PVP board, the
+scoring rule and the projection guarantee survived the deploy. Run it after a
+release; it needs no local stack.
+
+Note what it does NOT prove on its own: comparing the two `pvpBoardUpdate`
+payloads passes even when the boards stored per player differ, because
+`startPvpGame` emits the board it just built rather than what it wrote. That is
+why the check plays a cell on both sides and compares the answers — only that
+reads the stored boards back.
