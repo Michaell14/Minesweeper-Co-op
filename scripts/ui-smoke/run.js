@@ -216,22 +216,67 @@ async function pvp(host, guest) {
     const hostBefore = await hostProgress();
     const seenBefore = await guestSeesHost();
 
-    // Click a cell that is still closed, so the move actually reveals something.
-    await host.evaluate(`
+    /**
+     * Opens the nth still-closed cell.
+     *
+     * The index matters: resetting restores the same starting board, so always
+     * taking the FIRST closed cell means clicking the same square again — and if
+     * that square is a mine, every attempt dies on it. One local run spent 19 of
+     * 20 attempts that way. Advancing the index walks past it.
+     */
+    const openAClosedCell = (nth) => host.evaluate(`
         const grids = [...document.querySelectorAll('[role=grid]')];
         const grid = grids.find(g => g.offsetParent !== null) || grids[0];
-        const closed = [...grid.querySelectorAll('[role=gridcell]')].find(c => (c.getAttribute('aria-label') || '').startsWith('Unrevealed'));
-        if (!closed) throw new Error('no closed cell to open');
-        closed.children[1].click();
+        const closed = [...grid.querySelectorAll('[role=gridcell]')].filter(c => (c.getAttribute('aria-label') || '').startsWith('Unrevealed'));
+        if (!closed.length) throw new Error('no closed cell to open');
+        closed[${nth} % closed.length].children[1].click();
         return true;
     `);
+
+    /** Takes the "Reset My Board" offer if the last click hit a mine. */
+    const reviveIfDead = () => host.evaluate(`
+        const btn = [...document.querySelectorAll('button')].find(b => b.offsetParent !== null && b.textContent.includes('Reset My Board'));
+        if (btn) { btn.click(); return true; }
+        return false;
+    `);
+
+    /*
+     * Two things make a single click a bad test of progress.
+     *
+     * Progress is a whole percent, so one cell need not move the number: CI
+     * opened 108 of 216 safe cells, exactly 50%, and 109 is still 50% rounded.
+     * And a closed cell may be a mine — the client cannot tell which, by design
+     * (boards are projected), so roughly a quarter of blind clicks end the
+     * host's game and freeze their progress entirely.
+     *
+     * So: keep opening cells until the HOST's own number moves, taking the
+     * reset whenever a mine ends the run. Then check the guest saw the same
+     * number. Clicking once and hoping made this pass or fail on whether that
+     * cell happened to cascade.
+     */
+    let hostAfter = hostBefore;
+    let deaths = 0;
+    for (let attempt = 0; attempt < 20 && hostAfter <= hostBefore; attempt++) {
+        if (await reviveIfDead()) {
+            deaths++;
+            await sleep(400);
+        }
+        await openAClosedCell(attempt);
+        await sleep(400);
+        hostAfter = await hostProgress();
+    }
     await host.waitFor(`${revealedCount} > ${hostBoardAtStart}`, { label: 'host reveals more' });
     pass("the host's move reveals more of their own board");
 
+    check(hostAfter > hostBefore,
+        `the host's own progress rises (${hostBefore}% -> ${hostAfter}%` +
+            (deaths ? `, after ${deaths} mine${deaths > 1 ? 's' : ''}` : '') + ')',
+        'opened cells but the percentage never moved');
+
     check(await settles(guest, `(() => {
         const m = document.body.textContent.match(/Host:\\s*(\\d+)%/);
-        return m && parseInt(m[1], 10) > ${seenBefore};
-    })()`), `the guest sees the host's progress rise (from ${seenBefore}%)`);
+        return m && parseInt(m[1], 10) === ${hostAfter};
+    })()`), `the guest sees the host at ${hostAfter}% (was ${seenBefore}%)`);
 
     const guestBoardAfter = await guest.evaluate(`return ${revealedCount};`);
     check(guestBoardAfter === guestBoardAtStart,
