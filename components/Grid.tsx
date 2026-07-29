@@ -3,14 +3,20 @@
  * Game screen layout. The board, status banner, progress bars, score table and
  * flag counter all live in components/game/ and are shared by both layouts.
  *
- * Two layouts remain, because they are genuinely different arrangements rather
+ * Two CONTROL arrangements remain, because they are genuinely different rather
  * than copies: desktop puts controls in sticky side panels either side of the
  * board, mobile stacks them above a scrollable board and swaps the inline score
  * table for a trophy dialog. What used to be duplicated was the *content* of
  * those arrangements, which is now written once.
+ *
+ * The BOARD is not duplicated. It used to be rendered inside each arrangement,
+ * which put two copies of every cell in the DOM — 512 for a 16x16 game — and
+ * re-rendered both on every update. Both clusters now sit on one flex line with
+ * the board between them, so exactly one board is mounted and CSS decides which
+ * controls are visible.
  */
 import React, { useEffect } from 'react';
-import { Center, Container, HStack, VStack, Box } from "@chakra-ui/react";
+import { Container, Flex, HStack, VStack, Box } from "@chakra-ui/react";
 import { useMinesweeperStore } from '@/app/store';
 import { Switch } from "@/components/ui/switch";
 import Board from '@/components/game/Board';
@@ -160,19 +166,110 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
                     {gameOver && "Game over! A mine was triggered."}
                 </div>
 
-                {/* ---------------------------------------------------------------- */}
-                {/* DESKTOP: sticky side panels either side of the board              */}
-                {/* ---------------------------------------------------------------- */}
-                <Center hideBelow={"xl"} justifyContent={"space-around"} alignItems={"flex-start"} mt={16} gap={20}>
-                    <div className="flex flex-col sticky top-20">
+                {/*
+                  * One flex line that is a row on desktop and a column below it.
+                  *
+                  * The DOM order — mobile controls, desktop-left, board,
+                  * desktop-right — is what makes both arrangements work without
+                  * any `order` juggling: whichever cluster does not belong to the
+                  * current breakpoint is display:none and drops out of the flex
+                  * line entirely. Mobile then reads controls-then-board, desktop
+                  * reads left-board-right.
+                  */}
+                <Flex
+                    direction={{ base: "column", xl: "row" }}
+                    align={{ base: "center", xl: "flex-start" }}
+                    justify={{ xl: "space-around" }}
+                    gap={{ base: 0, xl: 20 }}
+                    mt={{ base: 10, xl: 16 }}>
+
+                    {/* ------------------------------------------------------------ */}
+                    {/* MOBILE: controls stacked above the board                      */}
+                    {/* ------------------------------------------------------------ */}
+                    <VStack hideFrom={"xl"}>
+                        <HStack gap={8}>
+                            {leaveButton}
+                            {actionButtons}
+                        </HStack>
+
+                        <HStack gap={8}>
+                            {roomPanel("my-6 bg-slate-100 nes-container is-centered with-title max-w-60")}
+                            {/* Trophy button - only show in co-op mode */}
+                            {mode !== 'pvp' &&
+                                <button
+                                    className="nes-icon trophy is-medium"
+                                    onClick={openPlayersDialog}
+                                    aria-label="View player scores"
+                                    style={{ border: 'none', background: 'none', cursor: 'pointer' }}
+                                />
+                            }
+                        </HStack>
+
+                        {/* PVP: Progress bars and flag counter for mobile */}
+                        {mode === 'pvp' && pvpStarted &&
+                            <div className="w-full max-w-60 mb-4">
+                                <div className="mb-2">
+                                    <ProgressBar label="You" percent={ownProgressPercent} colorClass="bg-blue-500" size="sm" />
+                                </div>
+                                <div>
+                                    <ProgressBar
+                                        label={pvpOpponentName}
+                                        percent={opponentProgressPercent}
+                                        colorClass={opponentBarColor(pvpOpponentStatus)}
+                                        size="sm"
+                                    />
+                                </div>
+                                <FlagCounter remainingFlags={remainingFlags} variant="inline" />
+                            </div>
+                        }
+
+                        <HStack gap={5} mb={5}>
+                            <Switch
+                                defaultChecked
+                                onCheckedChange={(e) => setIsChecked(e.checked)}
+                                size="lg"
+                                colorScheme="blue"
+                                aria-label={`Toggle between click and flag mode. Currently in ${isChecked ? "click" : "flag"} mode`}
+                            />
+                            <p className="mt-1.5" aria-hidden="true">{isChecked ? "Click" : "Flag"} Mode</p>
+                        </HStack>
+                    </VStack>
+
+                    {/* ------------------------------------------------------------ */}
+                    {/* DESKTOP: sticky side panels either side of the board          */}
+                    {/* ------------------------------------------------------------ */}
+                    <Box hideBelow={"xl"} className="flex flex-col sticky top-20">
                         {leaveButton}
                         {roomPanel("bg-slate-100 nes-container with-title max-w-60 mt-6")}
-                    </div>
-                    <div>
-                        <StatusBanner startPvpGame={startPvpGame} emitConfetti={emitConfetti} variant="desktop" />
+                    </Box>
+
+                    {/*
+                      * The board, mounted ONCE.
+                      *
+                      * It used to be rendered in each layout, so a 16x16 game put
+                      * 512 cells in the DOM and re-rendered both copies on every
+                      * update. It also meant every DOM query — in tests and in the
+                      * app — had to work out which copy was the visible one.
+                      *
+                      * The banner above it still has a variant per layout, so both
+                      * are rendered and one is hidden. That is two small nodes
+                      * rather than a second board.
+                      */}
+                    <Box
+                        overflow={{ base: "scroll", xl: "visible" }}
+                        maxW={"100%"}
+                        role="region"
+                        aria-label="Game board container">
+                        <Box hideBelow={"xl"}>
+                            <StatusBanner startPvpGame={startPvpGame} emitConfetti={emitConfetti} variant="desktop" />
+                        </Box>
+                        <Box hideFrom={"xl"}>
+                            <StatusBanner startPvpGame={startPvpGame} emitConfetti={emitConfetti} variant="mobile" />
+                        </Box>
                         <Board {...boardProps} />
-                    </div>
-                    <div className="flex flex-col sticky top-20">
+                    </Box>
+
+                    <Box hideBelow={"xl"} className="flex flex-col sticky top-20">
                         {actionButtons}
                         {/* PVP: Waiting for rematch (non-host, after game ends) */}
                         {mode === 'pvp' && pvpWinner && !pvpIsHost &&
@@ -229,70 +326,8 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
                             {mode !== 'pvp' && <ScoreTable />}
                             <FlagCounter remainingFlags={remainingFlags} variant="panel" />
                         </div>
-                    </div>
-                </Center>
-
-                {/* ---------------------------------------------------------------- */}
-                {/* MOBILE: controls stacked above a scrollable board                 */}
-                {/* ---------------------------------------------------------------- */}
-                <Center hideFrom={"xl"} mt={10}>
-                    <VStack>
-                        <HStack gap={8}>
-                            {leaveButton}
-                            {actionButtons}
-                        </HStack>
-
-                        <HStack gap={8}>
-                            {roomPanel("my-6 bg-slate-100 nes-container is-centered with-title max-w-60")}
-                            {/* Trophy button - only show in co-op mode */}
-                            {mode !== 'pvp' &&
-                                <button
-                                    className="nes-icon trophy is-medium"
-                                    onClick={openPlayersDialog}
-                                    aria-label="View player scores"
-                                    style={{ border: 'none', background: 'none', cursor: 'pointer' }}
-                                />
-                            }
-                        </HStack>
-
-                        {/* PVP: Progress bars and flag counter for mobile */}
-                        {mode === 'pvp' && pvpStarted &&
-                            <div className="w-full max-w-60 mb-4">
-                                <div className="mb-2">
-                                    <ProgressBar label="You" percent={ownProgressPercent} colorClass="bg-blue-500" size="sm" />
-                                </div>
-                                <div>
-                                    <ProgressBar
-                                        label={pvpOpponentName}
-                                        percent={opponentProgressPercent}
-                                        colorClass={opponentBarColor(pvpOpponentStatus)}
-                                        size="sm"
-                                    />
-                                </div>
-                                <FlagCounter remainingFlags={remainingFlags} variant="inline" />
-                            </div>
-                        }
-
-                        <Box hideFrom={"xl"}>
-                            <HStack gap={5}>
-                                <Switch
-                                    defaultChecked
-                                    onCheckedChange={(e) => setIsChecked(e.checked)}
-                                    size="lg"
-                                    colorScheme="blue"
-                                    aria-label={`Toggle between click and flag mode. Currently in ${isChecked ? "click" : "flag"} mode`}
-                                />
-                                <p className="mt-1.5" aria-hidden="true">{isChecked ? "Click" : "Flag"} Mode</p>
-                            </HStack>
-                        </Box>
-                    </VStack>
-                </Center>
-                <Center hideFrom={"xl"} mt={5}>
-                    <div className="overflow-scroll" role="region" aria-label="Game board container">
-                        <StatusBanner startPvpGame={startPvpGame} emitConfetti={emitConfetti} variant="mobile" />
-                        <Board {...boardProps} />
-                    </div>
-                </Center>
+                    </Box>
+                </Flex>
             </Container>
 
             <dialog

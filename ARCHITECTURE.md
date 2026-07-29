@@ -31,7 +31,7 @@ hooks/
   useGameActions.ts       Every client -> server emit
   useGameStats.ts         Remaining flags and PVP progress percentages
 components/
-  Grid.tsx                Layout only: a desktop arrangement and a mobile one
+  Grid.tsx                Layout only: one board, two control arrangements
   dialogs/
     GameDialogs.tsx       Game-over, room errors and PVP outcome dialogs
   game/                   Shared pieces used by both layouts
@@ -318,7 +318,7 @@ Create room with `mode: 'pvp'` (creator becomes `hostSocket`) → second player 
 > nobody can lose on move one, and neither starts from a blank grid.
 
 ### Chording
-Both mouse buttons pressed together, or the middle button. `Cell.tsx` writes `leftClick`/`rightClick`/`r`/`c` into the store; `Grid.tsx:119` watches for both being true and calls `chordCell(r, c)`; `bothPressed` suppresses the open/flag that would otherwise fire on mouse-up. The server opens all unflagged neighbors when the flag count matches the cell's number.
+Both mouse buttons pressed together, or the middle button. `Cell.tsx` writes `leftClick`/`rightClick`/`r`/`c` into the store; the chording `useEffect` in `Grid.tsx` watches for both being true and calls `chordCell(r, c)`; `bothPressed` suppresses the open/flag that would otherwise fire on mouse-up. The server opens all unflagged neighbors when the flag count matches the cell's number.
 
 ### Hover presence (co-op only)
 `Cell` `onMouseEnter` → throttled 100ms → `cellHover` → server broadcasts `playerHoverUpdate` to everyone else → each client colors the cell using a hash of the socket id. Suppressed in PVP (`server.js:251`).

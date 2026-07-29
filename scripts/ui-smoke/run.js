@@ -34,17 +34,23 @@ const check = (condition, label, detail) => (condition ? pass(label) : fail(labe
 const settles = (page, expression, timeout = 8000) =>
     page.waitFor(expression, { timeout }).then(() => true).catch(() => false);
 
-/** The board is rendered by both layout wrappers; only one is visible. */
+/**
+ * There is exactly one board in the DOM.
+ *
+ * These used to pick the visible grid out of two, because Grid.tsx rendered the
+ * board once per layout. They can address it directly now — and `gridCount`
+ * below asserts that, so this stays honest if the duplication ever returns.
+ */
 const VISIBLE_CELLS = `
-    const grids = [...document.querySelectorAll('[role=grid]')];
-    const grid = grids.find(g => g.offsetParent !== null) || grids[0];
+    const grid = document.querySelector('[role=grid]');
     return grid ? [...grid.querySelectorAll('[role=gridcell]')] : [];
 `;
 const revealedCount = `(() => {
-    const grids = [...document.querySelectorAll('[role=grid]')];
-    const grid = grids.find(g => g.offsetParent !== null) || grids[0];
+    const grid = document.querySelector('[role=grid]');
     return [...grid.querySelectorAll('[role=gridcell]')].filter(c => !(c.getAttribute('aria-label') || '').startsWith('Unrevealed')).length;
 })()`;
+const gridCount = `document.querySelectorAll('[role=grid]').length`;
+const cellCount = `document.querySelectorAll('[role=gridcell]').length`;
 
 async function preflight() {
     const probe = async (url, what) => {
@@ -96,9 +102,17 @@ async function coop(page) {
     pass('landing renders the create-room form');
 
     await enterRoom(page, { room, name: 'Alice' });
-    await page.waitFor(`(() => { const g = [...document.querySelectorAll('[role=grid]')].find(x => x.offsetParent !== null); return g && g.querySelectorAll('[role=gridcell]').length === 256; })()`,
-        { label: 'a 16x16 board renders' });
+    // `>=` rather than `===` so a duplicated board does not stall here for ten
+    // seconds and report a timeout; the check below then names the real problem.
+    await page.waitFor(`${cellCount} >= 256`, { label: 'a 16x16 board renders' });
     pass('createRoom round-trips and the board renders');
+
+    // One board, not one per layout. The duplicate copy was invisible, so
+    // nothing on screen gave it away — only the cell count does.
+    check(await page.evaluate(`return ${gridCount};`) === 1 && await page.evaluate(`return ${cellCount};`) === 256,
+        'the board is mounted once (1 grid, 256 cells)',
+        `got ${await page.evaluate(`return ${gridCount};`)} grids and ${await page.evaluate(`return ${cellCount};`)} cells; ` +
+        'a second copy means Grid.tsx is rendering the board per layout again');
     check(await page.evaluate(`return document.body.textContent.includes(${JSON.stringify(room)});`), 'room code is displayed');
 
     const flagsRemaining = () => page.evaluate(`
@@ -134,8 +148,7 @@ async function coop(page) {
     // Flagging a closed cell.
     const before = await flagsRemaining();
     await page.evaluate(`
-        const grids = [...document.querySelectorAll('[role=grid]')];
-        const grid = grids.find(g => g.offsetParent !== null) || grids[0];
+        const grid = document.querySelector('[role=grid]');
         const closed = [...grid.querySelectorAll('[role=gridcell]')].find(c => (c.getAttribute('aria-label') || '').startsWith('Unrevealed'));
         if (!closed) throw new Error('no closed cell left to flag');
         closed.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
@@ -225,8 +238,7 @@ async function pvp(host, guest) {
      * 20 attempts that way. Advancing the index walks past it.
      */
     const openAClosedCell = (nth) => host.evaluate(`
-        const grids = [...document.querySelectorAll('[role=grid]')];
-        const grid = grids.find(g => g.offsetParent !== null) || grids[0];
+        const grid = document.querySelector('[role=grid]');
         const closed = [...grid.querySelectorAll('[role=gridcell]')].filter(c => (c.getAttribute('aria-label') || '').startsWith('Unrevealed'));
         if (!closed.length) throw new Error('no closed cell to open');
         closed[${nth} % closed.length].children[1].click();
