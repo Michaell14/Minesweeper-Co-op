@@ -53,7 +53,91 @@ jobs:
       - name: Production build
         run: npm run build
 
-# Deliberately not here: scripts/ui-smoke (npm run test:ui). It drives real
-# Chrome against a running client, server and Redis, which is slower and
-# inherently racier than the checks above. Better run on a schedule or on
-# demand than as a required check — see CLAUDE.md.
+  # The only automated coverage the frontend has. It was left out of CI at first
+  # for being slow and racy, which meant anything under app/, components/ or
+  # hooks/ merged on the strength of someone remembering to run it locally.
+  #
+  # A separate job on purpose: it is the flakiest thing here, and when it does
+  # fail the lint/typecheck/test results should still be readable rather than
+  # buried under a browser timeout.
+  ui-smoke:
+    name: browser smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+
+    # Same shape as a developer's machine: unauthenticated Redis on the default
+    # port. The server reads HOST/REDIS_PORT/DB_PASS and falls back to exactly
+    # this when they are unset, so nothing needs configuring here.
+    services:
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            server/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Install server dependencies
+        run: npm ci --prefix server
+
+      # The runner image ships Chrome; scripts/ui-smoke/cdp.js finds it by path
+      # and honours CHROME_PATH. Fail here with a clear message rather than
+      # inside the test if that ever stops being true.
+      - name: Check Chrome is present
+        run: |
+          which google-chrome || which chromium-browser || which chromium || {
+            echo "No Chrome on the runner. Install one, or set CHROME_PATH."
+            exit 1
+          }
+          google-chrome --version || true
+
+      # Backgrounded so the run continues; logs go to files so a failure can be
+      # read afterwards rather than vanishing with the process.
+      - name: Start the backend
+        run: npm run start-server > /tmp/server.log 2>&1 &
+
+      - name: Start the frontend
+        run: npm run dev > /tmp/client.log 2>&1 &
+
+      # The smoke test exits immediately if either is unreachable, so wait for
+      # both rather than racing them.
+      - name: Wait for the stack
+        run: |
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:3001/health > /dev/null \
+               && curl -sf http://localhost:3000 > /dev/null; then
+              echo "stack up after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "stack never came up"
+          echo "--- server ---"; cat /tmp/server.log
+          echo "--- client ---"; cat /tmp/client.log
+          exit 1
+
+      - name: Browser smoke test
+        run: npm run test:ui
+
+      # Whatever failed, the answer is usually in one of these.
+      - name: Server and client logs
+        if: failure()
+        run: |
+          echo "--- server ---"; cat /tmp/server.log || true
+          echo "--- client ---"; cat /tmp/client.log || true
