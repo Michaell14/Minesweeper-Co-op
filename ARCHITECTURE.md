@@ -354,10 +354,12 @@ install`), and the root `/Procfile` starts it with `web: cd server && node
 server.js`.
 
 So the **root `/Procfile` and the root `heroku-postbuild` script are
-load-bearing** — editing or removing either breaks the deploy. `server/Procfile`
-is the leftover: it belongs to an older `git subtree push --prefix server heroku
-main` model that is no longer in use. It is kept in case that model is ever
-restored, and is otherwise inert.
+load-bearing** — editing or removing either breaks the deploy. There is exactly
+one Procfile now: `server/Procfile` (`web: node server.js`) used to sit
+alongside it, left over from an older `git subtree push --prefix server heroku
+main` model, and was removed once `heroku ps` confirmed the dyno runs the root
+one. Two Procfiles with different commands invited editing the wrong one; if the
+subtree model is ever restored, the deleted file is one line.
 
 Because the whole repo ships, server code *may* import from outside `server/`,
 which is what makes a shared client/server module possible. That is a property
@@ -404,14 +406,16 @@ backend — the only automated frontend coverage there is. See CLAUDE.md.
 
 These are real, currently unfixed, and worth knowing before changing related code.
 
-1. **`server/Procfile` is inert.** The deploy uses the root `/Procfile`; this one is a leftover from the subtree-push model — see §6.
-2. **Heroku installs the whole frontend dependency tree and never uses it.** The root `npm install` pulls Next, React, Chakra and the rest onto a dyno that only runs `cd server && node server.js`; `heroku-postbuild` replaces the `build` script, so the frontend is never built there. Wasted build time and slug size, not a correctness problem.
+1. **Heroku installs the whole frontend dependency tree and never uses it.** The root `npm install` pulls Next, React, Chakra and the rest onto a dyno that only runs `cd server && node server.js`; `heroku-postbuild` replaces the `build` script, so the frontend is never built there. Wasted build time and slug size, not a correctness problem.
 
 *Fixed, kept here so they aren't reintroduced:* the `gameUtils` ⇄ `playerUtils`
 require cycle that silently broke co-op score resets (see §3); the stale room
 snapshot that let a chord into a mine also announce a win; the
 `pvpPlayerIndex || '0'` fallback that let an unassigned socket write another
-player's board; and the per-mode scoring split (below). All are covered by tests.
+player's board; the per-mode scoring split (below); and the duplicate
+`server/Procfile`, which said `web: node server.js` while the deploy ran the
+root one's `cd server && node server.js`. All but the Procfile are covered by
+tests; that one is covered by there being only one file to get wrong.
 
 **Scoring, both modes.** One point per safe cell a move opens, cascades
 included, whether the move was a click or a chord and whether the room is co-op
