@@ -1,11 +1,21 @@
 "use client";
 
 import { useCallback, useMemo } from "react";
-import { Socket } from "socket.io-client";
 import { useMinesweeperStore } from "@/app/store";
 import { throttle } from "@/lib/throttle";
 import { DEFAULT_DIFFICULTY, DEFAULT_PRESET } from "@/shared/boardConfig";
 import { CLIENT_EVENTS } from "@/shared/events";
+import type { AppSocket } from "@/lib/initSocket";
+import type { ClientToServerEvents } from "@/shared/socketPayloads";
+
+/** The emits that take a room code and a cell. */
+type CellActionEvent = 'openCell' | 'chordCell' | 'toggleFlag' | 'cellHover';
+
+/** The emits whose whole payload is the room code. */
+type RoomActionEvent = Extract<
+    keyof ClientToServerEvents,
+    'resetGame' | 'emitConfetti' | 'startPvpGame' | 'pvpRematch' | 'resetMyBoard'
+>;
 
 /**
  * Every client -> server emit, in one place.
@@ -15,7 +25,7 @@ import { CLIENT_EVENTS } from "@/shared/events";
  * socket, which matters because `Cell` is memoized on cell state alone and would
  * otherwise hold on to whichever callbacks it first received.
  */
-export function useGameActions(socket: Socket | null) {
+export function useGameActions(socket: AppSocket | null) {
     /** Leave the room and reset local state back to the Landing defaults. */
     const leaveRoom = useCallback(() => {
         if (!socket) return;
@@ -50,7 +60,7 @@ export function useGameActions(socket: Socket | null) {
 
     /** Guarded the same way the inline versions were: no room, no action. */
     const emitCellAction = useCallback(
-        (event: string, row: number, col: number) => {
+        (event: CellActionEvent, row: number, col: number) => {
             const { playerJoined, room } = useMinesweeperStore.getState();
             if (!playerJoined || !socket) return;
             socket.emit(event, { room, row, col });
@@ -64,7 +74,7 @@ export function useGameActions(socket: Socket | null) {
 
     /** Room-scoped emits with no payload beyond the room code. */
     const emitForRoom = useCallback(
-        (event: string) => {
+        (event: RoomActionEvent) => {
             if (!socket) return;
             socket.emit(event, { room: useMinesweeperStore.getState().room });
         },

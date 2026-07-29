@@ -1,15 +1,13 @@
 "use client";
 
-import { Socket } from "socket.io-client";
-import { Cell, PlayerStats, useMinesweeperStore } from "@/app/store";
+import { Cell, useMinesweeperStore } from "@/app/store";
 import { shootConfetti } from "@/lib/confetti";
 import { generateColorFromId } from "@/lib/throttle";
 import { DIALOGS, openDialog } from "@/lib/dialogs";
 import { SERVER_EVENTS } from "@/shared/events";
+import type { AppSocket } from "@/lib/initSocket";
+import type { CellUpdate } from "@/shared/socketPayloads";
 import type { SocketHandlers } from "./useSocketEvents";
-
-/** A partial cell update as sent by `updateCells` / `pvpUpdateCells`. */
-type CellUpdate = Cell & { row: number; col: number };
 
 const applyCellUpdates = (updates: CellUpdate[]) => {
     const { setCell } = useMinesweeperStore.getState();
@@ -26,11 +24,11 @@ const applyCellUpdates = (updates: CellUpdate[]) => {
 /** Shared + co-op events. */
 const coopHandlers = (leaveRoom: () => void): SocketHandlers => ({
     // --- Game state ---
-    [SERVER_EVENTS.BOARD_UPDATE]: (board: Cell[][]) => useMinesweeperStore.getState().setBoard(board),
+    [SERVER_EVENTS.BOARD_UPDATE]: (board) => useMinesweeperStore.getState().setBoard(board),
 
     [SERVER_EVENTS.UPDATE_CELLS]: applyCellUpdates,
 
-    [SERVER_EVENTS.PLAYER_STATS_UPDATE]: (stats: PlayerStats[]) => useMinesweeperStore.getState().setPlayerStatsInRoom(stats),
+    [SERVER_EVENTS.PLAYER_STATS_UPDATE]: (stats) => useMinesweeperStore.getState().setPlayerStatsInRoom(stats),
 
     // --- Win / loss ---
     [SERVER_EVENTS.GAME_WON]: () => {
@@ -38,7 +36,7 @@ const coopHandlers = (leaveRoom: () => void): SocketHandlers => ({
         useMinesweeperStore.getState().setGameWon(true);
     },
 
-    [SERVER_EVENTS.GAME_OVER]: (name: string) => {
+    [SERVER_EVENTS.GAME_OVER]: (name) => {
         const store = useMinesweeperStore.getState();
         store.setGameOver(true);
         store.setGameOverName(name);
@@ -53,7 +51,7 @@ const coopHandlers = (leaveRoom: () => void): SocketHandlers => ({
     },
 
     // --- Room management ---
-    [SERVER_EVENTS.JOIN_ROOM_SUCCESS]: (data: { room: string; mode?: string; isHost?: boolean; numRows?: number; numCols?: number; numMines?: number }) => {
+    [SERVER_EVENTS.JOIN_ROOM_SUCCESS]: (data) => {
         const store = useMinesweeperStore.getState();
         store.setRoom(data.room);
         if (data.mode) store.setMode(data.mode);
@@ -76,7 +74,7 @@ const coopHandlers = (leaveRoom: () => void): SocketHandlers => ({
     [SERVER_EVENTS.RECEIVE_CONFETTI]: () => shootConfetti(),
 
     // --- Hover presence (co-op only; the server suppresses it in PVP) ---
-    [SERVER_EVENTS.PLAYER_HOVER_UPDATE]: ({ id, row, col, name }: { id: string; row: number; col: number; name: string }) => {
+    [SERVER_EVENTS.PLAYER_HOVER_UPDATE]: ({ id, row, col, name }) => {
         const store = useMinesweeperStore.getState();
         if (row === -1 && col === -1) {
             store.removePlayerHover(id);
@@ -85,21 +83,21 @@ const coopHandlers = (leaveRoom: () => void): SocketHandlers => ({
         }
     },
 
-    [SERVER_EVENTS.PLAYER_LEFT]: (socketId: string) => useMinesweeperStore.getState().removePlayerHover(socketId),
+    [SERVER_EVENTS.PLAYER_LEFT]: (socketId) => useMinesweeperStore.getState().removePlayerHover(socketId),
 });
 
 /** PVP events. `socket` is needed to tell "I won" from "they won". */
-const pvpHandlers = (socket: Socket): SocketHandlers => ({
+const pvpHandlers = (socket: AppSocket): SocketHandlers => ({
     [SERVER_EVENTS.PVP_ROOM_FULL]: () => openDialog(DIALOGS.pvpRoomFull),
 
-    [SERVER_EVENTS.PVP_ROOM_READY]: (data: { opponentName?: string; isHost?: boolean }) => {
+    [SERVER_EVENTS.PVP_ROOM_READY]: (data) => {
         const store = useMinesweeperStore.getState();
         store.setPvpRoomReady(true);
         if (data?.opponentName) store.setPvpOpponentName(data.opponentName);
         if (data?.isHost !== undefined) store.setPvpIsHost(data.isHost);
     },
 
-    [SERVER_EVENTS.PVP_GAME_STARTED]: (data: { totalSafeCells?: number }) => {
+    [SERVER_EVENTS.PVP_GAME_STARTED]: (data) => {
         const store = useMinesweeperStore.getState();
         store.setPvpStarted(true);
         store.setPvpOpponentStatus("playing");
@@ -107,13 +105,7 @@ const pvpHandlers = (socket: Socket): SocketHandlers => ({
         store.setPvpOpponentProgress(0);
     },
 
-    [SERVER_EVENTS.PVP_BOARD_UPDATE]: ({ board, playerIndex, opponentName, opponentProgress, totalSafeCells }: {
-        board: Cell[][];
-        playerIndex: number;
-        opponentName?: string;
-        opponentProgress?: number;
-        totalSafeCells?: number;
-    }) => {
+    [SERVER_EVENTS.PVP_BOARD_UPDATE]: ({ board, playerIndex, opponentName, opponentProgress, totalSafeCells }) => {
         const store = useMinesweeperStore.getState();
         store.setBoard(board);
         if (playerIndex !== undefined) store.setPvpPlayerIndex(playerIndex);
@@ -134,7 +126,7 @@ const pvpHandlers = (socket: Socket): SocketHandlers => ({
     [SERVER_EVENTS.PVP_OPPONENT_FAILED]: () => useMinesweeperStore.getState().setPvpOpponentStatus("failed"),
     [SERVER_EVENTS.PVP_OPPONENT_RESET]: () => useMinesweeperStore.getState().setPvpOpponentStatus("playing"),
 
-    [SERVER_EVENTS.PVP_PLAYER_WON]: ({ winnerSocket, winnerName }: { winnerSocket: string; winnerName: string }) => {
+    [SERVER_EVENTS.PVP_PLAYER_WON]: ({ winnerSocket, winnerName }) => {
         const store = useMinesweeperStore.getState();
         store.setPvpWinner(winnerName);
         store.setPvpOpponentStatus("won");
@@ -148,9 +140,9 @@ const pvpHandlers = (socket: Socket): SocketHandlers => ({
         }
     },
 
-    [SERVER_EVENTS.PVP_OPPONENT_PROGRESS]: ({ progress }: { progress: number }) => useMinesweeperStore.getState().setPvpOpponentProgress(progress),
+    [SERVER_EVENTS.PVP_OPPONENT_PROGRESS]: ({ progress }) => useMinesweeperStore.getState().setPvpOpponentProgress(progress),
 
-    [SERVER_EVENTS.PVP_OPPONENT_DISCONNECTED]: ({ winnerName }: { winnerName: string }) => {
+    [SERVER_EVENTS.PVP_OPPONENT_DISCONNECTED]: ({ winnerName }) => {
         const store = useMinesweeperStore.getState();
         store.setPvpWinner(winnerName);
         store.setPvpOpponentStatus("disconnected");
@@ -167,7 +159,7 @@ const pvpHandlers = (socket: Socket): SocketHandlers => ({
 
     [SERVER_EVENTS.PVP_HOST_TRANSFERRED]: () => useMinesweeperStore.getState().setPvpIsHost(true),
 
-    [SERVER_EVENTS.PVP_REMATCH_STARTED]: ({ totalSafeCells, isHost }: { totalSafeCells: number; isHost: boolean }) => {
+    [SERVER_EVENTS.PVP_REMATCH_STARTED]: ({ totalSafeCells, isHost }) => {
         const store = useMinesweeperStore.getState();
         store.resetPvpState();
         store.setPvpStarted(true);
@@ -185,7 +177,7 @@ const pvpHandlers = (socket: Socket): SocketHandlers => ({
  * so this hook causes no re-renders of its own — which is why `page.tsx` no
  * longer re-renders on every remote hover event.
  */
-export function useGameEvents(socket: Socket | null, leaveRoom: () => void): SocketHandlers {
+export function useGameEvents(socket: AppSocket | null, leaveRoom: () => void): SocketHandlers {
     if (!socket) return {};
     return { ...coopHandlers(leaveRoom), ...pvpHandlers(socket) };
 }

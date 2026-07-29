@@ -1,4 +1,14 @@
 import { io, Socket } from "socket.io-client";
+import type { ClientToServerEvents, ServerToClientEvents } from "@/shared/socketPayloads";
+
+/**
+ * The socket, carrying the protocol with it.
+ *
+ * Typing it here is what makes `socket.emit(...)` and every handler in
+ * `hooks/useGameEvents.ts` checked against `shared/socketPayloads.ts`. Use this
+ * alias rather than a bare `Socket`, which accepts any event with any payload.
+ */
+export type AppSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
 
 /**
  * Backend URL.
@@ -20,7 +30,7 @@ const serverURL =
  * handshake to recognise a reconnecting player rather than treating them as a
  * newcomer. See lib/session.ts and server/data/sessionRepo.js.
  */
-export function initSocket(sessionId?: string): Socket {
+export function initSocket(sessionId?: string): AppSocket {
     return io(serverURL, {
         reconnection: true,
         autoConnect: false,

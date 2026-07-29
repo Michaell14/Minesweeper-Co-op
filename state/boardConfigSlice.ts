@@ -1,22 +1,24 @@
 import { StateCreator } from 'zustand';
 import { DEFAULT_DIFFICULTY, DEFAULT_PRESET } from '@/shared/boardConfig';
 import type { MinesweeperState } from './store';
+import type { GameMode } from '@/shared/socketPayloads';
 
 /**
  * Board dimensions, difficulty label and game mode.
  *
  * Defaults come from shared/boardConfig, which the server validates against too.
  */
+
 export interface BoardConfigSlice {
     numRows: number;
     numCols: number;
     numMines: number;
     difficulty: string;     // "Easy" | "Medium" | "Hard" | "Custom"
-    mode: string;           // "co-op" | "pvp"
+    mode: GameMode;
 
     setDimensions: (rows: number, cols: number, mines: number) => void;
     setDifficulty: (diff: string) => void;
-    setMode: (mode: string) => void;
+    setMode: (mode: GameMode) => void;
 }
 
 export const createBoardConfigSlice: StateCreator<MinesweeperState, [], [], BoardConfigSlice> = (set) => ({
