@@ -14,6 +14,7 @@ const {
     BOARD_SIZES,
     CUSTOM_SIZE,
     DIFFICULTY_LEVELS,
+    MAX_SAFE_DENSITY,
     DEFAULT_SIZE,
     DEFAULT_DIFFICULTY,
     DEFAULT_PRESET,
@@ -39,6 +40,34 @@ describe('mineCountFor: the pre-split presets survive on the diagonal', () => {
 
     test('the default board is still 16x16 with 40 mines', () => {
         expect(DEFAULT_PRESET).toEqual({ rows: 16, cols: 16, mines: 40 });
+    });
+});
+
+describe('the no-guess density ceiling', () => {
+    /*
+     * This is the invariant most likely to be broken by accident and least
+     * likely to be noticed. generateBoard falls back to a guessy board when it
+     * cannot find a solvable layout, and the fallback is SILENT -- nothing
+     * throws, nothing logs, the player just gets 50/50s in a game that promises
+     * none. Raising a density is a one-character change; without this test
+     * nothing anywhere would fail.
+     */
+    test('no difficulty exceeds the measured ceiling', () => {
+        for (const level of DIFFICULTY_LEVELS) {
+            expect(level.density).toBeLessThanOrEqual(MAX_SAFE_DENSITY);
+        }
+    });
+
+    test('the ceiling itself has not been raised without re-measuring', () => {
+        // If you are changing this number, you are changing what "no-guess"
+        // means. Re-run the solvable-rate measurement first -- ARCHITECTURE.md §5.
+        expect(MAX_SAFE_DENSITY).toBe(0.206);
+    });
+
+    test('densities are distinct and ordered', () => {
+        const densities = DIFFICULTY_LEVELS.map((l) => l.density);
+        expect(densities).toEqual([...densities].sort((a, b) => a - b));
+        expect(new Set(densities).size).toBe(densities.length);
     });
 });
 
@@ -123,10 +152,39 @@ describe('mineCountFor: bad input', () => {
         ['NaN cols', 16, NaN],
         ['undefined rows', undefined, 16],
         ['string cols', 16, '16'],
+        ['fractional rows', 16.5, 16],
+        ['zero rows', 0, 16],
+        ['zero cols', 16, 0],
+        // Two negatives multiply to a positive area. A guard that only checked
+        // for finite numbers answered "4 mines" for this.
+        ['both negative', -5, -5],
+        ['one negative', -5, 16],
     ])('%s returns 0, which isValidBoardConfig then rejects', (_label, rows, cols) => {
         const mines = mineCountFor(rows, cols, 'Medium');
         expect(mines).toBe(0);
         expect(isValidBoardConfig(rows, cols, mines)).toBe(false);
+    });
+
+    test('a board too small to hold a legal mine returns 0, not the floor', () => {
+        // maxMinesFor(1) is 0, so MIN_MINES must NOT win here -- returning 1
+        // would be a count above the board's own legal maximum.
+        expect(mineCountFor(1, 1, 'Medium')).toBe(0);
+        expect(mineCountFor(1, 2, 'Extreme')).toBe(0);
+    });
+
+    test('never returns more mines than the board can legally hold', () => {
+        // Swept across every shape the limits allow, plus the degenerate sizes
+        // below them, since mineCountFor is callable before validation runs.
+        for (let rows = 1; rows <= BOARD_LIMITS.MAX_ROWS; rows++) {
+            for (let cols = 1; cols <= BOARD_LIMITS.MAX_COLS; cols++) {
+                for (const level of DIFFICULTY_LEVELS) {
+                    const mines = mineCountFor(rows, cols, level.title);
+                    if (mines === 0) continue;
+                    expect(mines).toBeLessThanOrEqual(maxMinesFor(rows * cols));
+                    expect(mines).toBeGreaterThanOrEqual(BOARD_LIMITS.MIN_MINES);
+                }
+            }
+        }
     });
 });
 

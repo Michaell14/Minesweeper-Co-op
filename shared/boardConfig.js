@@ -38,17 +38,27 @@ const BOARD_SIZES = [
 const CUSTOM_SIZE = 'Custom';
 
 /**
+ * The densest board the no-guess generator can actually deliver.
+ *
+ * Boards are generated with a no-guess guarantee, and the fallback when that
+ * fails is SILENT — an unsolvable board is indistinguishable from a real one —
+ * so the ceiling on difficulty is wherever the solver stops finding layouts,
+ * not a matter of taste. Measured per-candidate solvable rates on a 20x16:
+ * 18.8% -> 17%, 20.6% -> 7%, 22% -> 3%, 24% -> 0.3%. At `DEFAULT_MAX_ATTEMPTS`
+ * (300, in server/utils/gameUtils.js) 20.6% never fell back across 200 games on
+ * every shipped size; 22% still did.
+ *
+ * `boardConfig.test.js` holds every density to this, so raising one without
+ * re-measuring fails the suite rather than quietly turning no-guess off.
+ */
+const MAX_SAFE_DENSITY = 0.206;
+
+/**
  * Difficulty is a mine density, applied to whichever size is selected.
  *
  * Easy through Hard sit below classic Minesweeper's Expert (20.6%) to reduce
- * unavoidable 50/50 guesses. Extreme matches Expert exactly and is the ceiling
- * on purpose: boards are generated with a no-guess guarantee, and above ~20.6%
- * random layouts are so rarely logic-solvable that the generator gives up and
- * silently falls back to a guessy board. Measured per-candidate solvable rates
- * on a 20x16: 18.8% -> 17%, 20.6% -> 7%, 22% -> 3%, 24% -> 0.3%. At 22% the
- * retry loop exhausts even 300 attempts often enough to matter; at 20.6% it
- * never did across 200 games on every shipped size. See
- * `generateBoard`'s DEFAULT_MAX_ATTEMPTS in server/utils/gameUtils.js.
+ * unavoidable 50/50 guesses. Extreme matches Expert exactly, which is also
+ * MAX_SAFE_DENSITY — see above for why that is the ceiling.
  */
 const DIFFICULTY_LEVELS = [
     { title: 'Easy', density: 0.123 },
@@ -85,22 +95,32 @@ const maxMinesFor = (area) => Math.ceil(area / 2) - 1;
  *
  * An unrecognised difficulty falls back to the default density rather than
  * throwing, so a stale label in the store can never produce a zero-mine board.
- * Non-numeric dimensions return 0, which `isValidBoardConfig` then rejects —
- * a loud failure at the validation boundary rather than a strange board.
+ *
+ * Anything that is not a whole board — a fraction, a negative, NaN, a string —
+ * returns 0, which `isValidBoardConfig` then rejects. A loud failure at the
+ * validation boundary beats a plausible-looking number for an impossible board:
+ * two negative dimensions multiply to a positive area, so a laxer guard here
+ * would have answered "4 mines" for a -5x-5 grid.
  */
 const mineCountFor = (numRows, numCols, difficultyTitle) => {
-    if (!Number.isFinite(numRows) || !Number.isFinite(numCols)) return 0;
+    if (!Number.isInteger(numRows) || !Number.isInteger(numCols)) return 0;
+    if (numRows < 1 || numCols < 1) return 0;
 
     const level =
         DIFFICULTY_LEVELS.find((l) => l.title === difficultyTitle) ||
         DIFFICULTY_LEVELS.find((l) => l.title === DEFAULT_DIFFICULTY);
 
     const area = numRows * numCols;
-    const raw = Math.round(area * level.density);
+    const cap = maxMinesFor(area);
 
-    // The clamp is unreachable for the shipped densities (20.6% is nowhere near
-    // half) but keeps the function total for any density added later.
-    return Math.max(BOARD_LIMITS.MIN_MINES, Math.min(raw, maxMinesFor(area)));
+    // A board too small to hold even one mine legally has no valid answer, and
+    // the floor below would otherwise win and return a count above the cap.
+    if (cap < BOARD_LIMITS.MIN_MINES) return 0;
+
+    // Unreachable for the shipped densities -- 20.6% is nowhere near half --
+    // but keeps the function total for any density added later.
+    const raw = Math.round(area * level.density);
+    return Math.max(BOARD_LIMITS.MIN_MINES, Math.min(raw, cap));
 };
 
 /** Dimensions for a named size, or null for Custom / anything unknown. */
@@ -149,6 +169,7 @@ module.exports = {
     BOARD_SIZES,
     CUSTOM_SIZE,
     DIFFICULTY_LEVELS,
+    MAX_SAFE_DENSITY,
     DEFAULT_SIZE,
     DEFAULT_DIFFICULTY,
     DEFAULT_PRESET,

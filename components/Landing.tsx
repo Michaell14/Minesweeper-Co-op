@@ -98,8 +98,10 @@ export default function Landing({ createRoom, joinRoom }: LandingParams) {
     const minesAt = (difficultyTitle: string) => mineCountFor(numRows, numCols, difficultyTitle);
 
     const createOnSubmit = handleCreateSubmit((data) => {
-        // Covers the one way to reach an unplayable board: picking Custom and
-        // dismissing the dialog without ever entering valid dimensions.
+        // Unreachable today: every path into the store goes through
+        // applyBoardConfig, and the custom dialog validates before applying.
+        // Kept as a backstop so a future writer that skips the derivation
+        // surfaces here rather than as a rejected createRoom.
         if (!isValidBoardConfig(numRows, numCols, numMines)) {
             openDialog(DIALOGS.customError);
             return;
