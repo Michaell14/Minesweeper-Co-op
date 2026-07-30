@@ -20,7 +20,7 @@ state/                    The Zustand store, one file per concern
   store.ts                Composes the slices
   types.ts                Cell, PlayerStats, PlayerHover
   gameSlice.ts            board, gameOver, gameWon
-  boardConfigSlice.ts     rows/cols/mines, difficulty, mode
+  boardConfigSlice.ts     rows/cols/mines, board size, difficulty, mode
   roomSlice.ts            room, players, scores, hovers
   pvpSlice.ts             everything 1v1
   inputSlice.ts           pointer state for chording and mobile flag mode
@@ -42,11 +42,11 @@ components/
     FlagCounter.tsx       Mines remaining
     Cell.tsx              One cell: mouse handling, hover highlight, memoized
     board.module.css      Board and cell styles
-  Landing.tsx             Create/join forms, custom-difficulty dialog, name dialogs
+  Landing.tsx             Create/join forms, custom-size dialog, name dialogs
   Footer.tsx              GitHub link + how-to-play dialog
   ui/                     Generated Chakra snippets. Not hand-maintained
 shared/                   Imported by BOTH halves; viable because the whole repo deploys (§6)
-  boardConfig.js          Difficulty presets, size limits, the validity rule
+  boardConfig.js          Board sizes, difficulty densities, limits, validity rule
   events.js               Every socket event name, both directions
 lib/
   dialogs.ts              Every dialog id, plus openDialog/closeDialog
@@ -111,7 +111,7 @@ One store, assembled from five slices:
 | Group | Fields |
 |---|---|
 | Game | `board`, `gameOver`, `gameWon` |
-| Board config | `numRows`, `numCols`, `numMines`, `difficulty`, `mode` |
+| Board config | `numRows`, `numCols`, `numMines`, `boardSize`, `difficulty`, `mode` |
 | Room/player | `room`, `playerJoined`, `name`, `playerStatsInRoom`, `gameOverName`, `playerHovers` |
 | PVP | `pvpStarted`, `pvpPlayerIndex`, `pvpOpponentName`, `pvpOpponentStatus`, `pvpWinner`, `pvpRoomReady`, `pvpIsHost`, `pvpOpponentProgress`, `pvpTotalSafeCells` |
 | Mouse/UI | `isChecked` (mobile click-vs-flag), `r`, `c`, `leftClick`, `rightClick`, `bothPressed` |
@@ -297,9 +297,24 @@ Listeners live in one table in `hooks/useGameEvents.ts`. `useSocketEvents` regis
 ## 5. Game systems
 
 ### No-guess board generation
-`generateBoard()` (`gameUtils.js:85`) runs a generate-and-verify loop: it produces a candidate via Fisher-Yates placement excluding the 3x3 zone around the first click, then asks `isBoardSolvable()` (`solverUtils.js:52`) whether the board can be cleared by pure logic. Up to 50 attempts; if none is solvable it returns the first candidate. The solver applies (1) single-cell deduction and (2) subset reduction over overlapping neighborhoods, iterating until no progress.
+`generateBoard()` runs a generate-and-verify loop: it produces a candidate via Fisher-Yates placement excluding the 3x3 zone around the first click, then asks `isBoardSolvable()` (`solverUtils.js:52`) whether the board can be cleared by pure logic. Up to `DEFAULT_MAX_ATTEMPTS` (300) attempts; if none is solvable it returns the first candidate. The solver applies (1) single-cell deduction and (2) subset reduction over overlapping neighborhoods, iterating until no progress.
 
 Boards are generated lazily on the **first click**, guarded by a Redis `SET NX` lock; a losing racer polls up to 5×100ms for the winner's board.
+
+> **Mine density is capped by this loop, not by taste.** The fallback is silent —
+> an unsolvable board is indistinguishable from a real result — so the ceiling on
+> difficulty is wherever the solver stops finding layouts. Measured
+> per-candidate solvable rates on a 20x16: 18.8% → 17%, 20.6% → 7%, 22% → 3%,
+> 24% → 0.3%. At 300 attempts, 20.6% never fell back across 200 games on every
+> shipped size; 22% still did. That is why `Extreme` is 20.6% and why the
+> attempt count is 300 rather than the 50 it was before Extreme existed.
+> Raising the density without re-measuring quietly turns the no-guess guarantee
+> off.
+
+### Board size and difficulty
+Two independent axes on the landing page, combined by `mineCountFor()` in `shared/boardConfig.js`: size gives the dimensions, difficulty gives a **mine density**. Only the resulting `numRows`/`numCols`/`numMines` cross the wire — the server never sees a size or difficulty name, which is why the split needed no protocol change.
+
+The densities are picked so the three pre-split presets stay reachable on the diagonal: Small+Easy is 9x9/10, Medium+Medium is 16x16/40, Large+Hard is 20x16/60. A custom board supplies its own dimensions and takes its mine count from the selected difficulty like any other size; there is no hand-typed mine count any more. `server/tests/boardConfig.test.js` pins all of this down.
 
 ### Co-op flow
 Create room → board is an empty grid → first click generates mines → `reveal()` flood-fills → `updateCells` broadcast to the room → `checkWin` auto-flags remaining mines and emits `gameWon`. Hitting a mine sets `gameOver` for everyone and names the player who hit it.
@@ -430,7 +445,7 @@ through both modes and compares, so the two can't drift apart again.
 | Concept | Where it lives | Duplicates to keep in sync |
 |---|---|---|
 | Socket payload shapes | `shared/socketPayloads.ts` | Client-side only; the server is unchecked (§4) |
-| Difficulty presets | `shared/boardConfig.js` | — |
+| Board sizes and difficulty densities | `shared/boardConfig.js` | — |
 | Board size/mine rules | `shared/boardConfig.js` | — |
 | Socket event names | `shared/events.js` | — |
 | Redis key names | `server/data/keys.js` | — |

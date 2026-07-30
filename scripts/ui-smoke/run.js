@@ -10,8 +10,8 @@
  *   npm run test:ui        # in another
  *
  * Covers: creating a room, the first-click cascade, flagging, the flag counter,
- * reset, leaving, and a two-client PVP round (lobby, start, per-player boards,
- * opponent progress).
+ * reset, leaving, the board-size/difficulty selectors, and a two-client PVP
+ * round (lobby, start, per-player boards, opponent progress).
  *
  * NOT covered: chording. Making a chord do something visible requires knowing
  * where the mines are, which a browser client deliberately cannot see since
@@ -66,6 +66,29 @@ async function preflight() {
     await probe(CLIENT, 'client');
     await probe(`${SERVER}/health`, 'game server');
 }
+
+/**
+ * Ticks one radio card, addressed by its group's aria-label and its own label.
+ *
+ * Scoped to the group on purpose: "Medium" is both a board size and a
+ * difficulty now, so a document-wide text search would pick whichever came
+ * first in the DOM.
+ */
+const selectCard = (page, groupLabel, cardLabel) => page.evaluate(`
+    const group = document.querySelector('[aria-label=${JSON.stringify(groupLabel)}]');
+    if (!group) throw new Error('no ${groupLabel} group');
+    const card = [...group.querySelectorAll('label')]
+        .find(l => l.textContent.trim().startsWith(${JSON.stringify(cardLabel)}));
+    if (!card) throw new Error('no ${cardLabel} card in ${groupLabel}');
+    card.click();
+    return true;
+`);
+
+/** The descriptions under one group's cards, e.g. ['10 mines', '13 mines', ...]. */
+const cardNotes = (page, groupLabel) => page.evaluate(`
+    const group = document.querySelector('[aria-label=${JSON.stringify(groupLabel)}]');
+    return [...group.querySelectorAll('label')].map(l => l.textContent.trim());
+`);
 
 /** Fills the room form, then the name dialog, and waits for the board. */
 async function enterRoom(page, { room, name, mode }) {
@@ -178,6 +201,77 @@ async function coop(page) {
     `);
     await page.waitFor(`!!document.querySelector('form[aria-label="Create new room form"]')`, { label: 'returns to landing' });
     pass('leaveRoom returns to the Landing page');
+}
+
+/**
+ * Board size and difficulty are two selectors, and the mine count is derived
+ * from the pair rather than typed anywhere.
+ *
+ * The co-op run above already covers the default pair (Medium/Medium is 16x16
+ * with 40 mines). What is untested by that is whether changing an axis actually
+ * recomputes the other's numbers and whether the derived count survives the
+ * round trip into a real room — a mismatch between the card and the flag
+ * counter is exactly the bug this split could introduce.
+ */
+async function sizeAndDifficulty(page) {
+    console.log('\n\x1b[1m--- SIZE x DIFFICULTY ---\x1b[0m');
+    const room = 'smokesd' + Date.now().toString().slice(-6);
+
+    await page.goto(CLIENT);
+    await page.waitFor(`!!document.querySelector('[aria-label="Select board size"]')`,
+        { timeout: 60000, label: 'landing renders the size selector' });
+
+    // At the default Medium size the difficulty row is priced for a 16x16.
+    const atMedium = await cardNotes(page, 'Select game difficulty');
+    check(atMedium.join('|') === 'Easy31 mines|Medium40 mines|Hard48 mines|Extreme53 mines',
+        'difficulty cards show mine counts for the selected size',
+        `got ${JSON.stringify(atMedium)}`);
+
+    // Switching size must reprice difficulty, since difficulty is a density.
+    await selectCard(page, 'Select board size', 'Small');
+    await sleep(250);
+    const atSmall = await cardNotes(page, 'Select game difficulty');
+    check(atSmall.join('|') === 'Easy10 mines|Medium13 mines|Hard15 mines|Extreme17 mines',
+        'changing board size reprices every difficulty',
+        `got ${JSON.stringify(atSmall)}`);
+
+    // Small + Easy is the old Easy preset: the diagonal is still reachable.
+    check(atSmall[0] === 'Easy10 mines', 'Small + Easy is still the pre-split Easy (9x9, 10 mines)');
+
+    await selectCard(page, 'Select game difficulty', 'Extreme');
+    await sleep(250);
+
+    await enterRoom(page, { room, name: 'Solo' });
+    await page.waitFor(`${cellCount} >= 81`, { label: 'a 9x9 board renders' });
+
+    const cells = await page.evaluate(`return ${cellCount};`);
+    check(cells === 81 && (await page.evaluate(`return ${gridCount};`)) === 1,
+        `Small builds one 9x9 board (${cells} cells)`,
+        `expected 81 cells in 1 grid, got ${cells}`);
+
+    // The derived count reaching the server is the whole point: the flag
+    // counter is read back from the room the server actually created.
+    const flags = await page.evaluate(`
+        const el = [...document.querySelectorAll('strong')].find(e => /^\\s*-?\\d+\\s*$/.test(e.textContent));
+        return el ? parseInt(el.textContent, 10) : null;
+    `);
+    check(flags === 17, `Small + Extreme reaches the server as 17 mines (counter shows ${flags})`,
+        'the mine count derived on the client did not survive createRoom');
+
+    await page.evaluate(`
+        const btn = [...document.querySelectorAll('button')].find(b => b.offsetParent !== null && b.textContent.includes('Return to Home'));
+        btn.click();
+        return true;
+    `);
+    await page.waitFor(`!!document.querySelector('form[aria-label="Create new room form"]')`, { label: 'returns to landing' });
+
+    // Leaving resets BOTH axes, not just difficulty.
+    const backToDefaults = await page.evaluate(`
+        return [...document.querySelectorAll('input[type=radio]')].filter(r => r.checked).map(r => r.value).join(',');
+    `);
+    check(backToDefaults === 'co-op,Medium,Medium',
+        'leaving resets size and difficulty to the defaults',
+        `got "${backToDefaults}"`);
 }
 
 async function pvp(host, guest) {
@@ -303,6 +397,7 @@ async function pvp(host, guest) {
     try {
         const page = await attach(await newTarget('about:blank'));
         await coop(page);
+        await sizeAndDifficulty(page);
 
         const host = await attach(await newTarget('about:blank'));
         const guest = await attach(await newTarget('about:blank'));

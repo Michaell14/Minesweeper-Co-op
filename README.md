@@ -19,7 +19,7 @@
 
 - **Multiplayer Gameplay:** Play with friends in real-time.
 - **Room Creation:** Easily create and share room codes.
-- **Customizable Difficulty:** Choose from Easy, Medium, Hard, or Expert.
+- **Board Size and Difficulty:** Pick a size (Small, Medium, Large or custom) and a difficulty (Easy, Medium, Hard, Extreme) independently.
 - **Real-time Updates:** Board states are synced across all players in a room.
 - **Game State Management:** Tracks game over and win conditions for all players.
 - **Responsive Design:** Works well on various screen sizes.

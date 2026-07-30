@@ -7,7 +7,7 @@
  * preserved quirk in the hover bounds check.
  */
 
-const { DIFFICULTY_PRESETS, BOARD_LIMITS } = require('../../shared/boardConfig');
+const { ALL_PRESETS, BOARD_LIMITS } = require('../../shared/boardConfig');
 const {
     isValidRoomCode,
     isValidPlayerName,
@@ -61,11 +61,13 @@ describe('isValidMode', () => {
 });
 
 describe('isValidBoardConfig', () => {
-    test.each(DIFFICULTY_PRESETS.map((p) => [p.title, p]))(
+    test.each(ALL_PRESETS.map((p) => [p.title, p]))(
         'accepts the shipped %s preset',
         (_title, preset) => {
             // Driven off shared/boardConfig, so adding a preset the server would
-            // reject fails here instead of when a player picks it.
+            // reject fails here instead of when a player picks it. Since size
+            // and difficulty split into two axes this is every combination of
+            // the two, not just the three that used to ship.
             expect(isValidBoardConfig(preset.rows, preset.cols, preset.mines)).toBe(true);
         }
     );
