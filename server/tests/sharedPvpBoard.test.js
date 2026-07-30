@@ -148,8 +148,12 @@ describe('resetMyBoard', () => {
         sharedOpenedCells: String(opened),
     });
 
-    test('restores the shared starting position, not a blank grid', async () => {
-        // Build a real shared board first.
+    /**
+     * Plays a real startPvpGame, then re-points the mocks at the room it
+     * produced, so a reset runs against a genuine shared board rather than a
+     * hand-written one.
+     */
+    const arrangeReset = async () => {
         await startPvpGame({ socket: { id: HOST }, room: ROOM, isValid, io });
         const started = roomFields();
         const shared = started.sharedBoard;
@@ -162,12 +166,53 @@ describe('resetMyBoard', () => {
         );
         client.hGet.mockImplementation(async () => null);
 
+        return { shared, opened };
+    };
+
+    test('restores the shared starting position, not a blank grid', async () => {
+        const { shared, opened } = await arrangeReset();
+
         await resetMyBoard({ socket: { id: HOST }, room: ROOM, isValid, io });
 
         const fields = roomFields();
         expect(fields.player1Board).toBe(shared);
         expect(fields.player1Initialized).toBe('true');
         expect(fields.player1Progress).toBe(String(opened));
+    });
+
+    /**
+     * REGRESSION. This handler used to build the opponent's progress payload from
+     * undeclared `numRows`/`numCols`. The ReferenceError landed in the handler's
+     * own catch, so the board restore above still passed while everything after
+     * it silently never ran: the opponent was never told about the reset and
+     * their view of this player's progress bar stayed frozen at the pre-reset
+     * value. The board write happens BEFORE the throw, which is exactly why
+     * asserting on it alone did not notice.
+     *
+     * The `console.error` assertion is the load-bearing one — it is what fails if
+     * anything in here throws into that catch again.
+     */
+    test('tells the opponent the reset happened, and what the progress now is', async () => {
+        const { opened } = await arrangeReset();
+        const errors = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+        await resetMyBoard({ socket: { id: HOST }, room: ROOM, isValid, io });
+
+        expect(errors).not.toHaveBeenCalled();
+        errors.mockRestore();
+
+        expect(mockTo).toHaveBeenCalledWith(GUEST);
+        expect(mockEmit).toHaveBeenCalledWith('pvpOpponentReset');
+
+        // 9x9 with 10 mines, so 71 safe cells.
+        const totalSafeCells = 9 * 9 - 10;
+        const progress = mockEmit.mock.calls.find((c) => c[0] === 'pvpOpponentProgress');
+        expect(progress).toBeDefined();
+        expect(progress[1]).toEqual({
+            progress: opened,
+            totalSafeCells,
+            percentage: Math.round((opened / totalSafeCells) * 100),
+        });
     });
 });
 

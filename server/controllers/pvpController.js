@@ -161,6 +161,8 @@ const resetMyBoard = async ({ socket, room, isValid, io }) => {
         const opponentSocket = players.find(p => p !== socket.id);
         if (opponentSocket) {
             io.to(opponentSocket).emit(SERVER_EVENTS.PVP_OPPONENT_RESET);
+            const numRows = parseInt(roomState.numRows, 10);
+            const numCols = parseInt(roomState.numCols, 10);
             const numMines = parseInt(roomState.numMines, 10);
             const totalSafeCells = (numRows * numCols) - numMines;
             io.to(opponentSocket).emit(SERVER_EVENTS.PVP_OPPONENT_PROGRESS, {
