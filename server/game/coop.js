@@ -202,4 +202,4 @@ const toggleFlag = async (row, col, room, socketId, roomState) => {
     await checkWin(await roomRepo.getState(room), board, room);
 };
 
-module.exports = { reveal, openCell, chordCell, toggleFlag };
+module.exports = { openCell, chordCell, toggleFlag };

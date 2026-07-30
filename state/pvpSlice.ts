@@ -6,7 +6,6 @@ export type PvpOpponentStatus = 'waiting' | 'playing' | 'won' | 'failed' | 'disc
 /** Everything that only applies to a 1v1 race. */
 export interface PvpSlice {
     pvpStarted: boolean;
-    pvpPlayerIndex: number | null;      // 0 or 1; picks which board on the server
     pvpOpponentName: string;
     pvpOpponentStatus: PvpOpponentStatus;
     pvpWinner: string | null;
@@ -16,7 +15,6 @@ export interface PvpSlice {
     pvpTotalSafeCells: number;
 
     setPvpStarted: (started: boolean) => void;
-    setPvpPlayerIndex: (index: number | null) => void;
     setPvpOpponentName: (name: string) => void;
     setPvpOpponentStatus: (status: PvpOpponentStatus) => void;
     setPvpWinner: (winner: string | null) => void;
@@ -29,7 +27,6 @@ export interface PvpSlice {
 
 const initialPvpState = {
     pvpStarted: false,
-    pvpPlayerIndex: null,
     pvpOpponentName: '',
     pvpOpponentStatus: 'waiting' as PvpOpponentStatus,
     pvpWinner: null,
@@ -43,7 +40,6 @@ export const createPvpSlice: StateCreator<MinesweeperState, [], [], PvpSlice> = 
     ...initialPvpState,
 
     setPvpStarted: (started) => set({ pvpStarted: started }),
-    setPvpPlayerIndex: (index) => set({ pvpPlayerIndex: index }),
     setPvpOpponentName: (name) => set({ pvpOpponentName: name }),
     setPvpOpponentStatus: (status) => set({ pvpOpponentStatus: status }),
     setPvpWinner: (winner) => set({ pvpWinner: winner }),

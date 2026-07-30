@@ -7,13 +7,9 @@ const config: Config = {
     "./app/**/*.{js,ts,jsx,tsx,mdx}",
   ],
   theme: {
-    extend: {
-      fontFamily: {
-        tomorrow: ['Tomorrow', 'serif'],
-        share: ["Share Tech Mono", 'serif'],
-        press: ["Press Start 2P", "serif"],
-      },
-    },
+    // The app's one font is applied globally in app/globals.css via the
+    // next/font CSS variable, not through a Tailwind `font-*` utility.
+    extend: {},
   },
   plugins: [],
 };
