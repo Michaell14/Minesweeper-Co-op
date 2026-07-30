@@ -67,13 +67,30 @@ const generateSingleCandidateBoard = (numRows, numCols, numMines, excludeRow, ex
 };
 
 /**
+ * How many candidate layouts to try before giving up on the no-guess guarantee.
+ *
+ * This was 50, which was enough while the densest board shipped was 18.8%.
+ * Adding the Extreme difficulty (20.6%, classic Expert) made it too few: only
+ * about 7% of random 20x16 layouts at that density are logic-solvable, so 50
+ * attempts fell back to a guessy board 3% of the time on Large and 13% on a
+ * 32x16 custom board — silently, since the fallback is indistinguishable from a
+ * real result.
+ *
+ * 300 removed the fallback entirely across 200 games on every shipped size. It
+ * costs nothing in the common case because the loop stops at the first success
+ * (median 5-15 attempts); it only raises the worst case, from ~28ms to ~64ms on
+ * the largest board, and that worst case is now vanishingly rare.
+ */
+const DEFAULT_MAX_ATTEMPTS = 300;
+
+/**
  * Utility function to generate a Minesweeper board.
  * If options.noGuess is true (default), runs a Generate-and-Verify loop with isBoardSolvable
  * to guarantee that the board can be 100% solved without probabilistic 50:50 guessing.
  */
-const generateBoard = (numRows, numCols, numMines, excludeRow, excludeCol, options = { noGuess: true, maxAttempts: 50 }) => {
+const generateBoard = (numRows, numCols, numMines, excludeRow, excludeCol, options = { noGuess: true, maxAttempts: DEFAULT_MAX_ATTEMPTS }) => {
     const shouldEnsureNoGuess = options && options.noGuess !== false;
-    const maxAttempts = (options && options.maxAttempts) || 50;
+    const maxAttempts = (options && options.maxAttempts) || DEFAULT_MAX_ATTEMPTS;
 
     if (!shouldEnsureNoGuess) {
         return generateSingleCandidateBoard(numRows, numCols, numMines, excludeRow, excludeCol);

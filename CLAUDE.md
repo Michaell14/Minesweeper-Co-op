@@ -63,7 +63,7 @@ Backend deps install separately: `npm --prefix server install`.
 | Board/controls UI | `components/game/` (Board, StatusBanner, ProgressBar, ScoreTable, FlagCounter); `components/Grid.tsx` is layout only |
 | Cell interaction | `components/game/Cell.tsx` |
 | Room create/join UI | `components/Landing.tsx` |
-| Difficulty presets, board limits, validity rule | `shared/boardConfig.js` — imported by both halves |
+| Board sizes, difficulty densities, limits, validity rule | `shared/boardConfig.js` — imported by both halves |
 | Socket event names | `shared/events.js` — imported by both halves |
 | Socket payload types | `shared/socketPayloads.ts` (+ `shared/events.d.ts` for literal names) |
 | Post-deploy check | `scripts/verify-deploy/` — `npm run verify:deploy` |
@@ -81,6 +81,7 @@ Read `ARCHITECTURE.md` §8-9 before changing server code. The ones most likely t
 6. **`components/ui/` is generated Chakra code.** Don't hand-edit it.
 7. **PVP players race the SAME board**, generated once by `startPvpGame` with a shared opening already revealed. Don't reintroduce per-player generation on first click — that is what used to make the layouts differ.
 8. **The root `/Procfile` and `heroku-postbuild` are load-bearing** — Heroku deploys the whole repo and starts it with them, and it is now the only Procfile (a second, inert one under `server/` was removed). Don't "tidy" the root ones, and see ARCHITECTURE.md §6 before touching the duplicated server deps in the root `package.json`.
+9. **Mine density has a measured ceiling.** Difficulty is a density in `shared/boardConfig.js`, and `Extreme` sits at 20.6% because that is the highest the no-guess generator can actually deliver — above it the retry loop exhausts and falls back to a guessy board *silently*. Don't raise a density, or lower `DEFAULT_MAX_ATTEMPTS`, without re-measuring the solvable rate; see ARCHITECTURE.md §5. Board dimensions come from the size axis, mines are always derived — never add a hand-typed mine count back.
 
 ## CI
 
