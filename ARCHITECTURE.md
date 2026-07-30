@@ -312,7 +312,9 @@ Boards are generated lazily on the **first click**, guarded by a Redis `SET NX` 
 > off.
 
 ### Board size and difficulty
-Two independent axes on the landing page, combined by `mineCountFor()` in `shared/boardConfig.js`: size gives the dimensions, difficulty gives a **mine density**. Only the resulting `numRows`/`numCols`/`numMines` cross the wire — the server never sees a size or difficulty name, which is why the split needed no protocol change.
+Two independent axes on the landing page: size gives the dimensions, difficulty gives a **mine density**. Only the resulting `numRows`/`numCols`/`numMines` cross the wire — the server never sees a size or difficulty name, which is why the split needed no protocol change.
+
+The two are combined in exactly one place: `setBoardConfig()` in `state/boardConfigSlice.ts`, which calls `mineCountFor()` (`shared/boardConfig.js`) to derive the mine count and writes dimensions, mines and both labels atomically. Landing's radio cards call it directly rather than deriving anything themselves — the derivation living in the store, not the component, is what stops a second caller from writing dimensions that disagree with the size/difficulty labels. `setDimensions` still exists as a raw override with no label attached, used only by `joinRoomSuccess` to sync a joining player's flag counter to numbers the server already picked.
 
 The densities are picked so the three pre-split presets stay reachable on the diagonal: Small+Easy is 9x9/10, Medium+Medium is 16x16/40, Large+Hard is 20x16/60. A custom board supplies its own dimensions and takes its mine count from the selected difficulty like any other size; there is no hand-typed mine count any more. `server/tests/boardConfig.test.js` pins all of this down.
 
