@@ -1,6 +1,6 @@
 "use client";
 
-import { Cell, useMinesweeperStore } from "@/app/store";
+import { useMinesweeperStore } from "@/app/store";
 import { shootConfetti } from "@/lib/confetti";
 import { generateColorFromId } from "@/lib/throttle";
 import { DIALOGS, openDialog } from "@/lib/dialogs";
@@ -105,10 +105,9 @@ const pvpHandlers = (socket: AppSocket): SocketHandlers => ({
         store.setPvpOpponentProgress(0);
     },
 
-    [SERVER_EVENTS.PVP_BOARD_UPDATE]: ({ board, playerIndex, opponentName, opponentProgress, totalSafeCells }) => {
+    [SERVER_EVENTS.PVP_BOARD_UPDATE]: ({ board, opponentName, opponentProgress, totalSafeCells }) => {
         const store = useMinesweeperStore.getState();
         store.setBoard(board);
-        if (playerIndex !== undefined) store.setPvpPlayerIndex(playerIndex);
         if (opponentName) store.setPvpOpponentName(opponentName);
         if (opponentProgress !== undefined) store.setPvpOpponentProgress(opponentProgress);
         if (totalSafeCells !== undefined) store.setPvpTotalSafeCells(totalSafeCells);

@@ -113,7 +113,7 @@ One store, assembled from five slices:
 | Game | `board`, `gameOver`, `gameWon` |
 | Board config | `numRows`, `numCols`, `numMines`, `difficulty`, `mode` |
 | Room/player | `room`, `playerJoined`, `name`, `playerStatsInRoom`, `gameOverName`, `playerHovers` |
-| PVP | `pvpStarted`, `pvpPlayerIndex`, `pvpOpponentName`, `pvpOpponentStatus`, `pvpWinner`, `pvpRoomReady`, `pvpIsHost`, `pvpOpponentProgress`, `pvpTotalSafeCells` |
+| PVP | `pvpStarted`, `pvpOpponentName`, `pvpOpponentStatus`, `pvpWinner`, `pvpRoomReady`, `pvpIsHost`, `pvpOpponentProgress`, `pvpTotalSafeCells` |
 | Mouse/UI | `isChecked` (mobile click-vs-flag), `r`, `c`, `leftClick`, `rightClick`, `bothPressed` |
 
 Each row above is one slice file. Slices are plain creators sharing one `set`, so
@@ -214,7 +214,7 @@ can be swapped back into their slot instead of joining as a stranger.
 `room` `name` `score`, plus `pvpPlayerIndex` and `opponentName` in PVP
 
 **Locks** — `SET NX EX 10`
-`init_lock:<room>` (co-op first click) · `init_lock_pvp:<room>:<playerIndex>` · `winner_lock:<room>`
+`init_lock:<room>` (co-op first click) · `winner_lock:<room>` (PVP win claim)
 
 Players are keyed by socket id, so a reconnect is a new player row.
 

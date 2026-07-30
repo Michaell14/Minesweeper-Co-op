@@ -308,4 +308,4 @@ const toggleFlag = async (row, col, room, socketId, roomState) => {
     await roomRepo.setPvpBoard(room, playerIndex, board);
 };
 
-module.exports = { playerKeys, playerIndexOf, reveal, broadcastProgressUpdate, checkWin, openCell, chordCell, toggleFlag };
+module.exports = { openCell, chordCell, toggleFlag };

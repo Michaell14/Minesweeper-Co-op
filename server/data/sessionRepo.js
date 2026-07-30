@@ -11,12 +11,6 @@
 const { redisClient } = require('../utils/initializeRedisClient');
 const { sessionKey, ROOM_TTL_SECONDS } = require('./keys');
 
-/** The whole session hash: { room, name, socketId }. Empty for an unknown id. */
-const getState = async (sessionId) => {
-    const client = await redisClient;
-    return await client.hGetAll(sessionKey(sessionId));
-};
-
 /** The socket this session was last seen on, or null. */
 const getSocketId = async (sessionId) => {
     const client = await redisClient;
@@ -30,4 +24,4 @@ const save = async (sessionId, { room, name, socketId }) => {
     await client.expire(sessionKey(sessionId), ROOM_TTL_SECONDS);
 };
 
-module.exports = { getState, getSocketId, save };
+module.exports = { getSocketId, save };
