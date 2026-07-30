@@ -56,6 +56,7 @@ interface OptionRowProps {
 const OptionRow = ({ label, ariaLabel, value, children }: OptionRowProps) => (
     <Field label={label} mt={3}>
         <RadioCardRoot
+            width={"100%"}
             maxW={"100%"}
             overflowX={{ base: "scroll", md: "hidden" }}
             variant={"subtle"}
