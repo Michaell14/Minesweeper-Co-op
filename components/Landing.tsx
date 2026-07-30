@@ -7,7 +7,7 @@ import {
     RadioCardItem,
     RadioCardRoot,
 } from "@/components/ui/radio-card";
-import { BOARD_SIZES, CUSTOM_SIZE, DIFFICULTY_LEVELS, DEFAULT_SIZE, BOARD_LIMITS, isValidBoardConfig, mineCountFor, sizePreset } from "@/shared/boardConfig";
+import { BOARD_SIZES, CUSTOM_SIZE, DIFFICULTY_LEVELS, DEFAULT_SIZE, BOARD_LIMITS, isValidBoardConfig, mineCountFor } from "@/shared/boardConfig";
 import { DIALOGS, openDialog, closeDialog } from "@/lib/dialogs";
 import "nes.css/css/nes.min.css";
 
@@ -41,11 +41,39 @@ const CardNote = ({ children }: { children: React.ReactNode }) => (
     <span className="whitespace-nowrap text-[11px]">{children}</span>
 );
 
+interface OptionRowProps {
+    label: string;
+    ariaLabel: string;
+    value: string;
+    children: React.ReactNode;
+}
+
+/**
+ * One labeled row of radio cards — Mode, Board Size and Difficulty all share
+ * this shell. Extracted so the responsive overflow behaviour is one place to
+ * change instead of three, and adding a fourth row is one line, not six.
+ */
+const OptionRow = ({ label, ariaLabel, value, children }: OptionRowProps) => (
+    <Field label={label} mt={3}>
+        <RadioCardRoot
+            maxW={"100%"}
+            overflowX={{ base: "scroll", md: "hidden" }}
+            variant={"subtle"}
+            size={"sm"}
+            value={value}
+            aria-label={ariaLabel}>
+            <HStack align="stretch">
+                {children}
+            </HStack>
+        </RadioCardRoot>
+    </Field>
+);
+
 
 export default function Landing({ createRoom, joinRoom }: LandingParams) {
 
     const [bannerVisible, setBannerVisible] = React.useState(true);
-    const { numRows, numCols, numMines, boardSize, difficulty, mode, setBoardSize, setDifficulty, setMode, setDimensions, setRoom, setName } = useMinesweeperStore();
+    const { numRows, numCols, numMines, boardSize, difficulty, mode, setBoardSize, setBoardConfig, setMode, setRoom, setName } = useMinesweeperStore();
     const {
         register: createRegister,
         handleSubmit: handleCreateSubmit,
@@ -73,33 +101,12 @@ export default function Landing({ createRoom, joinRoom }: LandingParams) {
     const customPreviewMines = mineCountFor(customPreviewRows, customPreviewCols, difficulty);
     const customPreviewValid = isValidBoardConfig(customPreviewRows, customPreviewCols, customPreviewMines);
 
-    /**
-     * Size and difficulty are two independent selectors, but the board they
-     * describe is one triple. This is the only place they are combined: pick
-     * the dimensions from the size, then derive the mine count from the
-     * difficulty's density. Both selectors route through here, so the numbers
-     * can never disagree with the labels on screen.
-     *
-     * `dims` is for the Custom size, whose dimensions come from the dialog
-     * rather than from a preset. Omitting it keeps whatever is already set,
-     * which is what changing difficulty on a custom board should do.
-     */
-    const applyBoardConfig = (sizeTitle: string, difficultyTitle: string, dims?: { rows: number, cols: number }) => {
-        const preset = sizePreset(sizeTitle);
-        const rows = preset?.rows ?? dims?.rows ?? numRows;
-        const cols = preset?.cols ?? dims?.cols ?? numCols;
-
-        setDimensions(rows, cols, mineCountFor(rows, cols, difficultyTitle));
-        setBoardSize(sizeTitle);
-        setDifficulty(difficultyTitle);
-    };
-
     /** Mines a difficulty would produce at the current dimensions — the card labels. */
     const minesAt = (difficultyTitle: string) => mineCountFor(numRows, numCols, difficultyTitle);
 
     const createOnSubmit = handleCreateSubmit((data) => {
         // Unreachable today: every path into the store goes through
-        // applyBoardConfig, and the custom dialog validates before applying.
+        // setBoardConfig, and the custom dialog validates before applying.
         // Kept as a backstop so a future writer that skips the derivation
         // surfaces here rather than as a rejected createRoom.
         if (!isValidBoardConfig(numRows, numCols, numMines)) {
@@ -128,7 +135,7 @@ export default function Landing({ createRoom, joinRoom }: LandingParams) {
             return;
         }
 
-        applyBoardConfig(CUSTOM_SIZE, difficulty, { rows, cols });
+        setBoardConfig(CUSTOM_SIZE, difficulty, { rows, cols });
         closeDialog(DIALOGS.custom);
     })
 
@@ -136,7 +143,7 @@ export default function Landing({ createRoom, joinRoom }: LandingParams) {
         // Back to the default SIZE, keeping the chosen difficulty: the two are
         // independent now, so backing out of the dimensions dialog is no reason
         // to throw away a difficulty the player picked separately.
-        applyBoardConfig(DEFAULT_SIZE, difficulty);
+        setBoardConfig(DEFAULT_SIZE, difficulty);
         closeDialog(DIALOGS.custom);
     }
 
@@ -224,85 +231,52 @@ export default function Landing({ createRoom, joinRoom }: LandingParams) {
                         {/*
                           * Three option rows now instead of two, so the cards are
                           * size="sm" with one-line descriptions. That buys back
-                          * roughly what the extra row costs.
+                          * roughly what the extra row costs. Difficulty's cards
+                          * show what each density works out to at the size
+                          * selected above, which is also what keeps them one line.
                           */}
-                        <Field label={"Select Mode:"} mt={3}>
-                            <RadioCardRoot
-                                maxW={"100%"}
-                                overflowX={{base: "scroll", md: "hidden"}}
-                                variant={"subtle"}
-                                size={"sm"}
-                                value={mode}
-                                aria-label="Select game mode">
-                                <HStack align="stretch">
-                                    <RadioCardItem
-                                        onClick={() => setMode("co-op")}
-                                        label="Co-op"
-                                        description={<CardNote>One shared board</CardNote>}
-                                        value="co-op"
-                                    />
-                                    <RadioCardItem
-                                        onClick={() => setMode("pvp")}
-                                        label="PvP"
-                                        description={<CardNote>Race an opponent</CardNote>}
-                                        value="pvp"
-                                    />
-                                </HStack>
-                            </RadioCardRoot>
-                        </Field>
-                        <Field label={"Board Size:"} mt={3}>
-                            <RadioCardRoot
-                                maxW={"100%"}
-                                overflowX={{base: "scroll", md: "hidden"}}
-                                variant={"subtle"}
-                                size={"sm"}
-                                value={boardSize}
-                                aria-label="Select board size">
-                                <HStack align="stretch">
-                                    {BOARD_SIZES.map((item) => (
-                                        <RadioCardItem
-                                            onClick={() => applyBoardConfig(item.title, difficulty)}
-                                            label={item.title}
-                                            description={<CardNote>{item.rows}x{item.cols}</CardNote>}
-                                            key={item.title}
-                                            value={item.title}
-                                        />
-                                    ))}
-                                    <RadioCardItem
-                                        description={<CardNote>{(boardSize === CUSTOM_SIZE && numRows > 0) ? `${numRows}x${numCols}` : `__x__`}</CardNote>}
-                                        label={CUSTOM_SIZE}
-                                        value={CUSTOM_SIZE}
-                                        onClick={openCustom}
-                                    />
-                                </HStack>
-                            </RadioCardRoot>
-                        </Field>
-                        {/*
-                          * Difficulty is a mine DENSITY, so each card shows what
-                          * it works out to at the size selected above -- which
-                          * is also what keeps the description one line.
-                          */}
-                        <Field label={"Select Difficulty:"} mt={3}>
-                            <RadioCardRoot
-                                maxW={"100%"}
-                                overflowX={{base: "scroll", md: "hidden"}}
-                                variant={"subtle"}
-                                size={"sm"}
-                                value={difficulty}
-                                aria-label="Select game difficulty">
-                                <HStack align="stretch">
-                                    {DIFFICULTY_LEVELS.map((level) => (
-                                        <RadioCardItem
-                                            onClick={() => applyBoardConfig(boardSize, level.title)}
-                                            label={level.title}
-                                            description={<CardNote>{minesAt(level.title)} mines</CardNote>}
-                                            key={level.title}
-                                            value={level.title}
-                                        />
-                                    ))}
-                                </HStack>
-                            </RadioCardRoot>
-                        </Field>
+                        <OptionRow label={"Select Mode:"} ariaLabel="Select game mode" value={mode}>
+                            <RadioCardItem
+                                onClick={() => setMode("co-op")}
+                                label="Co-op"
+                                description={<CardNote>One shared board</CardNote>}
+                                value="co-op"
+                            />
+                            <RadioCardItem
+                                onClick={() => setMode("pvp")}
+                                label="PvP"
+                                description={<CardNote>Race an opponent</CardNote>}
+                                value="pvp"
+                            />
+                        </OptionRow>
+                        <OptionRow label={"Board Size:"} ariaLabel="Select board size" value={boardSize}>
+                            {BOARD_SIZES.map((item) => (
+                                <RadioCardItem
+                                    onClick={() => setBoardConfig(item.title, difficulty)}
+                                    label={item.title}
+                                    description={<CardNote>{item.rows}x{item.cols}</CardNote>}
+                                    key={item.title}
+                                    value={item.title}
+                                />
+                            ))}
+                            <RadioCardItem
+                                description={<CardNote>{(boardSize === CUSTOM_SIZE && numRows > 0) ? `${numRows}x${numCols}` : `__x__`}</CardNote>}
+                                label={CUSTOM_SIZE}
+                                value={CUSTOM_SIZE}
+                                onClick={openCustom}
+                            />
+                        </OptionRow>
+                        <OptionRow label={"Select Difficulty:"} ariaLabel="Select game difficulty" value={difficulty}>
+                            {DIFFICULTY_LEVELS.map((level) => (
+                                <RadioCardItem
+                                    onClick={() => setBoardConfig(boardSize, level.title)}
+                                    label={level.title}
+                                    description={<CardNote>{minesAt(level.title)} mines</CardNote>}
+                                    key={level.title}
+                                    value={level.title}
+                                />
+                            ))}
+                        </OptionRow>
                         <div className="mt-2">
                             <button type="submit" className="nes-btn is-primary text-xs" aria-label="Create room with selected settings">Create</button>
                         </div>

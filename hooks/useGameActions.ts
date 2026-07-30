@@ -3,7 +3,7 @@
 import { useCallback, useMemo } from "react";
 import { useMinesweeperStore } from "@/app/store";
 import { throttle } from "@/lib/throttle";
-import { DEFAULT_DIFFICULTY, DEFAULT_SIZE, DEFAULT_PRESET } from "@/shared/boardConfig";
+import { DEFAULT_DIFFICULTY, DEFAULT_SIZE } from "@/shared/boardConfig";
 import { CLIENT_EVENTS } from "@/shared/events";
 import type { AppSocket } from "@/lib/initSocket";
 import type { ClientToServerEvents } from "@/shared/socketPayloads";
@@ -39,9 +39,7 @@ export function useGameActions(socket: AppSocket | null) {
         store.setPlayerJoined(false);
         store.setBoard([]);
         store.setName("");
-        store.setDimensions(DEFAULT_PRESET.rows, DEFAULT_PRESET.cols, DEFAULT_PRESET.mines);
-        store.setBoardSize(DEFAULT_SIZE);
-        store.setDifficulty(DEFAULT_DIFFICULTY);
+        store.setBoardConfig(DEFAULT_SIZE, DEFAULT_DIFFICULTY);
         store.clearAllHovers();
         store.resetPvpState(); // also resets gameOver/gameWon
         store.setMode("co-op");
