@@ -11,13 +11,10 @@
  * is a separate change (see ARCHITECTURE.md §8).
  */
 
-const { BOARD_LIMITS, isValidBoardConfig } = require('../shared/boardConfig');
+const { isValidBoardConfig } = require('../shared/boardConfig');
 
 const MAX_ROOM_CODE_LENGTH = 100;
 const MAX_PLAYER_NAME_LENGTH = 50;
-
-// Re-exported for callers that want the numbers; the source is shared/boardConfig.
-const { MIN_ROWS, MAX_ROWS, MIN_COLS, MAX_COLS } = BOARD_LIMITS;
 
 /** Upper bound on a cell coordinate, independent of the room's real dimensions. */
 const MAX_COORDINATE = 100;
@@ -91,14 +88,6 @@ const isPlayerInRoom = (roomState, socketId) => {
 };
 
 module.exports = {
-    MAX_ROOM_CODE_LENGTH,
-    MAX_PLAYER_NAME_LENGTH,
-    MIN_ROWS,
-    MAX_ROWS,
-    MIN_COLS,
-    MAX_COLS,
-    MAX_COORDINATE,
-    NO_HOVER,
     isValidRoomCode,
     isValidPlayerName,
     isValidMode,

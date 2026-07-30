@@ -39,11 +39,6 @@ const setFields = async (room, fields) => {
     return await client.hSet(roomKey(room), fields);
 };
 
-const remove = async (room) => {
-    const client = await redisClient;
-    return await client.del(roomKey(room));
-};
-
 /** Writes the initial hash and starts its 24h expiry. */
 const create = async (room, roomData) => {
     const client = await redisClient;
@@ -107,12 +102,6 @@ const getBoard = async (room) => {
 const setBoard = async (room, board) => setFields(room, { board: JSON.stringify(board) });
 
 /** One PVP player's board. */
-const getPvpBoard = async (room, playerIndex) => {
-    const { boardKey } = pvpPlayerFields(playerIndex);
-    const raw = await getField(room, boardKey);
-    return raw ? JSON.parse(raw) : null;
-};
-
 const setPvpBoard = async (room, playerIndex, board) => {
     const { boardKey } = pvpPlayerFields(playerIndex);
     return setFields(room, { [boardKey]: JSON.stringify(board) });
@@ -145,7 +134,6 @@ module.exports = {
     getState,
     getField,
     setFields,
-    remove,
     create,
     touch,
     startGracePeriod,
@@ -155,7 +143,6 @@ module.exports = {
     opponentOf,
     getBoard,
     setBoard,
-    getPvpBoard,
     setPvpBoard,
     acquireInitLock,
     releaseInitLock,

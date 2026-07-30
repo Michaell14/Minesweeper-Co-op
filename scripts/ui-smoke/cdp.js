@@ -181,4 +181,4 @@ async function attach(target) {
     return { send, evaluate, waitFor, click, type, goto, consoleErrors, close: () => ws.close() };
 }
 
-module.exports = { launchChrome, attach, newTarget, sleep, findChrome, PORT };
+module.exports = { launchChrome, attach, newTarget, sleep };
