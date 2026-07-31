@@ -26,6 +26,7 @@ import ScoreTable from '@/components/game/ScoreTable';
 import FlagCounter from '@/components/game/FlagCounter';
 import { useGameStats } from '@/hooks/useGameStats';
 import { DIALOGS, openDialog } from '@/lib/dialogs';
+import { buildJoinUrl } from '@/lib/roomLink';
 
 /**
  * Grid Component Props
@@ -71,6 +72,18 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
      * Open the player stats dialog (mobile view only)
      */
     const openPlayersDialog = () => openDialog(DIALOGS.players);
+
+    /** Copies a link that pre-fills this room code and jumps straight to the name dialog. */
+    const [linkCopied, setLinkCopied] = React.useState(false);
+    const copyRoomLink = React.useCallback(async () => {
+        try {
+            await navigator.clipboard.writeText(buildJoinUrl(room));
+            setLinkCopied(true);
+            setTimeout(() => setLinkCopied(false), 2000);
+        } catch {
+            // Clipboard denied/unavailable — button just stays "Copy Link".
+        }
+    }, [room]);
 
     // ============================================================================
     // CHORDING DETECTION
@@ -141,6 +154,14 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
         <div className={extraClass} role="region" aria-label="Room information">
             <p className="title text-xs">Room:</p>
             <p className="text-sm" aria-label={`Room code: ${room}`}> {room}</p>
+            <button
+                type="button"
+                className="nes-btn is-primary text-xs mt-2"
+                onClick={copyRoomLink}
+                aria-label="Copy shareable room link to clipboard"
+                aria-live="polite">
+                {linkCopied ? 'Copied!' : 'Copy Link'}
+            </button>
         </div>
     );
 

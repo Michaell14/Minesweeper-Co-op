@@ -10,8 +10,9 @@
  *   npm run test:ui        # in another
  *
  * Covers: creating a room, the first-click cascade, flagging, the flag counter,
- * reset, leaving, the board-size/difficulty selectors, and a two-client PVP
- * round (lobby, start, per-player boards, opponent progress).
+ * reset, leaving, the board-size/difficulty selectors, a two-client PVP round
+ * (lobby, start, per-player boards, opponent progress), and joining via a
+ * shareable room link.
  *
  * NOT covered: chording. Making a chord do something visible requires knowing
  * where the mines are, which a browser client deliberately cannot see since
@@ -390,6 +391,41 @@ async function pvp(host, guest) {
         `expected ${guestBoardAtStart}, got ${guestBoardAfter}`);
 }
 
+/**
+ * A join link (?room=...) pre-fills the room code and jumps straight to the
+ * name dialog, rather than making the guest type the code in by hand.
+ */
+async function joinLink(host, guest) {
+    console.log('\n\x1b[1m--- JOIN LINK ---\x1b[0m');
+    const room = 'smokelink' + Date.now().toString().slice(-6);
+
+    await host.goto(CLIENT);
+    await host.waitFor(`!!document.querySelector('form[aria-label="Create new room form"] button[type=submit]')`,
+        { timeout: 60000, label: 'host landing ready' });
+    await enterRoom(host, { room, name: 'Host' });
+    await host.waitFor(`${cellCount} >= 256`, { label: 'host board renders' });
+    pass('host creates the room to share');
+
+    await guest.goto(`${CLIENT}/?room=${encodeURIComponent(room)}`);
+    await guest.waitFor(`document.getElementById('dialog-name-join')?.open`,
+        { timeout: 60000, label: 'join link auto-opens the name dialog' });
+    pass('opening a join link auto-opens the name dialog');
+
+    const prefilled = await guest.evaluate(`
+        return document.querySelector('form[aria-label="Join existing room form"] input')?.value;
+    `);
+    check(prefilled === room, `the room code is pre-filled (got "${prefilled}")`);
+
+    await guest.type('#dialog-name-join input[name="name"]', 'Guest');
+    await guest.click('#dialog-name-join button[type=submit]');
+    await guest.waitFor(`${cellCount} >= 256`, { label: 'guest board renders after joining via link' });
+    check(await guest.evaluate(`return document.body.textContent.includes(${JSON.stringify(room)});`),
+        'guest lands in the shared room');
+
+    await host.waitFor(`document.body.textContent.includes('Guest')`, { label: 'host sees guest join' });
+    pass('the host sees the guest join via the link');
+}
+
 (async () => {
     await preflight();
     const chrome = await launchChrome();
@@ -403,8 +439,13 @@ async function pvp(host, guest) {
         const guest = await attach(await newTarget('about:blank'));
         await pvp(host, guest);
 
+        const linkHost = await attach(await newTarget('about:blank'));
+        const linkGuest = await attach(await newTarget('about:blank'));
+        await joinLink(linkHost, linkGuest);
+
         console.log('\n\x1b[1m--- CONSOLE ---\x1b[0m');
-        const errors = [...page.consoleErrors, ...host.consoleErrors, ...guest.consoleErrors]
+        const errors = [...page.consoleErrors, ...host.consoleErrors, ...guest.consoleErrors,
+            ...linkHost.consoleErrors, ...linkGuest.consoleErrors]
             .filter((e) => !/favicon|404/i.test(e));
         check(errors.length === 0, 'no uncaught errors in any client', errors.slice(0, 3).join('\n        '));
     } catch (e) {

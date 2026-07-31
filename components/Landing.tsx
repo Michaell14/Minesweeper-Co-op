@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/radio-card";
 import { BOARD_SIZES, CUSTOM_SIZE, DIFFICULTY_LEVELS, DEFAULT_SIZE, BOARD_LIMITS, isValidBoardConfig, mineCountFor } from "@/shared/boardConfig";
 import { DIALOGS, openDialog, closeDialog } from "@/lib/dialogs";
+import { ROOM_QUERY_PARAM } from "@/lib/roomLink";
 import "nes.css/css/nes.min.css";
 
 interface FormValues {
@@ -84,6 +85,7 @@ export default function Landing({ createRoom, joinRoom }: LandingParams) {
     const {
         register: joinRegister,
         handleSubmit: handleJoinSubmit,
+        setValue: setJoinValue,
         formState: { errors: joinErrors },
     } = useForm<FormValues>()
 
@@ -104,6 +106,25 @@ export default function Landing({ createRoom, joinRoom }: LandingParams) {
 
     /** Mines a difficulty would produce at the current dimensions — the card labels. */
     const minesAt = (difficultyTitle: string) => mineCountFor(numRows, numCols, difficultyTitle);
+
+    /**
+     * A join link (?room=...) pre-fills the room code and jumps straight to the
+     * name dialog, skipping the "type the code in yourself" step. The param is
+     * stripped from the URL right after so a refresh or leaving-and-returning
+     * doesn't reopen the dialog.
+     */
+    React.useEffect(() => {
+        const roomParam = new URLSearchParams(window.location.search).get(ROOM_QUERY_PARAM)?.trim().slice(0, 200);
+        if (!roomParam) return;
+
+        setRoom(roomParam);
+        setJoinValue("roomCode", roomParam);
+        openDialog(DIALOGS.nameJoin);
+
+        const url = new URL(window.location.href);
+        url.searchParams.delete(ROOM_QUERY_PARAM);
+        window.history.replaceState(null, '', url.toString());
+    }, [setRoom, setJoinValue]);
 
     const createOnSubmit = handleCreateSubmit((data) => {
         // Unreachable today: every path into the store goes through
