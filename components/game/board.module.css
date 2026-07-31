@@ -1,11 +1,17 @@
 /* Grid container for the game board - using CSS Grid for better performance */
 .gameBoard {
-    --cell-size: 40px;
-    --cell-gap: 3px;
+    /*
+     * Re-exported from the tokens under their local names because
+     * CursorLayer.tsx reads --cell-size and --cell-gap off this element at
+     * runtime to position remote cursors. The responsive shrink lives on the
+     * token now (app/tokens.css), so there is no media query here.
+     */
+    --cell-size: var(--ms-cell-size);
+    --cell-gap: var(--ms-cell-gap);
     display: grid;
     gap: var(--cell-gap);
     width: fit-content;
-    background-color: #3b3b3b;
+    background-color: var(--ms-board-gutter);
     padding: var(--cell-gap);
     cursor: pointer; /* Cursor pointer for the entire board */
     position: relative; /* Anchors the remote-cursor overlay */
@@ -44,12 +50,6 @@
     }
 }
 
-@media (max-width: 48em) {
-    .gameBoard {
-        --cell-size: 32px;
-    }
-}
-
 /* Remote co-op cursors — overlay sits above the cells, ignores pointer events */
 .cursorLayer {
     position: absolute;
@@ -71,7 +71,7 @@
 
 .cursorLabel {
     background-color: var(--cursor-color);
-    color: #1a1a1a;
+    color: var(--ms-cursor-label-ink);
     font-size: 10px;
     line-height: 1;
     padding: 2px 6px;
@@ -105,58 +105,59 @@
 }
 
 .cell.closed {
-    background-color: #bbb;
+    background-color: var(--ms-cell-closed);
 }
 
 .cell.open {
-    background-color: #eee;
+    background-color: var(--ms-cell-open);
 }
 
 .cell.mine {
-    background-color: #D70040;
+    background-color: var(--ms-cell-mine);
 }
 
+/* Flagged cells are still closed cells — same token, on purpose. */
 .cell.flagged {
-    background-color: #bbb;
+    background-color: var(--ms-cell-closed);
 }
 
 /* Official Minesweeper number colors */
 .cell.open.num1 {
-    color: #0000FF;
+    color: var(--ms-num-1);
     font-weight: bold;
 }
 
 .cell.open.num2 {
-    color: #008000;
+    color: var(--ms-num-2);
     font-weight: bold;
 }
 
 .cell.open.num3 {
-    color: #FF0000;
+    color: var(--ms-num-3);
     font-weight: bold;
 }
 
 .cell.open.num4 {
-    color: #000080;
+    color: var(--ms-num-4);
     font-weight: bold;
 }
 
 .cell.open.num5 {
-    color: #800000;
+    color: var(--ms-num-5);
     font-weight: bold;
 }
 
 .cell.open.num6 {
-    color: #008080;
+    color: var(--ms-num-6);
     font-weight: bold;
 }
 
 .cell.open.num7 {
-    color: #000000;
+    color: var(--ms-num-7);
     font-weight: bold;
 }
 
 .cell.open.num8 {
-    color: #808080;
+    color: var(--ms-num-8);
     font-weight: bold;
 }

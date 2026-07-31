@@ -10,7 +10,6 @@ import {
 import { BOARD_SIZES, CUSTOM_SIZE, DIFFICULTY_LEVELS, DEFAULT_SIZE, BOARD_LIMITS, isValidBoardConfig, mineCountFor } from "@/shared/boardConfig";
 import { DIALOGS, openDialog, closeDialog } from "@/lib/dialogs";
 import { ROOM_QUERY_PARAM } from "@/lib/roomLink";
-import "nes.css/css/nes.min.css";
 
 interface FormValues {
     roomCode: string

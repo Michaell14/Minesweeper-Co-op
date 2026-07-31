@@ -27,7 +27,7 @@
 }
 #horizontal:before,
 #horizontal:after {
-    background-color: #000;
+    background-color: var(--ms-border-color);
     content: "";
     display: inline-block;
     height: 3px;
@@ -47,4 +47,25 @@
 /* Chakra's RadioCard.ItemControl doesn't stretch to fill its card by default. */
 .chakra-radio-card__itemControl {
     width: 100%;
+}
+/*
+ * Undo NES.css's Chrome-only dashed input border.
+ *
+ * nes.css draws control borders with a border-image whose middle slice is a
+ * single source pixel, then ships a Chrome-targeting media query setting
+ * `border-image-repeat: space`. That tiles the slice with gaps instead of
+ * stretching it, and since border-image-width is 2 (twice the 4px border) the
+ * slice is scaled 4x — so Chrome renders a row of 4px dashes where Firefox,
+ * sent `stretch` by a separate @supports rule, renders a solid line. It is a
+ * library bug with no configuration lever; overriding is the only fix from
+ * outside.
+ *
+ * `input.nes-input` is 0,1,1 against the library's 0,1,0, so this wins on
+ * specificity regardless of stylesheet order (media queries do not raise it).
+ */
+input.nes-input,
+textarea.nes-textarea,
+button.nes-btn,
+table.nes-table.is-bordered {
+    border-image-repeat: stretch;
 }
