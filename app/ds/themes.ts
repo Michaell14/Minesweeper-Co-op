@@ -1,47 +1,11 @@
 /**
- * The themes the catalog can preview.
+ * Catalog-only theme tooling.
  *
- * `id` is the `data-theme` value; `null` is the default palette, which sets no
- * attribute at all. Kept beside the catalog rather than in components/ds
- * because switching themes is a preview affordance, not a design primitive —
- * when the app grows a real theme picker this list moves with it.
+ * The theme list and applyTheme live in lib/theme.ts because the app itself
+ * needs them now; this file keeps only what exists to critique a palette rather
+ * than to use one.
  */
-export interface ThemeOption {
-    id: string | null;
-    label: string;
-    /** One or two words — this has to fit on a single line inside a card. */
-    short: string;
-    /** What this palette is for, and what it costs. */
-    note: string;
-}
-
-export const THEMES: ThemeOption[] = [
-    { id: null, label: "NES", short: "Default", note: "The default palette. Full hue range." },
-    {
-        id: "gameboy",
-        label: "Game Boy",
-        short: "4 shades",
-        note: "Four shades total — the hardest case, and the one that breaks the number colours.",
-    },
-    {
-        id: "c64",
-        label: "C64",
-        short: "16 colours",
-        note: "Sixteen colours, so everything the default palette encodes survives.",
-    },
-    {
-        id: "dark",
-        label: "Dark",
-        short: "Inverted",
-        note: "Not a retro machine — the one people will actually ask for.",
-    },
-];
-
-/** Applies a theme to the document, or clears it for the default palette. */
-export function applyTheme(id: string | null): void {
-    if (id) document.documentElement.dataset.theme = id;
-    else delete document.documentElement.dataset.theme;
-}
+export { THEMES, applyTheme, type ThemeOption } from "@/lib/theme";
 
 const PALETTE_PREFIX = "--ms-palette-";
 

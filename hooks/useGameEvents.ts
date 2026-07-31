@@ -2,7 +2,7 @@
 
 import { useMinesweeperStore } from "@/app/store";
 import { shootConfetti } from "@/lib/confetti";
-import { generateColorFromId } from "@/lib/throttle";
+import { cursorColorForId } from "@/lib/theme";
 import { DIALOGS, openDialog } from "@/lib/dialogs";
 import { SERVER_EVENTS } from "@/shared/events";
 import type { AppSocket } from "@/lib/initSocket";
@@ -79,7 +79,7 @@ const coopHandlers = (leaveRoom: () => void): SocketHandlers => ({
         if (row === -1 && col === -1) {
             store.removePlayerHover(id);
         } else {
-            store.updatePlayerHover(id, row, col, name, generateColorFromId(id));
+            store.updatePlayerHover(id, row, col, name, cursorColorForId(id));
         }
     },
 

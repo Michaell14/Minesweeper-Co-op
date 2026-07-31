@@ -107,6 +107,23 @@
     --ms-palette-cursor-ink: #1a1a1a; /* label ink on a player's cursor colour */
 
     /*
+     * Co-op cursor ramp. Six entries, picked by hashing a player's socket id,
+     * so the same player keeps the same colour for a session.
+     *
+     * These are tokens rather than generated HSL because a cursor sits ON the
+     * board: a hash free to pick any hue will eventually pick one that vanishes
+     * into the cell fill, and under an alternate palette it would clash with
+     * everything. Six is enough — co-op rooms are small, and a repeat is far
+     * less confusing than an unreadable colour.
+     */
+    --ms-palette-cursor-1: #ffb3ba;
+    --ms-palette-cursor-2: #ffdfba;
+    --ms-palette-cursor-3: #ffffba;
+    --ms-palette-cursor-4: #baffc9;
+    --ms-palette-cursor-5: #bae1ff;
+    --ms-palette-cursor-6: #e0baff;
+
+    /*
      * The eight classic Minesweeper number colours. Iconic — the one group a
      * theme should think hard before overriding.
      *
@@ -353,6 +370,13 @@
     --ms-palette-gutter: #0f380f;
     --ms-palette-mine: #0f380f;
     --ms-palette-cursor-ink: #0f380f;
+    /* Four shades means four cursors; the other two repeat. Honest, not ideal. */
+    --ms-palette-cursor-1: #9bbc0f;
+    --ms-palette-cursor-2: #8bac0f;
+    --ms-palette-cursor-3: #306230;
+    --ms-palette-cursor-4: #9bbc0f;
+    --ms-palette-cursor-5: #8bac0f;
+    --ms-palette-cursor-6: #306230;
 
     /*
      * Only two shades are legible on the open-cell fill, so hue-coding is gone.
@@ -420,6 +444,12 @@
     --ms-palette-gutter: #000000;
     --ms-palette-mine: #883932;
     --ms-palette-cursor-ink: #000000;
+    --ms-palette-cursor-1: #67b6bd;
+    --ms-palette-cursor-2: #94e089;
+    --ms-palette-cursor-3: #bfce72;
+    --ms-palette-cursor-4: #b86962;
+    --ms-palette-cursor-5: #7869c4;
+    --ms-palette-cursor-6: #ffffff;
 
     --ms-palette-num-1: #40318d;
     --ms-palette-num-2: #55a049;
@@ -454,6 +484,13 @@
     --ms-palette-blue-ink: #16181d;
     --ms-palette-green-ink: #16181d;
     --ms-palette-red-ink: #16181d;
+
+    --ms-palette-cursor-1: #ff8fa3;
+    --ms-palette-cursor-2: #ffc078;
+    --ms-palette-cursor-3: #ffe066;
+    --ms-palette-cursor-4: #8ce99a;
+    --ms-palette-cursor-5: #74c0fc;
+    --ms-palette-cursor-6: #d0bfff;
 
     --ms-palette-cell-closed: #4a4f57;
     --ms-palette-cell-open: #2a2e35;

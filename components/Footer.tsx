@@ -1,11 +1,13 @@
 'use client'
 import React from 'react';
 import { DIALOGS, openDialog } from '@/lib/dialogs';
-import { CoinIcon, Dialog, DialogClose, GithubIcon, pointerClass } from '@/components/ds';
+import { CoinIcon, Dialog, DialogClose, GithubIcon, PaletteIcon, pointerClass } from '@/components/ds';
+import ThemePicker from '@/components/ThemePicker';
 
 export default function Footer() {
 
     const openGuideDialog = () => openDialog(DIALOGS.guide);
+    const openThemeDialog = () => openDialog(DIALOGS.theme);
 
     return (
         <>
@@ -29,6 +31,13 @@ export default function Footer() {
                     aria-label="How to play"
                     className={pointerClass}>
                     <CoinIcon size={48} />
+                </button>
+                <button
+                    type="button"
+                    onClick={openThemeDialog}
+                    aria-label="Choose colour palette"
+                    className={pointerClass}>
+                    <PaletteIcon size={48} />
                 </button>
             </div>
 
@@ -58,6 +67,8 @@ export default function Footer() {
                 <p>3) Play together!</p>
                 <hr />
             </Dialog>
+
+            <ThemePicker />
         </>
     )
 }

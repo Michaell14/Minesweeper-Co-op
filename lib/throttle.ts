@@ -26,26 +26,3 @@ export function throttle<T extends (...args: any[]) => any>(
         }
     };
 }
-
-/**
- * Generate a deterministic color from a string (socket ID)
- * Returns a pastel color with good visibility
- */
-export function generateColorFromId(id: string): string {
-    // Simple hash function
-    let hash = 0;
-    for (let i = 0; i < id.length; i++) {
-        hash = id.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    
-    // Generate HSL color with:
-    // - Hue: distributed across color wheel
-    // - Saturation: 60-70% for vibrant but not overwhelming
-    // - Lightness: 75-85% for pastel effect
-    const hue = Math.abs(hash % 360);
-    const saturation = 60 + (Math.abs(hash) % 10);
-    const lightness = 75 + (Math.abs(hash >> 8) % 10);
-    
-    return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
-}
-

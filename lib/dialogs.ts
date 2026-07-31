@@ -31,6 +31,7 @@ export const DIALOGS = {
 
     // Owned by components/Footer.tsx
     guide: 'dialog-guide',
+    theme: 'dialog-theme',
 } as const;
 
 export type DialogId = (typeof DIALOGS)[keyof typeof DIALOGS];

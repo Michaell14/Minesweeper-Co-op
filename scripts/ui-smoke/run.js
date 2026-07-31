@@ -267,8 +267,11 @@ async function sizeAndDifficulty(page) {
     await page.waitFor(`!!document.querySelector('form[aria-label="Create new room form"]')`, { label: 'returns to landing' });
 
     // Leaving resets BOTH axes, not just difficulty.
+    // Scoped to the create form: the page has other radio groups (the palette
+    // picker lives in the footer), and this check is about mode/size/difficulty.
     const backToDefaults = await page.evaluate(`
-        return [...document.querySelectorAll('input[type=radio]')].filter(r => r.checked).map(r => r.value).join(',');
+        const form = document.querySelector('form[aria-label="Create new room form"]');
+        return [...form.querySelectorAll('input[type=radio]')].filter(r => r.checked).map(r => r.value).join(',');
     `);
     check(backToDefaults === 'co-op,Medium,Medium',
         'leaving resets size and difficulty to the defaults',
