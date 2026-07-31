@@ -106,16 +106,28 @@
     --ms-palette-mine: #d70040;
     --ms-palette-cursor-ink: #1a1a1a; /* label ink on a player's cursor colour */
 
-    /* The eight classic Minesweeper number colours. Iconic — these are the one
-     * group a theme should think hard before overriding. */
+    /*
+     * The eight classic Minesweeper number colours. Iconic — the one group a
+     * theme should think hard before overriding.
+     *
+     * Four are darkened from the originals, by the smallest hue-preserving
+     * amount that clears WCAG AA on the open-cell fill: 2 by 2%, 6 by 7%, 3 by
+     * 16% and 8 by 17%. Green and teal barely move. Red and grey move enough to
+     * notice side by side, but they were the two worst (3.45:1 and 3.40:1) and
+     * the alternative was numbers a player cannot reliably read.
+     *
+     * Hue is preserved by scaling the channels together, so the palette still
+     * reads as blue/green/red/navy/maroon/teal/black/grey. Red and maroon stay
+     * the closest pair, as they always were.
+     */
     --ms-palette-num-1: #0000ff;
-    --ms-palette-num-2: #008000;
-    --ms-palette-num-3: #ff0000;
+    --ms-palette-num-2: #007d00;
+    --ms-palette-num-3: #d70000;
     --ms-palette-num-4: #000080;
     --ms-palette-num-5: #800000;
-    --ms-palette-num-6: #008080;
+    --ms-palette-num-6: #007777;
     --ms-palette-num-7: #000000;
-    --ms-palette-num-8: #808080;
+    --ms-palette-num-8: #6a6a6a;
 
     /* ---------------------------------------------------------------------
      * 2. SEMANTIC — surfaces and ink
@@ -284,6 +296,12 @@
 /* ---------------------------------------------------------------------------
  * Game Boy (DMG). Four shades, total.
  *
+ * Hover fills follow the same rule as the default palette but stated generally:
+ * hover moves the fill AWAY from that intent's ink, so contrast rises rather
+ * than falls. With dark ink that means lighter; with light ink, darker. Every
+ * value below is one of the four DMG shades — interpolating would pass the
+ * audit but destroy the point of including this palette.
+ *
  * This palette is here because it is the hardest case, not the prettiest: with
  * four colours you cannot give eight Minesweeper numbers eight distinguishable
  * hues, and you cannot give five button intents five. Both constraints are
@@ -308,7 +326,7 @@
     --ms-palette-blue-shade: #0f380f;
     --ms-palette-blue-ink: #9bbc0f;
     --ms-palette-green: #8bac0f;
-    --ms-palette-green-deep: #306230;
+    --ms-palette-green-deep: #9bbc0f;
     --ms-palette-green-shade: #306230;
     --ms-palette-green-ink: #0f380f;
     --ms-palette-yellow: #9bbc0f;
@@ -383,7 +401,7 @@
     --ms-palette-yellow-shade: #8b5429;
     --ms-palette-yellow-ink: #000000;
     --ms-palette-red: #883932;
-    --ms-palette-red-deep: #b86962;
+    --ms-palette-red-deep: #574200;
     --ms-palette-red-shade: #574200;
     --ms-palette-red-ink: #ffffff;
 
