@@ -1,12 +1,15 @@
 import React from 'react';
-import { HStack, Center, Container } from "@chakra-ui/react";
 import { useForm } from "react-hook-form";
-import { Field } from "@/components/ui/field";
 import { useMinesweeperStore } from '@/app/store';
 import {
-    RadioCardItem,
-    RadioCardRoot,
-} from "@/components/ui/radio-card";
+    Button,
+    Dialog,
+    DialogClose,
+    Field,
+    Input,
+    RadioCard,
+    RadioCardGroup,
+} from "@/components/ds";
 import { BOARD_SIZES, CUSTOM_SIZE, DIFFICULTY_LEVELS, DEFAULT_SIZE, BOARD_LIMITS, isValidBoardConfig, mineCountFor } from "@/shared/boardConfig";
 import { DIALOGS, openDialog, closeDialog } from "@/lib/dialogs";
 import { ROOM_QUERY_PARAM } from "@/lib/roomLink";
@@ -38,13 +41,16 @@ interface LandingParams {
  * tall, which is what makes room for the third option row.
  */
 const CardNote = ({ children }: { children: React.ReactNode }) => (
-    <span className="whitespace-nowrap text-[11px]">{children}</span>
+    <span className="whitespace-nowrap text-pixel-xs">{children}</span>
 );
 
 interface OptionRowProps {
     label: string;
     ariaLabel: string;
+    /** Radio `name`, unique per row so the three groups don't fight. */
+    name: string;
     value: string;
+    onChange: (value: string) => void;
     children: React.ReactNode;
 }
 
@@ -53,22 +59,74 @@ interface OptionRowProps {
  * this shell. Extracted so the responsive overflow behaviour is one place to
  * change instead of three, and adding a fourth row is one line, not six.
  */
-const OptionRow = ({ label, ariaLabel, value, children }: OptionRowProps) => (
-    <Field label={label} mt={3}>
-        <RadioCardRoot
-            width={"100%"}
-            maxW={"100%"}
-            overflowX={{ base: "scroll", md: "hidden" }}
-            variant={"subtle"}
-            size={"sm"}
-            value={value}
-            aria-label={ariaLabel}>
-            <HStack align="stretch">
-                {children}
-            </HStack>
-        </RadioCardRoot>
+const OptionRow = ({ label, ariaLabel, name, value, onChange, children }: OptionRowProps) => (
+    <Field label={label} className="mt-3">
+        <RadioCardGroup name={name} value={value} onChange={onChange} ariaLabel={ariaLabel}>
+            {children}
+        </RadioCardGroup>
     </Field>
 );
+
+interface NameDialogProps {
+    id: typeof DIALOGS.nameCreate | typeof DIALOGS.nameJoin;
+    confirmLabel: string;
+    onConfirm: () => void;
+    setName: (name: string) => void;
+}
+
+/**
+ * "Enter your Name", shown before both creating and joining.
+ *
+ * The two were separate copies of identical markup differing only in which
+ * action they called — including two copies of a validity check that reached
+ * back into the DOM with `document.querySelector('#dialog-name-create
+ * input[name=name]')` to read the value it had just written to the store.
+ * A ref reads the same input without needing to know the dialog's own id.
+ */
+const NameDialog = ({ id, confirmLabel, onConfirm, setName }: NameDialogProps) => {
+    const inputRef = React.useRef<HTMLInputElement>(null);
+
+    const confirm = (e: React.MouseEvent) => {
+        const nameValue = inputRef.current?.value ?? '';
+        if (nameValue.trim().length === 0) {
+            e.preventDefault();
+            alert('Please enter a valid name');
+            return;
+        }
+        setName(nameValue);
+        onConfirm();
+    };
+
+    return (
+        <Dialog
+            id={id}
+            title="Enter your Name:"
+            actionsAlign="between"
+            actions={
+                <>
+                    <Button
+                        aria-label="Cancel and close dialog"
+                        onClick={() => closeDialog(id)}>Cancel</Button>
+                    <DialogClose
+                        intent="success"
+                        onClick={confirm}
+                        aria-label={confirmLabel}>Confirm</DialogClose>
+                </>
+            }>
+            <Input
+                ref={inputRef}
+                type="text"
+                name="name"
+                maxLength={16}
+                minLength={1}
+                required
+                className="mb-4"
+                aria-label="Your player name"
+                aria-required="true"
+                onChange={(e) => setName(e.target.value)} />
+        </Dialog>
+    );
+};
 
 
 export default function Landing({ createRoom, joinRoom }: LandingParams) {
@@ -177,13 +235,13 @@ export default function Landing({ createRoom, joinRoom }: LandingParams) {
         <>
             {/* Notification Banner */}
             {bannerVisible && (
-                <div className="bg-yellow-400 text-black px-4 py-2 text-center relative flex items-center justify-center" role="banner" aria-label="Website milestone announcement">
-                    <p className="text-[10px] md:text-xs m-0">
-                    PvP Mode just dropped! Go head-to-head with friends. Got feedback? <a href="https://forms.gle/ALpScH8K7K2QsA8M7" target="_blank" rel="noopener noreferrer" className="underline hover:text-gray-700">Tell us!</a>
+                <div className="bg-surface-banner text-ink-banner px-4 py-2 text-center relative flex items-center justify-center" role="banner" aria-label="Website milestone announcement">
+                    <p className="text-pixel-2xs md:text-pixel-sm m-0">
+                    PvP Mode just dropped! Go head-to-head with friends. Got feedback? <a href="https://forms.gle/ALpScH8K7K2QsA8M7" target="_blank" rel="noopener noreferrer" className="underline hover:text-ink-muted-hover">Tell us!</a>
                     </p>
                     <button
                         onClick={() => setBannerVisible(false)}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-black hover:text-gray-700 font-bold text-lg leading-none"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-ink-banner hover:text-ink-muted-hover font-bold text-pixel-lg leading-none"
                         aria-label="Close banner"
                     >
                         ×
@@ -197,10 +255,13 @@ export default function Landing({ createRoom, joinRoom }: LandingParams) {
               * some space back.
               */}
             <div className="text-center pt-4 lg:pt-8">
-                <h1 className="text-2xl md:text-4xl font-bold">Minesweeper Co-op</h1>
+                <h1 className="text-pixel-2xl md:text-pixel-4xl font-bold">Minesweeper Co-op</h1>
             </div>
-            <Center pb={12}>
-                <Container maxW={"2xl"}>
+            {/* Chakra <Center pb={12}><Container maxW="2xl"> — 672px is
+                max-w-2xl exactly, and the container's own inline padding was
+                16px, i.e. px-4. */}
+            <div className="flex justify-center pb-12">
+                <div className="w-full max-w-2xl mx-auto px-4">
                     {/*
                       * Join comes FIRST, and its input and button share one row.
                       * Joining is a single field, but it used to sit under the
@@ -209,7 +270,7 @@ export default function Landing({ createRoom, joinRoom }: LandingParams) {
                       * laptop viewport. Creating a room is the longer task and
                       * the one people scroll for.
                       */}
-                    <p className="text-xl mt-6">Join an Existing Room:</p>
+                    <p className="text-pixel-xl mt-6">Join an Existing Room:</p>
                     <form onSubmit={joinOnSubmit} className="mt-2" aria-label="Join existing room form">
                         <div className="flex items-start gap-3">
                             <div className="flex-1">
@@ -217,34 +278,36 @@ export default function Landing({ createRoom, joinRoom }: LandingParams) {
                                     invalid={!!joinErrors.roomCode}
                                     errorText={joinErrors.roomCode?.message}
                                 >
-                                    <input
+                                    <Input
                                         type="text"
+                                        size="sm"
                                         maxLength={28}
                                         placeholder={"Enter Room Code"}
-                                        className="nes-input text-xs"
+                                        validity={joinErrors.roomCode ? "invalid" : undefined}
                                         aria-label="Room code to join"
                                         aria-required="true"
                                         {...joinRegister("roomCode", { required: "Room Code is required." })} />
                                 </Field>
                             </div>
-                            <button type="submit" className="nes-btn is-primary text-xs shrink-0" aria-label="Join room">Join</button>
+                            <Button type="submit" intent="primary" size="sm" className="shrink-0" aria-label="Join room">Join</Button>
                         </div>
                     </form>
 
                     <p className="my-4" id={"horizontal"}>Or</p>
 
-                    <p className="text-xl">Create a New Room:</p>
+                    <p className="text-pixel-xl">Create a New Room:</p>
                     <form onSubmit={createOnSubmit} className="mt-2" aria-label="Create new room form">
                         <Field
                             invalid={!!createErrors.roomCode}
                             errorText={createErrors.roomCode?.message}
                         >
 
-                            <input
-                                className="nes-input text-xs"
+                            <Input
+                                size="sm"
                                 maxLength={28}
                                 type="text"
                                 placeholder={"Enter Room Code"}
+                                validity={createErrors.roomCode ? "invalid" : undefined}
                                 aria-label="Room code"
                                 aria-required="true"
                                 {...createRegister("roomCode", { required: "Room Code is required." })} />
@@ -256,41 +319,58 @@ export default function Landing({ createRoom, joinRoom }: LandingParams) {
                           * show what each density works out to at the size
                           * selected above, which is also what keeps them one line.
                           */}
-                        <OptionRow label={"Select Mode:"} ariaLabel="Select game mode" value={mode}>
-                            <RadioCardItem
-                                onClick={() => setMode("co-op")}
+                        <OptionRow
+                            label={"Select Mode:"}
+                            ariaLabel="Select game mode"
+                            name="mode"
+                            value={mode}
+                            onChange={(v) => setMode(v as "co-op" | "pvp")}>
+                            <RadioCard
                                 label="Co-op"
                                 description={<CardNote>One shared board</CardNote>}
                                 value="co-op"
                             />
-                            <RadioCardItem
-                                onClick={() => setMode("pvp")}
+                            <RadioCard
                                 label="PvP"
                                 description={<CardNote>Race an opponent</CardNote>}
                                 value="pvp"
                             />
                         </OptionRow>
-                        <OptionRow label={"Board Size:"} ariaLabel="Select board size" value={boardSize}>
+                        <OptionRow
+                            label={"Board Size:"}
+                            ariaLabel="Select board size"
+                            name="boardSize"
+                            value={boardSize}
+                            onChange={(v) => { if (v !== CUSTOM_SIZE) setBoardConfig(v, difficulty); }}>
                             {BOARD_SIZES.map((item) => (
-                                <RadioCardItem
-                                    onClick={() => setBoardConfig(item.title, difficulty)}
+                                <RadioCard
                                     label={item.title}
                                     description={<CardNote>{item.rows}x{item.cols}</CardNote>}
                                     key={item.title}
                                     value={item.title}
                                 />
                             ))}
-                            <RadioCardItem
+                            {/*
+                              * Custom is the one card that does not just set a
+                              * value — it opens the dimensions dialog, every
+                              * time it is clicked, including when it is already
+                              * selected. That is what onSelect is for.
+                              */}
+                            <RadioCard
                                 description={<CardNote>{(boardSize === CUSTOM_SIZE && numRows > 0) ? `${numRows}x${numCols}` : `__x__`}</CardNote>}
                                 label={CUSTOM_SIZE}
                                 value={CUSTOM_SIZE}
-                                onClick={openCustom}
+                                onSelect={openCustom}
                             />
                         </OptionRow>
-                        <OptionRow label={"Select Difficulty:"} ariaLabel="Select game difficulty" value={difficulty}>
+                        <OptionRow
+                            label={"Select Difficulty:"}
+                            ariaLabel="Select game difficulty"
+                            name="difficulty"
+                            value={difficulty}
+                            onChange={(v) => setBoardConfig(boardSize, v)}>
                             {DIFFICULTY_LEVELS.map((level) => (
-                                <RadioCardItem
-                                    onClick={() => setBoardConfig(boardSize, level.title)}
+                                <RadioCard
                                     label={level.title}
                                     description={<CardNote>{minesAt(level.title)} mines</CardNote>}
                                     key={level.title}
@@ -299,187 +379,105 @@ export default function Landing({ createRoom, joinRoom }: LandingParams) {
                             ))}
                         </OptionRow>
                         <div className="mt-2">
-                            <button type="submit" className="nes-btn is-primary text-xs" aria-label="Create room with selected settings">Create</button>
+                            <Button type="submit" intent="primary" size="sm" aria-label="Create room with selected settings">Create</Button>
                         </div>
                     </form>
-                </Container>
-            </Center>
+                </div>
+            </div>
 
-            <dialog
-                className="nes-dialog absolute left-1/2 top-60 -translate-x-1/2"
+            <NameDialog
                 id={DIALOGS.nameCreate}
-                aria-labelledby="create-name-title">
-                <form method="dialog">
-                    <p id="create-name-title">Enter your Name:</p>
-                    <div className="nes-field mb-4">
-                        <input
-                            type="text"
-                            name="name"
-                            maxLength={16}
-                            minLength={1}
-                            required
-                            className="nes-input text-sm"
-                            aria-label="Your player name"
-                            aria-required="true"
-                            onChange={(e) => setName(e.target.value)} />
-                    </div>
-                    <div className="flex justify-between">
-                        <button
-                            type="button"
-                            className="nes-btn"
-                            aria-label="Cancel and close dialog"
-                            onClick={() => {
-                                closeDialog(DIALOGS.nameCreate);
-                            }}>Cancel</button>
-                        <button
-                            onClick={(e) => {
-                                const input = document.querySelector('#dialog-name-create input[name="name"]') as HTMLInputElement;
-                                const nameValue = input?.value || '';
-                                if (!nameValue || nameValue.trim().length === 0) {
-                                    e.preventDefault();
-                                    alert('Please enter a valid name');
-                                    return;
-                                }
-                                setName(nameValue);
-                                createRoom();
-                            }}
-                            type="submit"
-                            className="nes-btn is-success"
-                            aria-label="Confirm and create room">Confirm</button>
-                    </div>
-                </form>
-            </dialog>
-            <dialog
-                className="nes-dialog absolute left-1/2 top-60 -translate-x-1/2"
+                confirmLabel="Confirm and create room"
+                onConfirm={createRoom}
+                setName={setName}
+            />
+            <NameDialog
                 id={DIALOGS.nameJoin}
-                aria-labelledby="join-name-title">
-                <form method="dialog">
-                    <p id="join-name-title">Enter your Name:</p>
-                    <div className="nes-field mb-4">
-                        <input
-                            type="text"
-                            name="name"
-                            maxLength={16}
-                            minLength={1}
-                            required
-                            className="nes-input text-sm"
-                            aria-label="Your player name"
-                            aria-required="true"
-                            onChange={(e) => setName(e.target.value)} />
-                    </div>
-                    <div className="flex justify-between">
-                        <button
-                            type="button"
-                            className="nes-btn"
-                            aria-label="Cancel and close dialog"
-                            onClick={() => {
-                                closeDialog(DIALOGS.nameJoin);
-                            }}>Cancel</button>
-                        <button
-                            onClick={(e) => {
-                                const input = document.querySelector('#dialog-name-join input[name="name"]') as HTMLInputElement;
-                                const nameValue = input?.value || '';
-                                if (!nameValue || nameValue.trim().length === 0) {
-                                    e.preventDefault();
-                                    alert('Please enter a valid name');
-                                    return;
-                                }
-                                setName(nameValue);
-                                joinRoom();
-                            }}
-                            type="submit"
-                            className="nes-btn is-success"
-                            aria-label="Confirm and join room">Confirm</button>
-                    </div>
-                </form>
-            </dialog>
+                confirmLabel="Confirm and join room"
+                onConfirm={joinRoom}
+                setName={setName}
+            />
 
-            <dialog
-                className="nes-dialog absolute left-1/2 top-60 -translate-x-1/2"
+            <Dialog
                 id={DIALOGS.customError}
-                role="alertdialog"
-                aria-labelledby="custom-error-title">
-                <form method="dialog">
-                    {/*
-                      * The old copy named the mines-under-half rule, which a
-                      * player can no longer break -- mines are derived from the
-                      * difficulty now. What is left is the dimension range.
-                      */}
-                    <p id="custom-error-title">There was an error with your customization:</p>
-                    <p className="text-xs">
-                        Rows must be between {BOARD_LIMITS.MIN_ROWS} and {BOARD_LIMITS.MAX_ROWS},
-                        and columns between {BOARD_LIMITS.MIN_COLS} and {BOARD_LIMITS.MAX_COLS}.
-                    </p>
-                    <div className="flex justify-between">
-                        <button className="nes-btn" aria-label="Close error dialog">Cancel</button>
-                    </div>
-                </form>
-            </dialog>
+                title="There was an error with your customization:"
+                alert
+                actionsAlign="between"
+                actions={<DialogClose aria-label="Close error dialog">Cancel</DialogClose>}>
+                {/*
+                  * The old copy named the mines-under-half rule, which a
+                  * player can no longer break -- mines are derived from the
+                  * difficulty now. What is left is the dimension range.
+                  */}
+                <p className="text-pixel-sm">
+                    Rows must be between {BOARD_LIMITS.MIN_ROWS} and {BOARD_LIMITS.MAX_ROWS},
+                    and columns between {BOARD_LIMITS.MIN_COLS} and {BOARD_LIMITS.MAX_COLS}.
+                </p>
+            </Dialog>
 
-            <dialog
-                className="nes-dialog absolute left-1/2 top-60 -translate-x-1/2"
+            <Dialog
                 id={DIALOGS.custom}
-                aria-labelledby="custom-board-title">
-                <form onSubmit={customOnSubmit} method="dialog">
-                    <p id="custom-board-title">Customize your Board:</p>
-                    <Field
-                        invalid={!!customErrors.rows}
-                        errorText={customErrors.rows?.message}
-                    >
-                        <p className="mb-0">Number of Rows:</p>
-                        <input
-                            type="number"
-                            defaultValue={numRows}
-                            className="nes-input text-xs"
-                            maxLength={28}
-                            min={BOARD_LIMITS.MIN_ROWS}
-                            max={BOARD_LIMITS.MAX_ROWS}
-                            placeholder={`Between ${BOARD_LIMITS.MIN_ROWS} - ${BOARD_LIMITS.MAX_ROWS}`}
-                            aria-label={`Number of rows, between ${BOARD_LIMITS.MIN_ROWS} and ${BOARD_LIMITS.MAX_ROWS}`}
-                            aria-required="true"
-                            {...customRegister("rows", { required: "Number of Rows is Required." })} />
-                    </Field>
-                    <Field
-                        invalid={!!customErrors.cols}
-                        errorText={customErrors.cols?.message}
-                    >
-                        <p className="mb-0 mt-4">Number of Columns:</p>
-                        <input
-                            className="nes-input text-xs"
-                            defaultValue={numCols}
-                            maxLength={28}
-                            type="number"
-                            min={BOARD_LIMITS.MIN_COLS}
-                            max={BOARD_LIMITS.MAX_COLS}
-                            placeholder={`Between ${BOARD_LIMITS.MIN_COLS} - ${BOARD_LIMITS.MAX_COLS}`}
-                            aria-label={`Number of columns, between ${BOARD_LIMITS.MIN_COLS} and ${BOARD_LIMITS.MAX_COLS}`}
-                            aria-required="true"
-                            {...customRegister("cols", { required: "Number of Columns is Required." })} />
-                    </Field>
-                    {/*
-                      * No mine field: difficulty owns the density, so the count
-                      * is derived. Showing it live is what makes that legible --
-                      * otherwise you would pick dimensions and not learn how
-                      * many mines you got until the board rendered.
-                      */}
-                    <p className="mt-4 mb-0 text-xs" aria-live="polite">
-                        {customPreviewValid
-                            ? `${difficulty}: ${customPreviewMines} mines`
-                            : `${difficulty}: enter dimensions above`}
-                    </p>
-                    <div className="flex justify-between mt-5">
-                        <button
+                title="Customize your Board:"
+                onSubmit={customOnSubmit}
+                actionsAlign="between"
+                actions={
+                    <>
+                        <Button
                             onClick={cancelCustom}
-                            type="button"
-                            className="nes-btn"
-                            aria-label="Cancel custom board settings">Cancel</button>
-                        <button
-                            type="submit"
-                            className="nes-btn is-success"
-                            aria-label="Confirm custom board settings">Confirm</button>
-                    </div>
-                </form>
-            </dialog>
+                            aria-label="Cancel custom board settings">Cancel</Button>
+                        <DialogClose
+                            intent="success"
+                            aria-label="Confirm custom board settings">Confirm</DialogClose>
+                    </>
+                }>
+                <Field
+                    label="Number of Rows:"
+                    invalid={!!customErrors.rows}
+                    errorText={customErrors.rows?.message}
+                >
+                    <Input
+                        type="number"
+                        size="sm"
+                        defaultValue={numRows}
+                        min={BOARD_LIMITS.MIN_ROWS}
+                        max={BOARD_LIMITS.MAX_ROWS}
+                        validity={customErrors.rows ? "invalid" : undefined}
+                        placeholder={`Between ${BOARD_LIMITS.MIN_ROWS} - ${BOARD_LIMITS.MAX_ROWS}`}
+                        aria-label={`Number of rows, between ${BOARD_LIMITS.MIN_ROWS} and ${BOARD_LIMITS.MAX_ROWS}`}
+                        aria-required="true"
+                        {...customRegister("rows", { required: "Number of Rows is Required." })} />
+                </Field>
+                <Field
+                    label="Number of Columns:"
+                    className="mt-4"
+                    invalid={!!customErrors.cols}
+                    errorText={customErrors.cols?.message}
+                >
+                    <Input
+                        type="number"
+                        size="sm"
+                        defaultValue={numCols}
+                        min={BOARD_LIMITS.MIN_COLS}
+                        max={BOARD_LIMITS.MAX_COLS}
+                        validity={customErrors.cols ? "invalid" : undefined}
+                        placeholder={`Between ${BOARD_LIMITS.MIN_COLS} - ${BOARD_LIMITS.MAX_COLS}`}
+                        aria-label={`Number of columns, between ${BOARD_LIMITS.MIN_COLS} and ${BOARD_LIMITS.MAX_COLS}`}
+                        aria-required="true"
+                        {...customRegister("cols", { required: "Number of Columns is Required." })} />
+                </Field>
+                {/*
+                  * No mine field: difficulty owns the density, so the count
+                  * is derived. Showing it live is what makes that legible --
+                  * otherwise you would pick dimensions and not learn how
+                  * many mines you got until the board rendered.
+                  */}
+                <p className="mt-4 mb-0 text-pixel-sm" aria-live="polite">
+                    {customPreviewValid
+                        ? `${difficulty}: ${customPreviewMines} mines`
+                        : `${difficulty}: enter dimensions above`}
+                </p>
+            </Dialog>
+
 
         </>
     )

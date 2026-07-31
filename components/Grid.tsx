@@ -16,9 +16,8 @@
  * controls are visible.
  */
 import React, { useEffect } from 'react';
-import { Container, Flex, HStack, VStack, Box } from "@chakra-ui/react";
 import { useMinesweeperStore } from '@/app/store';
-import { Switch } from "@/components/ui/switch";
+import { Button, Dialog, DialogClose, Panel, Switch, TrophyIcon } from '@/components/ds';
 import Board from '@/components/game/Board';
 import StatusBanner from '@/components/game/StatusBanner';
 import ProgressBar, { opponentBarColor } from '@/components/game/ProgressBar';
@@ -128,48 +127,59 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
         <>
             {/* Co-op: Reset Board button */}
             {mode === 'co-op' &&
-                <button
-                    type="button"
-                    className="nes-btn text-xs is-primary"
+                <Button
+                    intent="primary"
+                    size="sm"
                     onClick={resetGame}
                     aria-label="Reset game board with new mine placement">
                     Reset Board
-                </button>
+                </Button>
             }
             {/* PVP: Reset My Board button (only when player failed but game not over) */}
             {mode === 'pvp' && gameOver && !gameWon && !pvpWinner &&
-                <button
-                    type="button"
-                    className="nes-btn text-xs is-primary"
+                <Button
+                    intent="primary"
+                    size="sm"
                     onClick={resetMyBoard}
                     aria-label="Reset your board after hitting a mine">
                     Reset My Board
-                </button>
+                </Button>
             }
             {/* PVP: Rematch button (host only, after game ends) */}
             {mode === 'pvp' && pvpWinner && pvpIsHost &&
-                <button
-                    type="button"
-                    className="nes-btn text-xs is-success"
+                <Button
+                    intent="success"
+                    size="sm"
                     onClick={pvpRematch}
                     aria-label="Start a rematch">
                     Rematch
-                </button>
+                </Button>
             }
         </>
     );
 
-    const roomPanel = (extraClass: string) => (
-        <div className={extraClass} role="region" aria-label="Room information">
-            <p className="title text-xs">Room:</p>
-            <p className="text-sm" aria-label={`Room code: ${room}`}> {room}</p>
-            <button
-                type="button"
-                className="nes-btn is-primary text-xs mt-2"
+    /*
+     * `centered` is a Panel prop rather than a text-center class because it
+     * also centres the title knocked out of the top border — which is what the
+     * mobile panel's old `nes-container is-centered with-title` did. Passing
+     * only text-center centres the body and leaves the title hard left.
+     */
+    const roomPanel = (extraClass: string, centered = false) => (
+        <Panel
+            title={<span className="text-pixel-sm">Room:</span>}
+            centered={centered}
+            className={extraClass}
+            role="region"
+            aria-label="Room information">
+            <p className="text-pixel-md" aria-label={`Room code: ${room}`}> {room}</p>
+            <Button
+                intent="primary"
+                size="sm"
+                className="mt-2"
                 onClick={copyRoomLink}
                 aria-label="Copy shareable room link to clipboard">
                 {linkCopied ? 'Copied!' : 'Copy Link'}
-            </button>
+            </Button>
             {/*
               * aria-live on the button itself is unreliable -- screen readers
               * don't consistently treat an interactive control as a live
@@ -180,24 +190,30 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
             <span className="sr-only" aria-live="polite">
                 {linkCopied ? 'Link copied to clipboard' : ''}
             </span>
-        </div>
+        </Panel>
     );
 
     const leaveButton = (
-        <button
-            type="button"
-            className="nes-btn is-warning text-xs"
+        <Button
+            intent="warning"
+            size="sm"
             onClick={leaveRoom}
             aria-label="Leave room and return to home page">
             Return to Home
-        </button>
+        </Button>
     );
 
     return (
         <>
-            <Container minH={"94vh"} pb={{ base: 6, xl: 16 }} maxW={"1350px"} pt={{ base: 10, xl: 20 }}>
+            {/*
+              * Was a Chakra <Container>. Its computed values were maxW 1350px,
+              * 16px inline padding and auto inline margin, which is exactly
+              * max-w-[1350px] mx-auto px-4 — Chakra and Tailwind share the same
+              * numeric spacing scale, so pb={6} is pb-6 and so on throughout.
+              */}
+            <div className="w-full max-w-[1350px] mx-auto px-4 min-h-[94vh] pt-10 pb-6 xl:pt-20 xl:pb-16">
 
-                <h1 className="text-center font-bold text-2xl md:text-4xl">Minesweeper Co-Op</h1>
+                <h1 className="text-center font-bold text-pixel-2xl md:text-pixel-4xl">Minesweeper Co-Op</h1>
 
                 {/* ARIA live region for game status announcements */}
                 <div aria-live="assertive" aria-atomic="true" className="sr-only">
@@ -215,40 +231,36 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
                   * line entirely. Mobile then reads controls-then-board, desktop
                   * reads left-board-right.
                   */}
-                <Flex
-                    direction={{ base: "column", xl: "row" }}
-                    align={{ base: "center", xl: "flex-start" }}
-                    justify={{ xl: "space-around" }}
-                    gap={{ base: 0, xl: 20 }}
-                    mt={{ base: 10, xl: 16 }}>
+                <div className="flex flex-col items-center gap-0 mt-10 xl:flex-row xl:items-start xl:justify-around xl:gap-20 xl:mt-16">
 
                     {/* ------------------------------------------------------------ */}
                     {/* MOBILE: controls stacked above the board                      */}
                     {/* ------------------------------------------------------------ */}
-                    <VStack hideFrom={"xl"}>
-                        <HStack gap={8}>
+                    <div className="flex flex-col items-center gap-2 xl:hidden">
+                        <div className="flex items-center gap-8">
                             {leaveButton}
                             {actionButtons}
-                        </HStack>
+                        </div>
 
-                        <HStack gap={8}>
-                            {roomPanel("my-6 bg-slate-100 nes-container is-centered with-title max-w-60")}
+                        <div className="flex items-center gap-8">
+                            {roomPanel("my-6 max-w-60", true)}
                             {/* Trophy button - only show in co-op mode */}
                             {mode !== 'pvp' &&
                                 <button
-                                    className="nes-icon trophy is-medium"
+                                    type="button"
                                     onClick={openPlayersDialog}
                                     aria-label="View player scores"
-                                    style={{ border: 'none', background: 'none', cursor: 'pointer' }}
-                                />
+                                    className="cursor-pointer">
+                                    <TrophyIcon size={48} />
+                                </button>
                             }
-                        </HStack>
+                        </div>
 
                         {/* PVP: Progress bars and flag counter for mobile */}
                         {mode === 'pvp' && pvpStarted &&
                             <div className="w-full max-w-60 mb-4">
                                 <div className="mb-2">
-                                    <ProgressBar label="You" percent={ownProgressPercent} colorClass="bg-blue-500" size="sm" />
+                                    <ProgressBar label="You" percent={ownProgressPercent} colorClass="bg-progress-own" size="sm" />
                                 </div>
                                 <div>
                                     <ProgressBar
@@ -262,25 +274,29 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
                             </div>
                         }
 
-                        <HStack gap={5} mb={5}>
+                        <div className="flex items-center gap-5 mb-5">
+                            {/*
+                              * Controlled now. It used to be `defaultChecked`
+                              * with the store updated on change, so the toggle
+                              * and `isChecked` were two sources of truth that
+                              * happened to agree.
+                              */}
                             <Switch
-                                defaultChecked
-                                onCheckedChange={(e) => setIsChecked(e.checked)}
-                                size="lg"
-                                colorScheme="blue"
+                                checked={isChecked}
+                                onChange={setIsChecked}
                                 aria-label={`Toggle between click and flag mode. Currently in ${isChecked ? "click" : "flag"} mode`}
                             />
                             <p className="mt-1.5" aria-hidden="true">{isChecked ? "Click" : "Flag"} Mode</p>
-                        </HStack>
-                    </VStack>
+                        </div>
+                    </div>
 
                     {/* ------------------------------------------------------------ */}
                     {/* DESKTOP: sticky side panels either side of the board          */}
                     {/* ------------------------------------------------------------ */}
-                    <Box hideBelow={"xl"} className="flex flex-col sticky top-20">
+                    <div className="hidden xl:flex flex-col sticky top-20">
                         {leaveButton}
-                        {roomPanel("bg-slate-100 nes-container with-title max-w-60 mt-6")}
-                    </Box>
+                        {roomPanel("max-w-60 mt-6")}
+                    </div>
 
                     {/*
                       * The board, mounted ONCE.
@@ -294,38 +310,40 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
                       * are rendered and one is hidden. That is two small nodes
                       * rather than a second board.
                       */}
-                    <Box
-                        overflow={{ base: "scroll", xl: "visible" }}
-                        maxW={"100%"}
+                    <div
+                        className="overflow-scroll xl:overflow-visible max-w-full"
                         role="region"
                         aria-label="Game board container">
-                        <Box hideBelow={"xl"}>
+                        <div className="hidden xl:block">
                             <StatusBanner startPvpGame={startPvpGame} emitConfetti={emitConfetti} variant="desktop" />
-                        </Box>
-                        <Box hideFrom={"xl"}>
+                        </div>
+                        <div className="xl:hidden">
                             <StatusBanner startPvpGame={startPvpGame} emitConfetti={emitConfetti} variant="mobile" />
-                        </Box>
+                        </div>
                         <Board {...boardProps} />
-                    </Box>
+                    </div>
 
-                    <Box hideBelow={"xl"} className="flex flex-col sticky top-20">
+                    <div className="hidden xl:flex flex-col sticky top-20">
                         {actionButtons}
                         {/* PVP: Waiting for rematch (non-host, after game ends) */}
                         {mode === 'pvp' && pvpWinner && !pvpIsHost &&
-                            <div className="text-xs text-gray-600 mt-2">
+                            <div className="text-pixel-sm text-ink-muted mt-2">
                                 Waiting for host to start rematch...
                             </div>
                         }
                         {/* PVP: Progress bars and opponent status */}
                         {mode === 'pvp' && pvpStarted &&
-                            <div className="bg-slate-100 nes-container with-title max-w-60 mt-6" role="region" aria-label="Game progress">
-                                <p className="title text-xs">Progress</p>
+                            <Panel
+                                title={<span className="text-pixel-sm">Progress</span>}
+                                className="max-w-60 mt-6"
+                                role="region"
+                                aria-label="Game progress">
 
                                 <div className="mb-4">
                                     <ProgressBar
                                         label="You"
                                         percent={ownProgressPercent}
-                                        colorClass="bg-blue-500"
+                                        colorClass="bg-progress-own"
                                         ariaLabel={`Your progress: ${ownProgressPercent}%`}
                                         boldPercent
                                     />
@@ -342,13 +360,12 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
                                 </div>
 
                                 {/* Opponent status */}
-                                <p className="text-xs mt-3">
+                                <p className="text-pixel-sm mt-3">
                                     Status: <span className={
-                                        pvpOpponentStatus === 'won' ? 'text-green-600' :
-                                        pvpOpponentStatus === 'failed' ? 'text-red-600' :
-                                        pvpOpponentStatus === 'disconnected' ? 'text-gray-600' :
-                                        pvpOpponentStatus === 'playing' ? 'text-blue-600' :
-                                        'text-gray-600'
+                                        pvpOpponentStatus === 'won' ? 'text-status-won' :
+                                        pvpOpponentStatus === 'failed' ? 'text-status-failed' :
+                                        pvpOpponentStatus === 'playing' ? 'text-status-playing' :
+                                        'text-status-idle'
                                     }>
                                         {pvpOpponentStatus === 'won' ? '✓ Won' :
                                          pvpOpponentStatus === 'failed' ? '✗ Hit a mine' :
@@ -357,33 +374,27 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
                                          '⏳ Waiting'}
                                     </span>
                                 </p>
-                            </div>
+                            </Panel>
                         }
 
-                        <div className="nes-table-responsive mt-6" role="region" aria-label="Player scores">
+                        <div className="overflow-x-auto mt-6" role="region" aria-label="Player scores">
                             {/* Score table - only show in co-op mode */}
                             {mode !== 'pvp' && <ScoreTable />}
                             <FlagCounter remainingFlags={remainingFlags} variant="panel" />
                         </div>
-                    </Box>
-                </Flex>
-            </Container>
-
-            <dialog
-                className="nes-dialog absolute left-1/2 top-60 -translate-x-1/2"
-                id={DIALOGS.players}
-                aria-labelledby="players-dialog-title">
-                <form method="dialog">
-                    <p id="players-dialog-title" className="title">Players Online!</p>
-                    <div className="nes-table-responsive mt-6">
-                        <ScoreTable nameWidthClass="max-w-60" />
-                        <FlagCounter remainingFlags={remainingFlags} variant="dialog" />
                     </div>
-                    <menu className="dialog-menu justify-end flex mt-6">
-                        <button className="nes-btn" aria-label="Close players dialog">Cancel</button>
-                    </menu>
-                </form>
-            </dialog>
+                </div>
+            </div>
+
+            <Dialog
+                id={DIALOGS.players}
+                title="Players Online!"
+                actions={<DialogClose aria-label="Close players dialog">Cancel</DialogClose>}>
+                <div className="overflow-x-auto mt-6">
+                    <ScoreTable nameWidthClass="max-w-60" />
+                    <FlagCounter remainingFlags={remainingFlags} variant="dialog" />
+                </div>
+            </Dialog>
         </>
     )
 });
