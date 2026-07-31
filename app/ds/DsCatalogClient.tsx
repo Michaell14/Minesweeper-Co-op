@@ -16,8 +16,13 @@ import {
     TrophyIcon,
 } from "@/components/ds";
 import type { ButtonIntent } from "@/components/ds";
+import { THEMES, applyTheme, coverageOf, type ThemeCoverage } from "./themes";
+import { AUDITED_PAIRS, measure, type ContrastResult } from "./contrast";
 
 const INTENTS: ButtonIntent[] = ["default", "primary", "success", "warning", "error"];
+const NUMBERS = [1, 2, 3, 4, 5, 6, 7, 8] as const;
+/** RadioCard values are strings; the default palette has no data-theme value. */
+const DEFAULT_THEME = "__default__";
 
 function Section({
     title,
@@ -37,9 +42,98 @@ function Section({
     );
 }
 
+/**
+ * Board cells rendered from tokens.
+ *
+ * The catalog needs these because the board is where a restricted palette
+ * fails first: eight number colours cannot stay distinct on four shades, and
+ * nothing else on this page would reveal that.
+ */
+const CELL = {
+    width: "var(--ms-cell-size)",
+    height: "var(--ms-cell-size)",
+} as const;
+
+function BoardPreview() {
+    return (
+        <div
+            className="inline-flex bg-board-gutter"
+            style={{ gap: "var(--ms-cell-gap)", padding: "var(--ms-cell-gap)" }}
+        >
+            {NUMBERS.map((n) => (
+                <span
+                    key={n}
+                    className="flex items-center justify-center bg-board-open font-bold text-pixel-md"
+                    style={{ ...CELL, color: `var(--ms-num-${n})` }}
+                >
+                    {n}
+                </span>
+            ))}
+            <span className="bg-board-closed" style={CELL} />
+            <span className="flex items-center justify-center bg-board-mine" style={CELL}>
+                💣
+            </span>
+        </div>
+    );
+}
+
+function CoverageReport({ coverage }: { coverage: ThemeCoverage | null }) {
+    if (!coverage) return null;
+    const { total, overridden, inherited } = coverage;
+    return (
+        <p className="text-pixel-xs text-ink-muted mt-3">
+            Overrides {overridden} of {total} palette entries.
+            {inherited.length > 0 && (
+                <> Inherits from the default palette: {inherited.join(", ")}.</>
+            )}
+        </p>
+    );
+}
+
+function ContrastReport({ results }: { results: ContrastResult[] }) {
+    const failing = results.filter((r) => !r.passes);
+    return (
+        <div>
+            <p className="text-pixel-sm mb-3">
+                {failing.length === 0
+                    ? "All audited pairs meet WCAG AA."
+                    : `${failing.length} of ${results.length} pairs fail WCAG AA.`}
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-1">
+                {results.map((r) => (
+                    <p key={r.label} className="text-pixel-xs flex justify-between gap-4">
+                        <span className={r.passes ? "text-ink-muted" : "text-status-failed"}>
+                            {r.label}
+                        </span>
+                        <span className={r.passes ? "text-ink-muted" : "text-status-failed"}>
+                            {r.ratio.toFixed(2)}:1 {r.passes ? "" : `(needs ${r.threshold})`}
+                        </span>
+                    </p>
+                ))}
+            </div>
+        </div>
+    );
+}
+
 export default function DsCatalogClient() {
     const [size, setSize] = React.useState("Medium");
     const [flagMode, setFlagMode] = React.useState(true);
+    const [theme, setTheme] = React.useState<string | null>(null);
+    const [contrast, setContrast] = React.useState<ContrastResult[]>([]);
+    const [coverage, setCoverage] = React.useState<ThemeCoverage | null>(null);
+
+    /*
+     * The theme goes on <html> so every component below re-renders under it,
+     * and is cleared on unmount so the catalog never leaks its preview into the
+     * app. Measuring synchronously is safe: measure() calls getComputedStyle,
+     * which forces the pending style recalculation itself.
+     */
+    React.useEffect(() => {
+        applyTheme(theme);
+        setContrast(measure(AUDITED_PAIRS));
+        setCoverage(coverageOf(theme));
+        return () => applyTheme(null);
+    }, [theme]);
 
     return (
         <main className="p-8 max-w-6xl mx-auto">
@@ -49,6 +143,53 @@ export default function DsCatalogClient() {
                 nothing below carries a hex of its own, so an alternate palette moves
                 all of it at once.
             </p>
+
+            <Section
+                title="Theme"
+                note="Each palette overrides only the raw palette tokens — no component or semantic token is touched. Switching here restyles everything below it."
+            >
+                {/*
+                  * A radio group, not toggle buttons: the choice is exclusive,
+                  * and this dogfoods the primitive on the page whose job is
+                  * showing the primitives. RadioCard needs string values, so
+                  * the default palette round-trips through DEFAULT_THEME.
+                  */}
+                <RadioCardGroup
+                    name="ds-theme"
+                    ariaLabel="Preview palette"
+                    value={theme ?? DEFAULT_THEME}
+                    onChange={(v) => setTheme(v === DEFAULT_THEME ? null : v)}
+                >
+                    {THEMES.map((t) => (
+                        <RadioCard
+                            key={t.label}
+                            value={t.id ?? DEFAULT_THEME}
+                            label={t.label}
+                            description={
+                                <span className="whitespace-nowrap text-pixel-xs">{t.short}</span>
+                            }
+                        />
+                    ))}
+                </RadioCardGroup>
+                <p className="text-pixel-xs text-ink-muted mt-4">
+                    {THEMES.find((t) => (t.id ?? DEFAULT_THEME) === (theme ?? DEFAULT_THEME))?.note}
+                </p>
+                <CoverageReport coverage={coverage} />
+            </Section>
+
+            <Section
+                title="Board"
+                note="The eight number colours, an unopened cell and a mine. This is where a small palette fails first."
+            >
+                <BoardPreview />
+            </Section>
+
+            <Section
+                title="Contrast"
+                note="Measured from resolved colours in the DOM, so it reflects the theme currently applied rather than the token source."
+            >
+                <ContrastReport results={contrast} />
+            </Section>
 
             <Section
                 title="Button"

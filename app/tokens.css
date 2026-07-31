@@ -47,15 +47,28 @@
     --ms-palette-blue: #209cee;
     --ms-palette-blue-deep: #108de0;
     --ms-palette-blue-shade: #006bb3;
+    --ms-palette-blue-ink: #ffffff;
     --ms-palette-green: #92cc41;
     --ms-palette-green-deep: #76c442;
     --ms-palette-green-shade: #4aa52e;
+    --ms-palette-green-ink: #ffffff;
     --ms-palette-yellow: #f7d51d;
     --ms-palette-yellow-deep: #f2c409;
     --ms-palette-yellow-shade: #e59400;
+    /*
+     * Ink for text sitting ON each intent fill — one per intent, and NOT
+     * --ms-palette-ink or --ms-palette-paper.
+     *
+     * Body ink and page background both follow the theme; ink-on-a-fill has to
+     * follow the FILL. Sourcing it from either put white on a yellow button at
+     * 1.16:1. One shared token cannot work either: Game Boy needs light ink on
+     * primary and dark ink on success, and C64 needs the reverse split.
+     */
+    --ms-palette-yellow-ink: #212529;
     --ms-palette-red: #e76e55;
     --ms-palette-red-deep: #ce372b;
     --ms-palette-red-shade: #8c2022;
+    --ms-palette-red-ink: #ffffff;
     --ms-palette-chrome: #e7e7e7;   /* neutral button hover fill */
 
     /*
@@ -74,6 +87,7 @@
     --ms-palette-red-text: #dc2626;   /* Tailwind red-600   */
     --ms-palette-orange-alt: #f97316; /* Tailwind orange-500*/
     --ms-palette-amber: #facc15;      /* Tailwind yellow-400 (banner) */
+    --ms-palette-amber-ink: #000000;  /* ink on the banner fill        */
 
     /* Board greys. Deliberately NOT the neutrals above — the board is meant to
      * read as the classic Windows Minesweeper surface, not as app chrome. */
@@ -81,6 +95,7 @@
     --ms-palette-cell-open: #eeeeee;
     --ms-palette-gutter: #3b3b3b;
     --ms-palette-mine: #d70040;
+    --ms-palette-cursor-ink: #1a1a1a; /* label ink on a player's cursor colour */
 
     /* The eight classic Minesweeper number colours. Iconic — these are the one
      * group a theme should think hard before overriding. */
@@ -104,12 +119,14 @@
     --ms-surface-track: var(--ms-palette-track);
     --ms-surface-option: var(--ms-palette-mist);
     --ms-surface-option-selected: var(--ms-palette-mist-deep);
+    /* Dialog backdrop. A token because a black scrim disappears on a dark theme. */
+    --ms-scrim: rgba(0, 0, 0, 0.3);
 
     --ms-ink-strong: var(--ms-palette-ink);
     --ms-ink-muted: var(--ms-palette-gray);
     --ms-ink-muted-hover: var(--ms-palette-gray-dark);
     --ms-ink-inverse: var(--ms-palette-paper);
-    --ms-ink-on-banner: #000000;
+    --ms-ink-on-banner: var(--ms-palette-amber-ink);
 
     /* ---------------------------------------------------------------------
      * 3. SEMANTIC — borders
@@ -133,22 +150,22 @@
 
     --ms-intent-primary: var(--ms-palette-blue);
     --ms-intent-primary-hover: var(--ms-palette-blue-deep);
-    --ms-intent-primary-ink: var(--ms-palette-paper);
+    --ms-intent-primary-ink: var(--ms-palette-blue-ink);
     --ms-intent-primary-bevel: var(--ms-palette-blue-shade);
 
     --ms-intent-success: var(--ms-palette-green);
     --ms-intent-success-hover: var(--ms-palette-green-deep);
-    --ms-intent-success-ink: var(--ms-palette-paper);
+    --ms-intent-success-ink: var(--ms-palette-green-ink);
     --ms-intent-success-bevel: var(--ms-palette-green-shade);
 
     --ms-intent-warning: var(--ms-palette-yellow);
     --ms-intent-warning-hover: var(--ms-palette-yellow-deep);
-    --ms-intent-warning-ink: var(--ms-palette-ink);
+    --ms-intent-warning-ink: var(--ms-palette-yellow-ink);
     --ms-intent-warning-bevel: var(--ms-palette-yellow-shade);
 
     --ms-intent-error: var(--ms-palette-red);
     --ms-intent-error-hover: var(--ms-palette-red-deep);
-    --ms-intent-error-ink: var(--ms-palette-paper);
+    --ms-intent-error-ink: var(--ms-palette-red-ink);
     --ms-intent-error-bevel: var(--ms-palette-red-shade);
 
     /* ---------------------------------------------------------------------
@@ -180,7 +197,7 @@
      * arbitrary bright colour is, and it is near-black rather than --ms-ink-
      * strong because it has to hold up against every hue the server can send.
      */
-    --ms-cursor-label-ink: #1a1a1a;
+    --ms-cursor-label-ink: var(--ms-palette-cursor-ink);
 
     /* ---------------------------------------------------------------------
      * 6. SEMANTIC — PVP progress + opponent status
@@ -243,4 +260,184 @@
     :root {
         --ms-cell-size: 32px;
     }
+}
+
+/* ============================================================================
+ * THEMES
+ *
+ * A theme overrides PALETTE entries and nothing else. If one ever needs to
+ * reach a semantic token, a surface, or a component, the two-layer split has
+ * failed and the fix belongs upstream — not here.
+ *
+ * Set with `data-theme` on <html>.
+ * ========================================================================== */
+
+/* ---------------------------------------------------------------------------
+ * Game Boy (DMG). Four shades, total.
+ *
+ * This palette is here because it is the hardest case, not the prettiest: with
+ * four colours you cannot give eight Minesweeper numbers eight distinguishable
+ * hues, and you cannot give five button intents five. Both constraints are
+ * real and visible at /ds, which is the point.
+ * ------------------------------------------------------------------------- */
+:root[data-theme="gameboy"] {
+    --ms-palette-ink: #0f380f;
+    --ms-palette-paper: #9bbc0f;
+    --ms-palette-smoke: #8bac0f;
+    --ms-palette-ash: #8bac0f;
+    --ms-palette-steel: #306230;
+    --ms-palette-gray: #306230;
+    --ms-palette-gray-dark: #0f380f;
+    --ms-palette-track: #306230;
+    --ms-palette-mist: #8bac0f;
+    --ms-palette-mist-deep: #306230;
+    --ms-palette-chrome: #8bac0f;
+
+    /* Intents separate by VALUE, not hue — there are no hues to spare. */
+    --ms-palette-blue: #306230;
+    --ms-palette-blue-deep: #0f380f;
+    --ms-palette-blue-shade: #0f380f;
+    --ms-palette-blue-ink: #9bbc0f;
+    --ms-palette-green: #8bac0f;
+    --ms-palette-green-deep: #306230;
+    --ms-palette-green-shade: #306230;
+    --ms-palette-green-ink: #0f380f;
+    --ms-palette-yellow: #9bbc0f;
+    --ms-palette-yellow-deep: #8bac0f;
+    --ms-palette-yellow-shade: #306230;
+    --ms-palette-yellow-ink: #0f380f;
+    --ms-palette-red: #0f380f;
+    --ms-palette-red-deep: #0f380f;
+    --ms-palette-red-shade: #0f380f;
+    --ms-palette-red-ink: #9bbc0f;
+
+    --ms-palette-blue-alt: #0f380f;
+    --ms-palette-blue-text: #0f380f;
+    --ms-palette-green-alt: #306230;
+    --ms-palette-green-text: #306230;
+    --ms-palette-red-alt: #0f380f;
+    --ms-palette-red-text: #0f380f;
+    --ms-palette-orange-alt: #306230;
+    --ms-palette-amber: #8bac0f;
+    --ms-palette-amber-ink: #0f380f;
+
+    --ms-palette-cell-closed: #8bac0f;
+    --ms-palette-cell-open: #9bbc0f;
+    --ms-palette-gutter: #0f380f;
+    --ms-palette-mine: #0f380f;
+    --ms-palette-cursor-ink: #0f380f;
+
+    /*
+     * Only two shades are legible on the open-cell fill, so hue-coding is gone.
+     * Encoding danger as darkness keeps *some* signal: 1-3 mid, 4-8 darkest.
+     * The digit itself still carries the number, which is why this degrades
+     * rather than breaks.
+     */
+    --ms-palette-num-1: #306230;
+    --ms-palette-num-2: #306230;
+    --ms-palette-num-3: #306230;
+    --ms-palette-num-4: #0f380f;
+    --ms-palette-num-5: #0f380f;
+    --ms-palette-num-6: #0f380f;
+    --ms-palette-num-7: #0f380f;
+    --ms-palette-num-8: #0f380f;
+}
+
+/* ---------------------------------------------------------------------------
+ * Commodore 64. Sixteen colours, so everything the default palette encodes
+ * survives — including eight distinct numbers. The useful contrast with
+ * Game Boy: the number problem is a property of palette SIZE, not of theming.
+ * ------------------------------------------------------------------------- */
+:root[data-theme="c64"] {
+    --ms-palette-ink: #ffffff;
+    --ms-palette-paper: #40318d;
+    --ms-palette-smoke: #7869c4;
+    --ms-palette-ash: #9f9f9f;
+    --ms-palette-steel: #9f9f9f;
+    --ms-palette-gray: #bfce72;
+    --ms-palette-gray-dark: #ffffff;
+    --ms-palette-track: #505050;
+    --ms-palette-mist: #7869c4;
+    --ms-palette-mist-deep: #574200;
+    --ms-palette-chrome: #7869c4;
+
+    --ms-palette-blue: #67b6bd;
+    --ms-palette-blue-deep: #7869c4;
+    --ms-palette-blue-shade: #40318d;
+    --ms-palette-blue-ink: #000000;
+    --ms-palette-green: #55a049;
+    --ms-palette-green-deep: #94e089;
+    --ms-palette-green-shade: #574200;
+    --ms-palette-green-ink: #000000;
+    --ms-palette-yellow: #bfce72;
+    --ms-palette-yellow-deep: #94e089;
+    --ms-palette-yellow-shade: #8b5429;
+    --ms-palette-yellow-ink: #000000;
+    --ms-palette-red: #883932;
+    --ms-palette-red-deep: #b86962;
+    --ms-palette-red-shade: #574200;
+    --ms-palette-red-ink: #ffffff;
+
+    --ms-palette-blue-alt: #67b6bd;
+    --ms-palette-blue-text: #67b6bd;
+    --ms-palette-green-alt: #55a049;
+    --ms-palette-green-text: #94e089;
+    --ms-palette-red-alt: #883932;
+    --ms-palette-red-text: #b86962;
+    --ms-palette-orange-alt: #8b5429;
+    --ms-palette-amber: #bfce72;
+    --ms-palette-amber-ink: #000000;
+
+    --ms-palette-cell-closed: #7869c4;
+    --ms-palette-cell-open: #9f9f9f;
+    --ms-palette-gutter: #000000;
+    --ms-palette-mine: #883932;
+    --ms-palette-cursor-ink: #000000;
+
+    --ms-palette-num-1: #40318d;
+    --ms-palette-num-2: #55a049;
+    --ms-palette-num-3: #883932;
+    --ms-palette-num-4: #000000;
+    --ms-palette-num-5: #8b5429;
+    --ms-palette-num-6: #67b6bd;
+    --ms-palette-num-7: #8b3f96;
+    --ms-palette-num-8: #505050;
+}
+
+/* ---------------------------------------------------------------------------
+ * Dark. Not a retro machine — the one people will actually ask for. Keeps the
+ * NES intent hues, which read fine on a dark surface, and brightens the eight
+ * classic number colours enough to survive the darker cell fill.
+ * ------------------------------------------------------------------------- */
+:root[data-theme="dark"] {
+    --ms-palette-ink: #e6e6e6;
+    --ms-palette-paper: #16181d;
+    --ms-palette-smoke: #23262d;
+    --ms-palette-ash: #3a3f47;
+    --ms-palette-steel: #6b7280;
+    --ms-palette-gray: #9ca3af;
+    --ms-palette-gray-dark: #d1d5db;
+    --ms-palette-track: #3a3f47;
+    --ms-palette-mist: #23262d;
+    --ms-palette-mist-deep: #31353d;
+    --ms-palette-chrome: #2b2f36;
+
+    /* The NES intent fills are inherited, and they are light — so ink on them
+     * stays dark even though body ink has inverted. */
+    --ms-palette-blue-ink: #16181d;
+    --ms-palette-green-ink: #16181d;
+    --ms-palette-red-ink: #16181d;
+
+    --ms-palette-cell-closed: #4a4f57;
+    --ms-palette-cell-open: #2a2e35;
+    --ms-palette-gutter: #0d0f12;
+
+    --ms-palette-num-1: #6ea8ff;
+    --ms-palette-num-2: #5fd07a;
+    --ms-palette-num-3: #ff7b7b;
+    --ms-palette-num-4: #9b8cff;
+    --ms-palette-num-5: #e0866b;
+    --ms-palette-num-6: #5fd0d0;
+    --ms-palette-num-7: #e6e6e6;
+    --ms-palette-num-8: #a1a8b3;
 }

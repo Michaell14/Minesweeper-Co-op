@@ -47,6 +47,9 @@ jobs:
 
       # Redis and socket.io are mocked globally by server/tests/setup/mockInfra.js,
       # so this needs no service containers.
+      - name: Client unit tests
+        run: npm run test:client
+
       - name: Server tests
         run: npm test
 
