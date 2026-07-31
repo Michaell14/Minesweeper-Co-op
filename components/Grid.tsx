@@ -205,12 +205,6 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
 
     return (
         <>
-            {/*
-              * Was a Chakra <Container>. Its computed values were maxW 1350px,
-              * 16px inline padding and auto inline margin, which is exactly
-              * max-w-[1350px] mx-auto px-4 — Chakra and Tailwind share the same
-              * numeric spacing scale, so pb={6} is pb-6 and so on throughout.
-              */}
             <div className="w-full max-w-[1350px] mx-auto px-4 min-h-[94vh] pt-10 pb-6 xl:pt-20 xl:pb-16">
 
                 <h1 className="text-center font-bold text-pixel-2xl md:text-pixel-4xl">Minesweeper Co-Op</h1>
@@ -275,12 +269,6 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
                         }
 
                         <div className="flex items-center gap-5 mb-5">
-                            {/*
-                              * Controlled now. It used to be `defaultChecked`
-                              * with the store updated on change, so the toggle
-                              * and `isChecked` were two sources of truth that
-                              * happened to agree.
-                              */}
                             <Switch
                                 checked={isChecked}
                                 onChange={setIsChecked}

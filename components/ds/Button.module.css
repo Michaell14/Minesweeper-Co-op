@@ -73,4 +73,3 @@
  * and only looks right at whole-pixel sizes. */
 .sm { font-size: var(--ms-text-sm); }
 .md { font-size: var(--ms-text-md); }
-.lg { font-size: var(--ms-text-lg); }

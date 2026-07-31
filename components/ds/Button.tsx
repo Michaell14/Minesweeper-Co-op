@@ -4,7 +4,7 @@ import styles from "./Button.module.css";
 import { cx } from "./cx";
 
 export type ButtonIntent = "default" | "primary" | "success" | "warning" | "error";
-export type ButtonSize = "sm" | "md" | "lg";
+export type ButtonSize = "sm" | "md";
 
 export interface ButtonProps
     extends Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "className"> {

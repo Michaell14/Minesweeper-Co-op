@@ -32,7 +32,7 @@ export interface DialogProps {
     alert?: boolean;
     /** Buttons. Rendered in a footer row inside the form, so they can close it. */
     actions?: React.ReactNode;
-    actionsAlign?: "between" | "end" | "start";
+    actionsAlign?: "between" | "end";
     /** Set for dialogs that validate before closing (the custom board form). */
     onSubmit?: React.FormEventHandler<HTMLFormElement>;
     className?: string;
