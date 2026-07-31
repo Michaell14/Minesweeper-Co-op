@@ -27,6 +27,7 @@ npm run dev:all            # Redis (auto-start) + backend :3001 + frontend :3000
 npm run dev                # frontend only
 npm run start-server       # backend only
 npm test                   # server Jest suite (proxies to `npm --prefix server test`)
+npm run test:client        # client unit tests (Vitest) — pure logic, no DOM
 npm run test:ui            # browser smoke test; needs dev:all running
 npm run verify:deploy      # plays a real game against the DEPLOYED backend
 npm run lint
@@ -93,7 +94,7 @@ Read `ARCHITECTURE.md` §8-9 before changing server code. The ones most likely t
 `.github/workflows/ci.yml` runs on every PR and on `main` after merge, in two
 jobs:
 
-- **`checks`** — lint, `tsc --noEmit`, the server tests, a production build.
+- **`checks`** — lint, `tsc --noEmit`, the client unit tests, the server tests, a production build.
 - **`ui-smoke`** — `npm run test:ui` against a real stack: a `redis:7` service
   container, the backend and the Next dev server, driven through headless
   Chrome. Roughly two minutes.
@@ -142,8 +143,14 @@ where the mines are, and the client deliberately cannot see that (boards are
 projected server-side). Chording is covered server-side instead, in
 `server/tests/chord.test.js`.
 
-There are no component unit tests, so anything below that level still needs a
-manual pass.
+`npm run test:client` is Vitest over the frontend directories, for **pure logic
+only** — no DOM, no component rendering. It exists because some client code is
+load-bearing and invisible when wrong: the WCAG maths behind the `/ds` contrast
+audit would otherwise report plausible, wrong numbers forever. Anything needing
+a browser belongs in the smoke suite instead.
+
+There are still no component-rendering tests, so anything below that level needs
+a manual pass.
 
 `npm run verify:deploy` (`scripts/verify-deploy/`) is the only check that touches
 the deployed stack. It connects real sockets to production — override with

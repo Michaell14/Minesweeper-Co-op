@@ -1,45 +1,58 @@
 /**
  * WCAG contrast, measured against what the browser actually painted.
  *
- * Every colour in the app is a custom property that a theme can redefine, so
- * the only trustworthy way to know a pair's contrast is to resolve it in the
- * DOM rather than compute it from the token source. A palette that reads well
- * as swatches can still put muted text below 4.5:1 on a panel, and that is
- * exactly the failure a retro palette makes easy.
+ * Every colour in the app is a custom property a theme can redefine, so the
+ * only trustworthy way to know a pair's contrast is to resolve it in the DOM
+ * rather than compute it from the token source. A palette that reads well as
+ * swatches can still put muted text below 4.5:1 on a panel, which is exactly
+ * the failure a restricted retro palette makes easy.
+ *
+ * The maths is separated from the DOM lookup so it can be tested — these
+ * numbers are the whole point of the tool, and a transposed coefficient would
+ * produce plausible, wrong, unfalsifiable output forever.
  */
 
-/** Resolves a CSS colour expression to sRGB by letting the browser do it. */
-function resolve(expr: string, probe: HTMLElement): [number, number, number] {
-    probe.style.color = "";
-    probe.style.color = expr;
-    const m = getComputedStyle(probe).color.match(/[\d.]+/g);
-    if (!m) return [0, 0, 0];
-    return [Number(m[0]), Number(m[1]), Number(m[2])];
-}
+export type Rgb = readonly [number, number, number];
 
 /** Relative luminance, per WCAG 2.1. */
-function luminance([r, g, b]: [number, number, number]): number {
-    const f = (c: number) => {
+export function luminance([r, g, b]: Rgb): number {
+    const channel = (c: number) => {
         const s = c / 255;
         return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
     };
-    return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+    return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
 }
 
-export interface ContrastResult {
-    label: string;
-    ratio: number;
-    /** AA for body text is 4.5:1; large/bold text is 3:1. */
-    passes: boolean;
-    threshold: number;
+/** Contrast ratio between two colours, 1:1 to 21:1. Order-independent. */
+export function contrastRatio(a: Rgb, b: Rgb): number {
+    const [x, y] = [luminance(a), luminance(b)];
+    return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+}
+
+/** AA: 4.5:1 for body text, 3:1 for large or bold text. */
+export const AA_NORMAL = 4.5;
+export const AA_LARGE = 3;
+
+/** Resolves any CSS colour expression to sRGB by letting the browser do it. */
+function resolve(expr: string, probe: HTMLElement): Rgb {
+    probe.style.color = "";
+    probe.style.color = expr;
+    const parts = getComputedStyle(probe).color.match(/[\d.]+/g);
+    if (!parts) return [0, 0, 0];
+    return [Number(parts[0]), Number(parts[1]), Number(parts[2])];
 }
 
 export interface ContrastPair {
     label: string;
     fg: string;
     bg: string;
-    /** Large or bold text only needs 3:1. */
     large?: boolean;
+}
+
+export interface ContrastResult extends ContrastPair {
+    ratio: number;
+    passes: boolean;
+    threshold: number;
 }
 
 export function measure(pairs: ContrastPair[]): ContrastResult[] {
@@ -47,31 +60,41 @@ export function measure(pairs: ContrastPair[]): ContrastResult[] {
     probe.style.display = "none";
     document.body.appendChild(probe);
 
-    const out = pairs.map(({ label, fg, bg, large }) => {
-        const a = luminance(resolve(fg, probe));
-        const b = luminance(resolve(bg, probe));
-        const ratio = (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
-        const threshold = large ? 3 : 4.5;
-        return { label, ratio, passes: ratio >= threshold, threshold };
+    const results = pairs.map((pair) => {
+        const ratio = contrastRatio(resolve(pair.fg, probe), resolve(pair.bg, probe));
+        const threshold = pair.large ? AA_LARGE : AA_NORMAL;
+        return { ...pair, ratio, passes: ratio >= threshold, threshold };
     });
 
     probe.remove();
-    return out;
+    return results;
 }
 
 /**
- * The pairs worth checking: text on the surfaces it actually sits on, and each
- * button intent's own ink on its own fill.
+ * Every button intent, derived rather than listed — adding a sixth intent must
+ * not be able to escape the audit by someone forgetting to add a row here.
  */
+const INTENT_PAIRS: ContrastPair[] = ["primary", "success", "warning", "error"].map(
+    (intent) => ({
+        label: `${intent} button`,
+        fg: `var(--ms-intent-${intent}-ink)`,
+        bg: `var(--ms-intent-${intent})`,
+    }),
+);
+
+/** Likewise the eight cell numbers, all of which sit on the open-cell fill. */
+const NUMBER_PAIRS: ContrastPair[] = Array.from({ length: 8 }, (_, i) => ({
+    label: `cell number ${i + 1}`,
+    fg: `var(--ms-num-${i + 1})`,
+    bg: "var(--ms-cell-open)",
+}));
+
 export const AUDITED_PAIRS: ContrastPair[] = [
     { label: "body text on page", fg: "var(--ms-ink-strong)", bg: "var(--ms-surface-page)" },
     { label: "body text on panel", fg: "var(--ms-ink-strong)", bg: "var(--ms-surface-panel)" },
     { label: "muted text on panel", fg: "var(--ms-ink-muted)", bg: "var(--ms-surface-panel)" },
     { label: "option label on card", fg: "var(--ms-ink-strong)", bg: "var(--ms-surface-option)" },
-    { label: "primary button", fg: "var(--ms-intent-primary-ink)", bg: "var(--ms-intent-primary)" },
-    { label: "success button", fg: "var(--ms-intent-success-ink)", bg: "var(--ms-intent-success)" },
-    { label: "warning button", fg: "var(--ms-intent-warning-ink)", bg: "var(--ms-intent-warning)" },
-    { label: "error button", fg: "var(--ms-intent-error-ink)", bg: "var(--ms-intent-error)" },
-    { label: "cell number 1", fg: "var(--ms-num-1)", bg: "var(--ms-cell-open)" },
-    { label: "cell number 8", fg: "var(--ms-num-8)", bg: "var(--ms-cell-open)" },
+    { label: "banner text", fg: "var(--ms-ink-on-banner)", bg: "var(--ms-surface-banner)" },
+    ...INTENT_PAIRS,
+    ...NUMBER_PAIRS,
 ];
