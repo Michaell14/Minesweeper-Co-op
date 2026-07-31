@@ -193,7 +193,7 @@ export default function DsCatalogClient() {
 
             <Section
                 title="Button"
-                note="Notched outline drawn with four offset box-shadows. Hover deepens the fill; press flips the bevel to the top-left."
+                note="Notched outline drawn with four offset box-shadows. Hover lightens the fill — dark ink means darkening would cut contrast; press flips the bevel to the top-left."
             >
                 <div className="flex flex-wrap items-start">
                     {INTENTS.map((i) => (

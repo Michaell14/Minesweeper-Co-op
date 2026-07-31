@@ -38,22 +38,31 @@
     --ms-palette-mist-deep: #e4e4e7;/* was Chakra zinc-200 (selected card)   */
 
     /*
-     * Intents, from NES.css. Each has three values:
+     * Intents. Fills are NES.css's, unchanged — the identity lives in those
+     * hues. What changed is the ink and the hover direction:
+     *
+     * White ink on these fills failed WCAG AA badly (success was 1.92:1), so
+     * ink is dark. That in turn inverts the hover: NES darkens on hover, which
+     * with dark ink *reduces* contrast, so hover lightens instead. The shift is
+     * the same perceptual magnitude NES used, mirrored.
+     *
+     * Each intent has four values:
      *   base   — the fill
-     *   -deep  — the hover fill
+     *   -deep  — the hover fill, LIGHTER than base
      *   -shade — the bevel down the right and bottom edge, which is what makes
      *            a flat rectangle read as a raised 8-bit button
+     *   -ink   — text on the fill; see the note below
      */
     --ms-palette-blue: #209cee;
-    --ms-palette-blue-deep: #108de0;
+    --ms-palette-blue-deep: #3faaf0;
     --ms-palette-blue-shade: #006bb3;
-    --ms-palette-blue-ink: #ffffff;
+    --ms-palette-blue-ink: #212529;
     --ms-palette-green: #92cc41;
-    --ms-palette-green-deep: #76c442;
+    --ms-palette-green-deep: #a3d45f;
     --ms-palette-green-shade: #4aa52e;
-    --ms-palette-green-ink: #ffffff;
+    --ms-palette-green-ink: #212529;
     --ms-palette-yellow: #f7d51d;
-    --ms-palette-yellow-deep: #f2c409;
+    --ms-palette-yellow-deep: #fae46c;
     --ms-palette-yellow-shade: #e59400;
     /*
      * Ink for text sitting ON each intent fill — one per intent, and NOT
@@ -66,9 +75,9 @@
      */
     --ms-palette-yellow-ink: #212529;
     --ms-palette-red: #e76e55;
-    --ms-palette-red-deep: #ce372b;
+    --ms-palette-red-deep: #ee9785;
     --ms-palette-red-shade: #8c2022;
-    --ms-palette-red-ink: #ffffff;
+    --ms-palette-red-ink: #212529;
     --ms-palette-chrome: #e7e7e7;   /* neutral button hover fill */
 
     /*

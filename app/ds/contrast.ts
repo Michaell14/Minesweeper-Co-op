@@ -74,12 +74,22 @@ export function measure(pairs: ContrastPair[]): ContrastResult[] {
  * Every button intent, derived rather than listed — adding a sixth intent must
  * not be able to escape the audit by someone forgetting to add a row here.
  */
-const INTENT_PAIRS: ContrastPair[] = ["primary", "success", "warning", "error"].map(
-    (intent) => ({
-        label: `${intent} button`,
-        fg: `var(--ms-intent-${intent}-ink)`,
-        bg: `var(--ms-intent-${intent})`,
-    }),
+const INTENT_PAIRS: ContrastPair[] = ["primary", "success", "warning", "error"].flatMap(
+    (intent) => [
+        {
+            label: `${intent} button`,
+            fg: `var(--ms-intent-${intent}-ink)`,
+            bg: `var(--ms-intent-${intent})`,
+        },
+        {
+            // Hover is a state a user reads text in, so it needs auditing too.
+            // Leaving it out is what let the default palette ship a hover fill
+            // that failed AA while its resting fill passed.
+            label: `${intent} button, hover`,
+            fg: `var(--ms-intent-${intent}-ink)`,
+            bg: `var(--ms-intent-${intent}-hover)`,
+        },
+    ],
 );
 
 /** Likewise the eight cell numbers, all of which sit on the open-cell fill. */
