@@ -6,8 +6,8 @@ import { cx } from "./cx";
 export interface InputProps
     extends Omit<React.InputHTMLAttributes<HTMLInputElement>, "className" | "size"> {
     size?: "sm" | "md";
-    /** Drives the outline colour. Pair with <Field errorText> for the message. */
-    validity?: "invalid" | "valid";
+    /** Reddens the outline. Pair with <Field errorText> for the message. */
+    invalid?: boolean;
     className?: string;
 }
 
@@ -19,7 +19,7 @@ export interface InputProps
  * spread directly onto a DOM node.
  */
 const Input = React.forwardRef<HTMLInputElement, InputProps>(function Input(
-    { size = "md", validity, className, ...rest },
+    { size = "md", invalid, className, ...rest },
     ref,
 ) {
     return (
@@ -30,7 +30,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(function Input(
                 pixel.control,
                 styles.input,
                 styles[size],
-                validity && styles[validity],
+                invalid && styles.invalid,
                 className,
             )}
             {...rest}

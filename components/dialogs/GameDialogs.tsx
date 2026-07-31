@@ -9,10 +9,8 @@ import { Dialog, DialogClose } from '@/components/ds';
  * These are opened imperatively by the socket handlers in hooks/useGameEvents.ts
  * via `openDialog(DIALOGS.x)`; this component only renders the markup.
  *
- * The nine of them used to be nine hand-written copies of the same shell —
- * positioning classes, <form method="dialog">, aria wiring and an action row,
- * repeated verbatim and free to drift. <Dialog> owns that shell now, so what is
- * left here is only what actually differs between them.
+ * <Dialog> owns the shell — positioning, the form, the aria wiring and the
+ * action row — so what is left here is only what differs between them.
  */
 export default function GameDialogs() {
     const gameOverName = useMinesweeperStore((state) => state.gameOverName);

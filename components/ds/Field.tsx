@@ -4,7 +4,6 @@ import { cx } from "./cx";
 
 export interface FieldProps extends React.HTMLAttributes<HTMLDivElement> {
     label?: React.ReactNode;
-    helperText?: React.ReactNode;
     /** Shown only when `invalid` — matching the Chakra Field it replaces. */
     errorText?: React.ReactNode;
     invalid?: boolean;
@@ -20,7 +19,6 @@ export interface FieldProps extends React.HTMLAttributes<HTMLDivElement> {
  */
 export default function Field({
     label,
-    helperText,
     errorText,
     invalid = false,
     className,
@@ -33,9 +31,6 @@ export default function Field({
             {children}
             {invalid && errorText != null && (
                 <p className={styles.error} role="alert">{errorText}</p>
-            )}
-            {!invalid && helperText != null && (
-                <p className={styles.helper}>{helperText}</p>
             )}
         </div>
     );

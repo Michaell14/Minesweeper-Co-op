@@ -24,11 +24,9 @@
  * `display: table` shrink-wraps to the text so the knockout is exactly as wide
  * as the label, and the negative top margin lifts it onto the border line.
  *
- * The background is --panel-fill, NOT a hardcoded white. NES.css hardcodes
- * #fff here, which is invisible while the panel is also white but shows up as
- * a white patch across the border the moment a panel is tinted — which is what
- * the app does, every panel carries a slate fill. Inheriting the fill is the
- * one place these primitives knowingly render differently from the originals.
+ * The background is --panel-fill rather than a fixed colour: every panel in the
+ * app carries a tint, and a hardcoded white here would show as a pale gap
+ * across the border exactly where the title punches through.
  */
 .title {
     display: table;

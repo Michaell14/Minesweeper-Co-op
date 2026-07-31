@@ -17,8 +17,6 @@ export interface RadioCardGroupProps {
     value: string;
     onChange: (value: string) => void;
     ariaLabel: string;
-    /** Horizontal scroll below the md breakpoint. */
-    scrollable?: boolean;
     children: React.ReactNode;
     className?: string;
 }
@@ -28,7 +26,6 @@ export function RadioCardGroup({
     value,
     onChange,
     ariaLabel,
-    scrollable = true,
     children,
     className,
 }: RadioCardGroupProps) {
@@ -44,7 +41,7 @@ export function RadioCardGroup({
             <div
                 role="radiogroup"
                 aria-label={ariaLabel}
-                className={cx(styles.group, scrollable && styles.scrollable, className)}
+                className={cx(styles.group, styles.scrollable, className)}
             >
                 {children}
             </div>

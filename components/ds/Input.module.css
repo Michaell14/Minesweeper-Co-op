@@ -27,8 +27,8 @@
 }
 
 /*
- * Validation states recolour the whole outline, bevel included — a one-sided
- * red bevel reads as a rendering glitch rather than an error.
+ * Recolours the whole outline, bevel included — a one-sided red bevel reads as
+ * a rendering glitch rather than an error.
  */
 .invalid {
     --pixel-edge: var(--ms-intent-error);
@@ -36,11 +36,6 @@
     --pixel-ring: color-mix(in srgb, var(--ms-intent-error-bevel) 40%, transparent);
 }
 
-.valid {
-    --pixel-edge: var(--ms-intent-success);
-    --pixel-bevel: var(--ms-intent-success);
-    --pixel-ring: color-mix(in srgb, var(--ms-intent-success-bevel) 40%, transparent);
-}
 
 .sm { font-size: var(--ms-text-sm); }
 .md { font-size: var(--ms-text-md); }

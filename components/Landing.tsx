@@ -283,7 +283,7 @@ export default function Landing({ createRoom, joinRoom }: LandingParams) {
                                         size="sm"
                                         maxLength={28}
                                         placeholder={"Enter Room Code"}
-                                        validity={joinErrors.roomCode ? "invalid" : undefined}
+                                        invalid={!!joinErrors.roomCode}
                                         aria-label="Room code to join"
                                         aria-required="true"
                                         {...joinRegister("roomCode", { required: "Room Code is required." })} />
@@ -307,7 +307,7 @@ export default function Landing({ createRoom, joinRoom }: LandingParams) {
                                 maxLength={28}
                                 type="text"
                                 placeholder={"Enter Room Code"}
-                                validity={createErrors.roomCode ? "invalid" : undefined}
+                                invalid={!!createErrors.roomCode}
                                 aria-label="Room code"
                                 aria-required="true"
                                 {...createRegister("roomCode", { required: "Room Code is required." })} />
@@ -441,7 +441,7 @@ export default function Landing({ createRoom, joinRoom }: LandingParams) {
                         defaultValue={numRows}
                         min={BOARD_LIMITS.MIN_ROWS}
                         max={BOARD_LIMITS.MAX_ROWS}
-                        validity={customErrors.rows ? "invalid" : undefined}
+                        invalid={!!customErrors.rows}
                         placeholder={`Between ${BOARD_LIMITS.MIN_ROWS} - ${BOARD_LIMITS.MAX_ROWS}`}
                         aria-label={`Number of rows, between ${BOARD_LIMITS.MIN_ROWS} and ${BOARD_LIMITS.MAX_ROWS}`}
                         aria-required="true"
@@ -459,7 +459,7 @@ export default function Landing({ createRoom, joinRoom }: LandingParams) {
                         defaultValue={numCols}
                         min={BOARD_LIMITS.MIN_COLS}
                         max={BOARD_LIMITS.MAX_COLS}
-                        validity={customErrors.cols ? "invalid" : undefined}
+                        invalid={!!customErrors.cols}
                         placeholder={`Between ${BOARD_LIMITS.MIN_COLS} - ${BOARD_LIMITS.MAX_COLS}`}
                         aria-label={`Number of columns, between ${BOARD_LIMITS.MIN_COLS} and ${BOARD_LIMITS.MAX_COLS}`}
                         aria-required="true"

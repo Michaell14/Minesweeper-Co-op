@@ -3,7 +3,7 @@ import styles from "./Table.module.css";
 import { cx } from "./cx";
 
 export interface TableProps extends React.TableHTMLAttributes<HTMLTableElement> {
-    bordered?: boolean;
+    /** Centres header cells only, matching the classic leaderboard. */
     centered?: boolean;
 }
 
@@ -13,17 +13,12 @@ export interface TableProps extends React.TableHTMLAttributes<HTMLTableElement> 
  * and its structure have to stay genuinely tabular — this is a skin, not a
  * replacement for the semantics.
  */
-export default function Table({
-    bordered = true,
-    centered = true,
-    className,
-    ...rest
-}: TableProps) {
+export default function Table({ centered = true, className, ...rest }: TableProps) {
     return (
         <table
             className={cx(
                 styles.table,
-                bordered && styles.bordered,
+                styles.bordered,
                 centered && styles.centered,
                 className,
             )}

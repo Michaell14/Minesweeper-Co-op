@@ -11,13 +11,10 @@
 /*
  * The page surface.
  *
- * Chakra's reset used to supply this, so removing Chakra left the app with no
- * background of its own — which meant a browser set to dark mode rendered dark
- * text on a dark UA background. Stating it in terms of tokens both fixes that
- * and puts the page surface where every other colour already lives.
+ * Load-bearing: without an explicit background the browser supplies one, and a
+ * user in dark mode gets dark text on a dark UA surface.
  *
- * `color-scheme: light` also keeps form controls and scrollbars light, since
- * the palette is a light one until a [data-theme] block says otherwise.
+ * `color-scheme` follows the palette so form controls and scrollbars do too.
  */
 html {
     color-scheme: light;
@@ -27,9 +24,9 @@ body {
     background-color: var(--ms-surface-page);
     color: var(--ms-ink-strong);
     /*
-     * Also inherited from Chakra's reset, and also load-bearing: room codes are
-     * player-typed, up to 28 characters, and have no spaces to break at. Without
-     * this the code runs straight out through the side of the room panel.
+     * Load-bearing: room codes are player-typed, up to 28 characters, with no
+     * spaces to break at. Without this a long code runs straight out through
+     * the side of the room panel.
      */
     overflow-wrap: break-word;
 }

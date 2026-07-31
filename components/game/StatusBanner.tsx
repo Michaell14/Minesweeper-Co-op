@@ -44,13 +44,6 @@ export default function StatusBanner({ startPvpGame, emitConfetti, variant }: St
             {mode === 'pvp' && pvpRoomReady && !pvpStarted && pvpIsHost &&
                 <div className="pb-12 text-center">
                     {opponentLine}
-                    {/*
-                      * The old markup forced black ink here with an inline
-                      * style, overriding the white NES.css gives a success
-                      * button. The intent's ink is a token now, so the one-off
-                      * is gone — if success text should be dark, that is a
-                      * decision for --ms-intent-success-ink.
-                      */}
                     <Button
                         intent="success"
                         onClick={startPvpGame}

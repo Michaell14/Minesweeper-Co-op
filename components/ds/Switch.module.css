@@ -1,11 +1,9 @@
 /*
  * Click/Flag mode toggle (mobile).
  *
- * This is the one primitive with no NES.css equivalent to be faithful to — the
- * library has no switch, so the app was using Chakra's rounded iOS-style
- * control, which is the single most off-brand element on the screen. Rebuilt
- * as a hard-edged pixel toggle: square thumb, square track, no easing curve
- * softer than a step.
+ * The one primitive with no retro precedent to follow, so it is a deliberate
+ * invention: square thumb, square track, and a stepped transition. A smooth
+ * slide reads as a modern control and fights everything around it.
  */
 .root {
     display: inline-flex;
@@ -58,7 +56,3 @@
     outline-offset: 3px;
 }
 
-.input:disabled + .track {
-    cursor: not-allowed;
-    background-color: var(--ms-surface-disabled);
-}

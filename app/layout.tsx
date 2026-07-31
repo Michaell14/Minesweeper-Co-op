@@ -110,16 +110,6 @@ export default function RootLayout({
         <link rel="icon" href="/icon.svg" type="image/svg+xml" />
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         {/*
-          * NES.css is NOT linked from a CDN here. It used to be, alongside the
-          * npm import in components/Landing.tsx — so every visitor downloaded
-          * ~300KB of the same stylesheet twice, once render-blocking from a
-          * third party on the critical path of a game that sells itself on
-          * loading instantly. The npm copy is the only one now, which also
-          * means a rule in globals.css can actually win against it by source
-          * order (the CDN link's position relative to Next's injected styles
-          * was never guaranteed).
-          */}
-        {/*
           * Applies the stored palette before first paint. Without it a themed
           * player sees the default palette flash on every load, because nothing
           * sets data-theme until React hydrates. <html> already carries
@@ -171,14 +161,6 @@ export default function RootLayout({
       </head>
 
       <body className={inter.className}>
-        {/*
-          * No theme provider. There used to be a ChakraProvider wrapping a
-          * next-themes ThemeProvider pinned to `defaultTheme="light"
-          * enableSystem={false}` — pinned because nothing coordinated NES.css's
-          * dark variants, the hardcoded board hexes and Chakra's own theme, so
-          * anything but light was broken. Theming is the tokens' job now: an
-          * alternate palette is a `[data-theme]` block in app/tokens.css.
-          */}
         {children}
         <Footer />
         <Analytics />

@@ -7,7 +7,6 @@ export interface SwitchProps {
     onChange: (checked: boolean) => void;
     /** Required — the toggle renders no visible text of its own. */
     "aria-label": string;
-    disabled?: boolean;
     className?: string;
 }
 
@@ -18,7 +17,6 @@ export interface SwitchProps {
 export default function Switch({
     checked,
     onChange,
-    disabled = false,
     className,
     ...aria
 }: SwitchProps) {
@@ -29,7 +27,6 @@ export default function Switch({
                 role="switch"
                 className={styles.input}
                 checked={checked}
-                disabled={disabled}
                 onChange={(e) => onChange(e.target.checked)}
                 aria-label={aria["aria-label"]}
             />

@@ -213,7 +213,7 @@ export default function DsCatalogClient() {
             >
                 <div className="max-w-md">
                     <Input size="sm" placeholder="Enter Room Code" />
-                    <Input size="sm" placeholder="Invalid" validity="invalid" />
+                    <Input size="sm" placeholder="Invalid" invalid />
                 </div>
             </Section>
 
@@ -293,7 +293,7 @@ export default function DsCatalogClient() {
 
             <Section
                 title="Switch"
-                note="Replaces Chakra's rounded iOS-style toggle, which was the most off-brand control in the app. Square thumb, stepped transition."
+                note="No retro precedent to copy, so it is a deliberate invention: square thumb, square track, stepped transition."
             >
                 <div className="flex items-center gap-4">
                     <Switch
