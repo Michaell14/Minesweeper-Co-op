@@ -1,12 +1,18 @@
 import React from 'react';
 import { useMinesweeperStore } from '@/app/store';
 import { DIALOGS } from '@/lib/dialogs';
+import { Dialog, DialogClose } from '@/components/ds';
 
 /**
  * The app-level dialogs: game over, room errors, and the PVP outcomes.
  *
  * These are opened imperatively by the socket handlers in hooks/useGameEvents.ts
  * via `openDialog(DIALOGS.x)`; this component only renders the markup.
+ *
+ * The nine of them used to be nine hand-written copies of the same shell —
+ * positioning classes, <form method="dialog">, aria wiring and an action row,
+ * repeated verbatim and free to drift. <Dialog> owns that shell now, so what is
+ * left here is only what actually differs between them.
  */
 export default function GameDialogs() {
     const gameOverName = useMinesweeperStore((state) => state.gameOverName);
@@ -15,139 +21,101 @@ export default function GameDialogs() {
     return (
         <>
             {/* Game Over - someone hit a mine */}
-            <dialog
-                className="nes-dialog absolute left-1/2 top-60 -translate-x-1/2"
+            <Dialog
                 id={DIALOGS.gameOver}
-                role="alertdialog"
-                aria-labelledby="game-over-title">
-                <form method="dialog">
-                    <p id="game-over-title" className="title">Uh Oh!</p>
-                    <p><span className="underline decoration-2">{gameOverName}</span> hit a bomb.</p>
-                    <menu className="dialog-menu">
-                        <button className="nes-btn is-error text-xs" aria-label="Close game over dialog">Cancel</button>
-                    </menu>
-                </form>
-            </dialog>
+                title="Uh Oh!"
+                alert
+                actions={
+                    <DialogClose intent="error" size="sm" aria-label="Close game over dialog">
+                        Cancel
+                    </DialogClose>
+                }>
+                <p><span className="underline decoration-2">{gameOverName}</span> hit a bomb.</p>
+            </Dialog>
 
             {/* Create Room Error - room already exists */}
-            <dialog
-                className="nes-dialog absolute left-1/2 top-60 -translate-x-1/2"
+            <Dialog
                 id={DIALOGS.createRoomError}
-                role="alertdialog"
-                aria-labelledby="create-room-error-title">
-                <form method="dialog">
-                    <p id="create-room-error-title">This room already exists.</p>
-                    <div className="flex justify-between">
-                        <button className="nes-btn" aria-label="Close error dialog">Cancel</button>
-                    </div>
-                </form>
-            </dialog>
+                title="This room already exists."
+                alert
+                actionsAlign="between"
+                actions={<DialogClose aria-label="Close error dialog">Cancel</DialogClose>}
+            />
 
             {/* Join Room Error - room doesn't exist */}
-            <dialog
-                className="nes-dialog absolute left-1/2 top-60 -translate-x-1/2"
+            <Dialog
                 id={DIALOGS.joinRoomError}
-                role="alertdialog"
-                aria-labelledby="join-room-error-title">
-                <form method="dialog">
-                    <p id="join-room-error-title">This room does not exist.</p>
-                    <div className="flex justify-between">
-                        <button className="nes-btn" aria-label="Close error dialog">Cancel</button>
-                    </div>
-                </form>
-            </dialog>
+                title="This room does not exist."
+                alert
+                actionsAlign="between"
+                actions={<DialogClose aria-label="Close error dialog">Cancel</DialogClose>}
+            />
 
             {/* Room Deleted Error - room became invalid during gameplay */}
-            <dialog
-                className="nes-dialog absolute left-1/2 top-60 -translate-x-1/2"
+            <Dialog
                 id={DIALOGS.roomDoesNotExist}
-                role="alertdialog"
-                aria-labelledby="room-error-title">
-                <form method="dialog">
-                    <p id="room-error-title">There was an error joining the room.</p>
-                    <div className="flex justify-between">
-                        <button
-                            className="nes-btn"
-                            onClick={() => setPlayerJoined(false)}
-                            aria-label="Close error dialog">Cancel</button>
-                    </div>
-                </form>
-            </dialog>
+                title="There was an error joining the room."
+                alert
+                actionsAlign="between"
+                actions={
+                    <DialogClose
+                        onClick={() => setPlayerJoined(false)}
+                        aria-label="Close error dialog">
+                        Cancel
+                    </DialogClose>
+                }
+            />
 
             {/* PVP Room Full - cannot join */}
-            <dialog
-                className="nes-dialog absolute left-1/2 top-60 -translate-x-1/2"
+            <Dialog
                 id={DIALOGS.pvpRoomFull}
-                role="alertdialog"
-                aria-labelledby="pvp-room-full-title">
-                <form method="dialog">
-                    <p id="pvp-room-full-title" className="title">Room Full!</p>
-                    <p>This PVP room already has 2 players.</p>
-                    <menu className="dialog-menu">
-                        <button className="nes-btn" aria-label="Close dialog">OK</button>
-                    </menu>
-                </form>
-            </dialog>
+                title="Room Full!"
+                alert
+                actions={<DialogClose aria-label="Close dialog">OK</DialogClose>}>
+                <p>This PVP room already has 2 players.</p>
+            </Dialog>
 
             {/* PVP Game Over - this player hit a mine */}
-            <dialog
-                className="nes-dialog absolute left-1/2 top-60 -translate-x-1/2"
+            <Dialog
                 id={DIALOGS.pvpGameOver}
-                role="alertdialog"
-                aria-labelledby="pvp-game-over-title">
-                <form method="dialog">
-                    <p id="pvp-game-over-title" className="title">Boom!</p>
-                    <p>You hit a mine. Reset your board to try again!</p>
-                    <menu className="dialog-menu">
-                        <button className="nes-btn is-error" aria-label="Close dialog">OK</button>
-                    </menu>
-                </form>
-            </dialog>
+                title="Boom!"
+                alert
+                actions={
+                    <DialogClose intent="error" aria-label="Close dialog">OK</DialogClose>
+                }>
+                <p>You hit a mine. Reset your board to try again!</p>
+            </Dialog>
 
             {/* PVP You Won */}
-            <dialog
-                className="nes-dialog absolute left-1/2 top-60 -translate-x-1/2"
+            <Dialog
                 id={DIALOGS.pvpYouWon}
-                role="alertdialog"
-                aria-labelledby="pvp-you-won-title">
-                <form method="dialog">
-                    <p id="pvp-you-won-title" className="title">Victory!</p>
-                    <p>You completed your board first. You win!</p>
-                    <menu className="dialog-menu">
-                        <button className="nes-btn is-success" aria-label="Close dialog">Awesome!</button>
-                    </menu>
-                </form>
-            </dialog>
+                title="Victory!"
+                alert
+                actions={
+                    <DialogClose intent="success" aria-label="Close dialog">Awesome!</DialogClose>
+                }>
+                <p>You completed your board first. You win!</p>
+            </Dialog>
 
             {/* PVP Opponent Won */}
-            <dialog
-                className="nes-dialog absolute left-1/2 top-60 -translate-x-1/2"
+            <Dialog
                 id={DIALOGS.pvpOpponentWon}
-                role="alertdialog"
-                aria-labelledby="pvp-opponent-won-title">
-                <form method="dialog">
-                    <p id="pvp-opponent-won-title" className="title">Defeat</p>
-                    <p>Your opponent completed their board first.</p>
-                    <menu className="dialog-menu">
-                        <button className="nes-btn" aria-label="Close dialog">OK</button>
-                    </menu>
-                </form>
-            </dialog>
+                title="Defeat"
+                alert
+                actions={<DialogClose aria-label="Close dialog">OK</DialogClose>}>
+                <p>Your opponent completed their board first.</p>
+            </Dialog>
 
             {/* PVP Opponent Disconnected */}
-            <dialog
-                className="nes-dialog absolute left-1/2 top-60 -translate-x-1/2"
+            <Dialog
                 id={DIALOGS.pvpOpponentDisconnected}
-                role="alertdialog"
-                aria-labelledby="pvp-opponent-disconnected-title">
-                <form method="dialog">
-                    <p id="pvp-opponent-disconnected-title" className="title">Victory!</p>
-                    <p>Your opponent disconnected. You win by default!</p>
-                    <menu className="dialog-menu">
-                        <button className="nes-btn is-success" aria-label="Close dialog">Nice!</button>
-                    </menu>
-                </form>
-            </dialog>
+                title="Victory!"
+                alert
+                actions={
+                    <DialogClose intent="success" aria-label="Close dialog">Nice!</DialogClose>
+                }>
+                <p>Your opponent disconnected. You win by default!</p>
+            </Dialog>
         </>
     );
 }

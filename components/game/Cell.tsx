@@ -1,7 +1,10 @@
 import React from 'react';
 import styles from "./board.module.css";
 import { useMinesweeperStore, Cell as CellType } from '@/app/store';
-import { Box } from "@chakra-ui/react";
+// Direct, not via the @/components/ds barrel: this component renders once per
+// cell (256+ on a medium board) and has no business pulling in Dialog, Button
+// and the icon sprites to get one class name.
+import { pointerClass } from '@/components/ds/pointer';
 
 
 interface CellParams {
@@ -146,7 +149,7 @@ const Cell = ({ cell, row, col, toggleFlag, openCell, chordCell, emitCellHover }
                 key={col}
                 role="gridcell"
                 aria-label={getAriaLabel()}
-                className={`${styles.cell} ${styles.flagged} ${isHovered ? styles.hovered : ''} text-lg`}
+                className={`${styles.cell} ${styles.flagged} ${isHovered ? styles.hovered : ''} text-pixel-lg`}
                 style={isHovered && hoverColor ? { '--hover-color': hoverColor } as React.CSSProperties : undefined}
                 onContextMenu={(e) => {
                     e.preventDefault();
@@ -161,12 +164,12 @@ const Cell = ({ cell, row, col, toggleFlag, openCell, chordCell, emitCellHover }
                     }
                 }}>
 
-                <Box h={"full"} w={"full"} hideFrom={"xl"} onClick={() => { if (!isDisabled) { !isChecked ? toggleFlag(row, col) : {} } }}>
+                <div className="h-full w-full xl:hidden" onClick={() => { if (!isDisabled) { !isChecked ? toggleFlag(row, col) : {} } }}>
                     🚩
-                </Box>
-                <Box h={"full"} w={"full"} hideBelow={"xl"}>
+                </div>
+                <div className="h-full w-full hidden xl:block">
                     🚩
-                </Box>
+                </div>
             </div>
         );
     }
@@ -177,7 +180,7 @@ const Cell = ({ cell, row, col, toggleFlag, openCell, chordCell, emitCellHover }
             key={col}
             role="gridcell"
             aria-label={getAriaLabel()}
-            className={`${styles.cell} ${styles.closed} ${isHovered ? styles.hovered : ''} ${isDisabled ? 'opacity-50 cursor-not-allowed' : 'nes-pointer'}`}
+            className={`${styles.cell} ${styles.closed} ${isHovered ? styles.hovered : ''} ${isDisabled ? 'opacity-50 cursor-not-allowed' : pointerClass}`}
             style={isHovered && hoverColor ? { '--hover-color': hoverColor } as React.CSSProperties : undefined}
             onContextMenu={(e) => {
                 e.preventDefault();
@@ -191,14 +194,10 @@ const Cell = ({ cell, row, col, toggleFlag, openCell, chordCell, emitCellHover }
                     e.preventDefault();
                 }
             }}>
-            <Box h={"full"} w={"full"} hideFrom={"xl"} onClick={() => { if (!isDisabled) { isChecked ? openCell(row, col) : toggleFlag(row, col) } }}>
-
-            </Box>
-            <Box h={"full"} w={"full"} hideBelow={"xl"} onClick={() => {
+            <div className="h-full w-full xl:hidden" onClick={() => { if (!isDisabled) { isChecked ? openCell(row, col) : toggleFlag(row, col) } }} />
+            <div className="h-full w-full hidden xl:block" onClick={() => {
                 if (!isDisabled) openCell(row, col);
-            }}>
-
-            </Box>
+            }} />
         </div>
     );
 };
