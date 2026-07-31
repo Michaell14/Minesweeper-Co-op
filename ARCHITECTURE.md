@@ -2,7 +2,7 @@
 
 Real-time multiplayer Minesweeper with two modes: **co-op** (everyone shares one board) and **PvP** (two players race separate boards).
 
-- **Frontend**: Next.js 14 App Router, React 18, TypeScript, Zustand, Chakra UI + Tailwind + NES.css. Deployed on Vercel.
+- **Frontend**: Next.js 14 App Router, React 18, TypeScript, Zustand, Tailwind, and an in-repo design system (`components/ds/`) built on design tokens. No UI component library. Deployed on Vercel.
 - **Backend**: Node + Express + Socket.io, CommonJS, state in Redis. Deployed on Heroku as a *separate* package (`/server`).
 - The two halves share no code today; the socket protocol is the only contract, and it is untyped on both sides.
 
@@ -14,7 +14,9 @@ Real-time multiplayer Minesweeper with two modes: **co-op** (everyone shares one
 app/                      Next.js App Router (client-side app; no server components, no API routes)
   page.tsx                "Home" — picks Landing vs Grid, owns the top-level dialogs
   store.ts                Re-exports the store from state/ (keeps the @/app/store path)
-  layout.tsx              Metadata/SEO, fonts, Chakra provider, Footer
+  layout.tsx              Metadata/SEO, fonts, global stylesheets, Footer
+  tokens.css              Design tokens: palette -> semantic colour, type scale, spacing
+  ds/                     Component catalog at /ds (noindex); dev surface, not a player page
   globals.css
 state/                    The Zustand store, one file per concern
   store.ts                Composes the slices
@@ -44,7 +46,9 @@ components/
     board.module.css      Board and cell styles
   Landing.tsx             Create/join forms, custom-size dialog, name dialogs
   Footer.tsx              GitHub link + how-to-play dialog
-  ui/                     Generated Chakra snippets. Not hand-maintained
+components/ds/            The design system. Import via its index barrel
+  pixel.module.css        The two border treatments: notched (controls), boxed (regions)
+  icons.tsx               16x16 sprites stored as editable character grids
 shared/                   Imported by BOTH halves; viable because the whole repo deploys (§6)
   boardConfig.js          Board sizes, difficulty densities, limits, validity rule
   events.js               Every socket event name, both directions
@@ -92,7 +96,7 @@ server/                   Separate npm package (own package.json, lockfile, node
 ### Component tree
 
 ```
-layout.tsx → Provider (Chakra/next-themes) → page.tsx + Footer + Analytics
+layout.tsx → tokens.css + globals.css → page.tsx + Footer + Analytics
 page.tsx ──┬→ Landing   (when !playerJoined)
            └→ Grid      (when playerJoined) → Cell[][]
 ```
@@ -423,7 +427,7 @@ backend — the only automated frontend coverage there is. See CLAUDE.md.
 
 These are real, currently unfixed, and worth knowing before changing related code.
 
-1. **Heroku installs the whole frontend dependency tree and never uses it.** The root `npm install` pulls Next, React, Chakra and the rest onto a dyno that only runs `cd server && node server.js`; `heroku-postbuild` replaces the `build` script, so the frontend is never built there. Wasted build time and slug size, not a correctness problem.
+1. **Heroku installs the whole frontend dependency tree and never uses it.** The root `npm install` pulls Next, React and the rest onto a dyno that only runs `cd server && node server.js`; `heroku-postbuild` replaces the `build` script, so the frontend is never built there. Wasted build time and slug size, not a correctness problem.
 
 *Fixed, kept here so they aren't reintroduced:* the `gameUtils` ⇄ `playerUtils`
 require cycle that silently broke co-op score resets (see §3); the stale room

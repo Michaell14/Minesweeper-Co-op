@@ -6,7 +6,7 @@ Guidance for AI agents working in this repo. Read `ARCHITECTURE.md` for the full
 
 Real-time multiplayer Minesweeper. Two deployables in one repo:
 
-- **Frontend** — Next.js 14 App Router at the repo root (`app/`, `components/`, `lib/`). TypeScript, Zustand, Chakra + Tailwind + NES.css. Vercel.
+- **Frontend** — Next.js 14 App Router at the repo root (`app/`, `components/`, `lib/`). TypeScript, Zustand, Tailwind, and an in-repo design system in `components/ds/`. No UI component library. Vercel.
 - **Backend** — `server/`, a **separate npm package** with its own `package.json`, lockfile, and `node_modules`. CommonJS, Express + Socket.io, state in Redis. Heroku.
 
 They share code only through `shared/` (see below). The socket protocol is the
@@ -40,6 +40,8 @@ Backend deps install separately: `npm --prefix server install`.
 - 4-space indent (except `app/layout.tsx`, which is 2). No Prettier configured.
 - Server is **CommonJS** (`require`/`module.exports`); client is ESM + TypeScript. Do not mix.
 - Client imports use the `@/` alias (`@/components/...`, `@/lib/...`, `@/app/store`).
+- **Never write a raw colour, font size or border width in a component.** Every one is a token in `app/tokens.css`. Inside `components/ds/`, read them as CSS custom properties (`var(--ms-intent-primary)`); everywhere else use the Tailwind semantic classes wired to them (`bg-surface-panel`, `text-pixel-sm`). A hex, a `bg-blue-500` or a `text-xs` is a bug — it survives a theme change while everything around it moves.
+- **Build UI from `components/ds/`, not from raw elements.** `Button`, `Input`, `Panel`, `Dialog`, `Badge`, `Table`, `Field`, `RadioCard`, `Switch`. Import from `@/components/ds`, never from a file inside it — except in hot paths like `Cell.tsx`, which imports the one thing it needs directly to avoid pulling the whole barrel.
 - Redis values are all strings — booleans are stored as `'true'`/`'false'` and compared as strings, and numbers need `parseInt(..., 10)`.
 - **Go through `server/data/roomRepo` / `playerRepo`.** Don't import the Redis client or build a key string outside `server/data`. A mistyped key is a silent no-op, not an error.
 - Socket handlers validate payloads with helpers from `server/validation.js`, then call `isValid(room)` before touching state. Follow that order for new handlers, and add new rules to `validation.js` rather than inline.
@@ -60,6 +62,9 @@ Backend deps install separately: `npm --prefix server install`.
 | Join/leave, scores, disconnects | `server/utils/playerUtils.js` |
 | Redis schema / any data access | `server/data/keys.js`, `server/data/roomRepo.js`, `server/data/playerRepo.js` |
 | Client state | `state/` (one slice per concern); import from `@/app/store` |
+| Design system (buttons, inputs, panels, dialogs, table, icons) | `components/ds/`; barrel at `components/ds/index.ts` |
+| Colours, type scale, spacing, border width | `app/tokens.css`, surfaced to Tailwind in `tailwind.config.ts` |
+| Component catalog (every primitive on one page) | `app/ds/` — `/ds` route, noindex |
 | Board/controls UI | `components/game/` (Board, StatusBanner, ProgressBar, ScoreTable, FlagCounter); `components/Grid.tsx` is layout only |
 | Cell interaction | `components/game/Cell.tsx` |
 | Room create/join UI | `components/Landing.tsx` |
@@ -67,7 +72,7 @@ Backend deps install separately: `npm --prefix server install`.
 | Socket event names | `shared/events.js` — imported by both halves |
 | Socket payload types | `shared/socketPayloads.ts` (+ `shared/events.d.ts` for literal names) |
 | Post-deploy check | `scripts/verify-deploy/` — `npm run verify:deploy` |
-| Dialogs | `lib/dialogs.ts` for ids and `openDialog`/`closeDialog`; markup in `components/dialogs/GameDialogs.tsx`, `Grid.tsx`, `Landing.tsx`, `Footer.tsx` |
+| Dialogs | `lib/dialogs.ts` for ids and `openDialog`/`closeDialog`; `components/ds/Dialog.tsx` for the shell; markup in `components/dialogs/GameDialogs.tsx`, `Grid.tsx`, `Landing.tsx`, `Footer.tsx` |
 
 ## Traps
 
@@ -75,10 +80,10 @@ Read `ARCHITECTURE.md` §8-9 before changing server code. The ones most likely t
 
 1. **Don't reintroduce imports between `gameUtils` and `playerUtils`.** They used to require each other, which made `resetGame()` throw silently depending on load order. Shared board helpers go in `server/domain/board.js`, which must stay dependency-free. `tests/resetGame.test.js` guards this and its require order is load-bearing.
 2. **Adding a socket event touches five places**: `shared/events.js`, `shared/events.d.ts`, `shared/socketPayloads.ts`, the server handler/emit, and the client table in `hooks/useGameEvents.ts`. `server/tests/events.test.js` fails if they drift. (Redis keys, validation rules, board config and event names are all single-source now.)
-3. **`components/Grid.tsx` mounts the board exactly ONCE.** Two *control* clusters remain (desktop `hideBelow="xl"`, mobile `hideFrom="xl"`) because those arrangements genuinely differ, but they sit on one flex line with the single board between them. Don't move `<Board>` inside a cluster to "fix" a layout — that puts 512 cells in the DOM for a 16x16 game and makes every DOM query ambiguous. `scripts/ui-smoke/run.js` asserts the count and will fail. Where the layouts genuinely differ it is an explicit prop (`variant`), not a second copy.
+3. **`components/Grid.tsx` mounts the board exactly ONCE.** Two *control* clusters remain (desktop `hidden xl:flex`, mobile `xl:hidden`) because those arrangements genuinely differ, but they sit on one flex line with the single board between them. Don't move `<Board>` inside a cluster to "fix" a layout — that puts 512 cells in the DOM for a 16x16 game and makes every DOM query ambiguous. `scripts/ui-smoke/run.js` asserts the count and will fail. Where the layouts genuinely differ it is an explicit prop (`variant`), not a second copy.
 4. **Socket handlers go in the `hooks/useGameEvents.ts` table**, not in a component. Registration and cleanup are derived from that table; don't call `socket.on` directly.
-5. **Dialogs are native `<dialog>` elements**, opened imperatively via `openDialog(DIALOGS.x)`. NES.css styling and the `form method="dialog"` close behaviour depend on that, so don't convert them to conditional rendering casually. Never type a dialog id as a string literal — import it from `lib/dialogs.ts`.
-6. **`components/ui/` is generated Chakra code.** Don't hand-edit it.
+5. **Dialogs are native `<dialog>` elements**, opened imperatively via `openDialog(DIALOGS.x)` and closed by submitting their `form method="dialog"`, so don't convert them to conditional rendering casually. Never type a dialog id as a string literal — import it from `lib/dialogs.ts`. **Use `<DialogClose>` for any button meant to dismiss a dialog**: `<Button>` defaults to `type="button"`, and a close button that isn't `type="submit"` silently stops closing with nothing wrong in the markup.
+6. **`components/ds/` primitives are shared — check every call site before changing one.** They replaced Chakra and NES.css, both now removed, so there is no upstream to fall back on. Two border treatments exist deliberately (`pixel.module.css`): controls are *notched* (cut corners, drawn with offset `box-shadow`), regions are *boxed* (square border). Don't reach for `border-image` — that is what made NES.css's inputs render dashed in Chrome.
 7. **PVP players race the SAME board**, generated once by `startPvpGame` with a shared opening already revealed. Don't reintroduce per-player generation on first click — that is what used to make the layouts differ.
 8. **The root `/Procfile` and `heroku-postbuild` are load-bearing** — Heroku deploys the whole repo and starts it with them, and it is now the only Procfile (a second, inert one under `server/` was removed). Don't "tidy" the root ones, and see ARCHITECTURE.md §6 before touching the duplicated server deps in the root `package.json`.
 9. **Mine density has a measured ceiling.** Difficulty is a density in `shared/boardConfig.js`, and `Extreme` sits at 20.6% because that is the highest the no-guess generator can actually deliver — above it the retry loop exhausts and falls back to a guessy board *silently*. Don't raise a density, or lower `DEFAULT_MAX_ATTEMPTS`, without re-measuring the solvable rate; see ARCHITECTURE.md §5. Board dimensions come from the size axis, mines are always derived — never add a hand-typed mine count back.
