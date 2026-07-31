@@ -1,15 +1,9 @@
 import type { Metadata } from "next";
 import { Inter, Press_Start_2P } from "next/font/google";
-// Order is load-bearing, so the globals are imported in one place rather than
-// scattered across the components that happen to use them:
-//   tokens   -> custom properties everything else reads
-//   nes.css  -> the vendor stylesheet (was imported from Landing.tsx, which made
-//               its position in the bundle depend on the module graph)
-//   globals  -> our rules, last, so they can override the vendor
+// Tokens first: globals.css and every component in components/ds read the
+// custom properties it defines, so it has to land in the cascade ahead of them.
 import "./tokens.css";
-import "nes.css/css/nes.min.css";
 import "./globals.css";
-import { Provider } from "@/components/ui/provider";
 import { Analytics } from '@vercel/analytics/next';
 import Footer from "@/components/Footer";
 
@@ -114,6 +108,16 @@ export default function RootLayout({
         <link rel="icon" href="/favicon.ico" sizes="any" />
         <link rel="icon" href="/icon.svg" type="image/svg+xml" />
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+        {/*
+          * NES.css is NOT linked from a CDN here. It used to be, alongside the
+          * npm import in components/Landing.tsx — so every visitor downloaded
+          * ~300KB of the same stylesheet twice, once render-blocking from a
+          * third party on the critical path of a game that sells itself on
+          * loading instantly. The npm copy is the only one now, which also
+          * means a rule in globals.css can actually win against it by source
+          * order (the CDN link's position relative to Next's injected styles
+          * was never guaranteed).
+          */}
         <link rel="canonical" href="https://www.minesweepercoop.com" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="theme-color" content="#ffffff" />
@@ -159,11 +163,17 @@ export default function RootLayout({
       </head>
 
       <body className={inter.className}>
-        <Provider defaultTheme="light" enableSystem={false}>
-          {children}
-          <Footer />
-          <Analytics />
-        </Provider>
+        {/*
+          * No theme provider. There used to be a ChakraProvider wrapping a
+          * next-themes ThemeProvider pinned to `defaultTheme="light"
+          * enableSystem={false}` — pinned because nothing coordinated NES.css's
+          * dark variants, the hardcoded board hexes and Chakra's own theme, so
+          * anything but light was broken. Theming is the tokens' job now: an
+          * alternate palette is a `[data-theme]` block in app/tokens.css.
+          */}
+        {children}
+        <Footer />
+        <Analytics />
       </body>
 
     </html>

@@ -8,6 +8,32 @@
     font-style: normal;
 }
 
+/*
+ * The page surface.
+ *
+ * Chakra's reset used to supply this, so removing Chakra left the app with no
+ * background of its own — which meant a browser set to dark mode rendered dark
+ * text on a dark UA background. Stating it in terms of tokens both fixes that
+ * and puts the page surface where every other colour already lives.
+ *
+ * `color-scheme: light` also keeps form controls and scrollbars light, since
+ * the palette is a light one until a [data-theme] block says otherwise.
+ */
+html {
+    color-scheme: light;
+}
+
+body {
+    background-color: var(--ms-surface-page);
+    color: var(--ms-ink-strong);
+    /*
+     * Also inherited from Chakra's reset, and also load-bearing: room codes are
+     * player-typed, up to 28 characters, and have no spaces to break at. Without
+     * this the code runs straight out through the side of the room panel.
+     */
+    overflow-wrap: break-word;
+}
+
 /* Screen reader only class for accessibility */
 .sr-only {
     position: absolute;
@@ -44,28 +70,18 @@
     margin-right: -50%;
 }
 
-/* Chakra's RadioCard.ItemControl doesn't stretch to fill its card by default. */
-.chakra-radio-card__itemControl {
-    width: 100%;
-}
 /*
- * Undo NES.css's Chrome-only dashed input border.
+ * NES.css is gone — components/ds draws these borders now.
  *
- * nes.css draws control borders with a border-image whose middle slice is a
- * single source pixel, then ships a Chrome-targeting media query setting
- * `border-image-repeat: space`. That tiles the slice with gaps instead of
- * stretching it, and since border-image-width is 2 (twice the 4px border) the
- * slice is scaled 4x — so Chrome renders a row of 4px dashes where Firefox,
- * sent `stretch` by a separate @supports rule, renders a solid line. It is a
- * library bug with no configuration lever; overriding is the only fix from
- * outside.
+ * The dashed-border override that used to live here is deleted with it. For the
+ * record, since it is the reason the design system exists: nes.css drew control
+ * borders with a border-image whose middle slice was one source pixel, and
+ * shipped a Chrome-targeting media query setting `border-image-repeat: space`.
+ * That tiled the slice with gaps instead of stretching it, and since
+ * border-image-width was 2 (twice the 4px border) the slice scaled 4x — so
+ * Chrome rendered a row of 4px dashes where Firefox rendered a solid line. It
+ * was a library bug with no configuration lever.
  *
- * `input.nes-input` is 0,1,1 against the library's 0,1,0, so this wins on
- * specificity regardless of stylesheet order (media queries do not raise it).
+ * Layered box-shadows have no slice to scale and nothing to tile, so there is
+ * nothing left to override. See components/ds/pixel.module.css.
  */
-input.nes-input,
-textarea.nes-textarea,
-button.nes-btn,
-table.nes-table.is-bordered {
-    border-image-repeat: stretch;
-}
