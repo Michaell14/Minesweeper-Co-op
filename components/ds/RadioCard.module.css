@@ -1,0 +1,101 @@
+/*
+ * Option cards — Mode, Board Size, Difficulty.
+ *
+ * Each card is a <label> wrapping a real radio input. That is not incidental:
+ * the smoke test reads `input[type=radio]` .checked/.value to assert which
+ * option is live, and clicks the <label> to change it. Keeping the native
+ * control also means keyboard arrow-key navigation and form semantics come
+ * free rather than being re-implemented.
+ */
+.group {
+    display: flex;
+    align-items: stretch;
+    gap: 8px;
+    width: 100%;
+    max-width: 100%;
+}
+
+/* Cards scroll rather than wrap on narrow screens — wrapping would reflow the
+ * whole create form and push the submit button off-screen. */
+.scrollable {
+    overflow-x: scroll;
+}
+
+@media (min-width: 48em) {
+    .scrollable {
+        overflow-x: hidden;
+    }
+}
+
+.card {
+    flex: 1 1 0%;
+    border-radius: 4px;
+    background-color: var(--ms-surface-option);
+    color: var(--ms-ink-strong);
+    cursor: pointer;
+}
+
+/* The native input drives state and focus but is never seen. */
+.input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+.control {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 6px;
+    width: 100%;
+    height: 100%;
+    padding: 12px;
+    border-radius: 4px;
+}
+
+.input:checked ~ .control {
+    background-color: var(--ms-surface-option-selected);
+}
+
+/* Focus follows the input to the card, since the input itself is clipped. */
+.input:focus-visible ~ .control {
+    outline: 2px solid var(--ms-intent-primary);
+    outline-offset: 2px;
+}
+
+.content {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.label {
+    font-size: var(--ms-text-md);
+}
+
+.description {
+    font-size: var(--ms-text-md);
+}
+
+.indicator {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    width: 16px;
+    height: 16px;
+}
+
+.dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 9999px;
+    background-color: currentColor;
+}

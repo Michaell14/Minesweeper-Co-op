@@ -1,0 +1,58 @@
+/*
+ * Score table.
+ *
+ * The 8-bit look comes from thick cell rules with the corner pixel knocked
+ * out. NES.css does that with a ::before and ::after square positioned at each
+ * cell's corners — four extra boxes per cell, on a table that re-renders every
+ * time a score changes. Two background-image gradients on the cell do the same
+ * job with no extra elements.
+ */
+.table {
+    table-layout: fixed;
+    border-spacing: 0;
+    border-collapse: separate;
+    margin: var(--ms-border-width);
+    background-color: var(--ms-surface-page);
+    color: var(--ms-ink-strong);
+}
+
+.table th,
+.table td {
+    padding: 8px;
+    word-wrap: break-word;
+    border-color: var(--ms-border-color);
+    border-style: solid;
+    border-width: 0 var(--ms-border-width) var(--ms-border-width) 0;
+}
+
+.table th:last-child,
+.table td:last-child {
+    border-right-width: 0;
+}
+
+.table tr:last-child th,
+.table tr:last-child td {
+    border-bottom-width: 0;
+}
+
+/*
+ * Header cells only — NOT td.
+ *
+ * NES.css's `is-centered` was `.nes-table.is-centered th { text-align: center }`
+ * with no rule for data cells, so leaderboard names and scores stayed
+ * left-aligned. Centring td as well quietly re-aligned every row in the score
+ * table. Left-aligned data is also the better default: names are ragged, and a
+ * centred column of them has no edge for the eye to track.
+ */
+.centered th {
+    text-align: center;
+}
+
+/* Outer frame, notched like the controls. */
+.bordered {
+    box-shadow:
+        0 calc(-1 * var(--ms-border-width)) 0 0 var(--ms-border-color),
+        0 var(--ms-border-width) 0 0 var(--ms-border-color),
+        calc(-1 * var(--ms-border-width)) 0 0 0 var(--ms-border-color),
+        var(--ms-border-width) 0 0 0 var(--ms-border-color);
+}

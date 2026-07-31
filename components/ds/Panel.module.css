@@ -1,0 +1,43 @@
+/*
+ * A bordered region. Square corners, not notched — in this aesthetic controls
+ * have cut corners and regions do not, and mixing the two is what made the old
+ * markup read as several different UIs.
+ */
+.panel {
+    --panel-fill: var(--ms-surface-panel);
+    position: relative;
+    padding: 24px 32px;
+    background-color: var(--panel-fill);
+}
+
+.panel > :last-child {
+    margin-bottom: 0;
+}
+
+.centered {
+    text-align: center;
+}
+
+/*
+ * A title that sits ON the top border, punched out of it.
+ *
+ * `display: table` shrink-wraps to the text so the knockout is exactly as wide
+ * as the label, and the negative top margin lifts it onto the border line.
+ *
+ * The background is --panel-fill, NOT a hardcoded white. NES.css hardcodes
+ * #fff here, which is invisible while the panel is also white but shows up as
+ * a white patch across the border the moment a panel is tinted — which is what
+ * the app does, every panel carries a slate fill. Inheriting the fill is the
+ * one place these primitives knowingly render differently from the originals.
+ */
+.title {
+    display: table;
+    padding: 0 8px;
+    margin: -34px 0 16px;
+    font-size: var(--ms-text-md);
+    background-color: var(--panel-fill);
+}
+
+.centered > .title {
+    margin: -38px auto 16px;
+}

@@ -1,0 +1,42 @@
+/*
+ * Native <dialog>. Kept native deliberately — see CLAUDE.md trap #5: the ids
+ * are opened imperatively via openDialog(), and `form method="dialog"` is what
+ * gives the buttons their close-on-submit behaviour. Converting these to
+ * conditional rendering would silently break both.
+ */
+.dialog {
+    padding: 24px 32px;
+    color: var(--ms-ink-strong);
+    background-color: var(--ms-surface-dialog);
+    /*
+     * The UA stylesheet gives <dialog> `border: solid` with an initial width
+     * and currentColor. NES.css leaned on that and only set border-width, so
+     * the dialog border was really being drawn by browser defaults. Stated
+     * outright here instead.
+     */
+    border: var(--ms-border-width) solid var(--ms-border-color);
+}
+
+.dialog::backdrop {
+    background-color: rgba(0, 0, 0, 0.3);
+}
+
+.dialog > form > :last-child {
+    margin-bottom: 0;
+}
+
+.title {
+    margin-bottom: 16px;
+}
+
+/* Action row. `menu` carries a UA padding-inline-start that has to go. */
+.actions {
+    display: flex;
+    gap: 8px;
+    margin: 24px 0 0;
+    padding: 0;
+}
+
+.between { justify-content: space-between; }
+.end { justify-content: flex-end; }
+.start { justify-content: flex-start; }

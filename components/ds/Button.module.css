@@ -1,0 +1,76 @@
+/*
+ * Button skin. Geometry and the notched outline come from pixel.module.css;
+ * this file only supplies fill, ink and bevel per intent.
+ *
+ * Every intent is the same four declarations, so adding one is four lines and
+ * a token triple — which is the point of doing this ourselves.
+ */
+.button {
+    padding: 6px 8px;
+    cursor: pointer;
+    text-decoration: none;
+    background-color: var(--btn-fill);
+    color: var(--btn-ink);
+    --pixel-bevel: var(--btn-bevel);
+    --pixel-ring: var(--btn-ring);
+}
+
+.button:hover:not(:disabled) {
+    background-color: var(--btn-fill-hover);
+    color: var(--btn-ink);
+    text-decoration: none;
+}
+
+.button:disabled {
+    cursor: not-allowed;
+    background-color: var(--ms-surface-disabled);
+    color: var(--ms-ink-strong);
+    --btn-fill-hover: var(--ms-surface-disabled);
+    --pixel-bevel: var(--ms-border-color);
+}
+
+.default {
+    --btn-fill: var(--ms-intent-default);
+    --btn-fill-hover: var(--ms-intent-default-hover);
+    --btn-ink: var(--ms-intent-default-ink);
+    --btn-bevel: var(--ms-intent-default-bevel);
+    --btn-ring: rgba(173, 175, 188, 0.4);
+}
+
+.primary {
+    --btn-fill: var(--ms-intent-primary);
+    --btn-fill-hover: var(--ms-intent-primary-hover);
+    --btn-ink: var(--ms-intent-primary-ink);
+    --btn-bevel: var(--ms-intent-primary-bevel);
+    --btn-ring: rgba(0, 107, 179, 0.4);
+}
+
+.success {
+    --btn-fill: var(--ms-intent-success);
+    --btn-fill-hover: var(--ms-intent-success-hover);
+    --btn-ink: var(--ms-intent-success-ink);
+    --btn-bevel: var(--ms-intent-success-bevel);
+    --btn-ring: rgba(74, 165, 46, 0.4);
+}
+
+.warning {
+    --btn-fill: var(--ms-intent-warning);
+    --btn-fill-hover: var(--ms-intent-warning-hover);
+    --btn-ink: var(--ms-intent-warning-ink);
+    --btn-bevel: var(--ms-intent-warning-bevel);
+    --btn-ring: rgba(229, 148, 0, 0.4);
+}
+
+.error {
+    --btn-fill: var(--ms-intent-error);
+    --btn-fill-hover: var(--ms-intent-error-hover);
+    --btn-ink: var(--ms-intent-error-ink);
+    --btn-bevel: var(--ms-intent-error-bevel);
+    --btn-ring: rgba(140, 32, 34, 0.4);
+}
+
+/* Size is a type-scale choice, not a padding choice — the face is a pixel font
+ * and only looks right at whole-pixel sizes. */
+.sm { font-size: var(--ms-text-sm); }
+.md { font-size: var(--ms-text-md); }
+.lg { font-size: var(--ms-text-lg); }

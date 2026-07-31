@@ -1,0 +1,109 @@
+/* ============================================================================
+ * PIXEL SURFACES — the drawing primitives every component in components/ds/
+ * is built from. Nothing here knows what a button or a dialog is.
+ *
+ * There are two distinct border treatments in this aesthetic, and conflating
+ * them is what made the old markup inconsistent:
+ *
+ *   .notched — corners cut away, so the outline reads as four separate bars.
+ *              Used for controls: buttons, inputs, the things you click.
+ *   .boxed   — a plain square 4px outline. Used for regions: panels, dialogs,
+ *              tables.
+ *
+ * .notched is drawn with four offset box-shadows rather than a border-image.
+ * NES.css uses border-image for this and it is the source of the dashed-border
+ * bug in Chrome: a border-image's middle slice is a single source pixel that
+ * the browser must either stretch or tile, and Chrome is told to tile it.
+ * A box-shadow is one solid rectangle offset by the border width — there is no
+ * slice, nothing to scale, nothing to tile, and no per-browser branch. It is
+ * also the technique NES.css itself already uses for .nes-badge.
+ * ========================================================================== */
+
+/* ---------------------------------------------------------------------------
+ * Notched outline.
+ *
+ * Four copies of the element's own rectangle, each shifted one border-width
+ * out. Their union is a plus shape, so the corners stay empty and you get the
+ * cut-corner silhouette. Right and bottom take the bevel colour, which is what
+ * makes the control read as raised rather than flat.
+ * ------------------------------------------------------------------------- */
+.notched {
+    --pixel-edge: var(--ms-border-color);
+    --pixel-bevel: var(--ms-border-color);
+    --pixel-w: var(--ms-border-width);
+
+    position: relative;
+    border: 0;
+    box-shadow:
+        0 calc(-1 * var(--pixel-w)) 0 0 var(--pixel-edge),
+        calc(-1 * var(--pixel-w)) 0 0 0 var(--pixel-edge),
+        0 var(--pixel-w) 0 0 var(--pixel-bevel),
+        var(--pixel-w) 0 0 0 var(--pixel-bevel);
+}
+
+/*
+ * Pressed. The bevel jumps to the top-left, which is the whole illusion: the
+ * light source stays put and the surface drops below it.
+ */
+.notched.pressed,
+.notched:active:not(.disabled) {
+    box-shadow:
+        0 calc(-1 * var(--pixel-w)) 0 0 var(--pixel-bevel),
+        calc(-1 * var(--pixel-w)) 0 0 0 var(--pixel-bevel),
+        0 var(--pixel-w) 0 0 var(--pixel-edge),
+        var(--pixel-w) 0 0 0 var(--pixel-edge);
+}
+
+/*
+ * Focus ring, drawn outside the notched outline so it never overlaps it.
+ * Deliberately not `outline`, which would follow the element's square box and
+ * give away that the corners are faked.
+ */
+.notched:focus-visible {
+    outline: 0;
+    box-shadow:
+        0 calc(-1 * var(--pixel-w)) 0 0 var(--pixel-edge),
+        calc(-1 * var(--pixel-w)) 0 0 0 var(--pixel-edge),
+        0 var(--pixel-w) 0 0 var(--pixel-bevel),
+        var(--pixel-w) 0 0 0 var(--pixel-bevel),
+        0 0 0 calc(var(--pixel-w) + 2px) var(--pixel-ring, rgba(173, 175, 188, 0.4));
+}
+
+/* ---------------------------------------------------------------------------
+ * Boxed outline — square corners, uniform colour. Regions, not controls.
+ * ------------------------------------------------------------------------- */
+.boxed {
+    border: var(--ms-border-width) solid var(--ms-border-color);
+}
+
+/* ---------------------------------------------------------------------------
+ * Shared control geometry.
+ *
+ * The margin is not decoration: a notched outline is painted OUTSIDE the
+ * element box and box-shadows do not affect layout, so without it neighbouring
+ * controls overlap each other's borders. It is the one piece of NES.css's
+ * geometry that has to survive verbatim.
+ * ------------------------------------------------------------------------- */
+.control {
+    display: inline-block;
+    margin: var(--ms-border-width);
+    text-align: center;
+    vertical-align: middle;
+    user-select: none;
+}
+
+/*
+ * The 8-bit hand cursor, lifted verbatim from NES.css — it is an asset rather
+ * than a style, and there is nothing to improve about a 32x32 PNG. `pointer`
+ * is the fallback for anywhere the image cannot load.
+ */
+.pointer {
+    cursor: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAzElEQVRYR+2X0Q6AIAhF5f8/2jYXZkwEjNSVvVUjDpcrGgT7FUkI2D9xRfQETwNIiWO85wfINfQUEyxBG2ArsLwC0jioGt5zFcwF4OYDPi/mBYKm4t0U8ATgRm3ThFoAqkhNgWkA0jJLvaOVSs7j3qMnSgXWBMiWPXe94QqMBMBc1VZIvaTu5u5pQewq0EqNZvIEMCmxAawK0DNkay9QmfFNAJUXfgGgUkLaE7j/h8fnASkxHTz0DGIBMCnBeeM7AArpUd3mz2x3C7wADglA8BcWMZhZAAAAAElFTkSuQmCC) 14 0, pointer;
+}
+
+.disabled {
+    cursor: not-allowed;
+    color: var(--ms-ink-strong);
+    background-color: var(--ms-surface-disabled);
+    --pixel-bevel: var(--ms-border-color);
+}
