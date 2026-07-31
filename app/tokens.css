@@ -1,0 +1,246 @@
+/* ============================================================================
+ * DESIGN TOKENS — the single source of truth for colour, size and step.
+ *
+ * Two layers, deliberately:
+ *
+ *   1. PALETTE (--ms-palette-*) — raw values with no meaning attached. This is
+ *      the only layer a theme overrides. Never reference these from a
+ *      component.
+ *   2. SEMANTIC (everything else) — names that say what a value is FOR, each
+ *      pointing at a palette entry. This is the layer components and
+ *      tailwind.config.ts consume.
+ *
+ * The indirection is what makes alternate palettes possible: a theme redefines
+ * ~15 palette entries and every surface, border, button and cell follows,
+ * because nothing downstream hardcodes a hex.
+ *
+ * Values here are a faithful extraction of what the app already renders — this
+ * file is intended to change NOTHING visually. Where the extraction surfaced a
+ * genuine inconsistency it is marked INCONSISTENT rather than quietly
+ * unified; unifying is a visual decision, not a refactor.
+ * ========================================================================== */
+
+:root {
+    /* ---------------------------------------------------------------------
+     * 1. PALETTE
+     * ------------------------------------------------------------------- */
+
+    /* Neutrals. `ink` is NES.css's near-black, used for text and every border. */
+    --ms-palette-ink: #212529;
+    --ms-palette-paper: #ffffff;
+    --ms-palette-smoke: #f1f5f9;    /* was Tailwind slate-100 (panel fill) */
+    --ms-palette-ash: #d3d3d3;      /* NES disabled fill */
+    --ms-palette-steel: #adafbc;    /* NES muted border/text */
+    --ms-palette-gray: #4b5563;     /* was Tailwind gray-600 (muted text) */
+    --ms-palette-gray-dark: #374151;/* was Tailwind gray-700 (muted hover) */
+    --ms-palette-track: #d1d5db;    /* was Tailwind gray-300 (progress track) */
+    --ms-palette-mist: #f4f4f5;     /* was Chakra zinc-100 (option card fill) */
+    --ms-palette-mist-deep: #e4e4e7;/* was Chakra zinc-200 (selected card)   */
+
+    /*
+     * Intents, from NES.css. Each has three values:
+     *   base   — the fill
+     *   -deep  — the hover fill
+     *   -shade — the bevel down the right and bottom edge, which is what makes
+     *            a flat rectangle read as a raised 8-bit button
+     */
+    --ms-palette-blue: #209cee;
+    --ms-palette-blue-deep: #108de0;
+    --ms-palette-blue-shade: #006bb3;
+    --ms-palette-green: #92cc41;
+    --ms-palette-green-deep: #76c442;
+    --ms-palette-green-shade: #4aa52e;
+    --ms-palette-yellow: #f7d51d;
+    --ms-palette-yellow-deep: #f2c409;
+    --ms-palette-yellow-shade: #e59400;
+    --ms-palette-red: #e76e55;
+    --ms-palette-red-deep: #ce372b;
+    --ms-palette-red-shade: #8c2022;
+    --ms-palette-chrome: #e7e7e7;   /* neutral button hover fill */
+
+    /*
+     * INCONSISTENT: the progress bars and status text were written against
+     * Tailwind's default palette while every button came from NES.css, so the
+     * app currently ships two different blues meaning "primary" and two
+     * different greens meaning "success". Both are recorded so the extraction
+     * stays pixel-faithful. Collapsing them into the intents above is a
+     * one-line change here once you've decided which pair wins.
+     */
+    --ms-palette-blue-alt: #3b82f6;   /* Tailwind blue-500  */
+    --ms-palette-blue-text: #2563eb;  /* Tailwind blue-600  */
+    --ms-palette-green-alt: #22c55e;  /* Tailwind green-500 */
+    --ms-palette-green-text: #16a34a; /* Tailwind green-600 */
+    --ms-palette-red-alt: #ef4444;    /* Tailwind red-500   */
+    --ms-palette-red-text: #dc2626;   /* Tailwind red-600   */
+    --ms-palette-orange-alt: #f97316; /* Tailwind orange-500*/
+    --ms-palette-amber: #facc15;      /* Tailwind yellow-400 (banner) */
+
+    /* Board greys. Deliberately NOT the neutrals above — the board is meant to
+     * read as the classic Windows Minesweeper surface, not as app chrome. */
+    --ms-palette-cell-closed: #bbbbbb;
+    --ms-palette-cell-open: #eeeeee;
+    --ms-palette-gutter: #3b3b3b;
+    --ms-palette-mine: #d70040;
+
+    /* The eight classic Minesweeper number colours. Iconic — these are the one
+     * group a theme should think hard before overriding. */
+    --ms-palette-num-1: #0000ff;
+    --ms-palette-num-2: #008000;
+    --ms-palette-num-3: #ff0000;
+    --ms-palette-num-4: #000080;
+    --ms-palette-num-5: #800000;
+    --ms-palette-num-6: #008080;
+    --ms-palette-num-7: #000000;
+    --ms-palette-num-8: #808080;
+
+    /* ---------------------------------------------------------------------
+     * 2. SEMANTIC — surfaces and ink
+     * ------------------------------------------------------------------- */
+    --ms-surface-page: var(--ms-palette-paper);
+    --ms-surface-panel: var(--ms-palette-smoke);
+    --ms-surface-dialog: var(--ms-palette-paper);
+    --ms-surface-banner: var(--ms-palette-amber);
+    --ms-surface-disabled: var(--ms-palette-ash);
+    --ms-surface-track: var(--ms-palette-track);
+    --ms-surface-option: var(--ms-palette-mist);
+    --ms-surface-option-selected: var(--ms-palette-mist-deep);
+
+    --ms-ink-strong: var(--ms-palette-ink);
+    --ms-ink-muted: var(--ms-palette-gray);
+    --ms-ink-muted-hover: var(--ms-palette-gray-dark);
+    --ms-ink-inverse: var(--ms-palette-paper);
+    --ms-ink-on-banner: #000000;
+
+    /* ---------------------------------------------------------------------
+     * 3. SEMANTIC — borders
+     *
+     * One border width for the whole app. The pixel look is drawn with layered
+     * box-shadows rather than border-image: shadows never tile, never scale a
+     * slice, and need no per-browser fallback, which is what NES.css's
+     * border-image needs (and gets wrong in Chrome — see globals.css).
+     * ------------------------------------------------------------------- */
+    --ms-border-width: 4px;
+    --ms-border-color: var(--ms-palette-ink);
+    --ms-border-color-muted: var(--ms-palette-steel);
+
+    /* ---------------------------------------------------------------------
+     * 4. SEMANTIC — intents
+     * ------------------------------------------------------------------- */
+    --ms-intent-default: var(--ms-palette-paper);
+    --ms-intent-default-hover: var(--ms-palette-chrome);
+    --ms-intent-default-ink: var(--ms-palette-ink);
+    --ms-intent-default-bevel: var(--ms-palette-steel);
+
+    --ms-intent-primary: var(--ms-palette-blue);
+    --ms-intent-primary-hover: var(--ms-palette-blue-deep);
+    --ms-intent-primary-ink: var(--ms-palette-paper);
+    --ms-intent-primary-bevel: var(--ms-palette-blue-shade);
+
+    --ms-intent-success: var(--ms-palette-green);
+    --ms-intent-success-hover: var(--ms-palette-green-deep);
+    --ms-intent-success-ink: var(--ms-palette-paper);
+    --ms-intent-success-bevel: var(--ms-palette-green-shade);
+
+    --ms-intent-warning: var(--ms-palette-yellow);
+    --ms-intent-warning-hover: var(--ms-palette-yellow-deep);
+    --ms-intent-warning-ink: var(--ms-palette-ink);
+    --ms-intent-warning-bevel: var(--ms-palette-yellow-shade);
+
+    --ms-intent-error: var(--ms-palette-red);
+    --ms-intent-error-hover: var(--ms-palette-red-deep);
+    --ms-intent-error-ink: var(--ms-palette-paper);
+    --ms-intent-error-bevel: var(--ms-palette-red-shade);
+
+    /* ---------------------------------------------------------------------
+     * 5. SEMANTIC — board
+     *
+     * --ms-cell-size and --ms-cell-gap are read at runtime by CursorLayer.tsx
+     * to position remote cursors, so they must stay real lengths on the board
+     * element rather than becoming Tailwind classes.
+     * ------------------------------------------------------------------- */
+    --ms-cell-size: 40px;
+    --ms-cell-gap: 3px;
+    --ms-cell-closed: var(--ms-palette-cell-closed);
+    --ms-cell-open: var(--ms-palette-cell-open);
+    --ms-cell-mine: var(--ms-palette-mine);
+    --ms-board-gutter: var(--ms-palette-gutter);
+
+    --ms-num-1: var(--ms-palette-num-1);
+    --ms-num-2: var(--ms-palette-num-2);
+    --ms-num-3: var(--ms-palette-num-3);
+    --ms-num-4: var(--ms-palette-num-4);
+    --ms-num-5: var(--ms-palette-num-5);
+    --ms-num-6: var(--ms-palette-num-6);
+    --ms-num-7: var(--ms-palette-num-7);
+    --ms-num-8: var(--ms-palette-num-8);
+
+    /*
+     * Remote co-op cursors. The cursor COLOUR is per-player and comes from the
+     * server, so it is not a token — but the label ink sitting on top of that
+     * arbitrary bright colour is, and it is near-black rather than --ms-ink-
+     * strong because it has to hold up against every hue the server can send.
+     */
+    --ms-cursor-label-ink: #1a1a1a;
+
+    /* ---------------------------------------------------------------------
+     * 6. SEMANTIC — PVP progress + opponent status
+     * ------------------------------------------------------------------- */
+    --ms-progress-own: var(--ms-palette-blue-alt);
+    --ms-progress-opponent: var(--ms-palette-orange-alt);
+    --ms-progress-won: var(--ms-palette-green-alt);
+    --ms-progress-failed: var(--ms-palette-red-alt);
+
+    --ms-status-won: var(--ms-palette-green-text);
+    --ms-status-failed: var(--ms-palette-red-text);
+    --ms-status-playing: var(--ms-palette-blue-text);
+    --ms-status-idle: var(--ms-palette-gray);
+
+    /* ---------------------------------------------------------------------
+     * 7. SPACE — pixel-snapped to the 4px border so nothing lands on a half
+     * pixel and softens an edge.
+     * ------------------------------------------------------------------- */
+    --ms-space-1: 4px;
+    --ms-space-2: 8px;
+    --ms-space-3: 12px;
+    --ms-space-4: 16px;
+    --ms-space-6: 24px;
+    --ms-space-8: 32px;
+    --ms-space-12: 48px;
+
+    /* ---------------------------------------------------------------------
+     * 8. TYPE — Press Start 2P is a fixed-width pixel face with no optical
+     * sizing, so the scale is small integers rather than a modular ratio.
+     * Anything below 10px stops being legible in this face.
+     * ------------------------------------------------------------------- */
+    --ms-text-2xs: 10px;
+    --ms-text-xs: 11px;
+    --ms-text-sm: 12px;
+    --ms-text-md: 14px;
+    --ms-text-lg: 18px;
+    --ms-text-xl: 20px;
+    --ms-text-2xl: 24px;
+    --ms-text-4xl: 36px;
+
+    /*
+     * Line height is part of the type scale, not an afterthought. Tailwind's
+     * built-in sizes each pair a font-size with a line-height, so a size token
+     * that ships only the font-size silently drops the leading everywhere it
+     * replaces one. These match the leading of the Tailwind size each token
+     * stands in for, so the two scales stay interchangeable.
+     */
+    --ms-leading-2xs: 16px;
+    --ms-leading-xs: 16px;
+    --ms-leading-sm: 16px;
+    --ms-leading-md: 20px;
+    --ms-leading-lg: 28px;
+    --ms-leading-xl: 28px;
+    --ms-leading-2xl: 32px;
+    --ms-leading-4xl: 40px;
+}
+
+/* The board shrinks on small screens; the token moves, nothing else does. */
+@media (max-width: 48em) {
+    :root {
+        --ms-cell-size: 32px;
+    }
+}

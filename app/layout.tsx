@@ -1,5 +1,13 @@
 import type { Metadata } from "next";
 import { Inter, Press_Start_2P } from "next/font/google";
+// Order is load-bearing, so the globals are imported in one place rather than
+// scattered across the components that happen to use them:
+//   tokens   -> custom properties everything else reads
+//   nes.css  -> the vendor stylesheet (was imported from Landing.tsx, which made
+//               its position in the bundle depend on the module graph)
+//   globals  -> our rules, last, so they can override the vendor
+import "./tokens.css";
+import "nes.css/css/nes.min.css";
 import "./globals.css";
 import { Provider } from "@/components/ui/provider";
 import { Analytics } from '@vercel/analytics/next';
@@ -106,7 +114,6 @@ export default function RootLayout({
         <link rel="icon" href="/favicon.ico" sizes="any" />
         <link rel="icon" href="/icon.svg" type="image/svg+xml" />
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-        <link href="https://unpkg.com/nes.css/css/nes.css" rel="stylesheet" />
         <link rel="canonical" href="https://www.minesweepercoop.com" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="theme-color" content="#ffffff" />
