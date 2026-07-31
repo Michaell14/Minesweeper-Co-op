@@ -75,11 +75,20 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
 
     /** Copies a link that pre-fills this room code and jumps straight to the name dialog. */
     const [linkCopied, setLinkCopied] = React.useState(false);
+    const copyTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    // Cancels the pending "reset to Copy Link" timer if the panel unmounts first
+    // (e.g. leaving the room within 2s of copying).
+    React.useEffect(() => () => {
+        if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
+    }, []);
+
     const copyRoomLink = React.useCallback(async () => {
         try {
             await navigator.clipboard.writeText(buildJoinUrl(room));
             setLinkCopied(true);
-            setTimeout(() => setLinkCopied(false), 2000);
+            if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
+            copyTimeoutRef.current = setTimeout(() => setLinkCopied(false), 2000);
         } catch {
             // Clipboard denied/unavailable — button just stays "Copy Link".
         }
@@ -158,10 +167,19 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
                 type="button"
                 className="nes-btn is-primary text-xs mt-2"
                 onClick={copyRoomLink}
-                aria-label="Copy shareable room link to clipboard"
-                aria-live="polite">
+                aria-label="Copy shareable room link to clipboard">
                 {linkCopied ? 'Copied!' : 'Copy Link'}
             </button>
+            {/*
+              * aria-live on the button itself is unreliable -- screen readers
+              * don't consistently treat an interactive control as a live
+              * region, and its aria-label above never changes anyway. A
+              * dedicated hidden region is the pattern that actually gets
+              * announced.
+              */}
+            <span className="sr-only" aria-live="polite">
+                {linkCopied ? 'Link copied to clipboard' : ''}
+            </span>
         </div>
     );
 
