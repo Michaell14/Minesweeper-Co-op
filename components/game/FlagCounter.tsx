@@ -1,4 +1,5 @@
 import React from 'react';
+import { Panel } from '@/components/ds';
 
 export interface FlagCounterProps {
     remainingFlags: number;
@@ -17,21 +18,21 @@ export default function FlagCounter({ remainingFlags, variant }: FlagCounterProp
 
     if (variant === 'inline') {
         return (
-            <p className="text-xs mt-4 text-center" role="status" aria-label={label}>
+            <p className="text-pixel-sm mt-4 text-center" role="status" aria-label={label}>
                 🚩 <strong>{remainingFlags}</strong> left
             </p>
         );
     }
 
-    const boxClass = variant === 'dialog'
-        ? 'bg-slate-100 nes-container is-centered mt-4 py-1'
-        : 'bg-slate-100 nes-container is-centered mt-4';
-
     return (
-        <div className={boxClass} role="status" aria-label={label}>
-            <p className="text-sm m-0">
+        <Panel
+            centered
+            className={variant === 'dialog' ? 'mt-4 py-1' : 'mt-4'}
+            role="status"
+            aria-label={label}>
+            <p className="text-pixel-md m-0">
                 🚩 <strong>{remainingFlags}</strong>{variant === 'dialog' ? ' left' : ''}
             </p>
-        </div>
+        </Panel>
     );
 }
