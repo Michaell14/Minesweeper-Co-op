@@ -41,7 +41,7 @@ Backend deps install separately: `npm --prefix server install`.
 - 4-space indent (except `app/layout.tsx`, which is 2). No Prettier configured.
 - Server is **CommonJS** (`require`/`module.exports`); client is ESM + TypeScript. Do not mix.
 - Client imports use the `@/` alias (`@/components/...`, `@/lib/...`, `@/app/store`).
-- **Never write a raw colour, font size or border width in a component.** Every one is a token in `app/tokens.css`. Inside `components/ds/`, read them as CSS custom properties (`var(--ms-intent-primary)`); everywhere else use the Tailwind semantic classes wired to them (`bg-surface-panel`, `text-pixel-sm`). A hex, a `bg-blue-500` or a `text-xs` is a bug — it survives a theme change while everything around it moves.
+- **Never write a raw colour, font size or border width in a component.** Every one is a token in `app/tokens.css`, and a theme overrides only the `--ms-palette-*` layer — if something needs a semantic token to change, fix it upstream rather than in the theme. Inside `components/ds/`, read them as CSS custom properties (`var(--ms-intent-primary)`); everywhere else use the Tailwind semantic classes wired to them (`bg-surface-panel`, `text-pixel-sm`). A hex, a `bg-blue-500` or a `text-xs` is a bug — it survives a theme change while everything around it moves.
 - **Build UI from `components/ds/`, not from raw elements.** `Button`, `Input`, `Panel`, `Dialog`, `Badge`, `Table`, `Field`, `RadioCard`, `Switch`. Import from `@/components/ds`, never from a file inside it — except in hot paths like `Cell.tsx`, which imports the one thing it needs directly to avoid pulling the whole barrel.
 - Redis values are all strings — booleans are stored as `'true'`/`'false'` and compared as strings, and numbers need `parseInt(..., 10)`.
 - **Go through `server/data/roomRepo` / `playerRepo`.** Don't import the Redis client or build a key string outside `server/data`. A mistyped key is a silent no-op, not an error.
@@ -73,6 +73,7 @@ Backend deps install separately: `npm --prefix server install`.
 | Socket event names | `shared/events.js` — imported by both halves |
 | Socket payload types | `shared/socketPayloads.ts` (+ `shared/events.d.ts` for literal names) |
 | Post-deploy check | `scripts/verify-deploy/` — `npm run verify:deploy` |
+| Palette / theming | `lib/theme.ts` (list, persistence, no-flash script, cursor ramp); picker in `components/ThemePicker.tsx` |
 | Dialogs | `lib/dialogs.ts` for ids and `openDialog`/`closeDialog`; `components/ds/Dialog.tsx` for the shell; markup in `components/dialogs/GameDialogs.tsx`, `Grid.tsx`, `Landing.tsx`, `Footer.tsx` |
 
 ## Traps

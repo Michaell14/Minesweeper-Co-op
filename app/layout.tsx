@@ -5,6 +5,7 @@ import { Inter, Press_Start_2P } from "next/font/google";
 import "./tokens.css";
 import "./globals.css";
 import { Analytics } from '@vercel/analytics/next';
+import { NO_FLASH_SCRIPT } from "@/lib/theme";
 import Footer from "@/components/Footer";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -118,6 +119,13 @@ export default function RootLayout({
           * order (the CDN link's position relative to Next's injected styles
           * was never guaranteed).
           */}
+        {/*
+          * Applies the stored palette before first paint. Without it a themed
+          * player sees the default palette flash on every load, because nothing
+          * sets data-theme until React hydrates. <html> already carries
+          * suppressHydrationWarning, which is what lets this mutate it safely.
+          */}
+        <script dangerouslySetInnerHTML={{ __html: NO_FLASH_SCRIPT }} />
         <link rel="canonical" href="https://www.minesweepercoop.com" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="theme-color" content="#ffffff" />
