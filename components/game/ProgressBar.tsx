@@ -26,7 +26,7 @@ export default function ProgressBar({ label, percent, colorClass, size = 'md', a
             </p>
             <div className={track}>
                 <div
-                    className={`${colorClass} h-full transition-all duration-300`}
+                    className={`${colorClass} h-full transition-all duration-slow`}
                     style={{ width: `${percent}%` }}
                     {...(ariaLabel
                         ? {

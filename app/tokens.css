@@ -263,7 +263,20 @@
     --ms-space-12: 48px;
 
     /* ---------------------------------------------------------------------
-     * 8. TYPE — Press Start 2P is a fixed-width pixel face with no optical
+     * 8. MOTION
+     *
+     * Durations are tokens so that one media query can neutralise all of them.
+     * The easings are stepped rather than smooth on purpose: a pixel interface
+     * that eases is a pixel interface pretending to be something else.
+     * ------------------------------------------------------------------- */
+    --ms-duration-instant: 80ms;
+    --ms-duration-quick: 120ms;
+    --ms-duration-slow: 300ms;
+    --ms-ease-step: steps(2, end);
+    --ms-ease-out: ease-out;
+
+    /* ---------------------------------------------------------------------
+     * 9. TYPE — Press Start 2P is a fixed-width pixel face with no optical
      * sizing, so the scale is small integers rather than a modular ratio.
      * Anything below 10px stops being legible in this face.
      * ------------------------------------------------------------------- */
@@ -297,6 +310,27 @@
 @media (max-width: 48em) {
     :root {
         --ms-cell-size: 32px;
+    }
+}
+
+/*
+ * Reduced motion.
+ *
+ * Zeroing the duration tokens covers every transition that reads them, which is
+ * all of them. Animations need their own handling because a zero-duration
+ * infinite animation is still an animation — see the hover pulse in
+ * components/game/board.module.css, which drops to the static box-shadow it
+ * animates around. The point is to remove the movement, not the information:
+ * a hovered cell still shows who is on it.
+ *
+ * Anything new that animates should read these tokens rather than hardcode a
+ * duration, so it is covered here by default rather than by remembering.
+ */
+@media (prefers-reduced-motion: reduce) {
+    :root {
+        --ms-duration-instant: 0ms;
+        --ms-duration-quick: 0ms;
+        --ms-duration-slow: 0ms;
     }
 }
 

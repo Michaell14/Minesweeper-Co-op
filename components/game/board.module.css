@@ -41,6 +41,18 @@
     animation: pulse 1s ease-in-out infinite;
 }
 
+/*
+ * The pulse is the one piece of motion in the app that never stops, and it can
+ * be running on several cells at once. Dropping the animation leaves the static
+ * box-shadow above, which still shows which cell a teammate is on — the glow is
+ * the information, the pulsing is only decoration.
+ */
+@media (prefers-reduced-motion: reduce) {
+    .cell.hovered {
+        animation: none;
+    }
+}
+
 @keyframes pulse {
     0%, 100% {
         box-shadow: 0 0 8px var(--hover-color), inset 0 0 8px var(--hover-color);
@@ -66,7 +78,7 @@
     flex-direction: column;
     align-items: center;
     gap: 2px;
-    transition: transform 120ms ease-out;
+    transition: transform var(--ms-duration-quick) var(--ms-ease-out);
 }
 
 .cursorLabel {
