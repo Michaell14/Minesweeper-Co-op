@@ -1,0 +1,160 @@
+import React from "react";
+
+/**
+ * Pixel icons, stored as the art itself.
+ *
+ * Each icon is a 16x16 grid of characters plus a palette mapping character to
+ * colour, so the sprite is legible and editable in place — squint at the rows
+ * below and you can see the shape. A space is a transparent pixel.
+ *
+ * They started life as NES.css box-shadow sprites: a 1x1 ::before element
+ * carrying one shadow per lit pixel, ~8KB of CSS each, scaled up with a
+ * transform, so they could not be recoloured or sized except in whole
+ * multiples. Converting them to SVG fixed that but left ~200 opaque coordinate
+ * tuples that nobody could edit or extend; this is the same pixel data in the
+ * one form that is actually maintainable.
+ *
+ * To add an icon: draw a 16x16 block, list its colours, export a component.
+ */
+
+type Sprite = {
+    readonly palette: Readonly<Record<string, string>>;
+    readonly rows: readonly string[];
+};
+
+type Rect = { x: number; y: number; w: number; fill: string };
+
+/**
+ * Flatten a sprite into horizontal runs of same-coloured pixels — 252 pixels
+ * become 52 rects for the GitHub mark. Runs at module load, not per render.
+ */
+function toRects({ palette, rows }: Sprite): Rect[] {
+    const rects: Rect[] = [];
+    rows.forEach((row, y) => {
+        let x = 0;
+        while (x < row.length) {
+            const glyph = row[x];
+            if (glyph === " ") { x++; continue; }
+            let w = 1;
+            while (row[x + w] === glyph) w++;
+            rects.push({ x, y, w, fill: palette[glyph] });
+            x += w;
+        }
+    });
+    return rects;
+}
+
+export interface PixelIconProps extends React.SVGProps<SVGSVGElement> {
+    /** Rendered width and height in px. The art is a 16x16 grid. */
+    size?: number;
+}
+
+function PixelIcon({ sprite, size = 32, ...rest }: PixelIconProps & { sprite: Rect[] }) {
+    return (
+        <svg
+            viewBox="0 0 16 16"
+            width={size}
+            height={size}
+            shapeRendering="crispEdges"
+            xmlns="http://www.w3.org/2000/svg"
+            /*
+             * Decorative by default: every caller wraps the icon in a link or
+             * button that already carries its own aria-label. An icon used as a
+             * control's only content should pass aria-hidden={false} and a
+             * label, since {...rest} wins.
+             */
+            aria-hidden={true}
+            {...rest}
+        >
+            {sprite.map(({ x, y, w, fill }, i) => (
+                <rect key={i} x={x} y={y} width={w} height={1} fill={fill} />
+            ))}
+        </svg>
+    );
+}
+
+const GITHUB = {
+    palette: {
+        "#": "#333",
+        "+": "#fff",
+    },
+    rows: [
+        " ############## ",
+        "####+########+##",
+        "####++######++##",
+        "####++++++++++##",
+        "###++++++++++++#",
+        "###++++++++++++#",
+        "###++++++++++++#",
+        "###++++++++++++#",
+        "####++++++++++##",
+        "#####++++++++###",
+        "#++####++++#####",
+        "###+##++++++####",
+        "####++++++++####",
+        "######++++++####",
+        "######++++++####",
+        " ############## ",
+    ],
+} as const;
+
+const COIN = {
+    palette: {
+        "#": "#060606",
+        "+": "#ffc107",
+        ".": "#fff",
+    },
+    rows: [
+        "     ######     ",
+        "   ###...####   ",
+        "  ##..+++++##   ",
+        "  #.++...#++##  ",
+        " ##.++.++#++##  ",
+        " #.+++.++#+++## ",
+        " #.+++.++#+++## ",
+        " #.+++.++#+++## ",
+        " #.+++.++#+++## ",
+        " #.+++.++#+++## ",
+        " #.+++.++#+++## ",
+        " ##.++.++#++##  ",
+        "  #.++.###++##  ",
+        "  ##.++++++##   ",
+        "   ###+++####   ",
+        "     ######     ",
+    ],
+} as const;
+
+const TROPHY = {
+    palette: {
+        "#": "#444",
+        "+": "#ebe527",
+        ".": "#f59f54",
+        "o": "#fff",
+    },
+    rows: [
+        "  ###########   ",
+        "  #++++++++.#   ",
+        "###+o++++++.### ",
+        "# #+o++++++.# # ",
+        "# #+o++++++.# # ",
+        " ##+o++++++.##  ",
+        "  #+o++++++.#   ",
+        "  #++++++++.#   ",
+        "   #++++++.#    ",
+        "    #++++.#     ",
+        "     #++.#      ",
+        "      #+#       ",
+        "      #+#       ",
+        "     ##+##      ",
+        "    #++++.#     ",
+        "    #######     ",
+    ],
+} as const;
+
+const GITHUB_RECTS = toRects(GITHUB);
+const COIN_RECTS = toRects(COIN);
+const TROPHY_RECTS = toRects(TROPHY);
+
+export const GithubIcon = (props: PixelIconProps) => <PixelIcon sprite={GITHUB_RECTS} {...props} />;
+export const CoinIcon = (props: PixelIconProps) => <PixelIcon sprite={COIN_RECTS} {...props} />;
+export const TrophyIcon = (props: PixelIconProps) => <PixelIcon sprite={TROPHY_RECTS} {...props} />;

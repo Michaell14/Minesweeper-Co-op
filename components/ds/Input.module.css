@@ -1,0 +1,46 @@
+/*
+ * Text input skin.
+ *
+ * The notched outline is painted outside the element box, so the field has to
+ * give the margin back or it overflows its container — hence the width. This
+ * is the same trick NES.css uses, kept because the geometry is genuinely
+ * required rather than incidental.
+ */
+.input {
+    width: calc(100% - 2 * var(--ms-border-width));
+    padding: 8px 16px;
+    color: var(--ms-ink-strong);
+    background-color: var(--ms-surface-page);
+    /* Keep the fill inside the outline rather than under it. */
+    background-clip: padding-box;
+    text-align: left;
+    cursor: text;
+}
+
+.input::placeholder {
+    color: var(--ms-border-color-muted);
+}
+
+.input:disabled {
+    cursor: not-allowed;
+    background-color: var(--ms-surface-disabled);
+}
+
+/*
+ * Validation states recolour the whole outline, bevel included — a one-sided
+ * red bevel reads as a rendering glitch rather than an error.
+ */
+.invalid {
+    --pixel-edge: var(--ms-intent-error);
+    --pixel-bevel: var(--ms-intent-error);
+    --pixel-ring: rgba(140, 32, 34, 0.4);
+}
+
+.valid {
+    --pixel-edge: var(--ms-intent-success);
+    --pixel-bevel: var(--ms-intent-success);
+    --pixel-ring: rgba(74, 165, 46, 0.4);
+}
+
+.sm { font-size: var(--ms-text-sm); }
+.md { font-size: var(--ms-text-md); }

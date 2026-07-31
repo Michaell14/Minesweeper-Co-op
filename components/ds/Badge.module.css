@@ -1,0 +1,62 @@
+/*
+ * Status badge — the GAME WON / HIT A MINE strip above the board.
+ *
+ * The notched outline here is a FILL, not an outline: four offset shadows in
+ * the badge's own colour, so the block reads as a chunky pixel sprite with cut
+ * corners. This is the one place NES.css already used box-shadow rather than
+ * border-image, and it is why it is the only one of its borders that never
+ * broke in Chrome.
+ */
+.badge {
+    position: relative;
+    display: inline-block;
+    padding: 2px 0;
+    /*
+     * The outline is a box-shadow, which takes no space in layout — without a
+     * margin at least as large as the 0.5em offset, adjacent badges overlap
+     * each other's borders.
+     */
+    margin: 0.5em;
+    min-width: 10.5em;
+    font-size: 0.9em;
+    text-align: center;
+    white-space: nowrap;
+    vertical-align: top;
+    user-select: none;
+    background-color: var(--badge-fill);
+    color: var(--badge-ink);
+    box-shadow:
+        0 0.5em 0 0 var(--badge-fill),
+        0 -0.5em 0 0 var(--badge-fill),
+        0.5em 0 0 0 var(--badge-fill),
+        -0.5em 0 0 0 var(--badge-fill);
+}
+
+.clickable {
+    cursor: pointer;
+}
+
+.default {
+    --badge-fill: var(--ms-ink-strong);
+    --badge-ink: var(--ms-ink-inverse);
+}
+
+.primary {
+    --badge-fill: var(--ms-intent-primary);
+    --badge-ink: var(--ms-intent-primary-ink);
+}
+
+.success {
+    --badge-fill: var(--ms-intent-success);
+    --badge-ink: var(--ms-intent-success-ink);
+}
+
+.warning {
+    --badge-fill: var(--ms-intent-warning);
+    --badge-ink: var(--ms-intent-warning-ink);
+}
+
+.error {
+    --badge-fill: var(--ms-intent-error);
+    --badge-ink: var(--ms-intent-error-ink);
+}

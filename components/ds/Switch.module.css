@@ -1,0 +1,64 @@
+/*
+ * Click/Flag mode toggle (mobile).
+ *
+ * This is the one primitive with no NES.css equivalent to be faithful to — the
+ * library has no switch, so the app was using Chakra's rounded iOS-style
+ * control, which is the single most off-brand element on the screen. Rebuilt
+ * as a hard-edged pixel toggle: square thumb, square track, no easing curve
+ * softer than a step.
+ */
+.root {
+    display: inline-flex;
+    align-items: center;
+    cursor: pointer;
+}
+
+.input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+.track {
+    position: relative;
+    display: block;
+    width: 64px;
+    height: 32px;
+    background-color: var(--ms-surface-track);
+    border: var(--ms-border-width) solid var(--ms-border-color);
+}
+
+.thumb {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 24px;
+    height: 24px;
+    background-color: var(--ms-border-color);
+    /* Stepped, not eased — a smooth slide reads as a modern control. */
+    transition: transform 80ms steps(2, end);
+}
+
+.input:checked + .track {
+    background-color: var(--ms-intent-primary);
+}
+
+.input:checked + .track > .thumb {
+    transform: translateX(32px);
+}
+
+.input:focus-visible + .track {
+    outline: 2px solid var(--ms-intent-primary);
+    outline-offset: 3px;
+}
+
+.input:disabled + .track {
+    cursor: not-allowed;
+    background-color: var(--ms-surface-disabled);
+}

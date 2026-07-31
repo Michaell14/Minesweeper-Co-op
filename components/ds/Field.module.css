@@ -1,0 +1,22 @@
+.field {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+}
+
+.label {
+    font-size: var(--ms-text-md);
+    margin-bottom: 4px;
+}
+
+.error {
+    font-size: var(--ms-text-sm);
+    color: var(--ms-intent-error);
+    margin-top: 4px;
+}
+
+.helper {
+    font-size: var(--ms-text-sm);
+    color: var(--ms-ink-muted);
+    margin-top: 4px;
+}
