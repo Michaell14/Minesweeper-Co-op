@@ -1,23 +1,26 @@
 /* Grid container for the game board - using CSS Grid for better performance */
 .gameBoard {
+    --cell-size: 40px;
+    --cell-gap: 3px;
     display: grid;
-    gap: 3px;
+    gap: var(--cell-gap);
     width: fit-content;
     background-color: #3b3b3b;
-    padding: 3px;
+    padding: var(--cell-gap);
     cursor: pointer; /* Cursor pointer for the entire board */
+    position: relative; /* Anchors the remote-cursor overlay */
 }
 
 .gameRow {
     display: grid;
     grid-auto-flow: column;
-    gap: 3px;
+    gap: var(--cell-gap);
 }
 
 .cell {
-    height: 40px;
-    width: 40px;
-    min-width: 40px;
+    height: var(--cell-size);
+    width: var(--cell-size);
+    min-width: var(--cell-size);
     text-align: center;
     display: flex;
     align-items: center;
@@ -42,10 +45,62 @@
 }
 
 @media (max-width: 48em) {
-    .cell {
-        height: 32px;
-        width: 32px;
-        min-width: 32px;
+    .gameBoard {
+        --cell-size: 32px;
+    }
+}
+
+/* Remote co-op cursors — overlay sits above the cells, ignores pointer events */
+.cursorLayer {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 5;
+}
+
+.remoteCursor {
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    transition: transform 120ms ease-out;
+}
+
+.cursorLabel {
+    background-color: var(--cursor-color);
+    color: #1a1a1a;
+    font-size: 10px;
+    line-height: 1;
+    padding: 2px 6px;
+    border-radius: 3px;
+    max-width: 80px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+.cursorGlyph {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    background-color: var(--cursor-color);
+    box-shadow: 0 0 4px var(--cursor-color), 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+@media (max-width: 48em) {
+    .cursorLabel {
+        font-size: 9px;
+        padding: 1px 4px;
+        max-width: 56px;
+    }
+
+    .cursorGlyph {
+        width: 8px;
+        height: 8px;
     }
 }
 
