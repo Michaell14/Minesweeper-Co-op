@@ -16,8 +16,11 @@ import {
     TrophyIcon,
 } from "@/components/ds";
 import type { ButtonIntent } from "@/components/ds";
+import { THEMES, applyTheme } from "./themes";
+import { AUDITED_PAIRS, measure, type ContrastResult } from "./contrast";
 
 const INTENTS: ButtonIntent[] = ["default", "primary", "success", "warning", "error"];
+const NUMBERS = [1, 2, 3, 4, 5, 6, 7, 8] as const;
 
 function Section({
     title,
@@ -37,9 +40,76 @@ function Section({
     );
 }
 
+/**
+ * Board cells rendered from tokens.
+ *
+ * The catalog needs these because the board is where a restricted palette
+ * fails first: eight number colours cannot stay distinct on four shades, and
+ * nothing else on this page would reveal that.
+ */
+function BoardPreview() {
+    return (
+        <div className="inline-flex gap-[3px] p-[3px] bg-board-gutter">
+            {NUMBERS.map((n) => (
+                <span
+                    key={n}
+                    className="w-10 h-10 flex items-center justify-center bg-board-open font-bold text-pixel-md"
+                    style={{ color: `var(--ms-num-${n})` }}
+                >
+                    {n}
+                </span>
+            ))}
+            <span className="w-10 h-10 bg-board-closed" />
+            <span className="w-10 h-10 flex items-center justify-center bg-board-mine">💣</span>
+        </div>
+    );
+}
+
+function ContrastReport({ results }: { results: ContrastResult[] }) {
+    const failing = results.filter((r) => !r.passes);
+    return (
+        <div>
+            <p className="text-pixel-sm mb-3">
+                {failing.length === 0
+                    ? "All audited pairs meet WCAG AA."
+                    : `${failing.length} of ${results.length} pairs fail WCAG AA.`}
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-1">
+                {results.map((r) => (
+                    <p key={r.label} className="text-pixel-xs flex justify-between gap-4">
+                        <span className={r.passes ? "text-ink-muted" : "text-status-failed"}>
+                            {r.label}
+                        </span>
+                        <span className={r.passes ? "text-ink-muted" : "text-status-failed"}>
+                            {r.ratio.toFixed(2)}:1 {r.passes ? "" : `(needs ${r.threshold})`}
+                        </span>
+                    </p>
+                ))}
+            </div>
+        </div>
+    );
+}
+
 export default function DsCatalogClient() {
     const [size, setSize] = React.useState("Medium");
     const [flagMode, setFlagMode] = React.useState(true);
+    const [theme, setTheme] = React.useState<string | null>(null);
+    const [contrast, setContrast] = React.useState<ContrastResult[]>([]);
+
+    /*
+     * The theme is applied to <html> so every component below re-renders under
+     * it, and removed on unmount so the catalog never leaks its preview into
+     * the app. Contrast is re-measured after the paint that follows, since it
+     * reads resolved colours out of the DOM.
+     */
+    React.useEffect(() => {
+        applyTheme(theme);
+        const id = requestAnimationFrame(() => setContrast(measure(AUDITED_PAIRS)));
+        return () => {
+            cancelAnimationFrame(id);
+            applyTheme(null);
+        };
+    }, [theme]);
 
     return (
         <main className="p-8 max-w-6xl mx-auto">
@@ -49,6 +119,42 @@ export default function DsCatalogClient() {
                 nothing below carries a hex of its own, so an alternate palette moves
                 all of it at once.
             </p>
+
+            <Section
+                title="Theme"
+                note="Each palette overrides only the raw palette tokens — no component or semantic token is touched. Switching here restyles everything below it."
+            >
+                <div className="flex flex-wrap gap-2 mb-4">
+                    {THEMES.map((t) => (
+                        <Button
+                            key={t.label}
+                            size="sm"
+                            intent={theme === t.id ? "primary" : "default"}
+                            aria-pressed={theme === t.id}
+                            onClick={() => setTheme(t.id)}
+                        >
+                            {t.label}
+                        </Button>
+                    ))}
+                </div>
+                <p className="text-pixel-xs text-ink-muted">
+                    {THEMES.find((t) => t.id === theme)?.note}
+                </p>
+            </Section>
+
+            <Section
+                title="Board"
+                note="The eight number colours, an unopened cell and a mine. This is where a small palette fails first."
+            >
+                <BoardPreview />
+            </Section>
+
+            <Section
+                title="Contrast"
+                note="Measured from resolved colours in the DOM, so it reflects the theme currently applied rather than the token source."
+            >
+                <ContrastReport results={contrast} />
+            </Section>
 
             <Section
                 title="Button"

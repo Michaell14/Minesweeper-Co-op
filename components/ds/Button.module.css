@@ -12,7 +12,12 @@
     background-color: var(--btn-fill);
     color: var(--btn-ink);
     --pixel-bevel: var(--btn-bevel);
-    --pixel-ring: var(--btn-ring);
+    /*
+     * The ring is the button's own bevel, softened — derived rather than
+     * restated, so an alternate palette gets correct focus rings for free
+     * instead of needing five more hand-mixed rgba() values.
+     */
+    --pixel-ring: color-mix(in srgb, var(--btn-bevel) 40%, transparent);
 }
 
 .button:hover:not(:disabled) {
@@ -34,7 +39,6 @@
     --btn-fill-hover: var(--ms-intent-default-hover);
     --btn-ink: var(--ms-intent-default-ink);
     --btn-bevel: var(--ms-intent-default-bevel);
-    --btn-ring: rgba(173, 175, 188, 0.4);
 }
 
 .primary {
@@ -42,7 +46,6 @@
     --btn-fill-hover: var(--ms-intent-primary-hover);
     --btn-ink: var(--ms-intent-primary-ink);
     --btn-bevel: var(--ms-intent-primary-bevel);
-    --btn-ring: rgba(0, 107, 179, 0.4);
 }
 
 .success {
@@ -50,7 +53,6 @@
     --btn-fill-hover: var(--ms-intent-success-hover);
     --btn-ink: var(--ms-intent-success-ink);
     --btn-bevel: var(--ms-intent-success-bevel);
-    --btn-ring: rgba(74, 165, 46, 0.4);
 }
 
 .warning {
@@ -58,7 +60,6 @@
     --btn-fill-hover: var(--ms-intent-warning-hover);
     --btn-ink: var(--ms-intent-warning-ink);
     --btn-bevel: var(--ms-intent-warning-bevel);
-    --btn-ring: rgba(229, 148, 0, 0.4);
 }
 
 .error {
@@ -66,7 +67,6 @@
     --btn-fill-hover: var(--ms-intent-error-hover);
     --btn-ink: var(--ms-intent-error-ink);
     --btn-bevel: var(--ms-intent-error-bevel);
-    --btn-ring: rgba(140, 32, 34, 0.4);
 }
 
 /* Size is a type-scale choice, not a padding choice — the face is a pixel font

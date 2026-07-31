@@ -33,13 +33,13 @@
 .invalid {
     --pixel-edge: var(--ms-intent-error);
     --pixel-bevel: var(--ms-intent-error);
-    --pixel-ring: rgba(140, 32, 34, 0.4);
+    --pixel-ring: color-mix(in srgb, var(--ms-intent-error-bevel) 40%, transparent);
 }
 
 .valid {
     --pixel-edge: var(--ms-intent-success);
     --pixel-bevel: var(--ms-intent-success);
-    --pixel-ring: rgba(74, 165, 46, 0.4);
+    --pixel-ring: color-mix(in srgb, var(--ms-intent-success-bevel) 40%, transparent);
 }
 
 .sm { font-size: var(--ms-text-sm); }
