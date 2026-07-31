@@ -43,3 +43,8 @@
     left: 0.5em;
     margin-right: -50%;
 }
+
+/* Chakra's RadioCard.ItemControl doesn't stretch to fill its card by default. */
+.chakra-radio-card__itemControl {
+    width: 100%;
+}
