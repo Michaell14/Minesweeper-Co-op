@@ -40,7 +40,7 @@
     height: 24px;
     background-color: var(--ms-border-color);
     /* Stepped, not eased — a smooth slide reads as a modern control. */
-    transition: transform 80ms steps(2, end);
+    transition: transform var(--ms-duration-instant) var(--ms-ease-step);
 }
 
 .input:checked + .track {

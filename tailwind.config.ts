@@ -99,6 +99,11 @@ const config: Config = {
             borderWidth: {
                 pixel: "var(--ms-border-width)",
             },
+            transitionDuration: {
+                instant: "var(--ms-duration-instant)",
+                quick: "var(--ms-duration-quick)",
+                slow: "var(--ms-duration-slow)",
+            },
         },
     },
     plugins: [],
