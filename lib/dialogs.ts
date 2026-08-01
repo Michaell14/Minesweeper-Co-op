@@ -32,6 +32,12 @@ export const DIALOGS = {
     // Owned by components/Footer.tsx
     guide: 'dialog-guide',
     theme: 'dialog-theme',
+
+    // Owned by components/dialogs/DailyDialogs.tsx
+    dailySubmit: 'dialog-daily-submit',
+    dailyGameOver: 'dialog-daily-game-over',
+    dailyAlreadyPlayed: 'dialog-daily-already-played',
+    dailyLeaderboard: 'dialog-daily-leaderboard',
 } as const;
 
 export type DialogId = (typeof DIALOGS)[keyof typeof DIALOGS];

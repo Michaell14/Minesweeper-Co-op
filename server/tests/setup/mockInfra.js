@@ -21,6 +21,10 @@ jest.mock('../../utils/initializeRedisClient', () => ({
         set: jest.fn(),
         expire: jest.fn(),
         ping: jest.fn(),
+        zAdd: jest.fn(),
+        zRangeWithScores: jest.fn(),
+        zRank: jest.fn(),
+        zCard: jest.fn(),
     }),
 }));
 

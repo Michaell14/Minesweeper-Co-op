@@ -16,13 +16,15 @@ import { createBoardConfigSlice, type BoardConfigSlice } from './boardConfigSlic
 import { createRoomSlice, type RoomSlice } from './roomSlice';
 import { createPvpSlice, type PvpSlice } from './pvpSlice';
 import { createInputSlice, type InputSlice } from './inputSlice';
+import { createDailySlice, type DailySlice } from './dailySlice';
 
 export type MinesweeperState =
     GameSlice &
     BoardConfigSlice &
     RoomSlice &
     PvpSlice &
-    InputSlice;
+    InputSlice &
+    DailySlice;
 
 export const useMinesweeperStore = create<MinesweeperState>()((...a) => ({
     ...createGameSlice(...a),
@@ -30,4 +32,5 @@ export const useMinesweeperStore = create<MinesweeperState>()((...a) => ({
     ...createRoomSlice(...a),
     ...createPvpSlice(...a),
     ...createInputSlice(...a),
+    ...createDailySlice(...a),
 }));

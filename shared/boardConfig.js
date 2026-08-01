@@ -136,6 +136,20 @@ const DEFAULT_PRESET = {
 };
 
 /**
+ * The one board every player gets on a given day's Daily Challenge: Medium
+ * size, Extreme difficulty -- the hardest density the no-guess generator can
+ * reliably deliver (MAX_SAFE_DENSITY itself). Daily generation isn't on a
+ * latency-sensitive path (server/game/daily.js runs it once per day, not per
+ * click), so it can afford the extra search cost this density needs, unlike
+ * a regular room where Extreme is already the ceiling players can pick.
+ */
+const DAILY_PRESET = {
+    rows: 16,
+    cols: 16,
+    mines: mineCountFor(16, 16, 'Extreme'),
+};
+
+/**
  * Every size/difficulty combination the UI can produce.
  *
  * Exists so `server/tests/validation.test.js` can prove the server accepts all
@@ -173,6 +187,7 @@ module.exports = {
     DEFAULT_SIZE,
     DEFAULT_DIFFICULTY,
     DEFAULT_PRESET,
+    DAILY_PRESET,
     ALL_PRESETS,
     BOARD_LIMITS,
     maxMinesFor,

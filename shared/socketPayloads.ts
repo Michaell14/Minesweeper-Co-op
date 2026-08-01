@@ -48,6 +48,16 @@ export interface Cell {
 /** A cell plus where it is, as sent by `updateCells` / `pvpUpdateCells`. */
 export type CellUpdate = Cell & { row: number; col: number };
 
+/** One row of the daily challenge leaderboard, fastest first. */
+export interface DailyLeaderboardEntry {
+    name: string;
+    elapsedMs: number;
+    rank: number;
+}
+
+/** An attempt already reached a terminal state today; no fresh board to give. */
+export type DailyAttemptStatus = 'failed' | 'won_pending_submit' | 'completed';
+
 /** One row of the co-op leaderboard. */
 export interface PlayerStats {
     name: string;
@@ -67,6 +77,22 @@ interface RoomPayload {
 
 /** Every payload that is a room code plus a cell. */
 interface CellPayload extends RoomPayload {
+    row: number;
+    col: number;
+}
+
+/**
+ * Every daily challenge payload after `startDaily` carries both the attempt
+ * token and the date it started under (echoed back from `dailyStarted`) —
+ * never "today" recomputed per-event, so an attempt spanning the UTC midnight
+ * boundary stays pinned to the day it began.
+ */
+interface DailyPayload {
+    dailyAttemptToken: string;
+    date: string;
+}
+
+interface DailyCellPayload extends DailyPayload {
     row: number;
     col: number;
 }
@@ -103,6 +129,14 @@ export interface ClientToServerEvents {
 
     /** The only emit with no payload — the server uses the socket id. */
     playerLeave: () => void;
+
+    // --- Daily challenge ---
+    startDaily: (payload: { dailyAttemptToken: string }) => void;
+    dailyOpenCell: (payload: DailyCellPayload) => void;
+    dailyChordCell: (payload: DailyCellPayload) => void;
+    dailyToggleFlag: (payload: DailyCellPayload) => void;
+    submitDailyScore: (payload: DailyPayload & { name: string }) => void;
+    getDailyLeaderboard: (payload: { date: string }) => void;
 }
 
 /**
@@ -199,4 +233,32 @@ export interface ServerToClientEvents {
     pvpOpponentLeftBeforeStart: () => void;
     pvpHostTransferred: () => void;
     pvpRematchStarted: (payload: { totalSafeCells: number; isHost: boolean }) => void;
+
+    // --- Daily challenge ---
+    dailyStarted: (payload: {
+        date: string;
+        board: Cell[][];
+        numRows: number;
+        numCols: number;
+        numMines: number;
+        totalSafeCells: number;
+        /** null for a fresh start; populated when resuming an in-progress attempt. */
+        startedAt: number | null;
+    }) => void;
+    /** Today's attempt already reached a terminal state -- no fresh board given. */
+    dailyAlreadyAttempted: (payload: {
+        date: string;
+        status: DailyAttemptStatus;
+        elapsedMs?: number;
+        rank?: number;
+        /** Only present alongside `rank`, when status is 'completed'. */
+        totalEntries?: number;
+    }) => void;
+    dailyUpdateCells: (updates: CellUpdate[]) => void;
+    /** Terminal states only (loss or win) -- the full board, mines revealed. */
+    dailyBoardUpdate: (payload: { board: Cell[][] }) => void;
+    dailyGameOver: (payload: { elapsedMs: number }) => void;
+    dailyWon: (payload: { elapsedMs: number }) => void;
+    dailyScoreSubmitted: (payload: { rank: number; elapsedMs: number; totalEntries: number }) => void;
+    dailyLeaderboardUpdate: (payload: { entries: DailyLeaderboardEntry[] }) => void;
 }

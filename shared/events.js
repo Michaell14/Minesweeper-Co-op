@@ -30,6 +30,15 @@ const CLIENT_EVENTS = {
     RESET_MY_BOARD: 'resetMyBoard',
     PVP_REMATCH: 'pvpRematch',
     PLAYER_LEAVE: 'playerLeave',
+
+    // Daily challenge -- NOT room-scoped, addressed by date + attempt token.
+    // See server/data/keys.js for why this is a separate system from rooms.
+    START_DAILY: 'startDaily',
+    DAILY_OPEN_CELL: 'dailyOpenCell',
+    DAILY_CHORD_CELL: 'dailyChordCell',
+    DAILY_TOGGLE_FLAG: 'dailyToggleFlag',
+    SUBMIT_DAILY_SCORE: 'submitDailyScore',
+    GET_DAILY_LEADERBOARD: 'getDailyLeaderboard',
 };
 
 /** Server -> client. Every one has a handler in hooks/useGameEvents.ts. */
@@ -72,6 +81,16 @@ const SERVER_EVENTS = {
     PVP_OPPONENT_LEFT_BEFORE_START: 'pvpOpponentLeftBeforeStart',
     PVP_HOST_TRANSFERRED: 'pvpHostTransferred',
     PVP_REMATCH_STARTED: 'pvpRematchStarted',
+
+    // Daily challenge
+    DAILY_STARTED: 'dailyStarted',
+    DAILY_ALREADY_ATTEMPTED: 'dailyAlreadyAttempted',
+    DAILY_UPDATE_CELLS: 'dailyUpdateCells',
+    DAILY_BOARD_UPDATE: 'dailyBoardUpdate',
+    DAILY_GAME_OVER: 'dailyGameOver',
+    DAILY_WON: 'dailyWon',
+    DAILY_SCORE_SUBMITTED: 'dailyScoreSubmitted',
+    DAILY_LEADERBOARD_UPDATE: 'dailyLeaderboardUpdate',
 };
 
 module.exports = { CLIENT_EVENTS, SERVER_EVENTS };

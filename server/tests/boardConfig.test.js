@@ -18,6 +18,7 @@ const {
     DEFAULT_SIZE,
     DEFAULT_DIFFICULTY,
     DEFAULT_PRESET,
+    DAILY_PRESET,
     ALL_PRESETS,
     BOARD_LIMITS,
     maxMinesFor,
@@ -40,6 +41,33 @@ describe('mineCountFor: the pre-split presets survive on the diagonal', () => {
 
     test('the default board is still 16x16 with 40 mines', () => {
         expect(DEFAULT_PRESET).toEqual({ rows: 16, cols: 16, mines: 40 });
+    });
+});
+
+describe('DAILY_PRESET', () => {
+    test('resolves through mineCountFor rather than a hand-typed mine count', () => {
+        expect(DAILY_PRESET).toEqual({
+            rows: 16,
+            cols: 16,
+            mines: mineCountFor(16, 16, 'Extreme'),
+        });
+    });
+
+    test('sits at the no-guess density ceiling -- the hardest density the generator can reliably deliver', () => {
+        // mineCountFor rounds to the nearest whole mine, so the actual density
+        // (53/256 = 0.2070) lands a hair above the nominal MAX_SAFE_DENSITY
+        // constant (0.206) -- the same rounding every "Extreme" board at this
+        // size already ships with today (ALL_PRESETS covers it), not something
+        // new to the daily challenge. What matters is it is Extreme, the
+        // densest difficulty offered, not a literal <= comparison against the
+        // unrounded constant.
+        const density = DAILY_PRESET.mines / (DAILY_PRESET.rows * DAILY_PRESET.cols);
+        expect(density).toBeCloseTo(MAX_SAFE_DENSITY, 2);
+        expect(DAILY_PRESET.mines).toBe(ALL_PRESETS.find((p) => p.title === 'Medium / Extreme').mines);
+    });
+
+    test('is a valid board configuration', () => {
+        expect(isValidBoardConfig(DAILY_PRESET.rows, DAILY_PRESET.cols, DAILY_PRESET.mines)).toBe(true);
     });
 });
 

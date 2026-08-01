@@ -4,6 +4,8 @@ const { createRoom, resetGame } = require('./utils/gameUtils');
 const { openCell, chordCell, toggleFlag } = require('./game');
 const { startPvpGame, resetMyBoard, pvpRematch } = require('./controllers/pvpController');
 const { offerResume, forgetRoom } = require('./controllers/sessionController');
+const { startDaily, submitDailyScore, getDailyLeaderboard } = require('./controllers/dailyController');
+const dailyGame = require('./game/daily');
 const { PORT } = require('./config');
 const roomRepo = require('./data/roomRepo');
 const playerRepo = require('./data/playerRepo');
@@ -16,6 +18,8 @@ const {
     isValidCoordinate,
     isValidHoverCoordinate,
     isPlayerInRoom,
+    isValidDailyToken,
+    isValidDailyDate,
 } = require('./validation');
 
 // When a new socket connects
@@ -262,6 +266,49 @@ io.on('connection', async (socket) => {
 
     socket.on(CLIENT_EVENTS.PVP_REMATCH, async ({ room }) => {
         await pvpRematch({ socket, room, isValid, io });
+    });
+
+    // --- Daily challenge: NOT room-scoped, see server/data/keys.js ---
+
+    socket.on(CLIENT_EVENTS.START_DAILY, async ({ dailyAttemptToken }) => {
+        await startDaily({ socket, dailyAttemptToken });
+    });
+
+    socket.on(CLIENT_EVENTS.DAILY_OPEN_CELL, async ({ dailyAttemptToken, date, row, col }) => {
+        try {
+            if (!isValidDailyToken(dailyAttemptToken) || !isValidDailyDate(date) || !isValidCoordinate(row, col)) return;
+            await dailyGame.openCell(date, dailyAttemptToken, socket.id, row, col);
+        } catch (error) {
+            console.error('Error in dailyOpenCell:', error);
+        }
+    });
+
+    socket.on(CLIENT_EVENTS.DAILY_CHORD_CELL, async ({ dailyAttemptToken, date, row, col }) => {
+        try {
+            if (!isValidDailyToken(dailyAttemptToken) || !isValidDailyDate(date) || !isValidCoordinate(row, col)) return;
+            await dailyGame.chordCell(date, dailyAttemptToken, socket.id, row, col);
+        } catch (error) {
+            console.error('Error in dailyChordCell:', error);
+        }
+    });
+
+    socket.on(CLIENT_EVENTS.DAILY_TOGGLE_FLAG, async ({ dailyAttemptToken, date, row, col }) => {
+        try {
+            if (!isValidDailyToken(dailyAttemptToken) || !isValidDailyDate(date) || !isValidCoordinate(row, col)) return;
+            await dailyGame.toggleFlag(date, dailyAttemptToken, socket.id, row, col);
+        } catch (error) {
+            console.error('Error in dailyToggleFlag:', error);
+        }
+    });
+
+    socket.on(CLIENT_EVENTS.SUBMIT_DAILY_SCORE, async ({ dailyAttemptToken, date, name }) => {
+        if (!isValidDailyToken(dailyAttemptToken) || !isValidDailyDate(date)) return;
+        await submitDailyScore({ socket, io, dailyAttemptToken, date, name });
+    });
+
+    socket.on(CLIENT_EVENTS.GET_DAILY_LEADERBOARD, async ({ date }) => {
+        if (!isValidDailyDate(date)) return;
+        await getDailyLeaderboard({ socket, date });
     });
 
     socket.on(CLIENT_EVENTS.PLAYER_LEAVE, async () => {
