@@ -17,17 +17,25 @@ const { CLIENT_EVENTS, SERVER_EVENTS } = require('../../shared/events');
 const repoRoot = path.join(__dirname, '..', '..');
 const read = (rel) => fs.readFileSync(path.join(repoRoot, rel), 'utf8');
 
-/** Our server source, excluding tests and dependencies. */
-const SERVER_FILES = [
-    'server/server.js',
-    'server/game/coop.js',
-    'server/game/pvp.js',
-    'server/game/index.js',
-    'server/utils/gameUtils.js',
-    'server/utils/playerUtils.js',
-    'server/controllers/pvpController.js',
-];
-const serverSource = SERVER_FILES.map(read).join('\n');
+/**
+ * Our server source, excluding tests and dependencies.
+ *
+ * Walked rather than listed. The list used to be typed out by hand, which meant
+ * moving an emit into a new file made this suite fail with "event never emitted"
+ * — pointing at the event, not at the fact that nobody had added the file. A
+ * guard against drift should not itself need manual upkeep.
+ */
+const collectServerFiles = (dir) =>
+    fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+            return ['tests', 'node_modules'].includes(entry.name) ? [] : collectServerFiles(full);
+        }
+        return entry.name.endsWith('.js') ? [full] : [];
+    });
+
+const SERVER_FILES = collectServerFiles(path.join(repoRoot, 'server'));
+const serverSource = SERVER_FILES.map((f) => fs.readFileSync(f, 'utf8')).join('\n');
 const clientHandlers = read('hooks/useGameEvents.ts');
 const clientActions = read('hooks/useGameActions.ts');
 const eventTypes = read('shared/events.d.ts');

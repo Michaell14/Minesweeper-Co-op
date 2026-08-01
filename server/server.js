@@ -3,6 +3,7 @@ const { removePlayer, addPlayerToRoom } = require('./utils/playerUtils');
 const { createRoom, resetGame } = require('./utils/gameUtils');
 const { openCell, chordCell, toggleFlag } = require('./game');
 const { startPvpGame, resetMyBoard, pvpRematch } = require('./controllers/pvpController');
+const { offerResume, forgetRoom } = require('./controllers/sessionController');
 const { PORT } = require('./config');
 const roomRepo = require('./data/roomRepo');
 const playerRepo = require('./data/playerRepo');
@@ -19,7 +20,6 @@ const {
 
 // When a new socket connects
 io.on('connection', async (socket) => {
-    
     socket.on(CLIENT_EVENTS.CREATE_ROOM, async ({ room, numRows, numCols, numMines, name, mode }) => {
         try {
             // Validate input parameters
@@ -266,6 +266,10 @@ io.on('connection', async (socket) => {
 
     socket.on(CLIENT_EVENTS.PLAYER_LEAVE, async () => {
         try {
+            // Walking out on purpose is the one exit that must not be resumed.
+            // `disconnect` below runs the same removePlayer and deliberately
+            // leaves the session's room intact, which is what a reload rides.
+            await forgetRoom(socket);
             await removePlayer(socket, socket.id);
         } catch (error) {
             console.error('Error in playerLeave:', error);
@@ -279,6 +283,14 @@ io.on('connection', async (socket) => {
             console.error('Error in disconnect:', error);
         }
     });
+
+    // Last, deliberately: this can prompt the client to send `joinRoom` straight
+    // back, and the handler for it has to already exist when that lands.
+    try {
+        await offerResume(socket);
+    } catch (error) {
+        console.error('Error offering session resume:', error);
+    }
 });
 
 // Start the server, enter
