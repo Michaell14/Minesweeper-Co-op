@@ -36,9 +36,21 @@
     position: relative;
 }
 
-/* Hover effect for cells */
-.cell.hovered {
-    background-color: var(--hover-color) !important;
+/*
+ * A teammate's cursor on a cell.
+ *
+ * The class is doubled to raise specificity to (0,3,0). `.cell.open`,
+ * `.cell.mine` and `.cell.closed` all set `animation` or `box-shadow` at
+ * (0,2,0), so at equal weight this rule would win or lose purely on where it
+ * sits in the file — and it lost: adding the cascade reveal to `.cell.open`
+ * silently stopped opened cells pulsing, while closed ones still did.
+ *
+ * Winning on specificity says "a hovered cell pulses" outright, instead of
+ * depending on line order that the next edit can reshuffle. It also makes the
+ * `!important` that used to be on background-color unnecessary.
+ */
+.cell.hovered.hovered {
+    background-color: var(--hover-color);
     box-shadow: 0 0 8px var(--hover-color), inset 0 0 8px var(--hover-color);
     animation: pulse 1s ease-in-out infinite;
 }
@@ -50,7 +62,8 @@
  * the information, the pulsing is only decoration.
  */
 @media (prefers-reduced-motion: reduce) {
-    .cell.hovered {
+    /* Must match the doubled specificity above, or it cannot win. */
+    .cell.hovered.hovered {
         animation: none;
     }
 }

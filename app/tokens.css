@@ -98,8 +98,6 @@
     --ms-palette-amber: #facc15;      /* Tailwind yellow-400 (banner) */
     --ms-palette-amber-ink: #000000;  /* ink on the banner fill        */
 
-    /* Board greys. Deliberately NOT the neutrals above — the board is meant to
-     * read as the classic Windows Minesweeper surface, not as app chrome. */
     /*
      * Board.
      *
@@ -292,11 +290,11 @@
     --ms-duration-quick: 120ms;
     --ms-duration-slow: 300ms;
     /*
-     * Per-cell offset for the cascade reveal. Multiplied by a cell's distance
-     * along the board's diagonal, so a cascade sweeps rather than appearing all
-     * at once. Small on purpose: at 14ms a 90-cell cascade finishes well inside
-     * half a second, which is the difference between feeling responsive and
-     * feeling slow.
+     * Delay per band of the cascade reveal, so a cascade sweeps rather than
+     * appearing all at once. Which band a cell falls in is `cascadeBand()` in
+     * lib/motion.ts; the feel is the product of the two, so change them
+     * together. Small on purpose — at 14ms the whole sweep settles inside a
+     * quarter second, which is the difference between responsive and sluggish.
      */
     --ms-cascade-step: 14ms;
     --ms-ease-step: steps(2, end);

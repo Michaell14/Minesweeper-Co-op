@@ -14,3 +14,24 @@ export function prefersReducedMotion(): boolean {
     }
     return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
+
+/**
+ * How many diagonals the cascade reveal repeats over before wrapping.
+ *
+ * Paired with `--ms-cascade-step` in app/tokens.css — that token is the delay
+ * per band, this is how many bands there are, and the feel is the product of
+ * the two. Neither is meaningful alone, so change them together.
+ */
+export const CASCADE_BANDS = 10;
+
+/**
+ * Which band of the cascade sweep a cell belongs to.
+ *
+ * The wrap is the whole point. Using the raw diagonal meant a cascade in the
+ * middle of the board waited for its ABSOLUTE index before any cell appeared —
+ * measured at ~240ms of nothing, which reads as lag rather than as a reveal.
+ * Wrapping bounds the wait to one band wherever the cascade happens.
+ */
+export function cascadeBand(row: number, col: number): number {
+    return (row + col) % CASCADE_BANDS;
+}

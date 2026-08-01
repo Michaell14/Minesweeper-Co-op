@@ -5,14 +5,7 @@ import { useMinesweeperStore, Cell as CellType } from '@/app/store';
 // cell (256+ on a medium board) and has no business pulling in Dialog, Button
 // and the icon sprites to get one class name.
 import { pointerClass } from '@/components/ds/pointer';
-
-
-/**
- * How many diagonals the cascade sweep repeats over. Ten at 14ms is a ~140ms
- * cycle: long enough to read as a wave, short enough that the first cell is
- * always on screen within one step.
- */
-const CASCADE_BANDS = 10;
+import { cascadeBand } from '@/lib/motion';
 
 interface CellParams {
     cell: CellType,
@@ -56,25 +49,23 @@ const Cell = ({ cell, row, col, toggleFlag, openCell, chordCell, emitCellHover }
     const isHovered = cellHover !== null;
     const hoverColor = cellHover?.color || null;
 
+    const hoverStyle = isHovered && hoverColor
+        ? ({ '--hover-color': hoverColor } as React.CSSProperties)
+        : undefined;
+
     /*
-     * Style for a revealed cell: the remote-cursor colour when someone is on
-     * it, plus this cell's offset in the cascade sweep.
+     * Only revealed cells animate, so only they pay for this — a full board is
+     * mostly unopened, and building the delay for all 512 would be wasted work
+     * in the one component with a real render budget.
      *
-     * The offset is the cell's position along the board diagonal, wrapped every
-     * CASCADE_BANDS cells. Wrapping is the important part. Using the raw
-     * diagonal meant a cascade in the middle of the board waited for its
-     * absolute index before ANY cell appeared — measured at ~240ms of nothing,
-     * which reads as lag rather than as a reveal. Wrapping bounds the wait to
-     * one band no matter where on the board the cascade happens.
-     *
-     * It also needs nothing from the store: a teammate's cascade sweeps just as
-     * well, and no cell has to subscribe to the last-clicked coordinate — which
-     * would re-render all 256 of them on every mousedown.
+     * The band needs nothing from the store: a teammate's cascade sweeps just
+     * as well as your own, and no cell has to subscribe to the last-clicked
+     * coordinate, which would re-render every one of them on each mousedown.
      */
-    const revealStyle = {
-        ...(isHovered && hoverColor ? { '--hover-color': hoverColor } : {}),
-        '--reveal-delay': `calc(var(--ms-cascade-step) * ${(row + col) % CASCADE_BANDS})`,
-    } as React.CSSProperties;
+    const revealStyle = (): React.CSSProperties => ({
+        ...hoverStyle,
+        '--reveal-delay': `calc(var(--ms-cascade-step) * ${cascadeBand(row, col)})`,
+    } as React.CSSProperties);
 
     const handleMouseEnter = () => {
         emitCellHover(row, col);
@@ -137,7 +128,7 @@ const Cell = ({ cell, row, col, toggleFlag, openCell, chordCell, emitCellHover }
         return <div
             key={col}
             className={`${styles.cell} ${styles.mine} ${isHovered ? styles.hovered : ''}`}
-            style={revealStyle}
+            style={revealStyle()}
             role="gridcell"
             aria-label={getAriaLabel()}
             onMouseEnter={handleMouseEnter}
@@ -160,7 +151,7 @@ const Cell = ({ cell, row, col, toggleFlag, openCell, chordCell, emitCellHover }
                     e.preventDefault();
                 }}
                 className={`${styles.cell} ${styles.open} ${numClass} ${isHovered ? styles.hovered : ''}`}
-                style={revealStyle}
+                style={revealStyle()}
                 onMouseEnter={handleMouseEnter}
                 onMouseLeave={handleMouseLeave}
                 onMouseDown={handleMouseDown}
@@ -177,7 +168,7 @@ const Cell = ({ cell, row, col, toggleFlag, openCell, chordCell, emitCellHover }
                 role="gridcell"
                 aria-label={getAriaLabel()}
                 className={`${styles.cell} ${styles.flagged} ${isHovered ? styles.hovered : ''} text-pixel-lg`}
-                style={isHovered && hoverColor ? { '--hover-color': hoverColor } as React.CSSProperties : undefined}
+                style={hoverStyle}
                 onContextMenu={(e) => {
                     e.preventDefault();
                     toggleFlag(row, col);
@@ -208,7 +199,7 @@ const Cell = ({ cell, row, col, toggleFlag, openCell, chordCell, emitCellHover }
             role="gridcell"
             aria-label={getAriaLabel()}
             className={`${styles.cell} ${styles.closed} ${isHovered ? styles.hovered : ''} ${isDisabled ? 'opacity-50 cursor-not-allowed' : pointerClass}`}
-            style={isHovered && hoverColor ? { '--hover-color': hoverColor } as React.CSSProperties : undefined}
+            style={hoverStyle}
             onContextMenu={(e) => {
                 e.preventDefault();
                 if (!isDisabled) toggleFlag(row, col);
