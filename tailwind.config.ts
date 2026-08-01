@@ -62,12 +62,6 @@ const config: Config = {
                     hover: "var(--ms-intent-error-hover)",
                     ink: "var(--ms-intent-error-ink)",
                 },
-                board: {
-                    closed: "var(--ms-cell-closed)",
-                    open: "var(--ms-cell-open)",
-                    mine: "var(--ms-cell-mine)",
-                    gutter: "var(--ms-board-gutter)",
-                },
                 progress: {
                     own: "var(--ms-progress-own)",
                     opponent: "var(--ms-progress-opponent)",

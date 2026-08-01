@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { prefersReducedMotion } from "./motion";
+import { CASCADE_BANDS, cascadeBand, prefersReducedMotion } from "./motion";
 
 const originalMatchMedia = globalThis.window?.matchMedia;
 
@@ -43,5 +43,36 @@ describe("prefersReducedMotion", () => {
         vi.stubGlobal("window", {});
         expect(() => prefersReducedMotion()).not.toThrow();
         expect(prefersReducedMotion()).toBe(false);
+    });
+});
+
+describe("cascadeBand", () => {
+    it("stays inside the ramp for every cell of the largest board", () => {
+        // BOARD_LIMITS allows up to 32 rows x 16 cols.
+        for (let row = 0; row < 32; row++) {
+            for (let col = 0; col < 16; col++) {
+                const band = cascadeBand(row, col);
+                expect(band).toBeGreaterThanOrEqual(0);
+                expect(band).toBeLessThan(CASCADE_BANDS);
+            }
+        }
+    });
+
+    it("bounds the wait no matter where on the board the cascade starts", () => {
+        // The bug this replaced: a cascade at the far corner waited for its
+        // absolute diagonal index, so the first cell appeared ~240ms late.
+        expect(cascadeBand(0, 0)).toBe(0);
+        expect(cascadeBand(31, 15)).toBeLessThan(CASCADE_BANDS);
+    });
+
+    it("advances by one per diagonal, so neighbours sweep in sequence", () => {
+        expect(cascadeBand(4, 0)).toBe(4);
+        expect(cascadeBand(3, 1)).toBe(4);
+        expect(cascadeBand(4, 1)).toBe(5);
+    });
+
+    it("wraps rather than growing without bound", () => {
+        expect(cascadeBand(0, CASCADE_BANDS)).toBe(0);
+        expect(cascadeBand(0, CASCADE_BANDS + 3)).toBe(3);
     });
 });

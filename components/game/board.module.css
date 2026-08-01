@@ -36,9 +36,21 @@
     position: relative;
 }
 
-/* Hover effect for cells */
-.cell.hovered {
-    background-color: var(--hover-color) !important;
+/*
+ * A teammate's cursor on a cell.
+ *
+ * The class is doubled to raise specificity to (0,3,0). `.cell.open`,
+ * `.cell.mine` and `.cell.closed` all set `animation` or `box-shadow` at
+ * (0,2,0), so at equal weight this rule would win or lose purely on where it
+ * sits in the file — and it lost: adding the cascade reveal to `.cell.open`
+ * silently stopped opened cells pulsing, while closed ones still did.
+ *
+ * Winning on specificity says "a hovered cell pulses" outright, instead of
+ * depending on line order that the next edit can reshuffle. It also makes the
+ * `!important` that used to be on background-color unnecessary.
+ */
+.cell.hovered.hovered {
+    background-color: var(--hover-color);
     box-shadow: 0 0 8px var(--hover-color), inset 0 0 8px var(--hover-color);
     animation: pulse 1s ease-in-out infinite;
 }
@@ -50,7 +62,8 @@
  * the information, the pulsing is only decoration.
  */
 @media (prefers-reduced-motion: reduce) {
-    .cell.hovered {
+    /* Must match the doubled specificity above, or it cannot win. */
+    .cell.hovered.hovered {
         animation: none;
     }
 }
@@ -135,6 +148,56 @@
 /* Opened cells are flat: nothing left to press. */
 .cell.open {
     background-color: var(--ms-cell-open);
+}
+
+/*
+ * Cascade reveal.
+ *
+ * Opening a big cascade is the most satisfying moment in Minesweeper, and
+ * ninety cells blinking into existence at once throws that away. Each cell
+ * waits for its distance along the board diagonal before popping in, so the
+ * reveal sweeps outward instead.
+ *
+ * This is deliberately CSS only. The cell is already open in the DOM — its
+ * aria-label, its number and the store all updated on the server response —
+ * so nothing a screen reader or a test observes is delayed by the animation.
+ * A stagger that gated state would make the board lie about itself.
+ *
+ * `both` keeps the cell hidden through its delay, which is what produces the
+ * wave. steps() rather than a smooth curve: this is a pixel board.
+ */
+@keyframes cellReveal {
+    from {
+        opacity: 0.25;
+        transform: scale(0.55);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.cell.open,
+.cell.mine {
+    /*
+     * steps(3, start), not end: with `end` each cell holds the from-value for
+     * the first third of its animation, which put ~40ms of nothing on top of
+     * every cell's delay and made even a fast cascade feel like it stalled.
+     * `start` jumps to the first visible step immediately.
+     */
+    animation: cellReveal var(--ms-duration-quick) steps(3, start) both;
+    animation-delay: var(--reveal-delay, 0ms);
+}
+
+/*
+ * The wave is the decoration; the revealed board is the information. Under
+ * reduced motion the cells are simply there.
+ */
+@media (prefers-reduced-motion: reduce) {
+    .cell.open,
+    .cell.mine {
+        animation: none;
+    }
 }
 
 .cell.mine {

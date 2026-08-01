@@ -5,7 +5,7 @@ import { useMinesweeperStore, Cell as CellType } from '@/app/store';
 // cell (256+ on a medium board) and has no business pulling in Dialog, Button
 // and the icon sprites to get one class name.
 import { pointerClass } from '@/components/ds/pointer';
-
+import { cascadeBand } from '@/lib/motion';
 
 interface CellParams {
     cell: CellType,
@@ -48,6 +48,24 @@ const Cell = ({ cell, row, col, toggleFlag, openCell, chordCell, emitCellHover }
     // Check if any player is hovering over this cell
     const isHovered = cellHover !== null;
     const hoverColor = cellHover?.color || null;
+
+    const hoverStyle = isHovered && hoverColor
+        ? ({ '--hover-color': hoverColor } as React.CSSProperties)
+        : undefined;
+
+    /*
+     * Only revealed cells animate, so only they pay for this — a full board is
+     * mostly unopened, and building the delay for all 512 would be wasted work
+     * in the one component with a real render budget.
+     *
+     * The band needs nothing from the store: a teammate's cascade sweeps just
+     * as well as your own, and no cell has to subscribe to the last-clicked
+     * coordinate, which would re-render every one of them on each mousedown.
+     */
+    const revealStyle = (): React.CSSProperties => ({
+        ...hoverStyle,
+        '--reveal-delay': `calc(var(--ms-cascade-step) * ${cascadeBand(row, col)})`,
+    } as React.CSSProperties);
 
     const handleMouseEnter = () => {
         emitCellHover(row, col);
@@ -110,7 +128,7 @@ const Cell = ({ cell, row, col, toggleFlag, openCell, chordCell, emitCellHover }
         return <div
             key={col}
             className={`${styles.cell} ${styles.mine} ${isHovered ? styles.hovered : ''}`}
-            style={isHovered && hoverColor ? { '--hover-color': hoverColor } as React.CSSProperties : undefined}
+            style={revealStyle()}
             role="gridcell"
             aria-label={getAriaLabel()}
             onMouseEnter={handleMouseEnter}
@@ -133,7 +151,7 @@ const Cell = ({ cell, row, col, toggleFlag, openCell, chordCell, emitCellHover }
                     e.preventDefault();
                 }}
                 className={`${styles.cell} ${styles.open} ${numClass} ${isHovered ? styles.hovered : ''}`}
-                style={isHovered && hoverColor ? { '--hover-color': hoverColor } as React.CSSProperties : undefined}
+                style={revealStyle()}
                 onMouseEnter={handleMouseEnter}
                 onMouseLeave={handleMouseLeave}
                 onMouseDown={handleMouseDown}
@@ -150,7 +168,7 @@ const Cell = ({ cell, row, col, toggleFlag, openCell, chordCell, emitCellHover }
                 role="gridcell"
                 aria-label={getAriaLabel()}
                 className={`${styles.cell} ${styles.flagged} ${isHovered ? styles.hovered : ''} text-pixel-lg`}
-                style={isHovered && hoverColor ? { '--hover-color': hoverColor } as React.CSSProperties : undefined}
+                style={hoverStyle}
                 onContextMenu={(e) => {
                     e.preventDefault();
                     toggleFlag(row, col);
@@ -181,7 +199,7 @@ const Cell = ({ cell, row, col, toggleFlag, openCell, chordCell, emitCellHover }
             role="gridcell"
             aria-label={getAriaLabel()}
             className={`${styles.cell} ${styles.closed} ${isHovered ? styles.hovered : ''} ${isDisabled ? 'opacity-50 cursor-not-allowed' : pointerClass}`}
-            style={isHovered && hoverColor ? { '--hover-color': hoverColor } as React.CSSProperties : undefined}
+            style={hoverStyle}
             onContextMenu={(e) => {
                 e.preventDefault();
                 if (!isDisabled) toggleFlag(row, col);
