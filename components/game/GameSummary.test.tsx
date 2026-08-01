@@ -56,12 +56,21 @@ const arrange = ({
     store.setPvpTotalSafeCells(totalSafeCells);
 };
 
+/*
+ * Reset everything `arrange` touches, not just the fields the current tests
+ * happen to read. The store is a module singleton, so a leftover
+ * pvpTotalSafeCells is invisible until someone adds a co-op test that skips
+ * `arrange` — and then it passes or fails on whatever ran before it.
+ */
 afterEach(() => {
     const store = useMinesweeperStore.getState();
     store.setBoard([]);
     store.setMode("co-op");
     store.setClock({ startedAt: null, endedAt: null });
     store.setPlayerStatsInRoom([]);
+    store.setPvpOpponentName("");
+    store.setPvpOpponentProgress(0);
+    store.setPvpTotalSafeCells(0);
 });
 
 describe("the time", () => {
