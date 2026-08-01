@@ -207,12 +207,46 @@
 }
 
 /*
+ * A revealed cell under a teammate's cursor runs BOTH, rather than letting the
+ * pulse rule replace the reveal.
+ *
+ * `.cell.hovered.hovered` sets the `animation` shorthand, so at (0,3,0) it used
+ * to drop `cellReveal` entirely. Ending the hover put it back — and because the
+ * animation-name changed, the browser counted that as a brand-new animation:
+ * `both` applied the from-keyframe backwards (opacity 0.25, scale 0.55) for the
+ * whole `--reveal-delay`, so every hover-leave blinked the cell out and popped
+ * it back in, all game long.
+ *
+ * Listing both names keeps `cellReveal` at index 0 in either state. When the
+ * hover ends and the list shrinks back to one, it is matched by name and left
+ * running (finished, filling forwards) instead of restarted.
+ */
+.cell.open.hovered.hovered,
+.cell.mine.hovered.hovered {
+    animation:
+        cellReveal var(--ms-duration-quick) steps(3, start) both,
+        pulse 1s ease-in-out infinite;
+    animation-delay: var(--reveal-delay, 0ms), 0ms;
+}
+
+/*
  * The wave is the decoration; the revealed board is the information. Under
  * reduced motion the cells are simply there.
  */
 @media (prefers-reduced-motion: reduce) {
     .cell.open,
     .cell.mine {
+        animation: none;
+    }
+
+    /*
+     * Matches the combined rule above at (0,4,0). It has to live in THIS block
+     * rather than with the other reduced-motion pulse override near the top of
+     * the file: equal specificity is decided by source order, and up there it
+     * would sit before the rule it is meant to cancel.
+     */
+    .cell.open.hovered.hovered,
+    .cell.mine.hovered.hovered {
         animation: none;
     }
 }
