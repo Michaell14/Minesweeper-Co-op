@@ -169,6 +169,27 @@ describe('resetMyBoard', () => {
         return { shared, opened };
     };
 
+    /**
+     * REGRESSION. Hitting a mine stops that player's clock (pvp.js `stopFor`),
+     * and a retry puts them straight back into the race — so the clock has to
+     * restart. It did not, and their timer sat frozen at the moment they died
+     * for the rest of the game while they kept playing.
+     */
+    test('restarts this player\'s clock from the room\'s shared start', async () => {
+        await arrangeReset();
+        client.hGetAll.mockImplementation(async (key) =>
+            key.startsWith('room:')
+                ? { ...startedRoom('[]', 0), sharedBoard: JSON.stringify([[]]), startedAt: '1000' }
+                : { name: 'Host', score: '0', pvpPlayerIndex: '0' }
+        );
+
+        await resetMyBoard({ socket: { id: HOST }, room: ROOM, isValid, io });
+
+        const clocks = mockEmit.mock.calls.filter(([event]) => event === 'gameClock');
+        expect(clocks).toHaveLength(1);
+        expect(clocks[0][1]).toEqual({ startedAt: 1000, endedAt: null });
+    });
+
     test('restores the shared starting position, not a blank grid', async () => {
         const { shared, opened } = await arrangeReset();
 

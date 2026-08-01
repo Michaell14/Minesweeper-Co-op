@@ -141,6 +141,18 @@ export interface ServerToClientEvents {
     receiveConfetti: () => void;
     /** Co-op only; the server suppresses hover in PVP. */
     playerHoverUpdate: (payload: { id: string; row: number; col: number; name: string }) => void;
+    /**
+     * The room's clock, as epoch milliseconds.
+     *
+     * Timestamps rather than an elapsed count: the client ticks locally from
+     * `startedAt`, so the server does not stream a value every second, every
+     * player in a co-op room reads the same clock, and a refresh resumes at the
+     * right time instead of restarting at zero.
+     *
+     * `startedAt` is null before the first cell is revealed; `endedAt` is null
+     * until the game ends.
+     */
+    gameClock: (payload: { startedAt: number | null; endedAt: number | null }) => void;
     playerLeft: (socketId: string) => void;
 
     // --- PVP ---

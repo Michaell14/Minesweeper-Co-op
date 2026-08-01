@@ -1,6 +1,7 @@
 const { io } = require('./initializeClient');
 const { createEmptyBoard, projectBoard } = require('../domain/board');
 const roomRepo = require('../data/roomRepo');
+const { clockOf } = require('../domain/clock');
 const playerRepo = require('../data/playerRepo');
 const sessionRepo = require('../data/sessionRepo');
 const { SERVER_EVENTS } = require('../../shared/events');
@@ -104,6 +105,10 @@ const addPlayerToRoom = async (room, socketId, name, sessionId) => {
         roomPlayers.push(socketId);
         await roomRepo.setPlayers(room, roomPlayers);
     }
+
+    // A refresh or a late join must pick up the clock already running, which is
+    // the whole reason it is stored as timestamps rather than an elapsed count.
+    io.to(socketId).emit(SERVER_EVENTS.GAME_CLOCK, clockOf(roomState));
 
     // Send the current board to the player who joined (only for co-op)
     // For PVP, boards are sent when game starts

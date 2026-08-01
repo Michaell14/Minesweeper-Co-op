@@ -5,6 +5,7 @@ const { isValidRoomCode } = require('../validation');
 const roomRepo = require('../data/roomRepo');
 const playerRepo = require('../data/playerRepo');
 const { pvpPlayerFields } = require('../data/keys');
+const { startedAtOf } = require('../domain/clock');
 const { SERVER_EVENTS } = require('../../shared/events');
 
 /**
@@ -57,8 +58,14 @@ const startPvpGame = async ({ socket, room, isValid, io }) => {
         const { board: sharedBoard, openedCells } = buildSharedBoard(numRows, numCols, numMines);
         const serializedBoard = JSON.stringify(sharedBoard);
 
+        // Both players race the same board from the same moment, so the start is
+        // room state. Their finishes are not — see pvp.js.
+        const startedAt = Date.now();
+
         await roomRepo.setFields(room, {
             pvpStarted: 'true',
+            startedAt: startedAt.toString(),
+            endedAt: '',
             totalSafeCells: totalSafeCells.toString(),
             player1Socket,
             player2Socket,
@@ -92,6 +99,7 @@ const startPvpGame = async ({ socket, room, isValid, io }) => {
             opponentName: player1Name
         });
 
+        io.to(room).emit(SERVER_EVENTS.GAME_CLOCK, { startedAt, endedAt: null });
         io.to(room).emit(SERVER_EVENTS.PVP_GAME_STARTED, { totalSafeCells });
 
         const visibleBoard = projectBoard(sharedBoard);
@@ -151,6 +159,15 @@ const resetMyBoard = async ({ socket, room, isValid, io }) => {
 
         await playerRepo.resetScore(socket.id);
 
+        // Retrying puts this player back in the race, so their clock has to
+        // restart from the room's shared start — pvp.js stopped it when they hit
+        // the mine, and without this it stays frozen at their death for the rest
+        // of the game.
+        io.to(socket.id).emit(SERVER_EVENTS.GAME_CLOCK, {
+            startedAt: startedAtOf(roomState),
+            endedAt: null
+        });
+
         io.to(socket.id).emit(SERVER_EVENTS.PVP_BOARD_UPDATE, {
             board: projectBoard(JSON.parse(sharedBoard)),
             playerIndex,
@@ -203,8 +220,14 @@ const pvpRematch = async ({ socket, room, isValid, io }) => {
         const { board: sharedBoard, openedCells } = buildSharedBoard(numRows, numCols, numMines);
         const serializedBoard = JSON.stringify(sharedBoard);
 
+        // Both players race the same board from the same moment, so the start is
+        // room state. Their finishes are not — see pvp.js.
+        const startedAt = Date.now();
+
         await roomRepo.setFields(room, {
             pvpStarted: 'true',
+            startedAt: startedAt.toString(),
+            endedAt: '',
             totalSafeCells: totalSafeCells.toString(),
             player1Board: serializedBoard,
             player2Board: serializedBoard,
@@ -232,6 +255,7 @@ const pvpRematch = async ({ socket, room, isValid, io }) => {
         const player1Name = await playerRepo.getName(player1Socket);
         const player2Name = await playerRepo.getName(player2Socket);
 
+        io.to(room).emit(SERVER_EVENTS.GAME_CLOCK, { startedAt, endedAt: null });
         io.to(player1Socket).emit(SERVER_EVENTS.PVP_REMATCH_STARTED, { totalSafeCells, isHost: true });
         io.to(player2Socket).emit(SERVER_EVENTS.PVP_REMATCH_STARTED, { totalSafeCells, isHost: false });
 

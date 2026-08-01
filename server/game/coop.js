@@ -8,6 +8,7 @@
 const { generateBoard, checkWin } = require('../utils/gameUtils');
 const { updatePlayerStatsInRoom } = require('../utils/playerUtils');
 const { getAdjacentCells, revealFrom, projectBoard, projectCells } = require('../domain/board');
+const { clockOf, readStamp } = require('../domain/clock');
 const { io } = require('../utils/initializeClient');
 const roomRepo = require('../data/roomRepo');
 const playerRepo = require('../data/playerRepo');
@@ -23,10 +24,17 @@ const reveal = async (board, r, c, room, socketId, toUpdate) => {
     if (!hitMine) return cellsRevealed;
 
     const gameOverName = await playerRepo.getName(socketId);
+    const endedAt = Date.now();
+    // The clock goes first: the loss opens the end-of-game summary, which reads
+    // the final time. Only startedAt is needed, and this function is not handed
+    // the room state.
+    const startedAt = readStamp(await roomRepo.getField(room, 'startedAt'));
+    io.to(room).emit(SERVER_EVENTS.GAME_CLOCK, { startedAt, endedAt });
     io.to(room).emit(SERVER_EVENTS.GAME_OVER, gameOverName);
     await roomRepo.setFields(room, {
         gameOver: 'true',
-        gameOverName: gameOverName || 'Unknown'
+        gameOverName: gameOverName || 'Unknown',
+        endedAt: endedAt.toString()
     });
 
     // The game is over, so every mine becomes visible. This send is required:
@@ -80,9 +88,12 @@ const openCell = async (row, col, room, socketId, roomState, playerScore) => {
                 // We can safely initialize
                 const shouldNoGuess = roomState.noGuess !== 'false';
                 board = generateBoard(numRows, numCols, numMines, row, col, { noGuess: shouldNoGuess });
+                // The clock starts on the first reveal, not on room creation:
+                // a room can sit open for minutes before anyone clicks.
                 await roomRepo.setFields(room, {
                     initialized: 'true',
-                    board: JSON.stringify(board)
+                    board: JSON.stringify(board),
+                    startedAt: Date.now().toString()
                 });
                 await roomRepo.releaseInitLock(room); // Release lock
                 justInitialized = true;
@@ -124,6 +135,7 @@ const openCell = async (row, col, room, socketId, roomState, playerScore) => {
     const isOver = freshRoomState.gameOver === 'true' || freshRoomState.gameWon === 'true';
 
     if (justInitialized) {
+        io.to(room).emit(SERVER_EVENTS.GAME_CLOCK, clockOf(freshRoomState));
         io.to(room).emit(SERVER_EVENTS.BOARD_UPDATE, projectBoard(board, { revealMines: isOver }));
     } else {
         io.to(room).emit(SERVER_EVENTS.UPDATE_CELLS, projectCells(toUpdate, { revealMines: isOver }));

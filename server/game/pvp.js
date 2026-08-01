@@ -16,6 +16,7 @@ const { updatePlayerStatsInRoom } = require('../utils/playerUtils');
 const { getAdjacentCells, revealFrom, projectBoard, projectCells } = require('../domain/board');
 const { io } = require('../utils/initializeClient');
 const roomRepo = require('../data/roomRepo');
+const { readStamp } = require('../domain/clock');
 const playerRepo = require('../data/playerRepo');
 const { pvpPlayerFields: playerKeys } = require('../data/keys');
 const { SERVER_EVENTS } = require('../../shared/events');
@@ -35,6 +36,17 @@ const playerIndexOf = (playerData, socketId) => {
     return parseInt(playerData.pvpPlayerIndex, 10);
 };
 
+/*
+ * A PVP finish is one player's, not the room's, so the stop is sent to that
+ * socket and not written to room state — the opponent's clock must keep
+ * running. The start still comes from the room, which is why it is read back
+ * rather than invented here.
+ */
+const stopFor = async (room, socketId) => {
+    const startedAt = readStamp(await roomRepo.getField(room, 'startedAt'));
+    io.to(socketId).emit(SERVER_EVENTS.GAME_CLOCK, { startedAt, endedAt: Date.now() });
+};
+
 /**
  * Reveals cells from (r, c) on ONE player's board. Hitting a mine ends the game
  * for that player only; the opponent keeps playing and is told they failed.
@@ -50,6 +62,7 @@ const reveal = async (board, r, c, room, socketId, toUpdate, playerIndex) => {
     await roomRepo.setFields(room, { [gameOverKey]: 'true' });
 
     // Notify this player they lost
+    await stopFor(room, socketId);
     io.to(socketId).emit(SERVER_EVENTS.PVP_GAME_OVER);
 
     // This player's game is over, so reveal their mines -- to them only. The
@@ -109,6 +122,7 @@ const checkWin = async (board, room, socketId, playerIndex) => {
                     [gameWonKey]: 'true',
                     winnerSocket: socketId
                 });
+                await stopFor(room, socketId);
 
                 const playerName = await playerRepo.getName(socketId);
 
@@ -123,6 +137,7 @@ const checkWin = async (board, room, socketId, playerIndex) => {
         } else {
             // Someone else already won
             await roomRepo.setFields(room, { [gameWonKey]: 'true' });
+            await stopFor(room, socketId);
         }
     }
 };

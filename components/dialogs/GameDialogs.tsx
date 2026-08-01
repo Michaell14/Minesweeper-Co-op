@@ -1,7 +1,8 @@
 import React from 'react';
 import { useMinesweeperStore } from '@/app/store';
 import { DIALOGS } from '@/lib/dialogs';
-import { Dialog, DialogClose } from '@/components/ds';
+import { Button, Dialog, DialogClose } from '@/components/ds';
+import GameSummary from '@/components/game/GameSummary';
 
 /**
  * The app-level dialogs: game over, room errors, and the PVP outcomes.
@@ -12,23 +13,51 @@ import { Dialog, DialogClose } from '@/components/ds';
  * <Dialog> owns the shell — positioning, the form, the aria wiring and the
  * action row — so what is left here is only what differs between them.
  */
-export default function GameDialogs() {
+export interface GameDialogsProps {
+    /** Starts a fresh board. Same action as the side panel's Reset. */
+    resetGame: () => void;
+}
+
+export default function GameDialogs({ resetGame }: GameDialogsProps) {
     const gameOverName = useMinesweeperStore((state) => state.gameOverName);
+    const gameWon = useMinesweeperStore((state) => state.gameWon);
     const setPlayerJoined = useMinesweeperStore((state) => state.setPlayerJoined);
 
     return (
         <>
-            {/* Game Over - someone hit a mine */}
+            {/*
+              * End of a co-op run, won or lost.
+              *
+              * One dialog for both outcomes: a win previously ended with confetti
+              * and nothing to read, and a loss with a line of text and no sense of
+              * how far the room got. What changes between them is the headline and
+              * the tone of the primary button; the numbers are the same numbers.
+              */}
             <Dialog
-                id={DIALOGS.gameOver}
-                title="Uh Oh!"
+                id={DIALOGS.gameSummary}
+                title={gameWon ? 'Board Cleared!' : 'Uh Oh!'}
                 alert
+                actionsAlign="between"
                 actions={
-                    <DialogClose intent="error" size="sm" aria-label="Close game over dialog">
-                        Cancel
-                    </DialogClose>
+                    <>
+                        <DialogClose aria-label="Close summary">Close</DialogClose>
+                        {/*
+                          * type="submit" so the dialog closes on the same click —
+                          * a Button defaults to type="button" and would leave the
+                          * summary covering the fresh board.
+                          */}
+                        <Button
+                            type="submit"
+                            intent={gameWon ? 'success' : 'primary'}
+                            onClick={resetGame}>
+                            Play again
+                        </Button>
+                    </>
                 }>
-                <p><span className="underline decoration-2">{gameOverName}</span> hit a bomb.</p>
+                {!gameWon && (
+                    <p><span className="underline decoration-2">{gameOverName}</span> hit a bomb.</p>
+                )}
+                <GameSummary />
             </Dialog>
 
             {/* Create Room Error - room already exists */}
