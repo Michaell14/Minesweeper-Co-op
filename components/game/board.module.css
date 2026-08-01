@@ -12,6 +12,8 @@
     gap: var(--cell-gap);
     width: fit-content;
     background-color: var(--ms-board-gutter);
+    /* Framed like any other region in the design system. */
+    border: var(--ms-border-width) solid var(--ms-border-color);
     padding: var(--cell-gap);
     cursor: pointer; /* Cursor pointer for the entire board */
     position: relative; /* Anchors the remote-cursor overlay */
@@ -116,21 +118,27 @@
     }
 }
 
-.cell.closed {
+/*
+ * Unopened cells are raised, the same way buttons are: light edge top-left,
+ * dark edge bottom-right. Two inset shadows rather than the four-shadow notched
+ * outline the controls use — a board can hold 512 cells, and notched corners on
+ * a tight grid read as noise rather than as pixel art.
+ */
+.cell.closed,
+.cell.flagged {
     background-color: var(--ms-cell-closed);
+    box-shadow:
+        inset var(--ms-cell-bevel) var(--ms-cell-bevel) 0 0 var(--ms-cell-light),
+        inset calc(-1 * var(--ms-cell-bevel)) calc(-1 * var(--ms-cell-bevel)) 0 0 var(--ms-cell-shade);
 }
 
+/* Opened cells are flat: nothing left to press. */
 .cell.open {
     background-color: var(--ms-cell-open);
 }
 
 .cell.mine {
     background-color: var(--ms-cell-mine);
-}
-
-/* Flagged cells are still closed cells — same token, on purpose. */
-.cell.flagged {
-    background-color: var(--ms-cell-closed);
 }
 
 /* Official Minesweeper number colors */
