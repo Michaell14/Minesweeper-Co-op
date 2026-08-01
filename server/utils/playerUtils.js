@@ -1,7 +1,7 @@
 const { io } = require('./initializeClient');
 const { createEmptyBoard, projectBoard } = require('../domain/board');
 const roomRepo = require('../data/roomRepo');
-const { clockOf } = require('../domain/clock');
+const { clockOf, readStamp } = require('../domain/clock');
 const playerRepo = require('../data/playerRepo');
 const sessionRepo = require('../data/sessionRepo');
 const { SERVER_EVENTS } = require('../../shared/events');
@@ -184,6 +184,12 @@ const removePlayer = async (socket, socketId) => {
                     // Mark the remaining player as winner
                     await roomRepo.setFields(room, {
                         winnerSocket: remainingPlayer
+                    });
+
+                    // Winning by default still ends the race, so their clock stops.
+                    io.to(remainingPlayer).emit(SERVER_EVENTS.GAME_CLOCK, {
+                        startedAt: readStamp(roomState.startedAt),
+                        endedAt: Date.now()
                     });
 
                     // Notify the remaining player that they won due to opponent disconnect
