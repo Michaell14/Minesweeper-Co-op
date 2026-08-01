@@ -226,8 +226,22 @@
      * to position remote cursors, so they must stay real lengths on the board
      * element rather than becoming Tailwind classes.
      * ------------------------------------------------------------------- */
+    /*
+     * Cell size is a MAXIMUM, not a fixed value — board.module.css shrinks
+     * cells to fit the viewport. At 40px a 16-wide board is 700px, which
+     * overflowed every phone: the default board was 571px on a 375px screen,
+     * so players scrolled sideways to see the game they came for.
+     */
     --ms-cell-size: 40px;
+    --ms-cell-min: 18px;
     --ms-cell-gap: 3px;
+    /*
+     * Space the board needs beyond its cells, subtracted before the fit maths.
+     * Derived from the border rather than hardcoded: a literal would silently
+     * under-reserve the moment --ms-border-width changed, and the board would
+     * start overflowing phones again with nothing to show for it.
+     */
+    --ms-board-inset: calc(2 * var(--ms-border-width) + 8px);
     --ms-cell-closed: var(--ms-palette-cell-closed);
     --ms-cell-light: var(--ms-palette-cell-light);
     --ms-cell-shade: var(--ms-palette-cell-shade);
@@ -334,7 +348,13 @@
 /* The board shrinks on small screens; the token moves, nothing else does. */
 @media (max-width: 48em) {
     :root {
-        --ms-cell-size: 32px;
+        /*
+         * No cell-size cap here — fitting the board to the viewport replaced
+         * it. Keeping 32px only bound on tablets, where it left up to 214px of
+         * width unused for no reason.
+         */
+        /* 3px between sixteen columns is 51px of pure gap on a 375px screen. */
+        --ms-cell-gap: 2px;
     }
 }
 

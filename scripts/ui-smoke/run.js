@@ -278,6 +278,58 @@ async function sizeAndDifficulty(page) {
         `got "${backToDefaults}"`);
 }
 
+/**
+ * The board has to fit the phone it is played on.
+ *
+ * This is the regression the board-first layout fixed: the default 16x16 board
+ * was 571px wide on a 375px screen, so players scrolled sideways to see the
+ * game, and ~420px of chrome sat above it so they scrolled down to find it
+ * first. Nothing else in this suite runs at a phone viewport, so without this
+ * the board could silently start overflowing again.
+ */
+async function mobileFit(page) {
+    console.log('\n\x1b[1m--- MOBILE ---\x1b[0m');
+    const room = 'smokemob' + Date.now().toString().slice(-6);
+
+    // mobile:false is deliberate. Setting it true turns on touch emulation, and
+    // the harness drives Input.dispatchMouseEvent — the clicks stop landing and
+    // every room in this section times out. Only the viewport size matters here.
+    await page.send('Emulation.setDeviceMetricsOverride', {
+        width: 375, height: 812, deviceScaleFactor: 1, mobile: false,
+    });
+    await page.goto(CLIENT);
+    await page.waitFor(`!!document.querySelector('form[aria-label="Create new room form"] button[type=submit]')`,
+        { timeout: 60000, label: 'landing renders at phone width' });
+    await enterRoom(page, { room, name: 'Mobile' });
+    await page.waitFor(`document.querySelectorAll('[role=gridcell]').length === 256`,
+        { label: 'board renders at phone width' });
+
+    const m = JSON.parse(await page.evaluate(`
+        const board = document.querySelector('[role=grid]');
+        const r = board.getBoundingClientRect();
+        const cell = board.querySelector('[role=gridcell]');
+        return JSON.stringify({
+            board: Math.round(r.width),
+            viewport: window.innerWidth,
+            scrollWidth: document.documentElement.scrollWidth,
+            chromeAbove: Math.round(r.top + window.scrollY),
+            cell: Math.round(parseFloat(getComputedStyle(cell).width)),
+        });
+    `));
+
+    check(m.board <= m.viewport, `the board fits the viewport (${m.board}px in ${m.viewport}px)`,
+        `board ${m.board}px overflows ${m.viewport}px`);
+    check(m.scrollWidth <= m.viewport, 'the page does not scroll sideways',
+        `scrollWidth ${m.scrollWidth}px vs viewport ${m.viewport}px`);
+    check(m.chromeAbove < 300, `the board is above the fold (${m.chromeAbove}px of chrome)`,
+        `${m.chromeAbove}px of chrome above the board`);
+    // Guards the fit maths from collapsing to the floor if --board-cols breaks.
+    check(m.cell > 18, `cells are sized to fit, not floored (${m.cell}px)`,
+        `cell is ${m.cell}px, i.e. at --ms-cell-min`);
+
+    await page.send('Emulation.clearDeviceMetricsOverride');
+}
+
 async function pvp(host, guest) {
     console.log('\n\x1b[1m--- PVP ---\x1b[0m');
     const room = 'smokepvp' + Date.now().toString().slice(-6);
@@ -437,6 +489,7 @@ async function joinLink(host, guest) {
         const page = await attach(await newTarget('about:blank'));
         await coop(page);
         await sizeAndDifficulty(page);
+        await mobileFit(page);
 
         const host = await attach(await newTarget('about:blank'));
         const guest = await attach(await newTarget('about:blank'));

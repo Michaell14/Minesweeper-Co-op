@@ -3,17 +3,20 @@
  * Game screen layout. The board, status banner, progress bars, score table and
  * flag counter all live in components/game/ and are shared by both layouts.
  *
- * Two CONTROL arrangements remain, because they are genuinely different rather
- * than copies: desktop puts controls in sticky side panels either side of the
- * board, mobile stacks them above a scrollable board and swaps the inline score
- * table for a trophy dialog. What used to be duplicated was the *content* of
- * those arrangements, which is now written once.
+ * The arrangements genuinely differ, so they are separate markup rather than
+ * copies: desktop puts controls in sticky side panels either side of the board;
+ * mobile puts the BOARD FIRST, with a compact sticky HUD above it and
+ * everything else below. The content of both is written once.
+ *
+ * Mobile is split around the board on purpose. The controls used to sit above
+ * it, which put ~420px of chrome ahead of the game on a 375px screen — the
+ * product below the fold on the devices most players arrive from.
  *
  * The BOARD is not duplicated. It used to be rendered inside each arrangement,
  * which put two copies of every cell in the DOM — 512 for a 16x16 game — and
- * re-rendered both on every update. Both clusters now sit on one flex line with
- * the board between them, so exactly one board is mounted and CSS decides which
- * controls are visible.
+ * re-rendered both on every update. Everything sits on one flex line with a
+ * single board between the clusters, so exactly one board is mounted and CSS
+ * decides what is visible. DOM order alone does that; no `order` juggling.
  */
 import React, { useEffect } from 'react';
 import { useMinesweeperStore } from '@/app/store';
@@ -228,54 +231,29 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
                 <div className="flex flex-col items-center gap-0 mt-10 xl:flex-row xl:items-start xl:justify-around xl:gap-20 xl:mt-16">
 
                     {/* ------------------------------------------------------------ */}
-                    {/* MOBILE: controls stacked above the board                      */}
+                    {/* MOBILE: a compact HUD, pinned above the board                 */}
                     {/* ------------------------------------------------------------ */}
-                    <div className="flex flex-col items-center gap-2 xl:hidden">
-                        <div className="flex items-center gap-8">
-                            {leaveButton}
-                            {actionButtons}
-                        </div>
-
-                        <div className="flex items-center gap-8">
-                            {roomPanel("my-6 max-w-60", true)}
-                            {/* Trophy button - only show in co-op mode */}
-                            {mode !== 'pvp' &&
-                                <button
-                                    type="button"
-                                    onClick={openPlayersDialog}
-                                    aria-label="View player scores"
-                                    className="cursor-pointer">
-                                    <TrophyIcon size={48} />
-                                </button>
-                            }
-                        </div>
-
-                        {/* PVP: Progress bars and flag counter for mobile */}
-                        {mode === 'pvp' && pvpStarted &&
-                            <div className="w-full max-w-60 mb-4">
-                                <div className="mb-2">
-                                    <ProgressBar label="You" percent={ownProgressPercent} colorClass="bg-progress-own" size="sm" />
-                                </div>
-                                <div>
-                                    <ProgressBar
-                                        label={pvpOpponentName}
-                                        percent={opponentProgressPercent}
-                                        colorClass={opponentBarColor(pvpOpponentStatus)}
-                                        size="sm"
-                                    />
-                                </div>
-                                <FlagCounter remainingFlags={remainingFlags} variant="inline" />
-                            </div>
-                        }
-
-                        <div className="flex items-center gap-5 mb-5">
+                    <div className="xl:hidden sticky top-0 z-10 w-full bg-surface-page border-b-pixel border-edge flex items-center justify-between gap-3 px-2 py-1">
+                        <FlagCounter remainingFlags={remainingFlags} variant="hud" />
+                        <div className="flex items-center gap-2">
                             <Switch
                                 checked={isChecked}
                                 onChange={setIsChecked}
                                 aria-label={`Toggle between click and flag mode. Currently in ${isChecked ? "click" : "flag"} mode`}
                             />
-                            <p className="mt-1.5" aria-hidden="true">{isChecked ? "Click" : "Flag"} Mode</p>
+                            <span className="text-pixel-sm" aria-hidden="true">
+                                {isChecked ? "Click" : "Flag"}
+                            </span>
                         </div>
+                        {mode !== 'pvp' &&
+                            <button
+                                type="button"
+                                onClick={openPlayersDialog}
+                                aria-label="View player scores"
+                                className="cursor-pointer shrink-0">
+                                <TrophyIcon size={28} />
+                            </button>
+                        }
                     </div>
 
                     {/* ------------------------------------------------------------ */}
@@ -309,6 +287,40 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
                             <StatusBanner startPvpGame={startPvpGame} emitConfetti={emitConfetti} variant="mobile" />
                         </div>
                         <Board {...boardProps} />
+                    </div>
+
+                    {/* ------------------------------------------------------------ */}
+                    {/* MOBILE: everything else, below the board                     */}
+                    {/*                                                              */}
+                    {/* The board comes FIRST on a phone. It used to sit under ~420px */}
+                    {/* of chrome, so the game was below the fold on the screens most */}
+                    {/* players arrive on. Splitting the mobile controls around the   */}
+                    {/* board keeps DOM order doing the work — still exactly one      */}
+                    {/* <Board>, still no `order` juggling.                           */}
+                    {/* ------------------------------------------------------------ */}
+                    <div className="flex flex-col items-center gap-2 xl:hidden mt-6 w-full">
+                        {mode === 'pvp' && pvpStarted &&
+                            <div className="w-full max-w-60 mb-4">
+                                <div className="mb-2">
+                                    <ProgressBar label="You" percent={ownProgressPercent} colorClass="bg-progress-own" size="sm" />
+                                </div>
+                                <div>
+                                    <ProgressBar
+                                        label={pvpOpponentName}
+                                        percent={opponentProgressPercent}
+                                        colorClass={opponentBarColor(pvpOpponentStatus)}
+                                        size="sm"
+                                    />
+                                </div>
+                            </div>
+                        }
+
+                        <div className="flex items-center gap-8">
+                            {leaveButton}
+                            {actionButtons}
+                        </div>
+
+                        {roomPanel("my-6 max-w-60", true)}
                     </div>
 
                     <div className="hidden xl:flex flex-col sticky top-20">
