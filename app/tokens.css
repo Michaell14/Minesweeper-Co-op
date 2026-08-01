@@ -240,6 +240,11 @@
      * Derived from the border rather than hardcoded: a literal would silently
      * under-reserve the moment --ms-border-width changed, and the board would
      * start overflowing phones again with nothing to show for it.
+     *
+     * Only the border and a little slack live here. Page padding and scrollbars
+     * used to need reserving too, back when the maths measured the window —
+     * board.module.css measures the board's own container now, so both are
+     * already excluded before this is subtracted.
      */
     --ms-board-inset: calc(2 * var(--ms-border-width) + 8px);
     --ms-cell-closed: var(--ms-palette-cell-closed);

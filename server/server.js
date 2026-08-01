@@ -265,14 +265,27 @@ io.on('connection', async (socket) => {
     });
 
     socket.on(CLIENT_EVENTS.PLAYER_LEAVE, async () => {
+        // Two independent jobs, so they get two independent try/catch blocks.
+        // Sharing one meant a Redis blip in forgetRoom skipped removePlayer
+        // entirely, and leaving does NOT disconnect the socket — the client
+        // emits this and returns to the landing page still connected. So the
+        // leaver stayed in the room: still in the score table, still counted,
+        // still keeping the room alive, with their own screen already home.
         try {
             // Walking out on purpose is the one exit that must not be resumed.
             // `disconnect` below runs the same removePlayer and deliberately
             // leaves the session's room intact, which is what a reload rides.
             await forgetRoom(socket);
+        } catch (error) {
+            // Resume stays armed if this failed — there is nothing better to do
+            // about that here, but it must not cost them the leave as well.
+            console.error('Error forgetting room on playerLeave:', error);
+        }
+
+        try {
             await removePlayer(socket, socket.id);
         } catch (error) {
-            console.error('Error in playerLeave:', error);
+            console.error('Error removing player on playerLeave:', error);
         }
     });
 

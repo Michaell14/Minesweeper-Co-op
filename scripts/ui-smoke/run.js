@@ -139,6 +139,17 @@ async function coop(page) {
         'a second copy means Grid.tsx is rendering the board per layout again');
     check(await page.evaluate(`return document.body.textContent.includes(${JSON.stringify(room)});`), 'room code is displayed');
 
+    // Desktop cells sit at the ceiling. The window here is 1440px, which has
+    // room to spare, so anything smaller means the fit maths is measuring the
+    // wrong box — the failure mode when 100cqw resolved against a container
+    // that had collapsed to zero, which floors every cell instead.
+    const deskCell = parseFloat(await page.evaluate(
+        `return getComputedStyle(document.querySelector('[role=gridcell]')).width;`));
+    const deskMax = parseFloat(await page.evaluate(
+        `return getComputedStyle(document.documentElement).getPropertyValue('--ms-cell-size');`));
+    check(deskCell === deskMax, `desktop cells are at the ceiling (${deskCell}px)`,
+        `cell is ${deskCell}px, not the ${deskMax}px ceiling — the fit maths is measuring the wrong box`);
+
     const flagsRemaining = () => page.evaluate(`
         const el = [...document.querySelectorAll('strong')].find(e => /^\\s*-?\\d+\\s*$/.test(e.textContent));
         return el ? parseInt(el.textContent, 10) : null;
@@ -308,24 +319,73 @@ async function mobileFit(page) {
         const board = document.querySelector('[role=grid]');
         const r = board.getBoundingClientRect();
         const cell = board.querySelector('[role=gridcell]');
+        const s = getComputedStyle(board);
+        const px = (v) => parseFloat(v) || 0;
+        const cols = px(s.getPropertyValue('--board-cols-safe'));
+        const gap = px(s.getPropertyValue('--cell-gap'));
+        const min = px(s.getPropertyValue('--ms-cell-min'));
+        // --ms-board-inset is a calc(), and getPropertyValue hands back the
+        // expression rather than a length. Measuring a throwaway element makes
+        // the browser resolve it, so this tracks the token instead of a copy.
+        const probe = document.createElement('div');
+        probe.style.cssText = 'position:absolute;visibility:hidden;width:var(--ms-board-inset)';
+        board.appendChild(probe);
+        const inset = probe.getBoundingClientRect().width;
+        probe.remove();
         return JSON.stringify({
             board: Math.round(r.width),
             viewport: window.innerWidth,
             scrollWidth: document.documentElement.scrollWidth,
             chromeAbove: Math.round(r.top + window.scrollY),
-            cell: Math.round(parseFloat(getComputedStyle(cell).width)),
+            // Unrounded on purpose — see the floor check below.
+            cell: parseFloat(getComputedStyle(cell).width),
+            // The scroll container the board actually has to fit inside. Not the
+            // window: this excludes the page padding AND both scrollbars.
+            container: board.closest('[aria-label="Game board container"]').clientWidth,
+            min,
+            // The exact width at which the fit maths stops beating the floor:
+            // cell-fit > min iff (space - inset - (cols+1)*gap) / cols > min.
+            // Same terms as the calc in board.module.css, so this is a
+            // threshold rather than a guess.
+            floorWidth: inset + cols * min + (cols + 1) * gap,
         });
     `));
 
     check(m.board <= m.viewport, `the board fits the viewport (${m.board}px in ${m.viewport}px)`,
         `board ${m.board}px overflows ${m.viewport}px`);
+    // Against the CONTAINER, not the window. Both other width checks pass on a
+    // board that overflows its container, because the container's own scroll
+    // absorbs it and it never reaches the document — which is how a 367px board
+    // in 343px of room shipped looking green.
+    //
+    // Unless the cells are already at --ms-cell-min: below that the board is
+    // allowed to overflow and scroll, which is the whole point of the floor.
+    //
+    // The width is asserted to be real as well: a container that measured 0
+    // satisfied "or the cells are floored" every time, so this check quietly
+    // stopped meaning anything at the exact moment the layout broke.
+    check(m.container > 0 && (m.board <= m.container || m.cell <= m.min),
+        `the board fits its container (${m.board}px in ${m.container}px)`,
+        `board ${m.board}px overflows its ${m.container}px container above the floor`);
     check(m.scrollWidth <= m.viewport, 'the page does not scroll sideways',
         `scrollWidth ${m.scrollWidth}px vs viewport ${m.viewport}px`);
     check(m.chromeAbove < 300, `the board is above the fold (${m.chromeAbove}px of chrome)`,
         `${m.chromeAbove}px of chrome above the board`);
     // Guards the fit maths from collapsing to the floor if --board-cols breaks.
-    check(m.cell > 18, `cells are sized to fit, not floored (${m.cell}px)`,
-        `cell is ${m.cell}px, i.e. at --ms-cell-min`);
+    //
+    // Only when there was room to do better: how much room a phone-width
+    // container has left after the page padding and the platform's scrollbars
+    // is not ours to decide, and CI's classic 15px bars leave less than macOS's
+    // overlay ones. Floor-because-it-genuinely-does-not-fit is correct
+    // behaviour; floor-with-room-to-spare is the broken calc this is here for.
+    //
+    // Compared unrounded either way: sixteen columns work out at 18.31px on a
+    // 375px phone, and rounding that to 18 is indistinguishable from the clamp
+    // bottoming out.
+    const hasRoom = m.container > m.floorWidth;
+    check(m.cell > m.min || !hasRoom,
+        `cells are sized to fit, not floored (${m.cell.toFixed(2)}px in ${m.container}px)`,
+        `cell is ${m.cell}px, i.e. at --ms-cell-min, with ${m.container}px to fit ${m.floorWidth}px`);
 
     await page.send('Emulation.clearDeviceMetricsOverride');
 }
