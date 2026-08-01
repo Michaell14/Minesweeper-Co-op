@@ -44,6 +44,7 @@ export declare const SERVER_EVENTS: {
     readonly RESET_EVERYONE: 'resetEveryone';
     readonly RECEIVE_CONFETTI: 'receiveConfetti';
     readonly PLAYER_HOVER_UPDATE: 'playerHoverUpdate';
+    readonly GAME_CLOCK: 'gameClock';
     readonly PLAYER_LEFT: 'playerLeft';
     readonly PVP_ROOM_FULL: 'pvpRoomFull';
     readonly PVP_ROOM_READY: 'pvpRoomReady';

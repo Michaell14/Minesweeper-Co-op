@@ -53,6 +53,7 @@ const SERVER_EVENTS = {
     // Presence and fun
     RECEIVE_CONFETTI: 'receiveConfetti',
     PLAYER_HOVER_UPDATE: 'playerHoverUpdate',
+    GAME_CLOCK: 'gameClock',
     PLAYER_LEFT: 'playerLeft',
 
     // PVP

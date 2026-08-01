@@ -47,7 +47,7 @@ export default function Home() {
                 />
             )}
 
-            <GameDialogs />
+            <GameDialogs resetGame={actions.resetGame} />
         </>
     );
 };

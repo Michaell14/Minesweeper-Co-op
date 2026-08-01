@@ -2,6 +2,7 @@ const { resetPlayerScores, updatePlayerStatsInRoom } = require('./playerUtils');
 const { io } = require('./initializeClient');
 const { isBoardSolvable } = require('./solverUtils');
 const roomRepo = require('../data/roomRepo');
+const { stoppedAt } = require('../domain/clock');
 const { createEmptyBoard, projectBoard } = require('../domain/board');
 const { SERVER_EVENTS } = require('../../shared/events');
 
@@ -142,13 +143,16 @@ const checkWin = async (roomState, board, room) => {
             }
         }
 
+        const endedAt = Date.now();
         await roomRepo.setFields(room, {
             gameWon: 'true',
-            board: JSON.stringify(board)
+            board: JSON.stringify(board),
+            endedAt: endedAt.toString()
         });
 
         // Terminal state: the game is won, so the full layout can be shown.
         io.to(room).emit(SERVER_EVENTS.BOARD_UPDATE, projectBoard(board, { revealMines: true }));
+        io.to(room).emit(SERVER_EVENTS.GAME_CLOCK, stoppedAt(roomState, endedAt));
         io.to(room).emit(SERVER_EVENTS.GAME_WON);
     }
 };
@@ -222,6 +226,7 @@ const resetGame = async (room) => {
 
     // Emit events to reset the board and players
     io.to(room).emit(SERVER_EVENTS.BOARD_UPDATE, newBoard);
+    io.to(room).emit(SERVER_EVENTS.GAME_CLOCK, { startedAt: null, endedAt: null });
     io.to(room).emit(SERVER_EVENTS.RESET_EVERYONE);
 
     // Update room state and reset player scores in Redis
@@ -230,6 +235,8 @@ const resetGame = async (room) => {
         gameOver: 'false',
         gameWon: 'false',
         initialized: 'false',
+        startedAt: '',
+        endedAt: '',
         gameOverName: '',
     });
 

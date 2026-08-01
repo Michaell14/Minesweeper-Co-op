@@ -26,9 +26,10 @@ import StatusBanner from '@/components/game/StatusBanner';
 import ProgressBar, { opponentBarColor } from '@/components/game/ProgressBar';
 import ScoreTable from '@/components/game/ScoreTable';
 import FlagCounter from '@/components/game/FlagCounter';
+import Timer from '@/components/game/Timer';
+import RoomPanel from '@/components/game/RoomPanel';
 import { useGameStats } from '@/hooks/useGameStats';
 import { DIALOGS, openDialog } from '@/lib/dialogs';
-import { buildJoinUrl } from '@/lib/roomLink';
 
 /**
  * Grid Component Props
@@ -74,27 +75,6 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
      * Open the player stats dialog (mobile view only)
      */
     const openPlayersDialog = () => openDialog(DIALOGS.players);
-
-    /** Copies a link that pre-fills this room code and jumps straight to the name dialog. */
-    const [linkCopied, setLinkCopied] = React.useState(false);
-    const copyTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
-
-    // Cancels the pending "reset to Copy Link" timer if the panel unmounts first
-    // (e.g. leaving the room within 2s of copying).
-    React.useEffect(() => () => {
-        if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
-    }, []);
-
-    const copyRoomLink = React.useCallback(async () => {
-        try {
-            await navigator.clipboard.writeText(buildJoinUrl(room));
-            setLinkCopied(true);
-            if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
-            copyTimeoutRef.current = setTimeout(() => setLinkCopied(false), 2000);
-        } catch {
-            // Clipboard denied/unavailable — button just stays "Copy Link".
-        }
-    }, [room]);
 
     // ============================================================================
     // CHORDING DETECTION
@@ -161,41 +141,6 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
         </>
     );
 
-    /*
-     * `centered` is a Panel prop rather than a text-center class because it
-     * also centres the title knocked out of the top border — which is what the
-     * mobile panel's old `nes-container is-centered with-title` did. Passing
-     * only text-center centres the body and leaves the title hard left.
-     */
-    const roomPanel = (extraClass: string, centered = false) => (
-        <Panel
-            title={<span className="text-pixel-sm">Room:</span>}
-            centered={centered}
-            className={extraClass}
-            role="region"
-            aria-label="Room information">
-            <p className="text-pixel-md" aria-label={`Room code: ${room}`}> {room}</p>
-            <Button
-                intent="primary"
-                size="sm"
-                className="mt-2"
-                onClick={copyRoomLink}
-                aria-label="Copy shareable room link to clipboard">
-                {linkCopied ? 'Copied!' : 'Copy Link'}
-            </Button>
-            {/*
-              * aria-live on the button itself is unreliable -- screen readers
-              * don't consistently treat an interactive control as a live
-              * region, and its aria-label above never changes anyway. A
-              * dedicated hidden region is the pattern that actually gets
-              * announced.
-              */}
-            <span className="sr-only" aria-live="polite">
-                {linkCopied ? 'Link copied to clipboard' : ''}
-            </span>
-        </Panel>
-    );
-
     const leaveButton = (
         <Button
             intent="warning"
@@ -235,6 +180,7 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
                     {/* ------------------------------------------------------------ */}
                     <div className="xl:hidden sticky top-0 z-10 w-full bg-surface-page border-b-pixel border-edge flex items-center justify-between gap-3 px-2 py-1">
                         <FlagCounter remainingFlags={remainingFlags} variant="hud" />
+                        <Timer variant="hud" />
                         <div className="flex items-center gap-2">
                             <Switch
                                 checked={isChecked}
@@ -261,7 +207,7 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
                     {/* ------------------------------------------------------------ */}
                     <div className="hidden xl:flex flex-col sticky top-20">
                         {leaveButton}
-                        {roomPanel("max-w-60 mt-6")}
+                        <RoomPanel className="max-w-60 mt-6" />
                     </div>
 
                     {/*
@@ -320,7 +266,7 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
                             {actionButtons}
                         </div>
 
-                        {roomPanel("my-6 max-w-60", true)}
+                        <RoomPanel className="my-6 max-w-60" centered />
                     </div>
 
                     <div className="hidden xl:flex flex-col sticky top-20">
@@ -381,6 +327,7 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
                             {/* Score table - only show in co-op mode */}
                             {mode !== 'pvp' && <ScoreTable />}
                             <FlagCounter remainingFlags={remainingFlags} variant="panel" />
+                            <Timer variant="panel" />
                         </div>
                     </div>
                 </div>

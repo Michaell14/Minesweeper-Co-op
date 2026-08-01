@@ -10,7 +10,7 @@
 
 export const DIALOGS = {
     // Owned by app/page.tsx (see components/dialogs/GameDialogs.tsx)
-    gameOver: 'dialog-game-over',
+    gameSummary: 'dialog-game-summary',
     createRoomError: 'dialog-create-room-error',
     joinRoomError: 'dialog-join-room-error',
     roomDoesNotExist: 'dialog-room-does-not-exist-error',
