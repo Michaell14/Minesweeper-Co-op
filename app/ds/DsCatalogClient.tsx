@@ -50,7 +50,11 @@ function Section({
  */
 function BoardPreview() {
     return (
-        <div className={board.gameBoard}>
+        <div
+            className={board.gameBoard}
+            /* The board sizes cells to fit; this preview is a single row of 11. */
+            style={{ '--board-cols': 11 } as React.CSSProperties}
+        >
             <div className={board.gameRow}>
                 {NUMBERS.map((n) => (
                     <div

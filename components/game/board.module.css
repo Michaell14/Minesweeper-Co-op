@@ -6,8 +6,25 @@
      * runtime to position remote cursors. The responsive shrink lives on the
      * token now (app/tokens.css), so there is no media query here.
      */
-    --cell-size: var(--ms-cell-size);
     --cell-gap: var(--ms-cell-gap);
+    /*
+     * Fit the board to the viewport instead of overflowing it.
+     *
+     * --board-cols is set inline by Board.tsx because only it knows the shape.
+     * The token is the ceiling, so desktop is unchanged at 40px and a phone
+     * gets whatever fits, down to --ms-cell-min.
+     *
+     * The fallback matters: without a value the calc() is invalid, --cell-size
+     * resolves to nothing and cells collapse to non-square boxes. This
+     * stylesheet has a second consumer in the /ds catalog, which is exactly
+     * where that happened.
+     */
+    --board-cols-safe: var(--board-cols, 16);
+    --cell-fit: calc(
+        (100vw - var(--ms-board-inset) - (var(--board-cols-safe) + 1) * var(--cell-gap))
+        / var(--board-cols-safe)
+    );
+    --cell-size: clamp(var(--ms-cell-min), var(--cell-fit), var(--ms-cell-size));
     display: grid;
     gap: var(--cell-gap);
     width: fit-content;

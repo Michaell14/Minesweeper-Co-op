@@ -4,25 +4,27 @@ import { Panel } from '@/components/ds';
 export interface FlagCounterProps {
     remainingFlags: number;
     /**
-     * The three places this appears do not agree, and did not before either:
-     *   panel  -> boxed, just the number          (desktop side panel)
-     *   dialog -> boxed, "N left"                 (mobile players dialog)
-     *   inline -> plain centred text, "N left"    (mobile PVP progress block)
+     * Where it is being shown:
+     *   panel  -> boxed, just the number   (desktop side panel)
+     *   dialog -> boxed, "N left"          (mobile players dialog)
+     *   hud    -> bare, no box             (mobile sticky bar)
      */
-    variant: 'panel' | 'dialog' | 'inline';
+    variant: 'panel' | 'dialog' | 'hud';
 }
 
 /** Mines remaining, i.e. total mines minus flags placed. */
 export default function FlagCounter({ remainingFlags, variant }: FlagCounterProps) {
     const label = `${remainingFlags} flags remaining`;
 
-    if (variant === 'inline') {
+    /* The sticky bar is tight on height, so no panel chrome around it. */
+    if (variant === 'hud') {
         return (
-            <p className="text-pixel-sm mt-4 text-center" role="status" aria-label={label}>
-                🚩 <strong>{remainingFlags}</strong> left
+            <p className="text-pixel-sm whitespace-nowrap" role="status" aria-label={label}>
+                🚩 <strong>{remainingFlags}</strong>
             </p>
         );
     }
+
 
     return (
         <Panel

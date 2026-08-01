@@ -19,11 +19,14 @@ export interface BoardProps {
 export default function Board({ toggleFlag, openCell, chordCell, emitCellHover, handleBoardLeave }: BoardProps) {
     const board = useMinesweeperStore((state) => state.board);
     const boardRef = useRef<HTMLDivElement>(null);
+    const cols = board[0]?.length || 0;
 
     return (
         <div
             ref={boardRef}
             className={styles.gameBoard}
+            /* The stylesheet sizes cells to fit; only this component knows the shape. */
+            style={{ '--board-cols': cols } as React.CSSProperties}
             onMouseLeave={handleBoardLeave}
             role="grid"
             aria-label={`Minesweeper game board, ${board.length} rows by ${board[0]?.length || 0} columns`}>
