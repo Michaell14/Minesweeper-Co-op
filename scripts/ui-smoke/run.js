@@ -313,18 +313,32 @@ async function mobileFit(page) {
             viewport: window.innerWidth,
             scrollWidth: document.documentElement.scrollWidth,
             chromeAbove: Math.round(r.top + window.scrollY),
-            cell: Math.round(parseFloat(getComputedStyle(cell).width)),
+            // Unrounded on purpose — see the floor check below.
+            cell: parseFloat(getComputedStyle(cell).width),
+            // The scroll container the board actually has to fit inside, which
+            // is narrower than the window by the page gutter.
+            container: board.closest('[aria-label="Game board container"]').clientWidth,
         });
     `));
 
     check(m.board <= m.viewport, `the board fits the viewport (${m.board}px in ${m.viewport}px)`,
         `board ${m.board}px overflows ${m.viewport}px`);
+    // Against the CONTAINER, not the window. The two checks above both pass on
+    // a board that overflows its padded container, because the container's own
+    // overflow-scroll absorbs it and never reaches the document — which is how
+    // a 367px board in 343px of room shipped looking green.
+    check(m.board <= m.container, `the board fits its container (${m.board}px in ${m.container}px)`,
+        `board ${m.board}px overflows its ${m.container}px container`);
     check(m.scrollWidth <= m.viewport, 'the page does not scroll sideways',
         `scrollWidth ${m.scrollWidth}px vs viewport ${m.viewport}px`);
     check(m.chromeAbove < 300, `the board is above the fold (${m.chromeAbove}px of chrome)`,
         `${m.chromeAbove}px of chrome above the board`);
     // Guards the fit maths from collapsing to the floor if --board-cols breaks.
-    check(m.cell > 18, `cells are sized to fit, not floored (${m.cell}px)`,
+    // Compared unrounded: sixteen columns on a 375px screen now work out at
+    // 18.3px, and rounding that to 18 is indistinguishable from the clamp
+    // bottoming out. A broken calc lands on exactly --ms-cell-min, so only the
+    // fractional part separates "just fits" from "gave up".
+    check(m.cell > 18, `cells are sized to fit, not floored (${m.cell.toFixed(2)}px)`,
         `cell is ${m.cell}px, i.e. at --ms-cell-min`);
 
     await page.send('Emulation.clearDeviceMetricsOverride');

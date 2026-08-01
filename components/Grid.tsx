@@ -153,7 +153,9 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
 
     return (
         <>
-            <div className="w-full max-w-[1350px] mx-auto px-4 min-h-[94vh] pt-10 pb-6 xl:pt-20 xl:pb-16">
+            {/* px-gutter, not px-4: the board's fit maths subtracts the same
+                token, and a literal here would let the two drift. */}
+            <div className="w-full max-w-[1350px] mx-auto px-gutter min-h-[94vh] pt-10 pb-6 xl:pt-20 xl:pb-16">
 
                 <h1 className="text-center font-bold text-pixel-2xl md:text-pixel-4xl">Minesweeper Co-Op</h1>
 

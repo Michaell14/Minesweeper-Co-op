@@ -236,12 +236,24 @@
     --ms-cell-min: 18px;
     --ms-cell-gap: 3px;
     /*
-     * Space the board needs beyond its cells, subtracted before the fit maths.
-     * Derived from the border rather than hardcoded: a literal would silently
-     * under-reserve the moment --ms-border-width changed, and the board would
-     * start overflowing phones again with nothing to show for it.
+     * Padding on the page container that wraps the board. Surfaced to Tailwind
+     * as `px-gutter` so Grid.tsx and the fit maths below cannot drift apart —
+     * they did, and the board overflowed by exactly the padding it forgot.
      */
-    --ms-board-inset: calc(2 * var(--ms-border-width) + 8px);
+    --ms-page-gutter: 16px;
+    /*
+     * Space the board needs beyond its cells, subtracted before the fit maths.
+     * Derived from the border and the gutter rather than hardcoded: a literal
+     * would silently under-reserve the moment either changed, and the board
+     * would start overflowing phones again with nothing to show for it.
+     *
+     * The gutter is in here because 100vw is the WINDOW, not the space the
+     * board actually gets. Leaving it out sized the board to the full viewport
+     * while it lived inside a padded container — 367px of board in 343px of
+     * room on a 375px phone, so the last column sat behind a scroll the fit
+     * maths existed to remove.
+     */
+    --ms-board-inset: calc(2 * var(--ms-border-width) + 2 * var(--ms-page-gutter) + 8px);
     --ms-cell-closed: var(--ms-palette-cell-closed);
     --ms-cell-light: var(--ms-palette-cell-light);
     --ms-cell-shade: var(--ms-palette-cell-shade);
