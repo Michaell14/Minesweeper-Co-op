@@ -23,11 +23,10 @@ const sessionIdOf = (socket) => socket.handshake?.auth?.sessionId || '';
  * `joinRoom`, so a resume runs the same validated path as a manual join rather
  * than a parallel one that could drift from it.
  *
- * Co-op only. A PVP board is stored per player behind a `pvpPlayerIndex` that
- * does not survive the socket swap, so resuming a race would also need that
- * player's own board and progress restored — a bigger piece than this, and
- * dropping someone into a PVP room with an empty board is worse than sending
- * them to the landing page.
+ * Works for both modes. PVP needs more than co-op does — the room addresses
+ * each racer's board by socket id, so the slot has to be repointed and the
+ * player's index carried across — and that lives in `restorePvpRacer`, which
+ * runs as part of the join this offer triggers.
  */
 const offerResume = async (socket) => {
     const sessionId = sessionIdOf(socket);
@@ -40,8 +39,6 @@ const offerResume = async (socket) => {
 
     // The room may have expired while they were away.
     if (!(await roomRepo.exists(room))) return false;
-
-    if ((await roomRepo.getField(room, 'mode')) === 'pvp') return false;
 
     socket.emit(SERVER_EVENTS.SESSION_RESUME, { room, name });
     return true;

@@ -1,10 +1,10 @@
 /**
  * Rejoining a room after a reload.
  *
- * Every rule here is a "don't": don't resume someone who left on purpose, don't
- * offer a room that has expired, don't offer a PVP race whose per-player board
- * cannot be restored. Getting any of them wrong is silent — the player is simply
- * dropped somewhere they did not ask to be, and no error is raised.
+ * Most of the rules here are a "don't": don't resume someone who left on
+ * purpose, don't offer a room that has expired, don't offer one to a browser
+ * that was never in a room. Getting any of them wrong is silent — the player is
+ * simply dropped somewhere they did not ask to be, and no error is raised.
  */
 
 const roomRepo = require('../data/roomRepo');
@@ -19,11 +19,10 @@ const socketWith = (sessionId) => ({
     handshake: { auth: sessionId === undefined ? {} : { sessionId } },
 });
 
-/** A live co-op room this session was last seen in. */
-const arrange = ({ session = { room: ROOM, name: 'Alice' }, exists = true, mode = 'co-op' } = {}) => {
+/** A live room this session was last seen in. */
+const arrange = ({ session = { room: ROOM, name: 'Alice' }, exists = true } = {}) => {
     jest.spyOn(sessionRepo, 'getState').mockResolvedValue(session);
     jest.spyOn(roomRepo, 'exists').mockResolvedValue(exists);
-    jest.spyOn(roomRepo, 'getField').mockResolvedValue(mode);
 };
 
 afterEach(() => jest.restoreAllMocks());
@@ -84,16 +83,18 @@ describe('offering a resume', () => {
     });
 
     /*
-     * A PVP board lives behind a pvpPlayerIndex that does not survive the socket
-     * swap, so a resumed racer would land on an empty grid. Sending them to the
-     * landing page is the honest outcome until that is restored too.
+     * The offer is mode-blind on purpose. What a PVP racer needs beyond a co-op
+     * player — their slot repointed at the new socket, their index carried over,
+     * their own board sent back — happens in `restorePvpRacer` during the join
+     * this triggers, not here. Gating the offer on mode would mean two places
+     * deciding whether a resume is possible.
      */
-    test('a PVP race is not offered, because the board cannot be restored yet', async () => {
-        arrange({ mode: 'pvp' });
+    test('a race is offered too, and the join is what restores it', async () => {
+        arrange();
         const socket = socketWith(SESSION);
 
-        await expect(offerResume(socket)).resolves.toBe(false);
-        expect(socket.emit).not.toHaveBeenCalled();
+        await expect(offerResume(socket)).resolves.toBe(true);
+        expect(socket.emit).toHaveBeenCalledWith('sessionResume', { room: ROOM, name: 'Alice' });
     });
 });
 
