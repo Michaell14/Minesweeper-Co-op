@@ -84,14 +84,22 @@ const addPlayerToRoom = async (room, socketId, name, sessionId) => {
         await roomRepo.setFields(room, { hostSocket: socketId });
     }
 
+    /*
+     * Catching the ARRIVAL up on an outcome they missed, so it goes to them and
+     * not to the room. Everyone already here saw it happen; re-broadcasting
+     * re-opens the end-of-game summary on their screen and fires the confetti
+     * again. That was rare when it took a deliberate join of a finished room —
+     * now that a reload rejoins automatically, it would fire every time someone
+     * refreshed.
+     */
     if (roomState.gameWon === "true") {
-        io.to(room).emit(SERVER_EVENTS.GAME_WON);
+        io.to(socketId).emit(SERVER_EVENTS.GAME_WON);
     }
 
     if (roomState.gameOver === "true") {
         // Get the name of whoever hit the mine (stored in room state or empty)
         const gameOverName = roomState.gameOverName || "Someone";
-        io.to(room).emit(SERVER_EVENTS.GAME_OVER, gameOverName);
+        io.to(socketId).emit(SERVER_EVENTS.GAME_OVER, gameOverName);
     }
 
     const roomPlayers = roomRepo.playersFrom(roomState);

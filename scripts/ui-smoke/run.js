@@ -330,6 +330,85 @@ async function mobileFit(page) {
     await page.send('Emulation.clearDeviceMetricsOverride');
 }
 
+/**
+ * A reload must not cost you your game — and must not drag you back into one
+ * you walked out of.
+ *
+ * Both halves matter and they pull in opposite directions, which is exactly why
+ * this is worth a browser check. Server-side they are indistinguishable: a
+ * deliberate leave and a dropped connection reach the same `removePlayer`. The
+ * only thing separating them is that leaving clears the room from the session,
+ * and nothing but an end-to-end reload proves that still holds.
+ */
+async function rejoinOnReload(page) {
+    console.log('\n\x1b[1m--- REJOIN ---\x1b[0m');
+    const room = 'smokejoin' + Date.now().toString().slice(-6);
+
+    /*
+     * Start from the landing page, whatever the previous section left behind.
+     * This is not defensive noise: with resume in place, a tab that ended inside
+     * a room now lands straight back in it, so `goto` alone no longer guarantees
+     * a create form. That is the feature working, and this section has to arm
+     * itself rather than inherit a clean slate from whoever ran before it.
+     */
+    await page.goto(CLIENT);
+    await sleep(1500);
+    await page.evaluate(`
+        const leave = [...document.querySelectorAll('button')]
+            .find(b => /Return to Home/i.test(b.textContent));
+        if (leave) leave.click();
+        return true;
+    `);
+    await page.waitFor(`!!document.querySelector('form[aria-label="Create new room form"] button[type=submit]')`,
+        { timeout: 60000, label: 'landing renders' });
+    await enterRoom(page, { room, name: 'Reloader' });
+    await page.waitFor(`${cellCount} === 256`, { label: 'board renders before the reload' });
+
+    // Open a cascade, so the restored board has something to be wrong about.
+    await page.evaluate(`
+        const cells = [...document.querySelectorAll('[role=gridcell]')];
+        const inner = [...cells[8 * 16 + 8].children].find(d => d.offsetParent !== null);
+        inner.click();
+        return true;
+    `);
+    await page.waitFor(`${revealedCount} > 1`, { label: 'a cascade opens' });
+    const openedBefore = await page.evaluate(`return ${revealedCount};`);
+
+    await page.goto(CLIENT);
+    await page.waitFor(`${cellCount} === 256`, { timeout: 30000, label: 'the reload lands back in the room' });
+    pass('a reload puts the player back in their room');
+
+    const openedAfter = await page.evaluate(`return ${revealedCount};`);
+    check(openedAfter === openedBefore,
+        `the board comes back as it was (${openedAfter} cells open)`,
+        `had ${openedBefore} open before the reload, ${openedAfter} after`);
+
+    const clock = await page.evaluate(`
+        const t = document.querySelector('[role=timer]');
+        return t ? t.getAttribute('aria-label') : 'no timer';
+    `);
+    check(/^Elapsed time/.test(clock), `the clock survives the reload (${clock})`,
+        `timer read "${clock}"`);
+
+    // The other half: leaving on purpose must NOT be resumed.
+    await page.evaluate(`
+        const leave = [...document.querySelectorAll('button')]
+            .find(b => /Return to Home/i.test(b.textContent));
+        if (!leave) throw new Error('no leave button');
+        leave.click();
+        return true;
+    `);
+    await page.waitFor(`${cellCount} === 0`, { label: 'leaving returns to the landing page' });
+
+    await page.goto(CLIENT);
+    await page.waitFor(`!!document.querySelector('form[aria-label="Create new room form"] button[type=submit]')`,
+        { timeout: 30000, label: 'landing renders after the second reload' });
+    await sleep(1500); // Give a resume, if one were wrongly offered, time to land.
+    check(await page.evaluate(`return ${cellCount};`) === 0,
+        'leaving on purpose is not undone by a reload',
+        'a reload dragged the player back into the room they left');
+}
+
 async function pvp(host, guest) {
     console.log('\n\x1b[1m--- PVP ---\x1b[0m');
     const room = 'smokepvp' + Date.now().toString().slice(-6);
@@ -490,6 +569,7 @@ async function joinLink(host, guest) {
         await coop(page);
         await sizeAndDifficulty(page);
         await mobileFit(page);
+        await rejoinOnReload(page);
 
         const host = await attach(await newTarget('about:blank'));
         const guest = await attach(await newTarget('about:blank'));

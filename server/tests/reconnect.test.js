@@ -2,7 +2,7 @@
  * Tests for reconnect handling and the room grace period.
  *
  * Players are keyed by socket id, so a reload produces a brand new player. The
- * session id the browser keeps in localStorage is what lets the server tell
+ * session id the browser keeps in sessionStorage is what lets the server tell
  * "same person, new socket" from "someone else joined", which matters most in
  * PVP where a ghost record reads as a third player.
  */
@@ -206,5 +206,49 @@ describe('the last player leaving', () => {
 
         expect(client.expire).not.toHaveBeenCalledWith(`room:${ROOM}`, 600);
         expect(playersWritten()).toEqual(['sock-2']);
+    });
+});
+
+/**
+ * Joining a room whose game has already ended.
+ *
+ * REGRESSION. These two catch the ARRIVAL up on an outcome they missed, but they
+ * were sent to the whole room. Everyone already there watched it happen, so a
+ * re-broadcast re-opens the end-of-game summary on their screen and fires the
+ * confetti a second time. It was rare while it took a deliberate join of a
+ * finished room — resume-on-reload turned it into "every time anyone refreshes".
+ */
+describe('catching up a player who joins a finished game', () => {
+    const LATE = 'sock-late';
+
+    /** Every socket id an event of this name was sent to. */
+    const targetsOf = (event) =>
+        mockTo.mock.calls
+            .map((call, i) => ({ target: call[0], sent: mockEmit.mock.calls[i] }))
+            .filter(({ sent }) => sent && sent[0] === event)
+            .map(({ target }) => target);
+
+    test('the loss is replayed to them, not to everyone', async () => {
+        client.hGetAll.mockImplementation(async (key) =>
+            key.startsWith('room:')
+                ? roomState({ gameOver: 'true', gameOverName: 'Alice' })
+                : { name: 'Bob', score: '0' }
+        );
+
+        await addPlayerToRoom(ROOM, LATE, 'Bob', 'sess-late');
+
+        expect(targetsOf('gameOver')).toEqual([LATE]);
+        expect(targetsOf('gameOver')).not.toContain(ROOM);
+    });
+
+    test('the win is replayed to them, not to everyone', async () => {
+        client.hGetAll.mockImplementation(async (key) =>
+            key.startsWith('room:') ? roomState({ gameWon: 'true' }) : { name: 'Bob', score: '0' }
+        );
+
+        await addPlayerToRoom(ROOM, LATE, 'Bob', 'sess-late');
+
+        expect(targetsOf('gameWon')).toEqual([LATE]);
+        expect(targetsOf('gameWon')).not.toContain(ROOM);
     });
 });

@@ -155,6 +155,18 @@ export interface ServerToClientEvents {
      * until the game ends.
      */
     gameClock: (payload: { startedAt: number | null; endedAt: number | null }) => void;
+    /**
+     * "You were in a room, and it is still there."
+     *
+     * Sent on connect when the handshake's session id still maps to a live
+     * room. The client answers with a normal `joinRoom`, so a resume runs the
+     * same path a manual join does rather than a parallel one.
+     *
+     * Only sent when the player did NOT leave on purpose — an explicit leave
+     * clears the room from the session, so this cannot drag someone back into a
+     * game they walked away from.
+     */
+    sessionResume: (payload: { room: string; name: string }) => void;
     playerLeft: (socketId: string) => void;
 
     // --- PVP ---

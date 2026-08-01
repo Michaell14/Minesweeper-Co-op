@@ -4,7 +4,7 @@ import { useMinesweeperStore } from "@/app/store";
 import { shootConfetti } from "@/lib/confetti";
 import { cursorColorForId } from "@/lib/theme";
 import { DIALOGS, openDialog } from "@/lib/dialogs";
-import { SERVER_EVENTS } from "@/shared/events";
+import { CLIENT_EVENTS, SERVER_EVENTS } from "@/shared/events";
 import type { AppSocket } from "@/lib/initSocket";
 import type { CellUpdate } from "@/shared/socketPayloads";
 import type { SocketHandlers } from "./useSocketEvents";
@@ -22,7 +22,7 @@ const applyCellUpdates = (updates: CellUpdate[]) => {
 };
 
 /** Shared + co-op events. */
-const coopHandlers = (leaveRoom: () => void): SocketHandlers => ({
+const coopHandlers = (socket: AppSocket, leaveRoom: () => void): SocketHandlers => ({
     // --- Game state ---
     [SERVER_EVENTS.BOARD_UPDATE]: (board) => useMinesweeperStore.getState().setBoard(board),
 
@@ -65,6 +65,24 @@ const coopHandlers = (leaveRoom: () => void): SocketHandlers => ({
             store.setDimensions(data.numRows, data.numCols, data.numMines);
         }
         store.setPlayerJoined(true);
+    },
+
+    /*
+     * The server recognised this browser and its room is still alive, so put the
+     * player back rather than leaving them on the landing page.
+     *
+     * Answering with a plain joinRoom is the point: a resume then runs the exact
+     * path a manual join does — same validation, same board, same clock — with
+     * no second flow to keep in step. The server only makes this offer when the
+     * player did not leave deliberately.
+     */
+    [SERVER_EVENTS.SESSION_RESUME]: ({ room, name }) => {
+        const store = useMinesweeperStore.getState();
+        if (store.playerJoined) return;
+
+        store.setRoom(room);
+        store.setName(name);
+        socket.emit(CLIENT_EVENTS.JOIN_ROOM, { room, name });
     },
 
     [SERVER_EVENTS.JOIN_ROOM_ERROR]: () => openDialog(DIALOGS.joinRoomError),
@@ -182,5 +200,5 @@ const pvpHandlers = (socket: AppSocket): SocketHandlers => ({
  */
 export function useGameEvents(socket: AppSocket | null, leaveRoom: () => void): SocketHandlers {
     if (!socket) return {};
-    return { ...coopHandlers(leaveRoom), ...pvpHandlers(socket) };
+    return { ...coopHandlers(socket, leaveRoom), ...pvpHandlers(socket) };
 }
