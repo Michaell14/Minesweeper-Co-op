@@ -100,10 +100,25 @@
 
     /* Board greys. Deliberately NOT the neutrals above — the board is meant to
      * read as the classic Windows Minesweeper surface, not as app chrome. */
-    --ms-palette-cell-closed: #bbbbbb;
+    /*
+     * Board.
+     *
+     * Unopened cells are raised the way the buttons are — a light edge on the
+     * top-left, a dark one on the bottom-right — because they ARE buttons, and
+     * the board previously read as Windows 95 grey sitting inside 8-bit chrome.
+     * The gutter is the same ink as every border in the app, so the board
+     * frames like a region rather than a foreign object.
+     *
+     * cell-open stays at #eeeeee deliberately: the eight number colours were
+     * tuned to clear WCAG AA against exactly this value, and moving it would
+     * silently invalidate all of them.
+     */
+    --ms-palette-cell-closed: #adafbc;
+    --ms-palette-cell-light: #cdced6;
+    --ms-palette-cell-shade: #7b7d8a;
     --ms-palette-cell-open: #eeeeee;
-    --ms-palette-gutter: #3b3b3b;
-    --ms-palette-mine: #d70040;
+    --ms-palette-gutter: #212529;
+    --ms-palette-mine: #e76e55;
     --ms-palette-cursor-ink: #1a1a1a; /* label ink on a player's cursor colour */
 
     /*
@@ -216,7 +231,11 @@
     --ms-cell-size: 40px;
     --ms-cell-gap: 3px;
     --ms-cell-closed: var(--ms-palette-cell-closed);
+    --ms-cell-light: var(--ms-palette-cell-light);
+    --ms-cell-shade: var(--ms-palette-cell-shade);
     --ms-cell-open: var(--ms-palette-cell-open);
+    /* Thinner than --ms-border-width: a 4px bevel eats a 32px mobile cell. */
+    --ms-cell-bevel: 3px;
     --ms-cell-mine: var(--ms-palette-mine);
     --ms-board-gutter: var(--ms-palette-gutter);
 
@@ -400,6 +419,8 @@
     --ms-palette-amber-ink: #0f380f;
 
     --ms-palette-cell-closed: #8bac0f;
+    --ms-palette-cell-light: #9bbc0f;
+    --ms-palette-cell-shade: #306230;
     --ms-palette-cell-open: #9bbc0f;
     --ms-palette-gutter: #0f380f;
     --ms-palette-mine: #0f380f;
@@ -474,6 +495,8 @@
     --ms-palette-amber-ink: #000000;
 
     --ms-palette-cell-closed: #7869c4;
+    --ms-palette-cell-light: #9f9f9f;
+    --ms-palette-cell-shade: #40318d;
     --ms-palette-cell-open: #9f9f9f;
     --ms-palette-gutter: #000000;
     --ms-palette-mine: #883932;
@@ -527,6 +550,8 @@
     --ms-palette-cursor-6: #d0bfff;
 
     --ms-palette-cell-closed: #4a4f57;
+    --ms-palette-cell-light: #5f656e;
+    --ms-palette-cell-shade: #2f333a;
     --ms-palette-cell-open: #2a2e35;
     --ms-palette-gutter: #0d0f12;
 

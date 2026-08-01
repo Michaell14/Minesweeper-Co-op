@@ -16,6 +16,7 @@ import {
     TrophyIcon,
 } from "@/components/ds";
 import type { ButtonIntent } from "@/components/ds";
+import board from "@/components/game/board.module.css";
 import { THEMES, applyTheme, coverageOf, type ThemeCoverage } from "./themes";
 import { AUDITED_PAIRS, measure, type ContrastResult } from "./contrast";
 
@@ -43,36 +44,26 @@ function Section({
 }
 
 /**
- * Board cells rendered from tokens.
- *
- * The catalog needs these because the board is where a restricted palette
- * fails first: eight number colours cannot stay distinct on four shades, and
- * nothing else on this page would reveal that.
+ * Rendered with the game's own board CSS rather than a lookalike, so the
+ * catalog cannot drift from the board it claims to depict — the previous
+ * version restated the cell size and missed the raised bevel entirely.
  */
-const CELL = {
-    width: "var(--ms-cell-size)",
-    height: "var(--ms-cell-size)",
-} as const;
-
 function BoardPreview() {
     return (
-        <div
-            className="inline-flex bg-board-gutter"
-            style={{ gap: "var(--ms-cell-gap)", padding: "var(--ms-cell-gap)" }}
-        >
-            {NUMBERS.map((n) => (
-                <span
-                    key={n}
-                    className="flex items-center justify-center bg-board-open font-bold text-pixel-md"
-                    style={{ ...CELL, color: `var(--ms-num-${n})` }}
-                >
-                    {n}
-                </span>
-            ))}
-            <span className="bg-board-closed" style={CELL} />
-            <span className="flex items-center justify-center bg-board-mine" style={CELL}>
-                💣
-            </span>
+        <div className={board.gameBoard}>
+            <div className={board.gameRow}>
+                {NUMBERS.map((n) => (
+                    <div
+                        key={n}
+                        className={`${board.cell} ${board.open} ${board[`num${n}`]}`}
+                    >
+                        {n}
+                    </div>
+                ))}
+                <div className={`${board.cell} ${board.closed}`} />
+                <div className={`${board.cell} ${board.flagged}`}>🚩</div>
+                <div className={`${board.cell} ${board.mine}`}>💣</div>
+            </div>
         </div>
     );
 }
@@ -179,7 +170,7 @@ export default function DsCatalogClient() {
 
             <Section
                 title="Board"
-                note="The eight number colours, an unopened cell and a mine. This is where a small palette fails first."
+                note="The eight number colours, an unopened cell, a flag and a mine — rendered with the board's own stylesheet. This is where a small palette fails first."
             >
                 <BoardPreview />
             </Section>
