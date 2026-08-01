@@ -153,9 +153,13 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
 
     return (
         <>
-            {/* px-gutter, not px-4: the board's fit maths subtracts the same
-                token, and a literal here would let the two drift. */}
-            <div className="w-full max-w-[1350px] mx-auto px-gutter min-h-[94vh] pt-10 pb-6 xl:pt-20 xl:pb-16">
+            {/* container-type makes this the box board.module.css measures cells
+                against (100cqw). It goes here rather than on the board's own
+                scroll container because this element takes its width from
+                w-full — inline-size containment stops contents contributing to
+                the inline size, so putting it on a shrink-to-fit box inside
+                `items-center` collapsed that box to 0 and the board floored. */}
+            <div className="w-full max-w-[1350px] mx-auto px-4 min-h-[94vh] pt-10 pb-6 xl:pt-20 xl:pb-16 [container-type:inline-size]">
 
                 <h1 className="text-center font-bold text-pixel-2xl md:text-pixel-4xl">Minesweeper Co-Op</h1>
 
@@ -224,8 +228,12 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
                       * are rendered and one is hidden. That is two small nodes
                       * rather than a second board.
                       */}
+                    {/* overflow-auto, not -scroll: `scroll` reserves a scrollbar
+                        gutter even when nothing overflows, which on
+                        classic-scrollbar platforms narrowed the board's space
+                        by 15px for a scrollbar it did not need. */}
                     <div
-                        className="overflow-scroll xl:overflow-visible max-w-full"
+                        className="overflow-auto xl:overflow-visible max-w-full"
                         role="region"
                         aria-label="Game board container">
                         <div className="hidden xl:block">

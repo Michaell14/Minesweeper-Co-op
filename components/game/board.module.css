@@ -8,11 +8,24 @@
      */
     --cell-gap: var(--ms-cell-gap);
     /*
-     * Fit the board to the viewport instead of overflowing it.
+     * Fit the board to the space it actually has instead of overflowing it.
      *
      * --board-cols is set inline by Board.tsx because only it knows the shape.
      * The token is the ceiling, so desktop is unchanged at 40px and a phone
      * gets whatever fits, down to --ms-cell-min.
+     *
+     * cqw, not vw. 100vw is the WINDOW: it counts the page's own scrollbar and
+     * the padding on the container the board sits in, neither of which the
+     * board may use. Reserving the padding by hand got the phone case right and
+     * still failed CI, where classic 15px scrollbars take another 30px that no
+     * viewport unit can see — a 335px board in 313px of room. 100cqw is the
+     * container's content box, so every one of those is already subtracted and
+     * the sum is right on whatever the platform does with scrollbars.
+     * Grid.tsx marks that container with `container-type: inline-size`.
+     *
+     * Falling back to the viewport when there is no such container is fine: the
+     * /ds catalog is the other consumer, and it is a desktop page where the
+     * clamp lands on the 40px ceiling either way.
      *
      * The fallback matters: without a value the calc() is invalid, --cell-size
      * resolves to nothing and cells collapse to non-square boxes. This
@@ -21,7 +34,7 @@
      */
     --board-cols-safe: var(--board-cols, 16);
     --cell-fit: calc(
-        (100vw - var(--ms-board-inset) - (var(--board-cols-safe) + 1) * var(--cell-gap))
+        (100cqw - var(--ms-board-inset) - (var(--board-cols-safe) + 1) * var(--cell-gap))
         / var(--board-cols-safe)
     );
     --cell-size: clamp(var(--ms-cell-min), var(--cell-fit), var(--ms-cell-size));

@@ -93,11 +93,6 @@ const config: Config = {
             borderWidth: {
                 pixel: "var(--ms-border-width)",
             },
-            spacing: {
-                // The page container's side padding. The board's fit maths
-                // subtracts the same token, so this is the one place it moves.
-                gutter: "var(--ms-page-gutter)",
-            },
             transitionDuration: {
                 instant: "var(--ms-duration-instant)",
                 quick: "var(--ms-duration-quick)",
