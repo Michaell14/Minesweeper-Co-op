@@ -16,24 +16,29 @@ export interface ThemeOption {
 }
 
 export const THEMES: ThemeOption[] = [
-    { id: null, label: "NES", short: "Default", note: "The default palette. Full hue range." },
+    {
+        id: null,
+        label: "NES",
+        short: "Default",
+        note: "Blow the dust off the cartridge and claim the family TV for the night.",
+    },
     {
         id: "gameboy",
         label: "Game Boy",
         short: "4 shades",
-        note: "Four shades total. Numbers lose their colour coding — the digit still tells you the count.",
+        note: "Take it back to the 90s with four shades of scratched-up Game Boy green.",
     },
     {
         id: "c64",
         label: "C64",
         short: "16 colours",
-        note: "Sixteen colours, so everything the default palette encodes survives.",
+        note: "Boot up the 80s and watch that violet Commodore screen blink to life.",
     },
     {
         id: "dark",
         label: "Dark",
         short: "Inverted",
-        note: "Not a retro machine — the one people actually ask for.",
+        note: "Turn the lamp off, turn the brightness down, and keep playing anyway.",
     },
 ];
 
