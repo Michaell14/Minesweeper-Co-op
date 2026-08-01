@@ -2,6 +2,7 @@
 import { afterEach, describe, expect, test } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { useMinesweeperStore } from "@/app/store";
+import { DEFAULT_PRESET } from "@/shared/boardConfig";
 import type { Cell } from "@/shared/socketPayloads";
 import GameSummary from "./GameSummary";
 
@@ -60,8 +61,12 @@ afterEach(() => {
     const store = useMinesweeperStore.getState();
     store.setBoard([]);
     store.setMode("co-op");
+    store.setDimensions(DEFAULT_PRESET.rows, DEFAULT_PRESET.cols, DEFAULT_PRESET.mines);
     store.setClock({ startedAt: null, endedAt: null });
     store.setPlayerStatsInRoom([]);
+    store.setPvpOpponentName("");
+    store.setPvpOpponentProgress(0);
+    store.setPvpTotalSafeCells(0);
 });
 
 describe("the time", () => {
