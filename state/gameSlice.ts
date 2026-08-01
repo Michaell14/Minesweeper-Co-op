@@ -1,6 +1,13 @@
 import { StateCreator } from 'zustand';
 import type { Cell } from './types';
+import type { BestTime } from '@/lib/bestTimes';
 import type { MinesweeperState } from './store';
+
+/** What the last completed clear did to this browser's record for that board. */
+export interface BestTimeResult {
+    improved: boolean;
+    previous: BestTime | null;
+}
 
 /** The board, its win/loss flags, and the run clock. */
 export interface GameSlice {
@@ -18,11 +25,19 @@ export interface GameSlice {
     startedAt: number | null;
     endedAt: number | null;
 
+    /*
+     * Set once, when a board is CLEARED — not on a loss, and not on a win by
+     * an opponent's disconnect. null means this run did not finish a board, so
+     * the summary has no record to talk about.
+     */
+    bestTimeResult: BestTimeResult | null;
+
     setBoard: (newBoard: Cell[][]) => void;
     setCell: (row: number, col: number, newCell: Cell) => void;
     setGameOver: (isGameOver: boolean) => void;
     setGameWon: (isGameWon: boolean) => void;
     setClock: (clock: { startedAt: number | null; endedAt: number | null }) => void;
+    setBestTimeResult: (result: BestTimeResult | null) => void;
 }
 
 export const createGameSlice: StateCreator<MinesweeperState, [], [], GameSlice> = (set) => ({
@@ -31,6 +46,7 @@ export const createGameSlice: StateCreator<MinesweeperState, [], [], GameSlice> 
     gameWon: false,
     startedAt: null,
     endedAt: null,
+    bestTimeResult: null,
 
     setBoard: (newBoard) => set({ board: newBoard }),
 
@@ -44,5 +60,9 @@ export const createGameSlice: StateCreator<MinesweeperState, [], [], GameSlice> 
 
     setGameOver: (isGameOver) => set({ gameOver: isGameOver }),
     setGameWon: (isGameWon) => set({ gameWon: isGameWon }),
-    setClock: ({ startedAt, endedAt }) => set({ startedAt, endedAt }),
+    /* A new run has no verdict yet, so starting or clearing the clock drops it. */
+    setClock: ({ startedAt, endedAt }) =>
+        set(endedAt === null ? { startedAt, endedAt, bestTimeResult: null } : { startedAt, endedAt }),
+
+    setBestTimeResult: (bestTimeResult) => set({ bestTimeResult }),
 });
