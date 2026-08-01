@@ -1,7 +1,9 @@
 const { io } = require('./initializeClient');
 const { createEmptyBoard, projectBoard } = require('../domain/board');
+const { pvpPlayerFields } = require('../data/keys');
+const { scheduleForfeit } = require('../controllers/pvpForfeit');
 const roomRepo = require('../data/roomRepo');
-const { clockOf, readStamp } = require('../domain/clock');
+const { clockOf } = require('../domain/clock');
 const playerRepo = require('../data/playerRepo');
 const sessionRepo = require('../data/sessionRepo');
 const { SERVER_EVENTS } = require('../../shared/events');
@@ -52,6 +54,85 @@ const resetPlayerScores = async (room) => {
  * the old socket's record is dropped and its place in the room is handed to the
  * new socket, so a reload does not leave a ghost behind or lose the host.
  */
+/**
+ * Puts a returning racer back into a PVP game already in progress.
+ *
+ * A race is per-player in a way co-op is not: the board, the progress and the
+ * win/loss flags all live under this player's slot, and the room addresses that
+ * slot by socket id. A reload changes the socket, so the slot has to be
+ * repointed or the room is still talking to a socket that no longer exists.
+ *
+ * What is sent mirrors what `startPvpGame` sends, because the client has to end
+ * up in the same state either way — `pvpStarted` set, their own board on screen,
+ * the opponent named and their progress known.
+ *
+ * Returns false when there is nothing to restore, so the caller can fall back to
+ * the empty board the lobby shows.
+ */
+const restorePvpRacer = async (room, socketId, roomState, previousSocketId) => {
+    if (roomState.pvpStarted !== 'true') return false;
+
+    // The room addresses slots by socket, so the slot is found by who used to
+    // hold it — not by the player record, which the reconnect just replaced.
+    const slot = [0, 1].find(
+        (index) => roomState[pvpPlayerFields(index).socketKey] === previousSocketId
+    );
+    if (slot === undefined) return false;
+
+    const { boardKey, gameOverKey, gameWonKey, socketKey } = pvpPlayerFields(slot);
+    const boardData = roomState[boardKey];
+    if (!boardData) return false;
+
+    const opponent = pvpPlayerFields(slot === 0 ? 1 : 0);
+    const opponentName = (await playerRepo.getName(roomState[opponent.socketKey])) || 'Opponent';
+    const opponentProgress = parseInt(roomState[opponent.progressKey], 10) || 0;
+
+    /*
+     * Rebuild the player's identity from the ROOM, not from their old record —
+     * `removePlayer` deleted that the moment they dropped, so by the time they
+     * are back there is nothing left to copy. The room outlives the socket and
+     * is what actually owns the race.
+     *
+     * `pvpPlayerIndex` is the load-bearing field: pvp.js refuses to act for a
+     * socket it cannot place, so without it they get their board back and every
+     * click on it is silently ignored.
+     */
+    await roomRepo.setFields(room, { [socketKey]: socketId });
+    await playerRepo.setFields(socketId, {
+        pvpPlayerIndex: slot.toString(),
+        opponentName,
+    });
+    const totalSafeCells = parseInt(roomState.totalSafeCells, 10) || 0;
+    const ownGameOver = roomState[gameOverKey] === 'true';
+    const ownGameWon = roomState[gameWonKey] === 'true';
+
+    // pvpStarted first: it is what takes the client out of the lobby, and the
+    // board that follows is unusable until it lands.
+    io.to(socketId).emit(SERVER_EVENTS.PVP_GAME_STARTED, { totalSafeCells });
+
+    io.to(socketId).emit(SERVER_EVENTS.PVP_BOARD_UPDATE, {
+        // Their own run is over, so their own mines are no longer a secret. The
+        // opponent's board is a separate record and is not touched here.
+        board: projectBoard(JSON.parse(boardData), { revealMines: ownGameOver || ownGameWon }),
+        playerIndex: slot,
+        opponentName,
+        opponentProgress,
+        totalSafeCells,
+    });
+
+    // Catch them up on an outcome that landed while they were gone.
+    if (roomState.winnerSocket) {
+        io.to(socketId).emit(SERVER_EVENTS.PVP_PLAYER_WON, {
+            winnerSocket: roomState.winnerSocket,
+            winnerName: await playerRepo.getName(roomState.winnerSocket) || 'Someone',
+        });
+    } else if (ownGameOver) {
+        io.to(socketId).emit(SERVER_EVENTS.PVP_GAME_OVER);
+    }
+
+    return true;
+};
+
 const addPlayerToRoom = async (room, socketId, name, sessionId) => {
     // Rejoining cancels any grace period the room was counting down.
     await roomRepo.touch(room);
@@ -127,11 +208,17 @@ const addPlayerToRoom = async (room, socketId, name, sessionId) => {
         const isOver = roomState.gameOver === 'true' || roomState.gameWon === 'true';
         io.to(room).emit(SERVER_EVENTS.BOARD_UPDATE, projectBoard(board, { revealMines: isOver }));
     } else if (mode === 'pvp') {
-        // For PVP, send empty board to show UI
-        const numRows = parseInt(roomState.numRows, 10);
-        const numCols = parseInt(roomState.numCols, 10);
-        const emptyBoard = createEmptyBoard(numRows, numCols);
-        io.to(socketId).emit(SERVER_EVENTS.BOARD_UPDATE, emptyBoard);
+        const restored = reconnectedFrom
+            ? await restorePvpRacer(room, socketId, roomState, reconnectedFrom)
+            : false;
+
+        if (!restored) {
+            // Nothing in flight for this socket: the lobby's empty board, as before.
+            const numRows = parseInt(roomState.numRows, 10);
+            const numCols = parseInt(roomState.numCols, 10);
+            const emptyBoard = createEmptyBoard(numRows, numCols);
+            io.to(socketId).emit(SERVER_EVENTS.BOARD_UPDATE, emptyBoard);
+        }
     }
 
     await updatePlayerStatsInRoom(room);
@@ -169,34 +256,17 @@ const removePlayer = async (socket, socketId) => {
         if (playersInRoom.length === 0) {
             await roomRepo.startGracePeriod(room);
         } else {
-            // Handle PVP disconnection - award win to remaining player if game is in progress
+            /*
+             * A disconnect mid-race USED to hand the win over immediately. A
+             * reload is a disconnect too, so refreshing the page forfeited the
+             * game before the tab had finished reloading. The decision now waits
+             * to see whether they come back — see controllers/pvpForfeit.js.
+             */
             if (mode === 'pvp' && roomState.pvpStarted === 'true' && !roomState.winnerSocket) {
-                const remainingPlayer = playersInRoom[0];
-
-                // Check if game hasn't already ended
                 const player1Won = roomState.player1GameWon === 'true';
                 const player2Won = roomState.player2GameWon === 'true';
-
                 if (!player1Won && !player2Won) {
-                    // Get the remaining player's name
-                    const remainingPlayerName = await playerRepo.getName(remainingPlayer);
-
-                    // Mark the remaining player as winner
-                    await roomRepo.setFields(room, {
-                        winnerSocket: remainingPlayer
-                    });
-
-                    // Winning by default still ends the race, so their clock stops.
-                    io.to(remainingPlayer).emit(SERVER_EVENTS.GAME_CLOCK, {
-                        startedAt: readStamp(roomState.startedAt),
-                        endedAt: Date.now()
-                    });
-
-                    // Notify the remaining player that they won due to opponent disconnect
-                    io.to(remainingPlayer).emit(SERVER_EVENTS.PVP_OPPONENT_DISCONNECTED, {
-                        winnerSocket: remainingPlayer,
-                        winnerName: remainingPlayerName
-                    });
+                    scheduleForfeit(room, playersInRoom[0]);
                 }
             }
 

@@ -523,6 +523,41 @@ async function pvp(host, guest) {
     check(guestBoardAfter === guestBoardAtStart,
         "the guest's own board is unchanged by the host's move",
         `expected ${guestBoardAtStart}, got ${guestBoardAfter}`);
+
+    /*
+     * Reloading mid-race.
+     *
+     * Two things have to hold and neither is visible in a screenshot. The
+     * reloader must not FORFEIT — a disconnect and a refresh look identical to
+     * the server, and the win used to be handed over instantly. And the board
+     * they come back to must actually be playable: the room addresses each
+     * racer's board by socket id, so a returning player whose slot was not
+     * repointed gets their board back and every click on it is ignored, with one
+     * line in the server log and nothing at all on screen.
+     */
+    await guest.goto(CLIENT);
+    await guest.waitFor(`${cellCount} === 256`, { timeout: 30000, label: 'the reload lands back in the race' });
+    pass('a reload puts the racer back in their race');
+
+    check(await guest.evaluate(`return ${revealedCount};`) === guestBoardAfter,
+        `the racer's own board comes back as it was (${guestBoardAfter} cells open)`,
+        'the restored board does not match what they left');
+
+    check(!(await guest.evaluate(`return !!document.getElementById('dialog-pvp-opponent-won')?.open;`)),
+        'reloading does not forfeit the race',
+        'the reloader was told their opponent won');
+
+    const beforeClick = await guest.evaluate(`return ${revealedCount};`);
+    await guest.evaluate(`
+        const closed = [...document.querySelectorAll('[role=gridcell]')]
+            .filter(c => (c.getAttribute('aria-label') || '').startsWith('Unrevealed'));
+        const inner = [...closed[0].children].find(d => d.offsetParent !== null);
+        inner.click();
+        return true;
+    `);
+    check(await settles(guest, `${revealedCount} !== ${beforeClick}`),
+        'the restored board still responds to clicks',
+        'the board came back but ignores every click — the slot was not repointed');
 }
 
 /**
