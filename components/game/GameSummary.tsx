@@ -1,59 +1,65 @@
 import React from 'react';
 import { useMinesweeperStore } from '@/app/store';
 import ScoreTable from '@/components/game/ScoreTable';
+import { useGameStats } from '@/hooks/useGameStats';
 import { elapsedSeconds, formatClock } from '@/lib/gameClock';
+
+/** One number and its caption. */
+function Stat({ label, value }: { label: string; value: string }) {
+    return (
+        <div className="text-center">
+            <dt className="text-pixel-xs text-ink-muted">{label}</dt>
+            <dd className="text-pixel-lg m-0">{value}</dd>
+        </div>
+    );
+}
 
 /**
  * What the run amounted to: how long, how much of the board, and who did it.
  *
  * Everything here is derived from state the client already holds — the board it
- * is rendering and the scores it already shows in the side panel. A summary is a
- * different *view* of the finished game, not new information, so it needs no
+ * is rendering and the numbers already on screen in the side panel. A summary is
+ * a different *view* of a finished game, not new information, so it needs no
  * payload of its own.
+ *
+ * The two modes end differently and so read differently. Co-op is a shared
+ * result, so it ends on the scoreboard. PVP is a race, so the only number that
+ * settles anything is how far each player got — and the score table is hidden in
+ * PVP everywhere else, which is why it is not simply reused here.
  */
 export default function GameSummary() {
-    const board = useMinesweeperStore((state) => state.board);
-    const numMines = useMinesweeperStore((state) => state.numMines);
+    const mode = useMinesweeperStore((state) => state.mode);
     const startedAt = useMinesweeperStore((state) => state.startedAt);
     const endedAt = useMinesweeperStore((state) => state.endedAt);
     const playerStatsInRoom = useMinesweeperStore((state) => state.playerStatsInRoom);
+    const pvpOpponentName = useMinesweeperStore((state) => state.pvpOpponentName);
 
-    const cellCount = board.reduce((sum, row) => sum + row.length, 0);
-    const safeCells = Math.max(0, cellCount - numMines);
-    /*
-     * Counted rather than read off a score total: a win auto-flags the remaining
-     * mines, and scores are per-player and would double-count nothing but also
-     * miss any cell opened before a player joined.
-     */
-    const cleared = board.reduce(
-        (sum, row) => sum + row.filter((cell) => cell.isOpen && !cell.isMine).length,
-        0
-    );
-    const percent = safeCells === 0 ? 0 : Math.round((cleared / safeCells) * 100);
+    const { ownProgress, safeCells, ownProgressPercent, opponentProgressPercent } = useGameStats();
 
+    const percent = safeCells === 0 ? 0 : Math.round((ownProgress / safeCells) * 100);
     const duration =
         startedAt !== null && endedAt !== null ? formatClock(elapsedSeconds(startedAt, endedAt)) : null;
+
+    const isPvp = mode === 'pvp';
 
     return (
         <div className="flex flex-col gap-4">
             <dl className="flex justify-center gap-8 m-0">
-                {duration && (
-                    <div className="text-center">
-                        <dt className="text-pixel-xs text-ink-muted">Time</dt>
-                        <dd className="text-pixel-lg m-0">{duration}</dd>
-                    </div>
+                {duration && <Stat label="Time" value={duration} />}
+                {isPvp ? (
+                    <>
+                        <Stat label="You" value={`${ownProgressPercent}%`} />
+                        <Stat label={pvpOpponentName || 'Opponent'} value={`${opponentProgressPercent}%`} />
+                    </>
+                ) : (
+                    <>
+                        <Stat label="Cleared" value={`${percent}%`} />
+                        <Stat label="Cells" value={`${ownProgress}/${safeCells}`} />
+                    </>
                 )}
-                <div className="text-center">
-                    <dt className="text-pixel-xs text-ink-muted">Cleared</dt>
-                    <dd className="text-pixel-lg m-0">{percent}%</dd>
-                </div>
-                <div className="text-center">
-                    <dt className="text-pixel-xs text-ink-muted">Cells</dt>
-                    <dd className="text-pixel-lg m-0">{cleared}/{safeCells}</dd>
-                </div>
             </dl>
 
-            {playerStatsInRoom.length > 0 && (
+            {!isPvp && playerStatsInRoom.length > 0 && (
                 <div className="overflow-x-auto">
                     <ScoreTable />
                 </div>

@@ -102,6 +102,14 @@ export default function GameDialogs({ resetGame }: GameDialogsProps) {
                 <p>This PVP room already has 2 players.</p>
             </Dialog>
 
+            {/*
+              * The three PVP dialogs below END the race, so each one carries the
+              * summary. `pvpGameOver` deliberately does not: hitting a mine stops
+              * YOUR clock but the opponent plays on, and you can reset and rejoin
+              * the race — a final scoreline there would be claiming the game is
+              * over when it is not.
+              */}
+
             {/* PVP Game Over - this player hit a mine */}
             <Dialog
                 id={DIALOGS.pvpGameOver}
@@ -122,6 +130,7 @@ export default function GameDialogs({ resetGame }: GameDialogsProps) {
                     <DialogClose intent="success" aria-label="Close dialog">Awesome!</DialogClose>
                 }>
                 <p>You completed your board first. You win!</p>
+                <GameSummary />
             </Dialog>
 
             {/* PVP Opponent Won */}
@@ -131,6 +140,7 @@ export default function GameDialogs({ resetGame }: GameDialogsProps) {
                 alert
                 actions={<DialogClose aria-label="Close dialog">OK</DialogClose>}>
                 <p>Your opponent completed their board first.</p>
+                <GameSummary />
             </Dialog>
 
             {/* PVP Opponent Disconnected */}
@@ -142,6 +152,7 @@ export default function GameDialogs({ resetGame }: GameDialogsProps) {
                     <DialogClose intent="success" aria-label="Close dialog">Nice!</DialogClose>
                 }>
                 <p>Your opponent disconnected. You win by default!</p>
+                <GameSummary />
             </Dialog>
         </>
     );

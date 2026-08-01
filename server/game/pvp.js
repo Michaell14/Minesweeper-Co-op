@@ -48,6 +48,19 @@ const stopFor = async (room, socketId) => {
 };
 
 /**
+ * Stops the clock for BOTH players, because a winner ends the race for both.
+ *
+ * The loser's clock is the easy one to forget: they are still mid-board when it
+ * happens, so nothing on their side ends. Leaving it running means their timer
+ * keeps counting under a dialog telling them the game is over, and the summary
+ * has no finish time to show.
+ */
+const stopRace = async (room) => {
+    const startedAt = readStamp(await roomRepo.getField(room, 'startedAt'));
+    io.to(room).emit(SERVER_EVENTS.GAME_CLOCK, { startedAt, endedAt: Date.now() });
+};
+
+/**
  * Reveals cells from (r, c) on ONE player's board. Hitting a mine ends the game
  * for that player only; the opponent keeps playing and is told they failed.
  *
@@ -122,7 +135,7 @@ const checkWin = async (board, room, socketId, playerIndex) => {
                     [gameWonKey]: 'true',
                     winnerSocket: socketId
                 });
-                await stopFor(room, socketId);
+                await stopRace(room);
 
                 const playerName = await playerRepo.getName(socketId);
 
@@ -135,9 +148,11 @@ const checkWin = async (board, room, socketId, playerIndex) => {
                 await roomRepo.releaseWinnerLock(room);
             }
         } else {
-            // Someone else already won
+            // Someone else already won, so `stopRace` has already stopped this
+            // player's clock at the moment the race actually ended. Stamping it
+            // again here would push their finish time out to whenever they
+            // happened to fill in the rest of their board.
             await roomRepo.setFields(room, { [gameWonKey]: 'true' });
-            await stopFor(room, socketId);
         }
     }
 };
