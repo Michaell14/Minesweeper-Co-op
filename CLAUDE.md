@@ -27,7 +27,7 @@ npm run dev:all            # Redis (auto-start) + backend :3001 + frontend :3000
 npm run dev                # frontend only
 npm run start-server       # backend only
 npm test                   # server Jest suite (proxies to `npm --prefix server test`)
-npm run test:client        # client unit tests (Vitest) — pure logic, no DOM
+npm run test:client        # client unit tests (Vitest) — pure logic + component rendering
 npm run test:ui            # browser smoke test; needs dev:all running
 npm run verify:deploy      # plays a real game against the DEPLOYED backend
 npm run lint
@@ -146,14 +146,27 @@ where the mines are, and the client deliberately cannot see that (boards are
 projected server-side). Chording is covered server-side instead, in
 `server/tests/chord.test.js`.
 
-`npm run test:client` is Vitest over the frontend directories, for **pure logic
-only** — no DOM, no component rendering. It exists because some client code is
-load-bearing and invisible when wrong: the WCAG maths behind the `/ds` contrast
-audit would otherwise report plausible, wrong numbers forever. Anything needing
-a browser belongs in the smoke suite instead.
+`npm run test:client` is Vitest over the frontend directories. It holds two
+kinds of test, told apart **per file** rather than by directory:
 
-There are still no component-rendering tests, so anything below that level needs
-a manual pass.
+- **Pure logic** runs in Node and needs nothing. It exists because some client
+  code is load-bearing and invisible when wrong: the WCAG maths behind the `/ds`
+  contrast audit would otherwise report plausible, wrong numbers forever.
+- **Component rendering** opts into a DOM with `// @vitest-environment jsdom` on
+  the first line of the file. The fast majority never pays for one, and every
+  file states what it needs.
+
+Write component tests for what fails *silently* — the accessible name that
+quietly stops resolving, the dialog button that stops closing, the copy that
+stops appearing. `getByRole(role, { name })` is the workhorse: it fails both
+when the role goes and when the name stops resolving, which is how most of these
+break. Asserting a class name or a snapshot instead just pins the markup in
+place and catches nothing.
+
+jsdom has **no layout engine**, so it can tell you a control is unreachable by
+name but never that it is off-screen, overlapping or the wrong size. It also
+implements `<dialog>` without the bit where submitting a `method="dialog"` form
+closes it. Anything in that territory belongs in the smoke suite instead.
 
 `npm run verify:deploy` (`scripts/verify-deploy/`) is the only check that touches
 the deployed stack. It connects real sockets to production — override with
