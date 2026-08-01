@@ -36,6 +36,5 @@
     --pixel-ring: color-mix(in srgb, var(--ms-intent-error-bevel) 40%, transparent);
 }
 
-
 .sm { font-size: var(--ms-text-sm); }
 .md { font-size: var(--ms-text-md); }
