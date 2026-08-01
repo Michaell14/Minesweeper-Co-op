@@ -7,6 +7,13 @@ import { useMinesweeperStore, Cell as CellType } from '@/app/store';
 import { pointerClass } from '@/components/ds/pointer';
 
 
+/**
+ * How many diagonals the cascade sweep repeats over. Ten at 14ms is a ~140ms
+ * cycle: long enough to read as a wave, short enough that the first cell is
+ * always on screen within one step.
+ */
+const CASCADE_BANDS = 10;
+
 interface CellParams {
     cell: CellType,
     row: number,
@@ -48,6 +55,26 @@ const Cell = ({ cell, row, col, toggleFlag, openCell, chordCell, emitCellHover }
     // Check if any player is hovering over this cell
     const isHovered = cellHover !== null;
     const hoverColor = cellHover?.color || null;
+
+    /*
+     * Style for a revealed cell: the remote-cursor colour when someone is on
+     * it, plus this cell's offset in the cascade sweep.
+     *
+     * The offset is the cell's position along the board diagonal, wrapped every
+     * CASCADE_BANDS cells. Wrapping is the important part. Using the raw
+     * diagonal meant a cascade in the middle of the board waited for its
+     * absolute index before ANY cell appeared — measured at ~240ms of nothing,
+     * which reads as lag rather than as a reveal. Wrapping bounds the wait to
+     * one band no matter where on the board the cascade happens.
+     *
+     * It also needs nothing from the store: a teammate's cascade sweeps just as
+     * well, and no cell has to subscribe to the last-clicked coordinate — which
+     * would re-render all 256 of them on every mousedown.
+     */
+    const revealStyle = {
+        ...(isHovered && hoverColor ? { '--hover-color': hoverColor } : {}),
+        '--reveal-delay': `calc(var(--ms-cascade-step) * ${(row + col) % CASCADE_BANDS})`,
+    } as React.CSSProperties;
 
     const handleMouseEnter = () => {
         emitCellHover(row, col);
@@ -110,7 +137,7 @@ const Cell = ({ cell, row, col, toggleFlag, openCell, chordCell, emitCellHover }
         return <div
             key={col}
             className={`${styles.cell} ${styles.mine} ${isHovered ? styles.hovered : ''}`}
-            style={isHovered && hoverColor ? { '--hover-color': hoverColor } as React.CSSProperties : undefined}
+            style={revealStyle}
             role="gridcell"
             aria-label={getAriaLabel()}
             onMouseEnter={handleMouseEnter}
@@ -133,7 +160,7 @@ const Cell = ({ cell, row, col, toggleFlag, openCell, chordCell, emitCellHover }
                     e.preventDefault();
                 }}
                 className={`${styles.cell} ${styles.open} ${numClass} ${isHovered ? styles.hovered : ''}`}
-                style={isHovered && hoverColor ? { '--hover-color': hoverColor } as React.CSSProperties : undefined}
+                style={revealStyle}
                 onMouseEnter={handleMouseEnter}
                 onMouseLeave={handleMouseLeave}
                 onMouseDown={handleMouseDown}

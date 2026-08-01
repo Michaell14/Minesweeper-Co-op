@@ -137,6 +137,56 @@
     background-color: var(--ms-cell-open);
 }
 
+/*
+ * Cascade reveal.
+ *
+ * Opening a big cascade is the most satisfying moment in Minesweeper, and
+ * ninety cells blinking into existence at once throws that away. Each cell
+ * waits for its distance along the board diagonal before popping in, so the
+ * reveal sweeps outward instead.
+ *
+ * This is deliberately CSS only. The cell is already open in the DOM — its
+ * aria-label, its number and the store all updated on the server response —
+ * so nothing a screen reader or a test observes is delayed by the animation.
+ * A stagger that gated state would make the board lie about itself.
+ *
+ * `both` keeps the cell hidden through its delay, which is what produces the
+ * wave. steps() rather than a smooth curve: this is a pixel board.
+ */
+@keyframes cellReveal {
+    from {
+        opacity: 0.25;
+        transform: scale(0.55);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.cell.open,
+.cell.mine {
+    /*
+     * steps(3, start), not end: with `end` each cell holds the from-value for
+     * the first third of its animation, which put ~40ms of nothing on top of
+     * every cell's delay and made even a fast cascade feel like it stalled.
+     * `start` jumps to the first visible step immediately.
+     */
+    animation: cellReveal var(--ms-duration-quick) steps(3, start) both;
+    animation-delay: var(--reveal-delay, 0ms);
+}
+
+/*
+ * The wave is the decoration; the revealed board is the information. Under
+ * reduced motion the cells are simply there.
+ */
+@media (prefers-reduced-motion: reduce) {
+    .cell.open,
+    .cell.mine {
+        animation: none;
+    }
+}
+
 .cell.mine {
     background-color: var(--ms-cell-mine);
 }

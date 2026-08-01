@@ -291,6 +291,14 @@
     --ms-duration-instant: 80ms;
     --ms-duration-quick: 120ms;
     --ms-duration-slow: 300ms;
+    /*
+     * Per-cell offset for the cascade reveal. Multiplied by a cell's distance
+     * along the board's diagonal, so a cascade sweeps rather than appearing all
+     * at once. Small on purpose: at 14ms a 90-cell cascade finishes well inside
+     * half a second, which is the difference between feeling responsive and
+     * feeling slow.
+     */
+    --ms-cascade-step: 14ms;
     --ms-ease-step: steps(2, end);
     --ms-ease-out: ease-out;
 
@@ -350,6 +358,7 @@
         --ms-duration-instant: 0ms;
         --ms-duration-quick: 0ms;
         --ms-duration-slow: 0ms;
+        --ms-cascade-step: 0ms;
     }
 }
 
