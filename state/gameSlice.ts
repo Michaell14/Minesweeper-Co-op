@@ -11,8 +11,9 @@ export interface GameSlice {
     /*
      * Server timestamps, not an elapsed count. The client ticks locally from
      * startedAt, so co-op players read the same time without a per-second event
-     * and a refresh resumes the run instead of restarting it. null means the
-     * clock has not started / has not stopped.
+     * and someone arriving mid-run joins the clock already running rather than
+     * starting a new one. null means the clock has not started / has not
+     * stopped.
      */
     startedAt: number | null;
     endedAt: number | null;

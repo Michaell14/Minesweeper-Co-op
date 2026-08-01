@@ -106,7 +106,7 @@ const addPlayerToRoom = async (room, socketId, name, sessionId) => {
         await roomRepo.setPlayers(room, roomPlayers);
     }
 
-    // A refresh or a late join must pick up the clock already running, which is
+    // A late join or a reconnect must pick up the clock already running, which is
     // the whole reason it is stored as timestamps rather than an elapsed count.
     io.to(socketId).emit(SERVER_EVENTS.GAME_CLOCK, clockOf(roomState));
 

@@ -146,8 +146,10 @@ export interface ServerToClientEvents {
      *
      * Timestamps rather than an elapsed count: the client ticks locally from
      * `startedAt`, so the server does not stream a value every second, every
-     * player in a co-op room reads the same clock, and a refresh resumes at the
-     * right time instead of restarting at zero.
+     * player in a co-op room reads the same clock, and a player arriving mid-run
+     * — a late join, or a socket reconnect — picks it up at the right time
+     * instead of at zero. (A browser reload is not one of these: it returns to
+     * the landing page, because room membership is not persisted.)
      *
      * `startedAt` is null before the first cell is revealed; `endedAt` is null
      * until the game ends.

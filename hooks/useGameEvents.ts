@@ -30,7 +30,7 @@ const coopHandlers = (leaveRoom: () => void): SocketHandlers => ({
 
     [SERVER_EVENTS.PLAYER_STATS_UPDATE]: (stats) => useMinesweeperStore.getState().setPlayerStatsInRoom(stats),
 
-    // Sent on start, on finish, and to anyone joining or refreshing mid-run.
+    // Sent on start, on finish, and to anyone arriving mid-run.
     [SERVER_EVENTS.GAME_CLOCK]: (clock) => useMinesweeperStore.getState().setClock(clock),
 
     // --- Win / loss ---
