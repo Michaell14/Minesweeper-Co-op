@@ -1,10 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CASCADE_BANDS, cascadeBand, prefersReducedMotion } from "./motion";
 
-const originalMatchMedia = globalThis.window?.matchMedia;
-
+// Every test here stubs `window` wholesale, so unstubbing restores matchMedia
+// with it. Restoring matchMedia by hand as well would have to run BEFORE this
+// line to mean anything, and by then `window` may be the `undefined` that the
+// no-window test stubbed in — the restore would throw and this would never run.
 afterEach(() => {
-    if (originalMatchMedia) globalThis.window.matchMedia = originalMatchMedia;
     vi.unstubAllGlobals();
 });
 
