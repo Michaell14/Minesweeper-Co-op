@@ -113,4 +113,25 @@ describe("when localStorage cannot be written", () => {
 
         expect(readDailyAttemptToken()).toBe(started);
     });
+
+    /*
+     * The write failing leaves YESTERDAY's record in storage, still perfectly
+     * readable and completely wrong. A fallback that merely prefers storage
+     * "when it has something" hands moves the old token while the attempt the
+     * server actually created is under the new one — which is the same silent
+     * freeze this whole file exists to prevent, reintroduced one level down.
+     */
+    test("does not fall back to the token of a day that has already gone", async () => {
+        const { getOrCreateDailyAttemptToken, readDailyAttemptToken } = await loadIdentity();
+        localStorage.setItem(
+            STORAGE_KEY,
+            JSON.stringify({ date: "2026-07-31", token: "yesterdays-token" }),
+        );
+        blockWrites();
+
+        const started = getOrCreateDailyAttemptToken();
+
+        expect(started).not.toBe("yesterdays-token");
+        expect(readDailyAttemptToken()).toBe(started);
+    });
 });
