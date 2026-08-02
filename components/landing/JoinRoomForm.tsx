@@ -14,18 +14,15 @@ interface JoinFormValues {
 /**
  * Joining an existing room: one field and a button on one row.
  *
- * This comes FIRST on the page. Joining is a single field, but it used to sit
- * under the whole create form — with mode, size and difficulty above it, the
- * Join button fell below the fold on a normal laptop viewport. Creating a room
- * is the longer task and the one people scroll for.
+ * Deliberately FIRST on the page — under the create form's three option rows,
+ * the Join button fell below the fold on a laptop viewport, and creating is the
+ * longer task people will scroll for.
  *
- * The join-link effect lives here rather than in the parent because the only
- * thing it does is pre-fill this form's input, which means it needs this form's
- * `setValue`. Keeping them together is what stops that handle being passed up.
+ * The join-link effect lives here because all it does is pre-fill this form's
+ * input, which needs this form's `setValue`.
  *
- * Takes no props. Submitting only records the room and opens the name dialog;
- * the actual `joinRoom` emit is fired by that dialog, so this form never needs
- * a handle on it.
+ * Takes no props: submitting records the room and opens the name dialog, and
+ * that dialog fires the `joinRoom` emit.
  */
 export default function JoinRoomForm() {
     const setRoom = useMinesweeperStore((state) => state.setRoom);
@@ -38,10 +35,9 @@ export default function JoinRoomForm() {
     } = useForm<JoinFormValues>();
 
     /**
-     * A join link (?room=...) pre-fills the room code and jumps straight to the
-     * name dialog, skipping the "type the code in yourself" step. The param is
-     * stripped from the URL right after so a refresh or leaving-and-returning
-     * doesn't reopen the dialog.
+     * A join link (?room=...) pre-fills the code and jumps straight to the name
+     * dialog. The param is stripped right after, so a refresh or a return to the
+     * landing page does not reopen it.
      */
     React.useEffect(() => {
         const roomParam = new URLSearchParams(window.location.search).get(ROOM_QUERY_PARAM)?.trim().slice(0, 200);

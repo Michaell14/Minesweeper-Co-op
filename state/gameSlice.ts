@@ -11,24 +11,22 @@ export interface BestTimeResult {
 
 /** The board, its win/loss flags, and the run clock. */
 export interface GameSlice {
-    board: Cell[][];        // 2D array representing the game board
-    gameOver: boolean;      // True when someone hits a mine
-    gameWon: boolean;       // True when all non-mine cells are revealed
+    board: Cell[][];
+    gameOver: boolean;      // someone hit a mine
+    gameWon: boolean;       // every non-mine cell is revealed
 
     /*
-     * Server timestamps, not an elapsed count. The client ticks locally from
+     * Server timestamps, not an elapsed count: the client ticks locally from
      * startedAt, so co-op players read the same time without a per-second event
-     * and someone arriving mid-run joins the clock already running rather than
-     * starting a new one. null means the clock has not started / has not
-     * stopped.
+     * and someone arriving mid-run joins the clock already running. null means
+     * not started / not stopped.
      */
     startedAt: number | null;
     endedAt: number | null;
 
     /*
-     * Set once, when a board is CLEARED — not on a loss, and not on a win by
-     * an opponent's disconnect. null means this run did not finish a board, so
-     * the summary has no record to talk about.
+     * Set only when a board is CLEARED — not on a loss, and not on a win by an
+     * opponent's disconnect. null means the summary has no record to show.
      */
     bestTimeResult: BestTimeResult | null;
 
@@ -41,7 +39,7 @@ export interface GameSlice {
 }
 
 export const createGameSlice: StateCreator<MinesweeperState, [], [], GameSlice> = (set) => ({
-    board: [],              // Empty board until a room is joined
+    board: [],              // empty until a room is joined
     gameOver: false,
     gameWon: false,
     startedAt: null,
@@ -50,7 +48,7 @@ export const createGameSlice: StateCreator<MinesweeperState, [], [], GameSlice> 
 
     setBoard: (newBoard) => set({ board: newBoard }),
 
-    /** Replaces one cell. Cheaper than resending the whole board for a single change. */
+    /** Replaces one cell, so a single change need not resend the whole board. */
     setCell: (row, col, newCell) =>
         set((state) => ({
             board: state.board.map((r, rowIndex) =>

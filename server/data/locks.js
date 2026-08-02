@@ -5,10 +5,6 @@
  * know what is being locked. `keys.js` owns the key shapes; each repo wraps
  * `withLock` in a named helper its callers can read (`roomRepo.withActionLock`,
  * `dailyRepo.withAttemptLock`).
- *
- * This module was carved out of roomRepo when the daily challenge needed the
- * same lock: a daily attempt is not a room, and reaching into roomRepo for it
- * would have been the wrong dependency.
  */
 
 const { redisClient } = require('../utils/initializeRedisClient');
@@ -47,14 +43,12 @@ const ACTION_LOCK_MAX_WAIT_MS = (ACTION_LOCK_TTL_SECONDS + 2) * 1000;
  * A board lives in ONE hash field, so every move rewrites all of it. Two moves
  * that overlap both read before either writes, and the second write erases the
  * first's reveals — with no error, and with both sets of updates already sent to
- * the clients. This is what makes a move's read-modify-write atomic; callers
- * must do their reads INSIDE `fn`, since anything read before the lock was held
- * is exactly the stale snapshot the lock exists to prevent acting on.
+ * the clients. Callers must do their reads INSIDE `fn`: anything read before the
+ * lock was held is exactly the stale snapshot the lock exists to guard against.
  *
- * A contender waits rather than being dropped: the player made that move and it
- * has to land. If the wait is exhausted, Redis itself is unhealthy — `fn` then
- * runs unlocked, which is what happened before this lock existed and is better
- * than discarding the move.
+ * A contender waits rather than being dropped — the player made that move and it
+ * has to land. If the wait is exhausted, Redis itself is unhealthy; `fn` then
+ * runs unlocked, which is better than discarding the move.
  *
  * NOT reentrant. `fn` must not call anything that takes the same key. Holding
  * two different action locks at once is fine and `pvpRematch` does it, but they

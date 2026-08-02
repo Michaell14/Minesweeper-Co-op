@@ -8,12 +8,7 @@ export interface ShareableDailyResult {
     totalEntries: number | null;
 }
 
-/**
- * mm:ss for an elapsed-time value. Not share-specific -- the daily challenge's
- * timer display and leaderboard table use it too -- but this is where a
- * shared home for it was first needed, so it lives here rather than as three
- * separate copies.
- */
+/** mm:ss for an elapsed-time value. Also used by the daily timer and leaderboard. */
 export const formatElapsed = (ms: number) => {
     const totalSeconds = Math.floor(Math.max(ms, 0) / 1000);
     const minutes = Math.floor(totalSeconds / 60);
@@ -23,9 +18,8 @@ export const formatElapsed = (ms: number) => {
 
 /**
  * Wordle-style share text: outcome and time only, never the board. Everyone
- * plays the identical seeded board today (see server/game/daily.js), so
- * printing mine positions here would spoil the puzzle for whoever reads it --
- * this only ever reports a result, the same shape win or lose.
+ * plays the identical seeded board today, so printing mine positions would
+ * spoil the puzzle for whoever reads it.
  */
 export function buildDailyShareText({ date, status, elapsedMs, rank, totalEntries }: ShareableDailyResult): string {
     const origin = typeof window !== "undefined" ? window.location.origin : "";
@@ -42,9 +36,8 @@ export function buildDailyShareText({ date, status, elapsedMs, rank, totalEntrie
 }
 
 /**
- * Tries the native share sheet first (mobile mostly), falls back to a
- * clipboard copy. Mirrors Grid.tsx's copyRoomLink: silent no-op on denial or
- * unavailability rather than surfacing an error for something this low-stakes.
+ * Native share sheet first, clipboard as the fallback. Mirrors Grid.tsx's
+ * copyRoomLink: a denial is a silent no-op, not an error worth surfacing.
  */
 export async function shareDailyResult(text: string): Promise<"shared" | "copied" | "failed"> {
     if (typeof navigator === "undefined") return "failed";
@@ -54,9 +47,8 @@ export async function shareDailyResult(text: string): Promise<"shared" | "copied
             await navigator.share({ text });
             return "shared";
         } catch {
-            // Cancelling the native share sheet also rejects this promise --
-            // that's a valid outcome, not a failure, so fall through to the
-            // clipboard rather than reporting an error for it.
+            // Cancelling the sheet rejects too -- a valid outcome, so fall
+            // through to the clipboard rather than report a failure.
         }
     }
 

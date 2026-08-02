@@ -18,15 +18,12 @@ function Stat({ label, value }: { label: string; value: string }) {
 /**
  * What the run amounted to: how long, how much of the board, and who did it.
  *
- * Everything here is derived from state the client already holds — the board it
- * is rendering and the numbers already on screen in the side panel. A summary is
- * a different *view* of a finished game, not new information, so it needs no
- * payload of its own.
+ * All derived from state the client already holds — a summary is a different
+ * *view* of a finished game, not new information, so it needs no payload.
  *
- * The two modes end differently and so read differently. Co-op is a shared
- * result, so it ends on the scoreboard. PVP is a race, so the only number that
- * settles anything is how far each player got — and the score table is hidden in
- * PVP everywhere else, which is why it is not simply reused here.
+ * The two modes read differently: co-op is a shared result and ends on the
+ * scoreboard; PVP is a race, where the only number that settles anything is how
+ * far each player got.
  */
 export default function GameSummary() {
     const mode = useMinesweeperStore((state) => state.mode);

@@ -1,12 +1,9 @@
 /**
- * Minesweeper Solvability Engine
- * Evaluates whether a candidate board can be 100% solved using logical deduction
- * starting from a given initial click position, without making probabilistic guesses.
+ * Solvability engine: can a candidate board be cleared by logic alone from a
+ * given first click, with no probabilistic guessing?
  */
 
-/**
- * Helper to get adjacent valid coordinates for a cell
- */
+/** The up-to-8 in-bounds neighbours of a cell. */
 const getAdjacentCoords = (r, c, numRows, numCols) => {
     const coords = [];
     for (let dr = -1; dr <= 1; dr++) {
@@ -22,9 +19,7 @@ const getAdjacentCoords = (r, c, numRows, numCols) => {
     return coords;
 };
 
-/**
- * Flood-fills open cells starting from a 0-nearbyMines cell
- */
+/** Flood-fills open cells outward from a 0-nearbyMines cell. */
 const floodFillZero = (r, c, solverBoard, numRows, numCols) => {
     const stack = [[r, c]];
     while (stack.length > 0) {
@@ -43,17 +38,13 @@ const floodFillZero = (r, c, solverBoard, numRows, numCols) => {
 };
 
 /**
- * Same solve as isBoardSolvable, but also reports HOW it was solved: how many
- * times each rule fired. Rule 1 (single-cell logic) is the deduction anyone
- * scanning a board does at a glance; Rule 2 (subset/overlap reduction) is the
- * "compare two overlapping numbers" reasoning that makes a board feel hard.
- * A board solvable using Rule 1 alone is logic-solvable but trivial -- this is
- * what lets the daily challenge (server/game/daily.js) pick a genuinely hard
- * layout instead of just the first one that avoids a 50/50 guess.
+ * Same solve as isBoardSolvable, but also reports how many times each rule
+ * fired. Rule 1 (single-cell logic) is the deduction anyone makes at a glance;
+ * Rule 2 (subset/overlap reduction) is the "compare two overlapping numbers"
+ * reasoning that makes a board feel hard. A board solvable by Rule 1 alone is
+ * logic-solvable but trivial — which is what lets the daily challenge pick a
+ * genuinely hard layout rather than the first one that avoids a 50/50.
  *
- * @param {Array<Array<Object>>} board - 2D grid of cells ({ isMine, nearbyMines })
- * @param {number} startRow - Row of initial click
- * @param {number} startCol - Col of initial click
  * @returns {{ solvable: boolean, rule1Count: number, rule2Count: number }}
  */
 const solveWithStats = (board, startRow, startCol) => {
@@ -63,7 +54,7 @@ const solveWithStats = (board, startRow, startCol) => {
     let rule1Count = 0;
     let rule2Count = 0;
 
-    // Create lightweight simulation board state
+    // Lightweight simulation state, so the caller's board is never touched.
     let totalNonMines = 0;
     const solverBoard = Array.from({ length: numRows }, (_, r) =>
         Array.from({ length: numCols }, (_, c) => {
@@ -78,7 +69,6 @@ const solveWithStats = (board, startRow, startCol) => {
         })
     );
 
-    // Initial click simulation
     const startCell = solverBoard[startRow][startCol];
     if (startCell.isMine) return { solvable: false, rule1Count: 0, rule2Count: 0 };
     startCell.isOpen = true;
@@ -88,13 +78,10 @@ const solveWithStats = (board, startRow, startCol) => {
 
     let madeProgress = true;
 
-    // Deductive solver loop
     while (madeProgress) {
         madeProgress = false;
 
-        // -------------------------------------------------------------------------
-        // RULE 1: Single-Cell Logic (Direct Flags and Direct Reveals)
-        // -------------------------------------------------------------------------
+        // --- RULE 1: single-cell logic (direct flags and direct reveals) -----
         for (let r = 0; r < numRows; r++) {
             for (let c = 0; c < numCols; c++) {
                 const cell = solverBoard[r][c];
@@ -113,7 +100,7 @@ const solveWithStats = (board, startRow, startCol) => {
                     }
                 }
 
-                // Case 1A: All unrevealed neighbors must be mines
+                // 1A: every unrevealed neighbour must be a mine.
                 if (unrevealed.length > 0 && unrevealed.length === cell.nearbyMines - flagCount) {
                     for (const { r: nr, c: nc } of unrevealed) {
                         solverBoard[nr][nc].isFlagged = true;
@@ -121,7 +108,7 @@ const solveWithStats = (board, startRow, startCol) => {
                     }
                     rule1Count++;
                 }
-                // Case 1B: All required mines are flagged -> remaining unrevealed neighbors are safe
+                // 1B: every mine is already flagged, so the rest are safe.
                 else if (unrevealed.length > 0 && flagCount === cell.nearbyMines) {
                     for (const { r: nr, c: nc } of unrevealed) {
                         const target = solverBoard[nr][nc];
@@ -138,9 +125,7 @@ const solveWithStats = (board, startRow, startCol) => {
 
         if (madeProgress) continue;
 
-        // -------------------------------------------------------------------------
-        // RULE 2: Subset Reduction / Overlapping Neighborhood Logic
-        // -------------------------------------------------------------------------
+        // --- RULE 2: subset reduction over overlapping neighbourhoods -------
         const openNumberedCells = [];
         for (let r = 0; r < numRows; r++) {
             for (let c = 0; c < numCols; c++) {
@@ -167,14 +152,13 @@ const solveWithStats = (board, startRow, startCol) => {
             }
         }
 
-        // Compare pairs of overlapping open cells
         for (let i = 0; i < openNumberedCells.length; i++) {
             for (let j = 0; j < openNumberedCells.length; j++) {
                 if (i === j) continue;
                 const cellA = openNumberedCells[i];
                 const cellB = openNumberedCells[j];
 
-                // Check if unrevealed(A) is a strict subset of unrevealed(B)
+                // Only a strict subset tells you anything about the difference.
                 if (cellA.unrevealedSet.size < cellB.unrevealedSet.size) {
                     let isSubset = true;
                     for (const key of cellA.unrevealedSet) {
@@ -190,12 +174,11 @@ const solveWithStats = (board, startRow, startCol) => {
                             pos => !cellA.unrevealedSet.has(`${pos.r},${pos.c}`)
                         );
 
-                        // Case 2A: No extra mines in diff -> all diff cells are safe
+                        // 2A: no extra mines in the difference, so it is all safe.
                         if (diffMines === 0 && diffCells.length > 0) {
-                            // Tracked locally, not via the shared `madeProgress`: an
-                            // earlier pair in this same scan may have already set
-                            // that true, which would otherwise credit THIS pair with
-                            // a step it did not actually contribute.
+                            // Tracked locally, not via the shared `madeProgress`:
+                            // an earlier pair in this scan may have already set
+                            // that, crediting THIS pair with a step it never took.
                             let pairMadeProgress = false;
                             for (const { r: nr, c: nc } of diffCells) {
                                 const target = solverBoard[nr][nc];
@@ -210,7 +193,7 @@ const solveWithStats = (board, startRow, startCol) => {
                             }
                             if (pairMadeProgress) rule2Count++;
                         }
-                        // Case 2B: All diff cells must be mines
+                        // 2B: the difference is all mines.
                         else if (diffMines === diffCells.length && diffCells.length > 0) {
                             let pairMadeProgress = false;
                             for (const { r: nr, c: nc } of diffCells) {
@@ -230,7 +213,7 @@ const solveWithStats = (board, startRow, startCol) => {
         }
     }
 
-    // Evaluate total revealed safe non-mine cells
+    // Solvable iff logic alone opened every non-mine cell.
     let openNonMineCount = 0;
     for (let r = 0; r < numRows; r++) {
         for (let c = 0; c < numCols; c++) {
@@ -243,13 +226,7 @@ const solveWithStats = (board, startRow, startCol) => {
     return { solvable: openNonMineCount === totalNonMines, rule1Count, rule2Count };
 };
 
-/**
- * Evaluates whether a board layout is 100% solvable without guessing from (startRow, startCol).
- * @param {Array<Array<Object>>} board - 2D grid of cells ({ isMine, nearbyMines })
- * @param {number} startRow - Row of initial click
- * @param {number} startCol - Col of initial click
- * @returns {boolean} - Returns true if board is 100% logic-solvable without guesses
- */
+/** Whether the layout is 100% solvable by logic from (startRow, startCol). */
 const isBoardSolvable = (board, startRow, startCol) => solveWithStats(board, startRow, startCol).solvable;
 
 module.exports = { isBoardSolvable, solveWithStats };

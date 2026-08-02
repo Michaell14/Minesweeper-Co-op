@@ -1,9 +1,8 @@
 /**
  * All player reads and writes.
  *
- * Players are keyed by socket id, so a reconnect creates a NEW player record —
- * scores and PVP indices do not survive one. That is existing behaviour, noted
- * here because it is easy to assume otherwise from the repository name.
+ * Players are keyed by socket id, so a reconnect creates a NEW record — scores
+ * and PVP indices do not survive one, despite what the name suggests.
  */
 
 const { redisClient } = require('../utils/initializeRedisClient');

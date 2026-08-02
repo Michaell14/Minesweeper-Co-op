@@ -5,11 +5,8 @@ import { useBestTime } from '@/hooks/useBestTime';
 import { formatClock } from '@/lib/gameClock';
 
 /**
- * Your record on the board currently selected, shown before you play it.
- *
- * A best time only visible in the end-of-game dialog is a record you never see,
- * which is most of the reason to have one. Here it is a target while you are
- * still choosing what to play.
+ * Your record on the board currently selected — a target while you are still
+ * choosing what to play, rather than a number only the end-of-game dialog shows.
  */
 export default function BestForBoard() {
     const { best, label } = useBestTime();

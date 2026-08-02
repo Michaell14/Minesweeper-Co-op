@@ -1,31 +1,18 @@
 /**
- * The socket protocol's payload shapes — the one copy.
- *
- * `shared/events.js` single-sourced the event NAMES, which stopped a typo
- * producing an event nobody listens to. It said nothing about what travels with
- * them: the shapes lived in ARCHITECTURE.md §4 as prose and were re-declared,
- * inline and by hand, at each handler in `hooks/useGameEvents.ts`. So a payload
- * could be read as the wrong shape and nothing complained.
- *
- * Typing them here makes the client's emits and handlers checked by tsc, and
- * gives one place to read the protocol.
+ * The socket protocol's payload shapes — the one copy, and one place to read the
+ * protocol. `shared/events.js` single-sources the event NAMES; this covers what
+ * travels with them.
  *
  * ## What this does and does not enforce
  *
- * This is a `.ts` file, so only the CLIENT consumes it — the server is plain
- * CommonJS and cannot import a type. That means:
- *
- *   - client emits and handlers ARE checked against these shapes, at compile time
- *   - the server is NOT, and could still emit something else
+ * A `.ts` file, so only the CLIENT consumes it — the server is CommonJS and
+ * cannot import a type. Client emits and handlers ARE checked at compile time;
+ * the server is NOT, and could still emit something else.
  *
  * `server/tests/events.test.js` checks that every name in `shared/events.js`
- * appears here, so an event can't be added without a declared payload. It cannot
- * check the shapes themselves; the server's own guard for inbound payloads is
- * `server/validation.js`. Keep this file in step with what the server emits by
- * hand — it is the one part of the protocol still held together by care.
- *
- * Sibling of `shared/events.js` and `shared/boardConfig.js`; unlike those two it
- * is never required by the server, so it costs nothing at runtime.
+ * appears here, so no event can be added without a declared payload. It cannot
+ * check the shapes themselves — the server's guard for INBOUND payloads is
+ * `server/validation.js`, and its emits are kept in step here by hand.
  */
 
 /** Which game a room is playing. `server/validation.js` accepts exactly these. */
@@ -82,10 +69,9 @@ interface CellPayload extends RoomPayload {
 }
 
 /**
- * Every daily challenge payload after `startDaily` carries both the attempt
- * token and the date it started under (echoed back from `dailyStarted`) —
- * never "today" recomputed per-event, so an attempt spanning the UTC midnight
- * boundary stays pinned to the day it began.
+ * Every daily payload after `startDaily` carries the attempt token and the date
+ * it started under, echoed back from `dailyStarted` — never "today" recomputed
+ * per event, so an attempt spanning UTC midnight stays pinned to its own day.
  */
 interface DailyPayload {
     dailyAttemptToken: string;
@@ -179,26 +165,21 @@ export interface ServerToClientEvents {
      * The room's clock, as epoch milliseconds.
      *
      * Timestamps rather than an elapsed count: the client ticks locally from
-     * `startedAt`, so the server does not stream a value every second, every
-     * player in a co-op room reads the same clock, and a player arriving mid-run
-     * — a late join, or a socket reconnect — picks it up at the right time
-     * instead of at zero. (A browser reload is not one of these: it returns to
-     * the landing page, because room membership is not persisted.)
+     * `startedAt`, so nothing is streamed per second, every player in a co-op
+     * room reads the same clock, and anyone arriving mid-run — a late join, a
+     * reconnect, a reload that resumes — picks it up at the right time.
      *
      * `startedAt` is null before the first cell is revealed; `endedAt` is null
      * until the game ends.
      */
     gameClock: (payload: { startedAt: number | null; endedAt: number | null }) => void;
     /**
-     * "You were in a room, and it is still there."
+     * "You were in a room, and it is still there." Sent on connect when the
+     * handshake's session id still maps to a live room. The client answers with
+     * a normal `joinRoom`, so a resume runs the same path a manual join does.
      *
-     * Sent on connect when the handshake's session id still maps to a live
-     * room. The client answers with a normal `joinRoom`, so a resume runs the
-     * same path a manual join does rather than a parallel one.
-     *
-     * Only sent when the player did NOT leave on purpose — an explicit leave
-     * clears the room from the session, so this cannot drag someone back into a
-     * game they walked away from.
+     * Never sent after a deliberate leave — that clears the room from the
+     * session, so this cannot drag someone back into a game they walked away from.
      */
     sessionResume: (payload: { room: string; name: string }) => void;
     playerLeft: (socketId: string) => void;

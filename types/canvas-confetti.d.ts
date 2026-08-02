@@ -1,9 +1,6 @@
 /**
- * Minimal typings for canvas-confetti, which ships no declarations.
- *
- * Only the options this app actually passes are described. Kept local rather
- * than pulling in @types/canvas-confetti for one call site; widen it here if
- * more of the API gets used.
+ * Minimal typings for canvas-confetti, which ships no declarations. Local rather
+ * than @types/canvas-confetti for one call site; widen it here as needed.
  */
 declare module 'canvas-confetti' {
     interface ConfettiOptions {

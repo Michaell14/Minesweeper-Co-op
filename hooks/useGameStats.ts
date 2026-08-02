@@ -3,11 +3,7 @@
 import { useMemo } from "react";
 import { useMinesweeperStore } from "@/app/store";
 
-/**
- * Board-derived numbers shared by the desktop and mobile layouts.
- *
- * These used to be computed twice over in Grid.tsx, once per layout tree.
- */
+/** Board-derived numbers shared by the desktop and mobile layouts. */
 export function useGameStats() {
     const board = useMinesweeperStore((state) => state.board);
     const numMines = useMinesweeperStore((state) => state.numMines);
@@ -25,10 +21,8 @@ export function useGameStats() {
 
     /**
      * Safe cells this player has revealed, and how many there are to reveal.
-     *
-     * Both are returned raw as well as as percentages: the end-of-game summary
-     * needs the counts, and it was scanning the board a second time to get them
-     * on a component that renders while a full board is in state.
+     * Returned raw as well as as percentages, because the end-of-game summary
+     * needs the counts.
      *
      * `safeCells` is derived from the board rather than from pvpTotalSafeCells,
      * which the server only sets in PVP — co-op needs the same number.

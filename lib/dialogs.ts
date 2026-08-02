@@ -1,11 +1,9 @@
 /**
  * Every dialog in the app, and the two ways to drive one.
  *
- * These are native <dialog> elements: NES.css styles them, and `form
- * method="dialog"` gives the buttons their close-on-submit behaviour, so they
- * are opened imperatively rather than by React state. The ids used to be bare
- * string literals spread across five files with nothing linking an opener to the
- * markup it opened. Import from here instead of typing an id.
+ * These are native <dialog> elements — `form method="dialog"` gives the buttons
+ * their close-on-submit behaviour — so they are opened imperatively rather than
+ * by React state. Import an id from here rather than typing the literal.
  */
 
 export const DIALOGS = {

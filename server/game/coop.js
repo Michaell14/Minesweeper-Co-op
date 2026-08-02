@@ -32,8 +32,7 @@ const reveal = async (board, r, c, room, socketId, toUpdate) => {
     const gameOverName = await playerRepo.getName(socketId);
     const endedAt = Date.now();
     // The clock goes first: the loss opens the end-of-game summary, which reads
-    // the final time. Only startedAt is needed, and this function is not handed
-    // the room state.
+    // the final time.
     const startedAt = readStamp(await roomRepo.getField(room, 'startedAt'));
     io.to(room).emit(SERVER_EVENTS.GAME_CLOCK, { startedAt, endedAt });
     io.to(room).emit(SERVER_EVENTS.GAME_OVER, gameOverName);
@@ -43,28 +42,21 @@ const reveal = async (board, r, c, room, socketId, toUpdate) => {
         endedAt: endedAt.toString()
     });
 
-    // The game is over, so every mine becomes visible. This send is required:
-    // clients are no longer given mine positions up front, so without it the
-    // board would show a single detonated mine and nothing else.
+    // Required: clients are not given mine positions up front, so without this
+    // the board would show a single detonated mine and nothing else.
     io.to(room).emit(SERVER_EVENTS.BOARD_UPDATE, projectBoard(board, { revealMines: true }));
     return cellsRevealed;
 };
 
-// Opens a cell
 const openCell = async (row, col, room, socketId, roomState, playerScore) => {
-    // Return when game is over -> no more interactions necessary
     if (roomState.gameOver === 'true' || roomState.gameWon === 'true') {
         return;
     }
 
-    // Parse board only if necessary
     let board = JSON.parse(roomState.board);
 
-    // Validate bounds first before accessing array
     if (!board || !Array.isArray(board) || board.length === 0) return;
     if (row < 0 || row >= board.length || col < 0 || col >= board[0].length) return;
-
-    // Check invalid scenarios with board state
     if (
         board[row][col] === undefined ||
         !board[row][col] ||
@@ -77,21 +69,18 @@ const openCell = async (row, col, room, socketId, roomState, playerScore) => {
     const numMines = parseInt(roomState.numMines, 10);
     let justInitialized = false;
 
-    // Initialize board if not already initialized (with race condition protection)
+    // First reveal generates the board. The init lock predates the room action
+    // lock this call already runs under and is kept as a second line of defence.
     if (roomState.initialized === 'false') {
-        // Use Redis SET NX: check and set atomically
-        // This prevents race condition where two players initialize simultaneously
         const lockAcquired = await roomRepo.acquireInitLock(room, socketId);
 
         if (lockAcquired) {
-            // Double-check after acquiring lock to prevent race condition
             const freshState = await roomRepo.getField(room, 'initialized');
             if (freshState === 'true') {
-                // Someone else initialized while we were waiting for the lock
+                // Someone else generated it while we waited for the lock.
                 await roomRepo.releaseInitLock(room);
                 board = await roomRepo.getBoard(room);
             } else {
-                // We can safely initialize
                 const shouldNoGuess = roomState.noGuess !== 'false';
                 board = generateBoard(numRows, numCols, numMines, row, col, { noGuess: shouldNoGuess });
                 // The clock starts on the first reveal, not on room creation:
@@ -101,12 +90,11 @@ const openCell = async (row, col, room, socketId, roomState, playerScore) => {
                     board: JSON.stringify(board),
                     startedAt: Date.now().toString()
                 });
-                await roomRepo.releaseInitLock(room); // Release lock
+                await roomRepo.releaseInitLock(room);
                 justInitialized = true;
             }
         } else {
-            // Another player is initializing, wait and reload
-            // Poll for completion (max 5 attempts with 100ms delay)
+            // Someone else holds it: poll briefly for their board.
             for (let i = 0; i < 5; i++) {
                 await new Promise(resolve => setTimeout(resolve, 100));
                 const currentState = await roomRepo.getField(room, 'initialized');
@@ -118,7 +106,6 @@ const openCell = async (row, col, room, socketId, roomState, playerScore) => {
         }
     }
 
-    // Reveal cells and update board state
     const toUpdate = [];
     const cellsRevealed = await reveal(board, row, col, room, socketId, toUpdate);
 
@@ -131,10 +118,9 @@ const openCell = async (row, col, room, socketId, roomState, playerScore) => {
         await updatePlayerStatsInRoom(room);
     }
 
-    // Save board first before checking win condition
     await roomRepo.setBoard(room, board);
 
-    // Refresh room state to get latest gameOver/gameWon status before checking win
+    // Re-read: `reveal` may have just ended the game.
     const freshRoomState = await roomRepo.getState(room);
     await checkWin(freshRoomState, board, room);
 
@@ -195,24 +181,18 @@ const toggleFlag = async (row, col, room, socketId, roomState) => {
 
     const board = JSON.parse(roomState.board);
 
-    // Validate bounds first before accessing array
     if (!board || !Array.isArray(board) || board.length === 0) return;
     if (row < 0 || row >= board.length || col < 0 || col >= board[0].length) return;
-
-    // Exit early if the cell is already open
     if (board[row][col] === undefined || !board[row][col] || board[row][col].isOpen) return;
 
-    // Toggle the flag
     board[row][col].isFlagged = !board[row][col].isFlagged;
 
-    // Prepare the update for broadcasting
     const toUpdate = [{
         ...board[row][col],
         row,
         col,
     }];
 
-    // Emit the cell update and update the board in Redis.
     // The flagged cell is still CLOSED, so this projection is what stopped a
     // flag toggle from leaking that cell's mine status.
     io.to(room).emit(SERVER_EVENTS.UPDATE_CELLS, projectCells(toUpdate));

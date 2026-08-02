@@ -43,13 +43,11 @@ export default function Timer({ variant }: TimerProps) {
 
     const value = formatClock(seconds);
     /*
-     * The digits change every second, so they are hidden from assistive tech —
-     * announcing them would talk over the game continuously. The label carries
-     * the reading for anyone who asks for it.
+     * The digits are hidden from assistive tech — announcing them every second
+     * would talk over the game — so the label carries the reading instead.
      *
-     * `role="timer"` is load-bearing, not decoration: aria-label is ignored on a
-     * generic element, and both wrappers here are generic (Panel spreads onto a
-     * plain div, and a <p> is a paragraph). Without a role the label is dropped
+     * `role="timer"` is load-bearing: aria-label is ignored on a generic element,
+     * and both wrappers here are generic. Without the role the label is dropped
      * and, since the digits are hidden, the timer announces nothing at all.
      * `timer` also defaults to aria-live="off", so it does not narrate.
      */

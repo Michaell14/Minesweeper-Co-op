@@ -9,9 +9,9 @@ export interface PvpSlice {
     pvpOpponentName: string;
     pvpOpponentStatus: PvpOpponentStatus;
     pvpWinner: string | null;
-    pvpRoomReady: boolean;              // True once two players are present
+    pvpRoomReady: boolean;              // true once two players are present
     pvpIsHost: boolean;
-    pvpOpponentProgress: number;        // Opponent's revealed safe cells
+    pvpOpponentProgress: number;        // opponent's revealed safe cells
     pvpTotalSafeCells: number;
 
     setPvpStarted: (started: boolean) => void;

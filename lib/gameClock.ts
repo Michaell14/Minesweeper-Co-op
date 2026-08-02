@@ -1,10 +1,7 @@
 /**
- * Reading the run clock.
- *
- * The server sends two timestamps (see shared/socketPayloads.ts) and the client
- * derives everything from them, so both the live timer and the end-of-game
- * summary must agree on what "elapsed" and "02:07" mean. They disagreed when
- * each formatted its own.
+ * Reading the run clock. The server sends two timestamps and the client derives
+ * everything from them here, so the live timer and the end-of-game summary
+ * cannot disagree on what "elapsed" and "02:07" mean.
  */
 
 /** Seconds since the run began, frozen at `endedAt` once it is set. */

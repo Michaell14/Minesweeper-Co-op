@@ -1,10 +1,8 @@
 /**
- * Board primitives.
- *
- * This module must stay dependency-free (no io, no Redis, no other server
- * modules). It exists to give gameUtils and playerUtils a shared place to get
- * board helpers from without requiring each other — that cycle silently broke
- * resetGame(). See ARCHITECTURE.md §7.
+ * Board primitives. Must stay dependency-free (no io, no Redis, no other server
+ * modules): this exists so gameUtils and playerUtils share board helpers without
+ * requiring each other, a cycle that silently broke resetGame(). See
+ * ARCHITECTURE.md §7.
  */
 
 /**
@@ -39,10 +37,9 @@ const getAdjacentCells = (row, col, grid) => {
         const newRow = row + dx;
         const newCol = col + dy;
 
-        // Check boundaries
         if (newRow >= 0 && newRow < grid.length && newCol >= 0 && newCol < grid[0].length) {
             adjacentCells.push({
-                ...grid[newRow][newCol], // Include cell properties (e.g., isOpen, isFlagged)
+                ...grid[newRow][newCol],
                 row: newRow,
                 col: newCol,
             });
@@ -63,9 +60,9 @@ const getAdjacentCells = (row, col, grid) => {
  *     rest of the stack is abandoned
  *
  * Returns `{ hitMine, cellsRevealed }`, where cellsRevealed counts safe cells
- * only. Deciding what hitting a mine *means* is left to the caller, which is the
- * only thing the co-op and PVP versions of this ever disagreed on: co-op ends
- * the game for the whole room, PVP only for that player.
+ * only. What hitting a mine *means* is the caller's call — the only thing co-op
+ * and PVP ever disagreed on: co-op ends the game for the room, PVP for that
+ * player alone.
  *
  * Pure — no io, no Redis.
  */
@@ -106,13 +103,11 @@ const revealFrom = (board, r, c, toUpdate) => {
 /**
  * Hides everything a player is not entitled to know about one cell.
  *
- * A closed cell must give away neither `isMine` nor `nearbyMines`: the mine flag
- * is the answer outright, and the neighbour count of an unopened cell is nearly
- * as good, since it lets you solve the board offline. Both are reported as the
- * neutral 0/false that a closed cell renders as anyway.
- *
- * Open cells always tell the truth, and `isFlagged` is public in co-op by
- * design — flags are shared state that every player can see.
+ * A closed cell gives away neither `isMine` nor `nearbyMines`: the first is the
+ * answer outright, and the second is nearly as good, since it lets you solve the
+ * board offline. Both report the neutral 0/false a closed cell renders as
+ * anyway. Open cells tell the truth, and `isFlagged` is public by design — flags
+ * are shared state in co-op.
  */
 const projectCell = (cell, revealMines) => {
     const visible = revealMines || cell.isOpen;

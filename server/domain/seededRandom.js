@@ -1,11 +1,10 @@
 /**
  * A small deterministic PRNG, used only by the daily challenge's board
- * generation (server/game/daily.js). Regular rooms keep using Math.random()
- * unchanged — see the `rng` parameter on generateBoard in gameUtils.js.
+ * generation. Regular rooms keep using Math.random() — see the `rng` option on
+ * generateBoard in domain/boardGen.js.
  *
- * Pure, dependency-free. Same seed -> identical output sequence, every time,
- * from a cold call — that is the entire point: it is what lets every player
- * receive byte-identical daily boards.
+ * Pure and dependency-free: the same seed gives the same sequence from a cold
+ * call, which is what lets every player receive byte-identical daily boards.
  */
 
 /** djb2 string hash, folded into an unsigned 32-bit seed. */
@@ -18,9 +17,8 @@ const hashStringToSeed = (str) => {
 };
 
 /**
- * mulberry32: returns a `() => number in [0, 1)` generator function. The
- * returned function is itself the RNG state — call it repeatedly for a
- * deterministic sequence keyed only by `seed`.
+ * mulberry32: returns a `() => number in [0, 1)`. The returned closure holds the
+ * RNG state — call it repeatedly for a sequence keyed only by `seed`.
  */
 const mulberry32 = (seed) => {
     let a = seed >>> 0;

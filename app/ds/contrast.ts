@@ -1,15 +1,13 @@
 /**
  * WCAG contrast, measured against what the browser actually painted.
  *
- * Every colour in the app is a custom property a theme can redefine, so the
- * only trustworthy way to know a pair's contrast is to resolve it in the DOM
- * rather than compute it from the token source. A palette that reads well as
- * swatches can still put muted text below 4.5:1 on a panel, which is exactly
- * the failure a restricted retro palette makes easy.
+ * Every colour is a custom property a theme can redefine, so the only
+ * trustworthy reading resolves the pair in the DOM rather than computing it from
+ * the token source: a palette that looks fine as swatches can still put muted
+ * text below 4.5:1 on a panel.
  *
- * The maths is separated from the DOM lookup so it can be tested — these
- * numbers are the whole point of the tool, and a transposed coefficient would
- * produce plausible, wrong, unfalsifiable output forever.
+ * The maths is separated from the DOM lookup so it can be tested — a transposed
+ * coefficient would produce plausible, wrong, unfalsifiable output forever.
  */
 
 export type Rgb = readonly [number, number, number];

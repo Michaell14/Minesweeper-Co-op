@@ -18,19 +18,15 @@ interface LandingParams {
 /**
  * The front page: play today's puzzle, join a room, or create one.
  *
- * Layout and composition only. Each form owns its own `useForm` and its own
- * submit, and each dialog reads what it needs from the store, so nothing here
- * holds state on their behalf — this file used to carry three form hooks, a
- * banner's visibility, a URL effect and five handlers alongside all the markup.
+ * Layout and composition only — each form owns its own state and submit, and
+ * each dialog reads what it needs from the store.
  *
- * The two actions it does drill are `createRoom` and `joinRoom`, and they go
- * straight to the name dialogs. The forms themselves never fire them: a form
- * records the room code and opens a dialog, and the dialog emits once a name is
- * confirmed. That is why the forms take no props at all.
+ * `createRoom` and `joinRoom` are drilled straight to the name dialogs, never to
+ * the forms: a form records the room code and opens a dialog, and the dialog
+ * emits once a name is confirmed. That is why the forms take no props.
  *
- * The dialogs are mounted here but opened from anywhere via `openDialog` — the
- * board-size card that opens the custom dialog needs no handle on it. See
- * lib/dialogs.ts.
+ * The dialogs are mounted here but opened from anywhere via `openDialog`, so the
+ * board-size card needs no handle on the custom dialog.
  */
 export default function Landing({ createRoom, joinRoom, startDaily }: LandingParams) {
     const setName = useMinesweeperStore((state) => state.setName);
@@ -39,22 +35,12 @@ export default function Landing({ createRoom, joinRoom, startDaily }: LandingPar
         <>
             <AnnouncementBanner />
 
-            {/*
-              * Tighter than it was (pt-10 lg:pt-20). With three option rows the
-              * create form only fits an 800px-tall viewport if the header gives
-              * some space back.
-              */}
+            {/* Deliberately tight: with three option rows, the create form only
+                fits an 800px-tall viewport if the header gives space back. */}
             <div className="text-center pt-4 lg:pt-8">
                 <h1 className="text-pixel-2xl md:text-pixel-4xl font-bold">Minesweeper Co-op</h1>
-                {/*
-                  * The daily challenge is the lowest-friction entry point: no
-                  * room code, no name (that's collected on a win, in the
-                  * dailySubmit dialog) -- one click straight onto today's
-                  * board. A single inline button under the title rather than
-                  * its own bordered section, so it reads as a shortcut next to
-                  * the game's name, not a second billboard competing with
-                  * Join/Create for attention.
-                  */}
+                {/* An inline shortcut rather than its own bordered section, so it
+                    does not compete with Join/Create for attention. */}
                 <Button
                     intent="primary"
                     size="sm"
@@ -65,9 +51,6 @@ export default function Landing({ createRoom, joinRoom, startDaily }: LandingPar
                 </Button>
             </div>
 
-            {/* Chakra <Center pb={12}><Container maxW="2xl"> — 672px is
-                max-w-2xl exactly, and the container's own inline padding was
-                16px, i.e. px-4. */}
             <div className="flex justify-center pb-12">
                 <div className="w-full max-w-2xl mx-auto px-4">
                     <JoinRoomForm />

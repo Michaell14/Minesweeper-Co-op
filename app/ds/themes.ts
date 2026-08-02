@@ -1,9 +1,6 @@
 /**
- * Catalog-only theme tooling.
- *
- * The theme list and applyTheme live in lib/theme.ts because the app itself
- * needs them now; this file keeps only what exists to critique a palette rather
- * than to use one.
+ * Catalog-only theme tooling: what exists to critique a palette rather than use
+ * one. The list and applyTheme itself live in lib/theme.ts.
  */
 export { THEMES, applyTheme, type ThemeOption } from "@/lib/theme";
 
@@ -39,11 +36,10 @@ export interface ThemeCoverage {
 }
 
 /**
- * Which palette entries a theme actually redefines.
- *
- * Inheriting is legitimate — Dark keeps the NES intent hues on purpose — but
- * "deliberately inherited" and "forgotten" are indistinguishable until someone
- * lists them, and a forgotten entry is exactly how a palette ships half-applied.
+ * Which palette entries a theme actually redefines. Inheriting is legitimate —
+ * Dark keeps the NES intent hues on purpose — but "deliberately inherited" and
+ * "forgotten" are indistinguishable until someone lists them, and a forgotten
+ * entry is how a palette ships half-applied.
  */
 export function coverageOf(id: string | null): ThemeCoverage | null {
     if (typeof document === "undefined") return null;

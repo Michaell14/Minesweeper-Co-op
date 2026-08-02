@@ -28,10 +28,9 @@ export default function DailyDialogs({ submitDailyScore, getDailyLeaderboard }: 
 
     /*
      * `required` alone does not cover this: a name of spaces satisfies it, and
-     * preventing the default on this click means native validation never runs
-     * anyway. The message is rendered by Field rather than alert()'d -- a
-     * browser modal on top of a <dialog> blocks the thread, ignores the theme,
-     * and is the one piece of UI here nothing in components/ds can style.
+     * preventing the default on this click means native validation never runs.
+     * Rendered by Field rather than alert()'d -- a browser modal over a <dialog>
+     * blocks the thread and ignores the theme.
      */
     const [nameError, setNameError] = React.useState('');
 
@@ -47,10 +46,9 @@ export default function DailyDialogs({ submitDailyScore, getDailyLeaderboard }: 
     };
 
     /**
-     * Closes the currently-open dialog and opens the leaderboard instead --
-     * a plain (non-submit) Button + manual close/open rather than letting a
-     * DialogClose's native submit-close handle it, since that closure and
-     * this dialog's showModal() would otherwise race within the same click.
+     * Closes the open dialog and opens the leaderboard. A plain Button with a
+     * manual close/open, not a DialogClose: its native submit-close and this
+     * showModal() would race within the same click.
      */
     const viewLeaderboard = (fromDialog: typeof DIALOGS[keyof typeof DIALOGS]) => () => {
         closeDialog(fromDialog);
@@ -58,8 +56,8 @@ export default function DailyDialogs({ submitDailyScore, getDailyLeaderboard }: 
         openDialog(DIALOGS.dailyLeaderboard);
     };
 
-    // Shared by every "Share Result" button below -- there's only ever one
-    // daily dialog open at a time, so one feedback label is enough.
+    // One label serves every "Share Result" button: only one daily dialog is
+    // ever open at a time.
     const [shareFeedback, setShareFeedback] = React.useState('');
     const shareFeedbackTimeout = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -88,9 +86,9 @@ export default function DailyDialogs({ submitDailyScore, getDailyLeaderboard }: 
 
     return (
         <>
-            {/* Announces the Share button's "Copied!"/"Shared!" feedback --
-              * its own label change isn't reliably picked up by a screen
-              * reader, same reasoning as RoomPanel's Copy Link button. */}
+            {/* Announces the Share button's "Copied!"/"Shared!" feedback -- a
+                label change on the button itself is not reliably picked up, same
+                as RoomPanel's Copy Link. */}
             <span className="sr-only" aria-live="polite">{shareFeedback}</span>
 
             {/* Won: enter a name to add today's time to the leaderboard. */}
@@ -171,9 +169,7 @@ export default function DailyDialogs({ submitDailyScore, getDailyLeaderboard }: 
                 actionsAlign={dailyStatus === 'completed' ? 'between' : 'end'}
                 actions={
                     <>
-                        {/* Only a submitted (completed) run has a personal
-                          * result worth sharing -- someone just browsing the
-                          * leaderboard mid-game, or a fresh visitor, does not. */}
+                        {/* Only a submitted run has a personal result to share. */}
                         {dailyStatus === 'completed' && shareButton("Share your daily challenge result")}
                         <DialogClose aria-label="Close leaderboard dialog">Close</DialogClose>
                     </>

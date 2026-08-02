@@ -44,9 +44,8 @@ function Section({
 }
 
 /**
- * Rendered with the game's own board CSS rather than a lookalike, so the
- * catalog cannot drift from the board it claims to depict — the previous
- * version restated the cell size and missed the raised bevel entirely.
+ * Rendered with the game's own board CSS rather than a lookalike, so the catalog
+ * cannot drift from the board it depicts.
  */
 function BoardPreview() {
     return (

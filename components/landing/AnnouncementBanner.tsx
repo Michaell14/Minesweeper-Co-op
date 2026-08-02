@@ -2,13 +2,7 @@
 
 import React from 'react';
 
-/**
- * The dismissable strip above the title.
- *
- * Owns its own visibility, because nothing else needs to know: it is the one
- * piece of Landing with state that no other part reads, and keeping it here is
- * what stops a `useState` for a banner sitting among the room forms.
- */
+/** The dismissable strip above the title. Owns its own visibility. */
 export default function AnnouncementBanner() {
     const [visible, setVisible] = React.useState(true);
     if (!visible) return null;

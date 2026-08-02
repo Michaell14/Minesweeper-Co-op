@@ -1,9 +1,7 @@
 /**
- * Shareable room-join links.
- *
- * Room codes are arbitrary user text with no charset restriction (see
- * server/validation.js), so building/parsing goes through URL/URLSearchParams
- * rather than hand-rolled encoding -- they percent-encode and decode for us.
+ * Shareable room-join links. Room codes are arbitrary user text with no charset
+ * restriction, so this goes through URL/URLSearchParams rather than hand-rolled
+ * encoding.
  */
 
 export const ROOM_QUERY_PARAM = 'room';

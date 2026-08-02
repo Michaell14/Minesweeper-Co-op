@@ -1,10 +1,6 @@
 /**
- * Mode dispatch for cell actions.
- *
- * This is the only place that decides whether an action is co-op or PVP. It
- * previously lived buried a third of the way into each of openCell, chordCell
- * and toggleFlag inside a single 636-line boardUtils.js, so the two modes'
- * implementations were interleaved and neither could be read on its own.
+ * Mode dispatch for cell actions — the only place that decides whether an action
+ * is co-op or PVP.
  *
  * Room state is read here and handed to the mode module, which is why the mode
  * implementations take `roomState` rather than fetching it themselves.
@@ -27,16 +23,14 @@ const { pvpIndexOf } = require('../domain/pvpPlayer');
 const modeOf = (roomState) => (roomState && roomState.mode) || 'co-op';
 
 /**
- * The PVP index is safe to read BEFORE the lock, unlike everything else here:
- * startPvpGame writes it once and it never changes, so it cannot go stale
- * underneath us — which is what lets it pick the lock key. A socket without one
- * gets no lock and no board; pvp.js logs it and refuses the move.
- */
-
-/**
  * Runs a PVP move under that player's own lock, handing it room state read
  * inside. For the two actions that need nothing but room state; openCell reads
  * the score and player record as well and so spells it out itself.
+ *
+ * The index is safe to read BEFORE the lock, unlike everything else here:
+ * startPvpGame writes it once and it never changes, which is what lets it pick
+ * the lock key. A socket without one gets no lock and no board; pvp.js logs it
+ * and refuses the move.
  */
 const withPvpMove = async (room, socketId, roomState, run) => {
     const playerIndex = pvpIndexOf(await playerRepo.getState(socketId));
@@ -47,10 +41,9 @@ const withPvpMove = async (room, socketId, roomState, run) => {
 };
 
 const openCell = async (row, col, room, socketId) => {
-    // Fetch room state and board in parallel to save time
     const [roomState, playerScore, playerData] = await Promise.all([
         roomRepo.getState(room),
-        playerRepo.getField(socketId, "score"), // Retrieves the player score to later increment it
+        playerRepo.getField(socketId, "score"),
         playerRepo.getState(socketId),
     ]);
 

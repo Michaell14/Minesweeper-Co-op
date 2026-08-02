@@ -5,15 +5,10 @@ import Button, { type ButtonProps } from "./Button";
 import type { DialogId } from "@/lib/dialogs";
 
 /**
- * A button that dismisses its dialog.
- *
- * This exists because the failure mode is silent. These are native <dialog>
- * elements closed by submitting their `method="dialog"` form, so a close button
- * is only a close button if its type is "submit" — and <Button> deliberately
- * defaults to type="button" so that ordinary buttons inside the landing form
- * stop submitting it by accident. Get that wrong and the dialog simply stops
- * closing, with nothing to see in the markup. Naming the intent removes the
- * choice.
+ * A button that dismisses its dialog. Exists because the failure mode is silent:
+ * a native <dialog> closes on submitting its `method="dialog"` form, and <Button>
+ * defaults to type="button", so a plain Button in an actions row simply stops
+ * closing the dialog with nothing wrong in the markup.
  */
 export function DialogClose(props: Omit<ButtonProps, "type">) {
     return <Button type="submit" {...props} />;
@@ -39,13 +34,7 @@ export interface DialogProps {
     children?: React.ReactNode;
 }
 
-/**
- * The one dialog shell.
- *
- * This replaces nine near-identical copies of the same 12 lines of markup, each
- * repeating the positioning classes, the form, the aria wiring and an action
- * row — and each free to drift from the others, which several had.
- */
+/** The one dialog shell: positioning, the form, the aria wiring, an action row. */
 export default function Dialog({
     id,
     title,

@@ -12,27 +12,22 @@ const { SERVER_EVENTS } = require('../../shared/events');
 /**
  * Builds the single board both players race on.
  *
- * Both players get the SAME mine layout, so the race is like-for-like. That
- * rules out generating it around each player's own first click, which is what
- * used to make the two boards differ — so instead one shared cell is chosen up
- * front, the board is generated (and no-guess verified) around it, and that cell
- * is opened for both. Players start from an identical opening rather than a
- * blank grid, and nobody can lose on their first click.
+ * The SAME layout for both, so the race is like-for-like — which rules out
+ * generating around each player's own first click, what used to make the two
+ * boards differ. Instead one shared cell is chosen up front, the board is
+ * generated (and no-guess verified) around it, and that cell is opened for both,
+ * so progress starts level and nobody can lose on their first click.
  */
 const buildSharedBoard = (numRows, numCols, numMines) => {
     const startRow = Math.floor(numRows / 2);
     const startCol = Math.floor(numCols / 2);
     const board = generateBoard(numRows, numCols, numMines, startRow, startCol);
 
-    // Apply the opening move to the board itself, so both players receive it
-    // already revealed and their progress starts level.
     const { cellsRevealed } = revealFrom(board, startRow, startCol, []);
     return { board, openedCells: cellsRevealed };
 };
 
-/**
- * Handles 'startPvpGame' event
- */
+/** Handles 'startPvpGame'. */
 const startPvpGame = async ({ socket, room, isValid, io }) => {
     try {
         if (!isValidRoomCode(room)) return;
@@ -45,7 +40,6 @@ const startPvpGame = async ({ socket, room, isValid, io }) => {
         const players = roomRepo.playersFrom(roomState);
         if (players.length !== 2) return;
 
-        // Only host can start game
         if (roomState.hostSocket !== socket.id) return;
         if (roomState.pvpStarted === 'true') return;
 
@@ -82,8 +76,7 @@ const startPvpGame = async ({ socket, room, isValid, io }) => {
             player1Progress: openedCells.toString(),
             player2Progress: openedCells.toString(),
             winnerSocket: '',
-            // Pristine copy, so resetMyBoard can restore this player's board
-            // to the shared starting state rather than a blank grid.
+            // Pristine copy for resetMyBoard to restore from.
             sharedBoard: serializedBoard,
             sharedOpenedCells: openedCells.toString(),
         });
@@ -125,9 +118,7 @@ const startPvpGame = async ({ socket, room, isValid, io }) => {
     }
 };
 
-/**
- * Handles 'resetMyBoard' event
- */
+/** Handles 'resetMyBoard'. */
 const resetMyBoard = async ({ socket, room, isValid, io }) => {
     try {
         if (!isValidRoomCode(room)) return;
@@ -157,9 +148,9 @@ const resetMyBoard = async ({ socket, room, isValid, io }) => {
 
         const { boardKey, initializedKey, gameOverKey, progressKey } = pvpPlayerFields(playerIndex);
 
-        // Under this player's action lock: a move of theirs still in flight
-        // would otherwise write its board back over the restored one, leaving
-        // them on a board that is neither the retry nor the game they lost.
+        // Locked: a move of theirs still in flight would otherwise write its
+        // board over the restored one, leaving them on neither the retry nor the
+        // game they lost.
         await roomRepo.withPvpActionLock(room, playerIndex, socket.id, async () => {
             await roomRepo.setFields(room, {
                 [boardKey]: sharedBoard,
@@ -171,10 +162,8 @@ const resetMyBoard = async ({ socket, room, isValid, io }) => {
             await playerRepo.resetScore(socket.id);
         });
 
-        // Retrying puts this player back in the race, so their clock has to
-        // restart from the room's shared start — pvp.js stopped it when they hit
-        // the mine, and without this it stays frozen at their death for the rest
-        // of the game.
+        // Their clock restarts from the room's shared start — pvp.js stopped it
+        // when they hit the mine, and without this it stays frozen there.
         io.to(socket.id).emit(SERVER_EVENTS.GAME_CLOCK, {
             startedAt: startedAtOf(roomState),
             endedAt: null
@@ -207,9 +196,7 @@ const resetMyBoard = async ({ socket, room, isValid, io }) => {
     }
 };
 
-/**
- * Handles 'pvpRematch' event
- */
+/** Handles 'pvpRematch'. */
 const pvpRematch = async ({ socket, room, isValid, io }) => {
     try {
         if (!isValidRoomCode(room)) return;
@@ -239,11 +226,11 @@ const pvpRematch = async ({ socket, room, isValid, io }) => {
         const player1Socket = roomState.player1Socket;
         const player2Socket = roomState.player2Socket;
 
-        // Both players' boards are rewritten here, so both action locks are
-        // held — in index order, which is the only ordering anything takes them
-        // in. A move from the last game still in flight would otherwise land on
-        // the rematch board. (startPvpGame needs none of this: it refuses to run
-        // once pvpStarted is 'true', and no move runs until it is.)
+        // Both boards are rewritten, so both locks are held — in index order,
+        // the only ordering anything takes them in. A move from the last game
+        // still in flight would otherwise land on the rematch board.
+        // (startPvpGame needs none of this: it refuses to run once pvpStarted is
+        // 'true', and no move runs until it is.)
         await roomRepo.withPvpActionLock(room, 0, socket.id, async () => {
             await roomRepo.withPvpActionLock(room, 1, socket.id, async () => {
                 await roomRepo.setFields(room, {
@@ -262,8 +249,7 @@ const pvpRematch = async ({ socket, room, isValid, io }) => {
                     player1Progress: openedCells.toString(),
                     player2Progress: openedCells.toString(),
                     winnerSocket: '',
-                    // Pristine copy, so resetMyBoard can restore this player's
-                    // board to the shared starting state rather than a blank grid.
+                    // Pristine copy for resetMyBoard to restore from.
                     sharedBoard: serializedBoard,
                     sharedOpenedCells: openedCells.toString(),
                 });

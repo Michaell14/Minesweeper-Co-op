@@ -4,16 +4,13 @@ import type { MinesweeperState } from './store';
 import type { GameMode } from '@/shared/socketPayloads';
 
 /**
- * Board dimensions, size and difficulty labels, and game mode.
- *
- * Defaults come from shared/boardConfig, which the server validates against too.
+ * Board dimensions, size and difficulty labels, and game mode. Defaults come
+ * from shared/boardConfig, which the server validates against too.
  *
  * `boardSize` and `difficulty` are LABELS for the landing page's two selectors;
  * only `numRows`/`numCols`/`numMines` are ever emitted. `setBoardConfig` is the
- * ONE place that derives dimensions/mines from the pair, so the numbers can
- * never disagree with the labels on screen for a user-driven pick. It used to
- * live in Landing.tsx as a local function -- moved here so a second caller
- * cannot bypass the derivation the way `setDimensions` alone always could.
+ * ONE place that derives the numbers from the pair, so for a user-driven pick
+ * they can never disagree with the labels on screen.
  */
 
 export interface BoardConfigSlice {
@@ -36,12 +33,9 @@ export interface BoardConfigSlice {
 
     /**
      * Raw dimension override with no size/difficulty label attached.
-     *
-     * `joinRoomSuccess` is the one caller: the server sends only numbers, so
-     * there is no size/difficulty pair to derive from. `boardSize`/`difficulty`
-     * are left as whatever they were -- harmless today since nothing reads them
-     * once a player is in a room, but a future "current settings" display
-     * should derive its own label rather than trust these fields post-join.
+     * `joinRoomSuccess` is the one caller — the server sends only numbers.
+     * `boardSize`/`difficulty` are left stale, so anything wanting a label after
+     * a join must derive its own rather than read those fields.
      */
     setDimensions: (rows: number, cols: number, mines: number) => void;
     setBoardSize: (size: string) => void;
