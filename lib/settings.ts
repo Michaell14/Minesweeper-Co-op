@@ -1,0 +1,127 @@
+/**
+ * The settings blob: every preference in one versioned localStorage value,
+ * shared by the signed-out player (this is their only copy) and the signed-in
+ * one (the server mirror in `user_settings` wins at sign-in, then last write
+ * wins — see components/SettingsSync.tsx).
+ *
+ * Storage is untrusted input, same stance as lib/bestTimes.ts: a corrupt blob,
+ * a hand-edited value or a key from a future version degrades to defaults for
+ * the fields it broke, never to a throw. `sanitizeSettings` is the single
+ * gate — everything read from storage OR the server goes through it, so the
+ * two sources cannot disagree about what a valid setting is.
+ *
+ * Adding a setting = one key in `Settings`, one default, one sanitiser. The
+ * PRD's later phases (gameplay, sound, HUD) land here as exactly that.
+ */
+
+import { VALID_THEME_IDS, THEME_STORAGE_KEY as LEGACY_THEME_KEY } from "@/lib/theme";
+
+export interface Settings {
+    /** Bumped only when a stored shape needs rewriting, not for new keys —
+     * unknown keys are dropped and missing ones defaulted regardless. */
+    version: 1;
+    /** data-theme id, or null for the default palette. */
+    theme: string | null;
+}
+
+export type SettingKey = Exclude<keyof Settings, "version">;
+
+export const SETTINGS_STORAGE_KEY = "minesweeper_settings";
+
+export const DEFAULT_SETTINGS: Settings = {
+    version: 1,
+    theme: null,
+};
+
+/**
+ * Per-field sanitisers: a valid value, or undefined to mean "take the
+ * default". Never throw — they are fed raw JSON from storage and the network.
+ */
+const SANITISERS: { [K in SettingKey]: (value: unknown) => Settings[K] | undefined } = {
+    theme: (value) =>
+        value === null || (typeof value === "string" && VALID_THEME_IDS.includes(value))
+            ? (value as string | null)
+            : undefined,
+};
+
+/** A complete, valid Settings from anything at all. */
+export function sanitizeSettings(raw: unknown): Settings {
+    const out: Settings = { ...DEFAULT_SETTINGS };
+    if (typeof raw === "object" && raw !== null && !Array.isArray(raw)) {
+        for (const key of Object.keys(SANITISERS) as SettingKey[]) {
+            const value = SANITISERS[key]((raw as Record<string, unknown>)[key]);
+            if (value !== undefined) (out as unknown as Record<string, unknown>)[key] = value;
+        }
+    }
+    return out;
+}
+
+/**
+ * Everything stored, or defaults. A browser from before the blob existed has
+ * its theme under the legacy `ms-theme` key; it is folded in here (and the old
+ * key removed on the next write) so nobody's palette resets on upgrade.
+ */
+export function readStoredSettings(): Settings {
+    if (typeof window === "undefined") return { ...DEFAULT_SETTINGS };
+
+    let raw: string | null = null;
+    try {
+        raw = window.localStorage.getItem(SETTINGS_STORAGE_KEY);
+    } catch {
+        return { ...DEFAULT_SETTINGS }; // blocked storage, e.g. private browsing
+    }
+
+    if (raw !== null) {
+        try {
+            return sanitizeSettings(JSON.parse(raw));
+        } catch {
+            return { ...DEFAULT_SETTINGS }; // corrupt JSON loses the blob, not the page
+        }
+    }
+
+    // No blob yet — migrate the pre-settings theme key if there is one.
+    try {
+        const legacy = window.localStorage.getItem(LEGACY_THEME_KEY);
+        return sanitizeSettings({ theme: legacy });
+    } catch {
+        return { ...DEFAULT_SETTINGS };
+    }
+}
+
+/** Persists the blob, retiring the legacy theme key it supersedes. */
+export function writeStoredSettings(settings: Settings): void {
+    if (typeof window === "undefined") return;
+    try {
+        window.localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
+        window.localStorage.removeItem(LEGACY_THEME_KEY);
+    } catch {
+        // Full or blocked — the choice holds for this page, persistence is lost.
+    }
+}
+
+/**
+ * The no-flash script, inlined into <head> and run before first paint (see
+ * app/layout.tsx). Moved here from lib/theme.ts when the theme joined the
+ * settings blob: it reads the blob first and falls back to the legacy
+ * `ms-theme` key, mirroring readStoredSettings — a themed player whose
+ * storage predates the blob still gets no flash on the upgrade visit.
+ * Deliberately dependency-free; it runs before any bundle.
+ */
+export const NO_FLASH_SCRIPT = `
+(function () {
+  try {
+    var t = null;
+    try {
+      var raw = localStorage.getItem(${JSON.stringify(SETTINGS_STORAGE_KEY)});
+      if (raw) {
+        var s = JSON.parse(raw);
+        if (s && typeof s.theme === 'string') t = s.theme;
+      }
+    } catch (e) {}
+    if (!t) t = localStorage.getItem(${JSON.stringify(LEGACY_THEME_KEY)});
+    if (t && ${JSON.stringify(VALID_THEME_IDS)}.indexOf(t) !== -1) {
+      document.documentElement.setAttribute('data-theme', t);
+    }
+  } catch (e) {}
+})();
+`.trim();

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CURSOR_RAMP_SIZE, NO_FLASH_SCRIPT, THEMES, cursorColorForId } from "./theme";
+import { CURSOR_RAMP_SIZE, THEMES, cursorColorForId } from "./theme";
 
 describe("THEMES", () => {
     it("has exactly one default, and it is first", () => {
@@ -16,25 +16,8 @@ describe("THEMES", () => {
     });
 });
 
-describe("NO_FLASH_SCRIPT", () => {
-    it("inlines every real theme id, so a stored value can be validated", () => {
-        for (const { id } of THEMES) {
-            if (id) expect(NO_FLASH_SCRIPT).toContain(id);
-        }
-    });
-
-    it("is wrapped in try/catch — storage throws in some privacy modes", () => {
-        expect(NO_FLASH_SCRIPT).toContain("try");
-        expect(NO_FLASH_SCRIPT).toContain("catch");
-    });
-
-    it("closes every brace it opens, since it is injected as raw HTML", () => {
-        const open = (NO_FLASH_SCRIPT.match(/\{/g) || []).length;
-        const close = (NO_FLASH_SCRIPT.match(/\}/g) || []).length;
-        expect(open).toBe(close);
-        expect(NO_FLASH_SCRIPT).not.toContain("</script");
-    });
-});
+// NO_FLASH_SCRIPT moved to lib/settings.ts with the rest of theme persistence;
+// its guarantees are covered in lib/settings.test.ts.
 
 describe("cursorColorForId", () => {
     it("returns a palette token reference, not a literal colour", () => {

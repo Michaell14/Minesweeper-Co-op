@@ -5,9 +5,10 @@ import { Inter, Press_Start_2P } from "next/font/google";
 import "./tokens.css";
 import "./globals.css";
 import { Analytics } from '@vercel/analytics/next';
-import { NO_FLASH_SCRIPT } from "@/lib/theme";
+import { NO_FLASH_SCRIPT } from "@/lib/settings";
 import Footer from "@/components/Footer";
 import AuthProvider from "@/components/AuthProvider";
+import SettingsSync from "@/components/SettingsSync";
 
 const inter = Inter({ subsets: ["latin"] });
 const pressStart2P = Press_Start_2P({
@@ -161,6 +162,7 @@ export default function RootLayout({
 
       <body className={inter.className}>
         <AuthProvider>
+          <SettingsSync />
           {children}
           <Footer />
         </AuthProvider>

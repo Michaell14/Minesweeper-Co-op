@@ -85,6 +85,24 @@ const isPlayerInRoom = (roomState, socketId) => {
     return Array.isArray(players) && players.includes(socketId);
 };
 
+/**
+ * Generous: today's blob is under 100 bytes, and every PRD phase adds keys.
+ * The cap exists so an account cannot be used as free object storage, not to
+ * police the shape — the client owns that (lib/settings.ts sanitises both
+ * directions), and this server stores the blob whole without reading it.
+ */
+const MAX_SETTINGS_BLOB_BYTES = 8192;
+
+/** The settings blob: a plain object of tolerable size. Nothing deeper. */
+const isValidSettingsBlob = (blob) => {
+    if (typeof blob !== 'object' || blob === null || Array.isArray(blob)) return false;
+    try {
+        return JSON.stringify(blob).length <= MAX_SETTINGS_BLOB_BYTES;
+    } catch {
+        return false; // circular or otherwise unserialisable
+    }
+};
+
 module.exports = {
     isValidRoomCode,
     isValidPlayerName,
@@ -96,4 +114,5 @@ module.exports = {
     isPlayerInRoom,
     isValidDailyToken,
     isValidDailyDate,
+    isValidSettingsBlob,
 };

@@ -1,7 +1,8 @@
 'use client'
 import React from 'react';
+import Link from 'next/link';
 import { DIALOGS, openDialog } from '@/lib/dialogs';
-import { CoinIcon, Dialog, DialogClose, GithubIcon, PaletteIcon, UserIcon, pointerClass } from '@/components/ds';
+import { CoinIcon, Dialog, DialogClose, GearIcon, GithubIcon, PaletteIcon, UserIcon, pointerClass } from '@/components/ds';
 import ThemePicker from '@/components/ThemePicker';
 import AccountMenu from '@/components/AccountMenu';
 
@@ -48,6 +49,9 @@ export default function Footer() {
                     className={pointerClass}>
                     <UserIcon size={48} />
                 </button>
+                <Link href="/settings" aria-label="Settings" className={pointerClass}>
+                    <GearIcon size={48} />
+                </Link>
             </div>
 
             <Dialog

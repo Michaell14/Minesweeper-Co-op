@@ -235,23 +235,47 @@ Small but load-bearing; everything stacks on it.
 `socket.data.user` (not just an id) — game-end recording in Phase 6 needs the
 display name anyway and it saves a lookup.
 
-### Phase 2 — Settings foundation ░ Not started · est. 4–5 days
+### Phase 2 — Settings foundation ✔ Done 2026-08-02
 
-- [ ] `lib/settings.ts`: typed schema, defaults, validate/read/write with the
-      blocked-storage tolerance `bestTimes`/`theme` already use
-- [ ] `state/settingsSlice.ts`; per-field selectors (subscription note in
-      ARCHITECTURE.md §2 — no bare store reads)
-- [ ] `/settings` route (third route in the app) with sectioned/tabbed layout
-- [ ] New DS primitives as needed: Slider, Select, Tabs/SectionNav — built in
-      `components/ds/`, catalogued on `/ds`
-- [ ] Extend `NO_FLASH_SCRIPT` for paint-affecting settings
-- [ ] Server sync: `GET/PUT /api/settings` (JSONB), JWT-authed
-- [ ] Conflict rule: server wins at sign-in, last-write-wins afterwards
-- [ ] Signed-out: settings persist in localStorage only
-- [ ] Migrate the theme picker's storage into the settings blob (keep the
-      `ms-theme` key readable for back-compat, or write a one-time migration)
-- [ ] Tests: settings validation round-trip; component tests for the settings
-      page's accessible names (`getByRole` per testing guidance)
+- [x] `lib/settings.ts`: one versioned blob, per-key sanitiser registry
+      (adding a setting = a type key, a default, a sanitiser), the same
+      blocked-storage tolerance as `bestTimes`. `sanitizeSettings` is the
+      single gate for BOTH storage and the server, so the two sources cannot
+      disagree about validity
+- [x] `state/settingsSlice.ts`: `settings` + `settingsHydrated`,
+      `hydrateSettings` (post-mount read; render-time reads are hydration
+      mismatches), `setSetting`, `replaceSettings` (server-wins path);
+      per-field selectors throughout
+- [x] `/settings` route: server-component wrapper (noindex metadata) +
+      `SettingsClient` with titled Panel sections (Appearance, Account) and a
+      gear icon in the Footer cluster linking to it
+- [ ] DS primitives (Slider, Select, Tabs) — **deliberately deferred** to the
+      phase that first consumes them (volume → Phase 4, selects → Phase 3):
+      a primitive built without a consumer gets designed twice
+- [x] `NO_FLASH_SCRIPT` reads the settings blob (falling back to the legacy
+      key), moved to `lib/settings.ts` with the rest of persistence
+- [x] Server sync: `user_settings` (JSONB, ON DELETE CASCADE — verified live:
+      deleting the account removed the settings row),
+      `server/data/settingsRepo.js` upsert, `GET/PUT /api/settings` behind
+      `requireUser`; the blob is opaque server-side except an 8KB shape/size
+      cap in `validation.js` (client owns the schema; both directions
+      sanitised there)
+- [x] Conflict rule implemented in `components/SettingsSync.tsx`: server wins
+      at sign-in (fresh-browser defaults must not clobber the account); empty
+      server gets seeded with the local copy; debounced last-write-wins push
+      afterwards; a pull is not echoed back up
+- [x] Signed-out: localStorage only, verified in the browser
+- [x] Theme storage migrated into the blob. Verified live in the browser: a
+      pre-blob `ms-theme` browser paints its palette before hydration, the UI
+      reflects it, and the first write moves it into the blob and retires the
+      legacy key. ThemePicker and the settings page share `ThemeCards` +
+      the slice, so two mounted theme UIs cannot disagree
+- [x] Tests: `lib/settings.test.ts` (sanitise round-trip, unknown-key drop,
+      legacy migration, no-flash executed under jsdom for both storage
+      shapes), `SettingsClient.test.tsx` by accessible name,
+      `settingsRepo.test.js`, `settingsController.test.js`. 668 server + 235
+      client green; ui-smoke green; live REST round-trip verified against a
+      real Postgres
 
 ### Phase 3 — Gameplay preferences & HUD ░ Not started · est. 4–6 days
 
@@ -367,3 +391,4 @@ the delivery mechanism is the work.
 | 2026-08-02 | PRD created; all top-level decisions settled (see §2). |
 | 2026-08-02 | Phase 0 code complete: pg pool singleton (`utils/initializePgClient.js`), `users` migration, `release:`-phase runner, layering + mockInfra updates, `pgClient.test.js`. Full suite green (34 suites / 606 tests). Migration verified up/down against a real Postgres 14. Outstanding: provision Heroku Postgres (manual). |
 | 2026-08-02 | Phase 1 code complete: Auth.js (Google+GitHub) + bridge-token pipe end to end — socket-token route, client cache, handshake auth function, server verify → `socket.data.user`, `userRepo`, `/api/me` GET/PUT/DELETE, account/delete/privacy dialogs in the Footer. 642 server + 211 client tests and ui-smoke green; REST round-trip and socket auth verified live against a real Postgres (jose-signed token, jsonwebtoken verify). Outstanding: create the OAuth apps and set the five secrets (manual). |
+| 2026-08-02 | Phase 2 complete: settings blob (`lib/settings.ts`) + slice + `/settings` page + `SettingsSync` (server-wins at sign-in, debounced last-write-wins after); theme migrated into the blob with the legacy `ms-theme` fallback in the no-flash script; `user_settings` JSONB mirror with GET/PUT routes. Verified live: REST round-trip + upsert + cascade delete against real Postgres; browser checks of theme persistence, pre-blob migration, and legacy-key retirement. DS Slider/Select deferred to their consuming phases. |

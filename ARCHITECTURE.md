@@ -158,7 +158,7 @@ socket. `page.tsx` itself subscribes only to `playerJoined` and `gameOverName`.
 
 ### State (`state/`, re-exported by `app/store.ts`)
 
-One store, assembled from seven slices:
+One store, assembled from eight slices:
 
 | Group | Fields |
 |---|---|
@@ -168,6 +168,7 @@ One store, assembled from seven slices:
 | PVP | `pvpStarted`, `pvpOpponentName`, `pvpOpponentStatus`, `pvpWinner`, `pvpRoomReady`, `pvpIsHost`, `pvpOpponentProgress`, `pvpTotalSafeCells` |
 | Daily | `dailyActive`, `dailyDate`, `dailyStatus`, `dailyElapsedMs`, `dailyRank`, `dailyLeaderboard`, … |
 | Mouse/UI | `isChecked` (mobile click-vs-flag), `r`, `c`, `leftClick`, `rightClick`, `bothPressed` |
+| Settings | `settings` (the lib/settings.ts blob: theme, and each later PRD phase's keys), `settingsHydrated` |
 
 Each row above is one slice file. Slices are plain creators sharing one `set`, so
 a slice can write another's fields where that is genuinely the behaviour —

@@ -42,57 +42,28 @@ export const THEMES: ThemeOption[] = [
     },
 ];
 
+/**
+ * The pre-settings storage key. The theme now lives in the settings blob
+ * (lib/settings.ts, which owns persistence and the no-flash script); this key
+ * survives only as the migration source a pre-blob browser is read from.
+ */
 export const THEME_STORAGE_KEY = "ms-theme";
 
-const VALID_IDS = THEMES.map((t) => t.id).filter((id): id is string => id !== null);
+/**
+ * Every non-default theme id, for validating stored values: the storage is
+ * user-writable, and a stale id from a removed palette would stamp an
+ * attribute matching no rules — rendering the default while claiming
+ * otherwise.
+ */
+export const VALID_THEME_IDS = THEMES.map((t) => t.id).filter(
+    (id): id is string => id !== null,
+);
 
 /** Applies a theme to the document, or clears it for the default palette. */
 export function applyTheme(id: string | null): void {
     if (id) document.documentElement.dataset.theme = id;
     else delete document.documentElement.dataset.theme;
 }
-
-/** Persists the choice, tolerating storage being unavailable or full. */
-export function storeTheme(id: string | null): void {
-    try {
-        if (id) window.localStorage.setItem(THEME_STORAGE_KEY, id);
-        else window.localStorage.removeItem(THEME_STORAGE_KEY);
-    } catch {
-        // Private browsing or a full quota — the theme just won't persist.
-    }
-}
-
-/**
- * The stored choice, or null for the default. Unknown values are discarded: the
- * key is user-writable, and a stale id from a removed palette would stamp an
- * attribute matching no rules, rendering the default while claiming otherwise.
- */
-export function readStoredTheme(): string | null {
-    try {
-        const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
-        return stored && VALID_IDS.includes(stored) ? stored : null;
-    } catch {
-        return null;
-    }
-}
-
-/**
- * The no-flash script, inlined into <head> and run before first paint.
- *
- * Without it a themed player gets a flash of the default palette on every load,
- * because React has not hydrated and nothing has set the attribute yet.
- * Deliberately dependency-free — it runs before any bundle.
- */
-export const NO_FLASH_SCRIPT = `
-(function () {
-  try {
-    var t = localStorage.getItem(${JSON.stringify(THEME_STORAGE_KEY)});
-    if (t && ${JSON.stringify(VALID_IDS)}.indexOf(t) !== -1) {
-      document.documentElement.setAttribute('data-theme', t);
-    }
-  } catch (e) {}
-})();
-`.trim();
 
 /** How many cursor colours the palette defines. Keep in step with tokens.css. */
 export const CURSOR_RAMP_SIZE = 6;

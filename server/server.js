@@ -5,6 +5,7 @@ const { openCell, chordCell, toggleFlag } = require('./game');
 const { startPvpGame, resetMyBoard, pvpRematch } = require('./controllers/pvpController');
 const { offerResume, forgetRoom } = require('./controllers/sessionController');
 const { resolveSocketUser, registerProfileRoutes } = require('./controllers/profileController');
+const { registerSettingsRoutes } = require('./controllers/settingsController');
 const { startDaily, submitDailyScore, getDailyLeaderboard } = require('./controllers/dailyController');
 const dailyGame = require('./game/daily');
 const { PORT } = require('./config');
@@ -26,7 +27,9 @@ const {
 } = require('./validation');
 
 // The account routes — the server's first HTTP surface beyond health checks.
+// Profile first: it mounts the /api JSON body parser the others rely on.
 registerProfileRoutes(app);
+registerSettingsRoutes(app);
 
 /**
  * Who this socket belongs to, resolved once at connect. `null` is an anonymous
