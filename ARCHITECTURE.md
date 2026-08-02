@@ -102,6 +102,7 @@ server/                   Separate npm package (own package.json, lockfile, node
   validation.js           Pure socket payload validators (limits, coords, membership)
   data/
     keys.js               Every Redis key and TTL. Nothing else builds a key by hand
+    locks.js              SET NX lease mechanics, shared by every repo that takes one
     roomRepo.js           All room reads/writes, incl. board JSON, players list and locks
     playerRepo.js         All player reads/writes
     sessionRepo.js        Browser sessions, mapping a stable id onto the current socket
@@ -207,7 +208,8 @@ dailyController ─→ game/daily , domain/board , validation , data/dailyRepo
 gameUtils ─→ playerUtils , domain/{board,clock,boardGen} , data/roomRepo , io
 playerUtils ─→ utils/pvpForfeit , domain/{board,clock} , data/* , io
 utils/pvpForfeit ─→ domain/clock , data/* , config , io
-data/*Repo ─→ data/keys , initializeRedisClient
+data/*Repo ─→ data/keys , data/locks , initializeRedisClient
+data/locks ─→ data/keys , initializeRedisClient
 domain/* ─→ only other domain/*
 data/keys , config , validation ─→ (nothing)
 ```
@@ -324,11 +326,14 @@ claim, 10s) · `daily:<date>:gen_lock` (serialises board generation — an
 optimisation, not a correctness requirement, 10s) ·
 `daily:<date>:start_lock:<token>` (10s) · `action_lock:<room>` (one co-op move at
 a time, 5s) · `action_lock:<room>:p<N>` (one move at a time from PVP player N, 5s)
+· `daily:<date>:action_lock:<token>` (one move at a time on one attempt, 5s)
 
 The action locks carry the shorter lease because *every* move takes one, so a
-process that dies holding one blocks that board for its lease. The PVP key is per
-**player** on purpose: the two hold separate board fields and racing each other
-is the game, so only a player's own moves are serialised.
+process that dies holding one blocks that board for its lease. They are scoped as
+tightly as the shared state allows: co-op players genuinely share one board, but
+the PVP key is per **player** and the daily key per **attempt**, because those
+own separate fields and must never wait on each other. The mechanics are one
+implementation in `data/locks.js`; each repo only decides which key.
 
 Players are keyed by socket id, so a reconnect is a new player row. That is why
 a returning browser is identified by its **session** (rooms) or its **daily
@@ -681,23 +686,12 @@ These are real, currently unfixed, and worth knowing before changing related cod
 
 1. **Heroku installs the whole frontend dependency tree and never uses it.** The root `npm install` pulls Next, React and the rest onto a dyno that only runs `cd server && node server.js`; `heroku-postbuild` replaces the `build` script, so the frontend is never built there. Wasted build time and slug size, not a correctness problem.
 
-2. **The daily challenge does not take an action lock yet.** `game/daily.js`'s
-   `openCell` / `chordCell` / `toggleFlag` each read `attempt.board`, mutate it
-   and write the whole field back with `setAttemptBoard` — the same
-   read-modify-write that co-op and PVP were just fixed for (below), and the same
-   silent loss. It landed in parallel with that fix, so it is the one board writer
-   still outside the rule. An attempt is per browser token, and the token is
-   shared across tabs via localStorage, so two rapid clicks from one player is
-   enough; reproduced with the `fakeRedis` harness. Consequence matches PVP: a
-   lost reveal leaves a closed safe cell that can never be reopened, so the
-   attempt never completes and never reaches the leaderboard. The fix is the
-   existing `withLock` keyed on `daily:<date>:attempt:<token>` — note
-   `dailyStartLockKey` already exists for the same two-tab concern on *starts*.
 
 *Fixed, kept here so they aren't reintroduced:* the `gameUtils` ⇄ `playerUtils`
 require cycle that silently broke co-op score resets (see §3); the stale room
 snapshot that let a chord into a mine also announce a win; the unserialised co-op
-and PVP read-modify-writes (below); the `pvpPlayerIndex || '0'` fallback that let
+and PVP read-modify-writes (below), and the daily challenge's, which landed in
+parallel with them and was fixed on the same terms; the `pvpPlayerIndex || '0'` fallback that let
 an unassigned socket write another player's board — caught first in `pvp.js`'s
 cell actions, then again in `resetMyBoard`, where the surviving copy also chose
 the action lock key, so a stranger both reset and locked PLAYER ONE's board.

@@ -9,12 +9,14 @@
  */
 
 const { redisClient } = require('../utils/initializeRedisClient');
+const { withLock } = require('./locks');
 const {
     dailyBoardKey,
     dailyLeaderboardKey,
     dailyAttemptKey,
     dailyGenLockKey,
     dailyStartLockKey,
+    dailyActionLockKey,
     DAILY_TTL_SECONDS,
     LOCK_TTL_SECONDS,
 } = require('./keys');
@@ -176,8 +178,20 @@ const releaseGenLock = (date) => releaseLock(dailyGenLockKey(date));
 const acquireStartLock = (date, token) => acquireLock(dailyStartLockKey(date, token), token);
 const releaseStartLock = (date, token) => releaseLock(dailyStartLockKey(date, token));
 
+/**
+ * Serialises one attempt's moves. Per attempt, so two players never wait on
+ * each other — the contention this exists for is one player's own two tabs,
+ * which share the token through localStorage.
+ *
+ * Callers must read the attempt INSIDE `fn`: anything read before the lock was
+ * held is the stale snapshot the lock exists to prevent acting on.
+ */
+const withAttemptLock = (date, token, owner, fn) =>
+    withLock(dailyActionLockKey(date, token), owner, fn);
+
 module.exports = {
     TERMINAL_STATUSES,
+    withAttemptLock,
     getBoardState,
     saveBoardState,
     getAttempt,
