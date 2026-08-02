@@ -77,7 +77,7 @@ Backend deps install separately: `npm --prefix server install`.
 | The run clock | `server/domain/clock.js` (server), `lib/gameClock.ts` (the one reading), `components/game/Timer.tsx` |
 | Personal best times | `lib/bestTimes.ts` (localStorage, keyed by board dimensions), `hooks/useBestTime.ts` |
 | Cell interaction | `components/game/Cell.tsx` |
-| Room create/join UI | `components/Landing.tsx` |
+| Room create/join UI | `components/landing/` (one file per form or dialog); `components/Landing.tsx` composes them |
 | Board sizes, difficulty densities, limits, validity rule | `shared/boardConfig.js` — imported by both halves |
 | Socket event names | `shared/events.js` — imported by both halves |
 | Socket payload types | `shared/socketPayloads.ts` — keyed by the event VALUE (`'gameClock'`), not its constant name |
