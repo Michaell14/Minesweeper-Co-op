@@ -7,13 +7,14 @@ import DailyDialogs from "./DailyDialogs";
 
 /**
  * The daily challenge's four dialogs mix DialogClose and plain Button
- * deliberately: Submit and the leaderboard's Close SHOULD close their dialog
- * on click, but "View Leaderboard" (in dailyGameOver/dailyAlreadyPlayed) and
- * "Share Result" must NOT -- "View Leaderboard" closes its own dialog and
- * opens a different one manually (see DailyDialogs.tsx's own comment on why:
- * a DialogClose's native submit-close would race the new dialog's
- * showModal()), and Share Result needs the dialog to stay open so its
- * "Copied!"/"Shared!" feedback is visible.
+ * deliberately. Only the leaderboard's Close SHOULD close its dialog on click.
+ * "View Leaderboard" (in dailyGameOver/dailyAlreadyPlayed) closes its own
+ * dialog and opens a different one manually (see DailyDialogs.tsx's own comment
+ * on why: a DialogClose's native submit-close would race the new dialog's
+ * showModal()); "Share Result" needs the dialog to stay open so its
+ * "Copied!"/"Shared!" feedback is visible; and Submit must not close anything
+ * until the SERVER confirms, or a refusal strands the player with no dialog and
+ * a status still saying they owe one.
  *
  * Same reasoning as components/ds/Dialog.test.tsx: this checks the TYPE
  * attribute a button carries, not that it exists -- a plain Button silently
@@ -95,14 +96,23 @@ describe("dailyAlreadyPlayed: resumed after a refresh", () => {
 });
 
 describe("dailySubmit: won, name goes on the leaderboard", () => {
-    test("Submit IS type=submit -- entering a name and confirming should close the dialog", () => {
+    /*
+     * Submit is a plain Button, and that is the point: the SERVER decides
+     * whether a submission lands. Closing on the click regardless meant a
+     * refusal — the attempt already submitted from another tab, or the socket
+     * down — left the player with no dialog, a status still stuck at
+     * won_pending_submit, and no route back to it short of a reload. The
+     * `dailyScoreSubmitted` handler closes it instead, so a submission that
+     * never lands leaves the button there to press again.
+     */
+    test("Submit does NOT close its own dialog -- the server has the last word", () => {
         const store = useMinesweeperStore.getState();
         store.setDailyStatus("won_pending_submit");
         renderOpen(DIALOGS.dailySubmit);
 
         expect(
             screen.getByRole("button", { name: "Submit your time to the leaderboard" }).getAttribute("type"),
-        ).toBe("submit");
+        ).toBe("button");
     });
 
     test("rejects an empty name without calling submitDailyScore", () => {

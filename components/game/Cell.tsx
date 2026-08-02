@@ -37,11 +37,26 @@ const Cell = ({ cell, row, col, toggleFlag, openCell, chordCell, emitCellHover }
     const gameOver = useMinesweeperStore((state) => state.gameOver);
     const mode = useMinesweeperStore((state) => state.mode);
     const pvpStarted = useMinesweeperStore((state) => state.pvpStarted);
+    const pvpWinner = useMinesweeperStore((state) => state.pvpWinner);
     const setLeftClick = useMinesweeperStore((state) => state.setLeftClick);
     const setRightClick = useMinesweeperStore((state) => state.setRightClick);
     const setCoord = useMinesweeperStore((state) => state.setCoord);
 
     const isDisabled = mode === 'pvp' && !pvpStarted;
+
+    /*
+     * Whether this board's mines are on show. The server decides it — closed
+     * cells report `isMine: false` unless it deliberately revealed them — but
+     * the flag is still needed, because a revealed mine is CLOSED and would
+     * otherwise render as an ordinary covered square.
+     *
+     * `gameOver` alone missed the player who lost a RACE: they never hit a mine,
+     * so nothing about their own state is over, yet the race is decided and the
+     * server has just sent them their board with every mine in it. Reading
+     * `gameOver` here rather than `pvpWinner` too is why that board came back
+     * looking exactly as it did mid-game.
+     */
+    const minesRevealed = gameOver || (mode === 'pvp' && pvpWinner !== null);
     const isHovered = cellHover !== null;
     const hoverColor = cellHover?.color || null;
 
@@ -102,7 +117,7 @@ const Cell = ({ cell, row, col, toggleFlag, openCell, chordCell, emitCellHover }
     };
 
     const getAriaLabel = () => {
-        if (cell.isMine && (cell.isOpen || gameOver)) {
+        if (cell.isMine && (cell.isOpen || minesRevealed)) {
             return `Mine at row ${row + 1}, column ${col + 1}`;
         }
         if (cell.isOpen) {
@@ -116,7 +131,7 @@ const Cell = ({ cell, row, col, toggleFlag, openCell, chordCell, emitCellHover }
         return `Unrevealed cell at row ${row + 1}, column ${col + 1}`;
     };
 
-    if ((cell.isOpen || gameOver) && cell.isMine) {
+    if ((cell.isOpen || minesRevealed) && cell.isMine) {
         return <div
             key={col}
             className={`${styles.cell} ${styles.mine} ${isHovered ? styles.hovered : ''}`}

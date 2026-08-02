@@ -359,13 +359,18 @@ token** (the daily challenge) instead.
 | `resetMyBoard` | `{room}` | `pvpController.js:87` |
 | `pvpRematch` | `{room}` | `pvpController.js:146` |
 | `playerLeave` | — | `server.js:293` |
-| `startDaily` | `{token, date?}` | `dailyController.js` |
-| `dailyOpenCell` / `dailyChordCell` / `dailyToggleFlag` | `{token, row, col}` | `game/daily.js` |
-| `submitDailyScore` | `{token, name}` | `dailyController.js` |
-| `getDailyLeaderboard` | `{date?}` | `dailyController.js` |
+| `startDaily` | `{dailyAttemptToken}` — no date; the server uses its own UTC day | `dailyController.js` |
+| `dailyOpenCell` / `dailyChordCell` / `dailyToggleFlag` | `{dailyAttemptToken, date, row, col}` | `game/daily.js` |
+| `submitDailyScore` | `{dailyAttemptToken, date, name}` | `dailyController.js` |
+| `getDailyLeaderboard` | `{date}` | `dailyController.js` |
 
 Daily actions carry a **token**, not a room: the daily challenge is not a room
-(see §5), so there is no membership to check and nothing to broadcast to.
+(see §5), so there is no membership to check and nothing to broadcast to. They
+carry the `date` the attempt started under too, echoed back from `dailyStarted`
+rather than recomputed per event — only `startDaily` has no date to send, and it
+takes the server's. An attempt therefore stays pinned to its own day across UTC
+midnight, on both halves: `lib/dailyIdentity.ts` holds the token still for the
+same reason.
 
 Shapes are typed in `shared/socketPayloads.ts` (`ClientToServerEvents`).
 
