@@ -57,7 +57,14 @@ components/
     RoomPanel.tsx         Room code, copy-link, and the invite prompt when you are alone
     Cell.tsx              One cell: mouse handling, hover highlight, memoized
     board.module.css      Board and cell styles, incl. the viewport-fit cell sizing
-  Landing.tsx             Create/join forms, custom-size dialog, name dialogs, daily entry
+  Landing.tsx             Front page: layout and composition only
+  landing/                Its pieces, each owning its own form state
+    AnnouncementBanner.tsx  The dismissable strip; owns its own visibility
+    JoinRoomForm.tsx        Join field + the ?room= join-link effect that fills it
+    CreateRoomForm.tsx      Room code, and the mode/size/difficulty rows
+    CustomBoardDialog.tsx   Hand-rolled dimensions, with the derived mine preview
+    CustomBoardErrorDialog.tsx  Out-of-range dimensions
+    NameDialog.tsx          "Enter your Name", shared by create and join
   Footer.tsx              GitHub link, how-to-play and theme dialogs
 components/ds/            The design system. Import via its index barrel
   pixel.module.css        The two border treatments: notched (controls), boxed (regions)
@@ -173,7 +180,7 @@ it is also why the `sessionResume` handler bails when it is set: a resume offer
 landing while the player is on the daily must not quietly put them back in a
 room.
 
-**Subscription note:** every consumer now subscribes with per-field selectors —
+**Subscription note:** every consumer subscribes with per-field selectors —
 `page.tsx` to just `playerJoined` and `gameOverName`, `Grid.tsx` to the fields it
 renders, and `Cell.tsx` to its own cell's hover. Nothing calls
 `useMinesweeperStore()` bare any more, so a remote hover update no longer
