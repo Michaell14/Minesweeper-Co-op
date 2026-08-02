@@ -38,7 +38,6 @@ const SERVER_FILES = collectServerFiles(path.join(repoRoot, 'server'));
 const serverSource = SERVER_FILES.map((f) => fs.readFileSync(f, 'utf8')).join('\n');
 const clientHandlers = read('hooks/useGameEvents.ts');
 const clientActions = read('hooks/useGameActions.ts');
-const eventTypes = read('shared/events.d.ts');
 const payloadTypes = read('shared/socketPayloads.ts');
 
 describe('the event name tables', () => {
@@ -101,30 +100,21 @@ describe('every server event is actually sent', () => {
 
 
 /**
- * shared/events.d.ts restates the event names with literal types, because the
- * client cannot get literal types out of a .js file and without them the
- * handler table degrades to `any` (see the file's own header). That makes it the
- * one place in shared/ where a name is written twice, so it needs a guard: the
- * declarations must match shared/events.js exactly, in both directions.
+ * The event objects must stay frozen.
+ *
+ * `Object.freeze` is what makes TypeScript infer the literal `'boardUpdate'`
+ * rather than widening to `string`, and literal types are the only reason the
+ * client's handler table type-checks at all — without them every payload
+ * degrades to `any`, silently. There used to be a hand-written `events.d.ts`
+ * restating all 55 names to buy the same thing; unfreezing these would bring it
+ * back, so this guards the four words that replaced it.
  */
-describe('the TypeScript declarations match the runtime names', () => {
-    /** `READONLY_KEY: 'value';` pairs out of the .d.ts, per declared const. */
-    const declaredPairs = (constName) => {
-        const block = eventTypes.split(`const ${constName}: {`)[1];
-        if (!block) return null;
-        return Object.fromEntries(
-            [...block.split('};')[0].matchAll(/readonly\s+([A-Z_]+):\s*'([^']+)'/g)].map((m) => [m[1], m[2]])
-        );
-    };
-
+describe('the event names carry literal types', () => {
     test.each([
         ['CLIENT_EVENTS', CLIENT_EVENTS],
         ['SERVER_EVENTS', SERVER_EVENTS],
-    ])('%s declares exactly the runtime keys and values', (name, runtime) => {
-        const declared = declaredPairs(name);
-        expect(declared).not.toBeNull();
-        // toEqual both ways at once: a missing, extra or mistyped entry fails.
-        expect(declared).toEqual({ ...runtime });
+    ])('%s is frozen, so TypeScript does not widen it to string', (_name, events) => {
+        expect(Object.isFrozen(events)).toBe(true);
     });
 });
 

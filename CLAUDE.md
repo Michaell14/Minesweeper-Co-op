@@ -80,7 +80,7 @@ Backend deps install separately: `npm --prefix server install`.
 | Room create/join UI | `components/Landing.tsx` |
 | Board sizes, difficulty densities, limits, validity rule | `shared/boardConfig.js` — imported by both halves |
 | Socket event names | `shared/events.js` — imported by both halves |
-| Socket payload types | `shared/socketPayloads.ts` (+ `shared/events.d.ts` for literal names) |
+| Socket payload types | `shared/socketPayloads.ts` — keyed by the event VALUE (`'gameClock'`), not its constant name |
 | Post-deploy check | `scripts/verify-deploy/` — `npm run verify:deploy` |
 | Client test setup (jsdom, DOM cleanup) | `vitest.config.ts`, `test/setup.ts` |
 | Motion / reduced motion | `--ms-duration-*` in `app/tokens.css`; `lib/motion.ts` for the JS path |
@@ -92,7 +92,7 @@ Backend deps install separately: `npm --prefix server install`.
 Read `ARCHITECTURE.md` §8-9 before changing server code. The ones most likely to bite:
 
 1. **Don't reintroduce imports between `gameUtils` and `playerUtils`.** They used to require each other, which made `resetGame()` throw silently depending on load order. Shared board helpers go in `server/domain/board.js`, which must stay dependency-free. `tests/resetGame.test.js` guards this and its require order is load-bearing.
-2. **Adding a socket event touches five places**: `shared/events.js`, `shared/events.d.ts`, `shared/socketPayloads.ts`, the server handler/emit, and the client table in `hooks/useGameEvents.ts`. `server/tests/events.test.js` fails if they drift. (Redis keys, validation rules, board config and event names are all single-source now.)
+2. **Adding a socket event touches four places**: `shared/events.js` (the name), `shared/socketPayloads.ts` (the payload), the server handler/emit, and the client table in `hooks/useGameEvents.ts`. `server/tests/events.test.js` fails if they drift. It was five until `shared/events.js` started freezing its objects — `Object.freeze` makes TypeScript infer `'boardUpdate'` instead of widening to `string`, which is what a hand-written `events.d.ts` used to buy. **Don't unfreeze them**: nothing breaks loudly, the handler table just degrades to `any`.
 3. **`components/Grid.tsx` mounts the board exactly ONCE.** Two *control* clusters remain (desktop `hidden xl:flex`, mobile `xl:hidden`) because those arrangements genuinely differ, but they sit on one flex line with the single board between them. Don't move `<Board>` inside a cluster to "fix" a layout — that puts 512 cells in the DOM for a 16x16 game and makes every DOM query ambiguous. `scripts/ui-smoke/run.js` asserts the count and will fail. Where the layouts genuinely differ it is an explicit prop (`variant`), not a second copy.
 4. **Socket handlers go in the `hooks/useGameEvents.ts` table**, not in a component. Registration and cleanup are derived from that table; don't call `socket.on` directly.
 5. **Dialogs are native `<dialog>` elements**, opened imperatively via `openDialog(DIALOGS.x)` and closed by submitting their `form method="dialog"`, so don't convert them to conditional rendering casually. Never type a dialog id as a string literal — import it from `lib/dialogs.ts`. **Use `<DialogClose>` for any button meant to dismiss a dialog**: `<Button>` defaults to `type="button"`, and a close button that isn't `type="submit"` silently stops closing with nothing wrong in the markup.
