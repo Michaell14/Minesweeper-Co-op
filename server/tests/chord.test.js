@@ -143,6 +143,48 @@ describe('chordCell when the flag count matches the number', () => {
     });
 });
 
+/*
+ * A chord reveals up to eight cells in a loop, so it can meet more than one mine.
+ * `reveal` ends the ROOM's game on the first, and the loop used to carry on
+ * anyway — the room's game was over while the server kept opening cells on its
+ * behalf. Every symptom below was live, and all of them silent.
+ */
+describe('chordCell that detonates more than one mine', () => {
+    /** Two unflagged mines around a 0, so one chord reaches both. */
+    const twoMineBoard = () => {
+        const board = buildBoard({ flagMine: false });
+        board[2][2] = { isMine: true, isOpen: false, isFlagged: false, nearbyMines: 0 };
+        board[1][1].nearbyMines = 0; // zero flags placed, so the chord fires
+        return board;
+    };
+
+    test('announces the loss once, not once per mine', async () => {
+        await coop.chordCell(1, 1, ROOM, SOCKET, roomStateWith(twoMineBoard()));
+
+        // A second gameOver re-opens the summary dialog on every client, and
+        // showModal() on an already-open dialog throws.
+        const gameOvers = mockEmit.mock.calls.filter(([event]) => event === 'gameOver');
+        expect(gameOvers).toHaveLength(1);
+    });
+
+    test('stops opening cells once the game has ended', async () => {
+        await coop.chordCell(1, 1, ROOM, SOCKET, roomStateWith(twoMineBoard()));
+
+        const saved = JSON.parse(client.hSet.mock.calls.find((c) => c[1].board)[1].board);
+        const detonated = [saved[0][0].isOpen, saved[2][2].isOpen].filter(Boolean);
+        expect(detonated).toHaveLength(1);
+    });
+
+    test('scores nothing, as PVP and the daily do for the same move', async () => {
+        await coop.chordCell(1, 1, ROOM, SOCKET, roomStateWith(twoMineBoard()));
+
+        expect(client.hSet).not.toHaveBeenCalledWith(
+            `player:${SOCKET}`,
+            expect.objectContaining({ score: expect.anything() })
+        );
+    });
+});
+
 describe('chordCell when it should do nothing', () => {
     test('does not open anything when the flag count is below the number', async () => {
         const board = buildBoard({ flagMine: false }); // number says 1, zero flags placed

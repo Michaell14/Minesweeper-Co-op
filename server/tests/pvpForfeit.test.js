@@ -123,3 +123,35 @@ describe('when the race ended on its own merits', () => {
         expect(emittedEvents()).toHaveLength(0);
     });
 });
+
+/*
+ * Being the last one here is not the same as having won. The survivor's own
+ * board can be sitting on a mine they hit before the other player quit, and
+ * "Victory!" then contradicts the "Boom!" already on their screen.
+ */
+describe('when the survivor has already hit a mine', () => {
+    /** Slots are addressed by socket, so the survivor has to occupy one. */
+    const detonated = (slotFields) =>
+        arrange({ player1Socket: SURVIVOR, player2Socket: DROPPED, ...slotFields });
+
+    test('no win is handed to a player whose own board is over', async () => {
+        detonated({ player1GameOver: 'true' });
+
+        await expect(settleForfeit(ROOM, SURVIVOR)).resolves.toBe(false);
+        expect(emittedEvents()).not.toContain('pvpOpponentDisconnected');
+    });
+
+    test('nothing is written, so resetting still lets them finish the board', async () => {
+        detonated({ player1GameOver: 'true' });
+
+        await settleForfeit(ROOM, SURVIVOR);
+
+        expect(client.hSet).not.toHaveBeenCalled();
+    });
+
+    test('a survivor still playing wins by default as before', async () => {
+        detonated({ player1GameOver: 'false', player2GameOver: 'true' });
+
+        await expect(settleForfeit(ROOM, SURVIVOR)).resolves.toBe(true);
+    });
+});

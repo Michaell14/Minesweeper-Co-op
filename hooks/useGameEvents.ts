@@ -100,6 +100,14 @@ const coopHandlers = (socket: AppSocket, leaveRoom: () => void): SocketHandlers 
      * player back rather than leaving them on the landing page. Answering with a
      * plain joinRoom is the point: a resume runs the exact path a manual join
      * does, with no second flow to keep in step.
+     *
+     * This fires on EVERY connect, including a socket.io auto-reconnect after a
+     * dropped network — where the tab never reloaded, so `playerJoined` is still
+     * true while the server has already removed the player it knew. Refusing the
+     * offer there stranded the player: the UI stayed in the room, and the next
+     * click failed the server's membership check and bounced them home with
+     * "room does not exist". So being in THIS room is a reason to re-join, not a
+     * reason to skip.
      */
     [SERVER_EVENTS.SESSION_RESUME]: ({ room, name }) => {
         const store = useMinesweeperStore.getState();
@@ -107,7 +115,11 @@ const coopHandlers = (socket: AppSocket, leaveRoom: () => void): SocketHandlers 
         // guard, an offer landing while the player is on Daily sets playerJoined
         // in the background -- invisible until they leave daily and land in the
         // old room instead of on Landing. Picking daily is a real choice.
-        if (store.playerJoined || store.dailyActive) return;
+        if (store.dailyActive) return;
+        // Already playing somewhere else: an offer for a different room is a
+        // stale session, and taking it would move them out of the room they can
+        // see. Only the room they are already in is theirs to reclaim.
+        if (store.playerJoined && store.room !== room) return;
 
         store.setRoom(room);
         store.setName(name);

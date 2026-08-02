@@ -55,9 +55,7 @@ const restorePvpRacer = async (room, socketId, roomState, previousSocketId) => {
 
     // The room addresses slots by socket, so the slot is found by who used to
     // hold it — not by the player record, which the reconnect just replaced.
-    const slot = [0, 1].find(
-        (index) => roomState[pvpPlayerFields(index).socketKey] === previousSocketId
-    );
+    const slot = roomRepo.pvpSlotOf(roomState, previousSocketId);
     if (slot === undefined) return false;
 
     const { boardKey, gameOverKey, gameWonKey, socketKey } = pvpPlayerFields(slot);
