@@ -191,3 +191,58 @@ describe("the sound settings", () => {
         expect(sanitizeSettings({ soundVolume: NaN }).soundVolume).toBe(0.5);
     });
 });
+
+describe("custom theme ids in settings", () => {
+    it("accepts custom:<slug> and rejects malformed ones", () => {
+        expect(sanitizeSettings({ theme: "custom:midnight" }).theme).toBe("custom:midnight");
+        expect(sanitizeSettings({ theme: "custom:my-theme-2" }).theme).toBe("custom:my-theme-2");
+        expect(sanitizeSettings({ theme: "custom:" }).theme).toBeNull();
+        expect(sanitizeSettings({ theme: "custom:Bad Id" }).theme).toBeNull();
+        expect(sanitizeSettings({ theme: `custom:${"x".repeat(50)}` }).theme).toBeNull();
+    });
+});
+
+describe("NO_FLASH_SCRIPT with a custom theme", () => {
+    it("stamps the stored palette before paint, palette-layer names only", () => {
+        localStorage.setItem(
+            SETTINGS_STORAGE_KEY,
+            JSON.stringify({ version: 1, theme: "custom:midnight" }),
+        );
+        localStorage.setItem(
+            "minesweeper_custom_themes",
+            JSON.stringify([
+                {
+                    id: "midnight",
+                    palette: {
+                        "--ms-palette-ink": "#eeeeee",
+                        "--ms-palette-paper": "#181820",
+                        "--evil-prop": "#123456",
+                        "--ms-palette-sneaky": "url(x)",
+                    },
+                },
+            ]),
+        );
+        const root = document.documentElement;
+        // eslint-disable-next-line no-eval
+        eval(NO_FLASH_SCRIPT);
+        expect(root.style.getPropertyValue("--ms-palette-ink")).toBe("#eeeeee");
+        expect(root.style.getPropertyValue("--ms-palette-paper")).toBe("#181820");
+        // Non-palette names and non-hex values never reach the style attribute.
+        expect(root.style.getPropertyValue("--evil-prop")).toBe("");
+        expect(root.style.getPropertyValue("--ms-palette-sneaky")).toBe("");
+        expect(root.dataset.theme).toBeUndefined();
+        root.removeAttribute("style");
+    });
+
+    it("does nothing for a custom id with no stored theme", () => {
+        localStorage.setItem(
+            SETTINGS_STORAGE_KEY,
+            JSON.stringify({ version: 1, theme: "custom:ghost" }),
+        );
+        const root = document.documentElement;
+        // eslint-disable-next-line no-eval
+        eval(NO_FLASH_SCRIPT);
+        expect(root.getAttribute("style")).toBeNull();
+        expect(root.dataset.theme).toBeUndefined();
+    });
+});

@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react';
 import { Button, Panel, RadioCard, RadioCardGroup } from '@/components/ds';
 import { DIALOGS, openDialog } from '@/lib/dialogs';
 import ThemeCards from '@/components/ThemeCards';
+import ThemeStudio from '@/components/ThemeStudio';
 import SettingRow from './SettingRow';
 import { useMinesweeperStore } from '@/app/store';
 import { CELL_SIZES, type CellSize } from '@/lib/settings';
@@ -43,6 +44,7 @@ export default function SettingsClient() {
             <section aria-labelledby="settings-appearance" className="mb-8">
                 <Panel title={<span id="settings-appearance">Appearance</span>}>
                     <ThemeCards name="app-theme-settings" />
+                    <ThemeStudio />
                 </Panel>
             </section>
 

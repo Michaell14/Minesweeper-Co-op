@@ -59,8 +59,38 @@ export const VALID_THEME_IDS = THEMES.map((t) => t.id).filter(
     (id): id is string => id !== null,
 );
 
-/** Applies a theme to the document, or clears it for the default palette. */
-export function applyTheme(id: string | null): void {
+/**
+ * Removes every inline `--ms-palette-*` override a custom theme stamped.
+ * Walked off the style object itself rather than a hardcoded key list, so a
+ * palette entry added later cannot be left behind as a stale override.
+ */
+function clearCustomPaletteOverrides(): void {
+    const style = document.documentElement.style;
+    for (let i = style.length - 1; i >= 0; i--) {
+        const name = style[i];
+        if (name.startsWith("--ms-palette-")) style.removeProperty(name);
+    }
+}
+
+/**
+ * Applies a theme to the document.
+ *
+ * Built-in themes are a `data-theme` attribute; custom ones are the palette
+ * stamped as inline custom properties (they do not exist in tokens.css, so
+ * there is no attribute to set). Either path first clears the other's
+ * residue — switching custom → built-in used to be the leak to worry about.
+ */
+export function applyTheme(id: string | null, customPalette?: Record<string, string>): void {
+    clearCustomPaletteOverrides();
+    if (customPalette) {
+        delete document.documentElement.dataset.theme;
+        for (const [name, value] of Object.entries(customPalette)) {
+            if (name.startsWith("--ms-palette-")) {
+                document.documentElement.style.setProperty(name, value);
+            }
+        }
+        return;
+    }
     if (id) document.documentElement.dataset.theme = id;
     else delete document.documentElement.dataset.theme;
 }

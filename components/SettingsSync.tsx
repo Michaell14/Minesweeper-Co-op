@@ -3,6 +3,7 @@ import React from 'react';
 import { useSession } from 'next-auth/react';
 import { useMinesweeperStore } from '@/app/store';
 import { fetchSettings, saveSettings } from '@/lib/settingsApi';
+import { fetchThemes, saveThemeRemote } from '@/lib/themesApi';
 import { installSoundUnlock } from '@/lib/sound';
 
 /**
@@ -61,6 +62,21 @@ export default function SettingsSync() {
                 });
             }
         });
+
+        // Custom themes: merge rather than server-wins — themes are a
+        // COLLECTION, and a fresh browser having none must not erase the
+        // account's shelf, nor sign-in discard what was drafted here. On an
+        // id collision the server copy wins (it is the multi-device truth);
+        // local-only ones are pushed up.
+        fetchThemes().then((serverThemes) => {
+            if (cancelled || serverThemes === null) return;
+            const state = useMinesweeperStore.getState();
+            const serverIds = new Set(serverThemes.map((t) => t.id));
+            const localOnly = state.customThemes.filter((t) => !serverIds.has(t.id));
+            state.replaceCustomThemes([...serverThemes, ...localOnly]);
+            for (const theme of localOnly) void saveThemeRemote(theme);
+        });
+
         return () => { cancelled = true; };
     }, [status, replaceSettings]);
 

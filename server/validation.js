@@ -103,6 +103,28 @@ const isValidSettingsBlob = (blob) => {
     }
 };
 
+/** Client-minted theme slug: what lib/customThemes.ts mints, nothing wilder. */
+const isValidThemeId = (id) => typeof id === 'string' && /^[a-z0-9][a-z0-9-]{0,39}$/.test(id);
+
+/**
+ * A custom-theme blob. Like the settings blob the client owns the real schema
+ * (lib/customThemes.ts sanitises and RE-DERIVES the palette on read), so the
+ * server checks only what abuse looks like: shape, key shapes, and size.
+ */
+const MAX_THEME_BLOB_BYTES = 16384;
+const isValidThemeBlob = (blob) => {
+    if (typeof blob !== 'object' || blob === null || Array.isArray(blob)) return false;
+    if (!isValidThemeId(blob.id)) return false;
+    if (typeof blob.name !== 'string' || blob.name.trim() === '' || blob.name.length > 24) return false;
+    if (typeof blob.core !== 'object' || blob.core === null) return false;
+    if (typeof blob.palette !== 'object' || blob.palette === null) return false;
+    try {
+        return JSON.stringify(blob).length <= MAX_THEME_BLOB_BYTES;
+    } catch {
+        return false;
+    }
+};
+
 module.exports = {
     isValidRoomCode,
     isValidPlayerName,
@@ -115,4 +137,6 @@ module.exports = {
     isValidDailyToken,
     isValidDailyDate,
     isValidSettingsBlob,
+    isValidThemeId,
+    isValidThemeBlob,
 };

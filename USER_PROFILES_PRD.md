@@ -366,30 +366,58 @@ The repo had zero audio; it still has zero audio FILES.
       ui-smoke green; verified in a real browser (enabled via the UI, Preview
       played through an unlocked context, no console errors)
 
-### Phase 5 — Theme editor ░ Not started · est. 5–7 days
+### Phase 5 — Theme editor ✔ Done 2026-08-02
 
-The palette layer (`app/tokens.css` two-layer system) makes this tractable;
-the delivery mechanism is the work.
+The design that made it land: **nine core colours in, the full ~60-entry
+palette DERIVED** (`lib/customThemes.ts`) — bevels are the cell colour
+lightened/darkened, intent variants are tints, ink-on-fill is whichever of
+black/white reads (computed with the real WCAG maths). Nine pickers instead of
+sixty is what keeps a hand-built theme coherent.
 
-- [ ] Custom palettes apply as custom-property overrides on `:root` (inline
-      style injection), NOT as `data-theme` blocks — they don't exist in
-      tokens.css at build time
-- [ ] Rework `lib/theme.ts`: admit `custom:<id>` alongside built-in ids;
-      `VALID_IDS` allowlist and `NO_FLASH_SCRIPT` both updated (script reads a
-      cached palette blob from localStorage and stamps properties pre-paint)
-- [ ] Editor UI on `/settings`: colour inputs for the ~15 palette entries,
-      live preview against real components
-- [ ] Live WCAG contrast audit in the editor (reuse the `/ds` audit maths —
-      it has unit tests; the build-time ratchet can't see user palettes)
-- [ ] Allow saving failing palettes with a visible warning (their eyes, their
-      call) — decision recorded here
-- [ ] Save/load/delete themes: `user_themes` CRUD over REST; localStorage for
-      signed-out users
-- [ ] Cursor ramp (`--ms-palette-cursor-1..6`) and number colours included in
-      the editable set, or explicitly derived — decide and document
-- [ ] Guard: `app/tokens.test.ts` invariants still hold for built-in themes;
-      add a validator that a custom palette only sets palette-layer names
-- [ ] Tests: palette validation, `custom:` id round-trip, no-flash behaviour
+- [x] Custom palettes apply as inline custom-property overrides on `:root`;
+      `applyTheme` clears residue by walking the style object (so switching
+      custom → built-in leaves nothing behind — verified live: 59 overrides
+      → 0), and only `--ms-palette-*` names are ever stamped
+- [x] `custom:<slug>` admitted by the settings sanitiser; `NO_FLASH_SCRIPT`
+      resolves it against the cached theme blob and stamps the palette
+      pre-paint — palette-layer names and hex values only, so user-writable
+      storage can't smuggle arbitrary properties into a style attribute.
+      Verified live: reload painted 59 properties with no data-theme
+- [x] Editor on `/settings` (`components/ThemeStudio.tsx`): nine labelled
+      colour inputs seeded from the CURRENT resolved paint, name field, and a
+      live whole-page preview — the settings page is itself themed, so the
+      page IS the preview
+- [x] Live legibility audit from the same `app/ds/contrast.ts` maths: text on
+      page/panels, button labels, worst number on the open-cell fill, and a
+      closed-vs-open distinguishability row
+- [x] Failing palettes save with a warning ("Save anyway") — their eyes,
+      their call; Game Boy can't pass everywhere either
+- [x] CRUD + sync: `user_themes` (PK `(user_id, id)`, ON DELETE CASCADE —
+      verified live), `themesRepo`, GET/PUT/DELETE `/api/themes` with the cap
+      gating NEW themes only (updates at the cap still land); client
+      localStorage shelf (20 max) with a MERGE at sign-in — themes are a
+      collection, so a fresh browser must not erase the account's shelf, nor
+      sign-in discard local drafts; id collisions go to the server
+- [x] Cursor ramp and numbers: **derived, not editable** (the open decision) —
+      cursors as intent-hue mixes, numbers keep their classic colours where
+      they clear 3:1 on the custom open-cell fill and darkness-code where they
+      don't (the Game Boy trade, automated). Verified in the editor: dark
+      board → numbers re-derived, audit showed 3.5:1
+- [x] Guards: `tokens.test.ts` untouched and green (custom themes never touch
+      tokens.css); `sanitizeCustomTheme` RE-DERIVES the palette from the core
+      on every read, so a hand-edited blob cannot ship arbitrary keys and
+      stored palettes cannot drift from the current derivation
+- [x] Tests: derivation invariants (only palette names, legible intent inks,
+      dark-board number re-derivation), sanitisation, storage caps, minting,
+      `custom:` round-trip, no-flash stamping incl. smuggling attempts;
+      server id/blob validation, upsert, cap-vs-update, cascade. 680 server +
+      279 client + ui-smoke green; the full editor loop verified in a real
+      browser (create → live preview → save → reload no-flash → switch away
+      → delete-active fallback)
+
+**Deviation from sketch:** "~15 editable palette entries" became 9 core
+colours + full derivation — fewer knobs, more coherent output, and the
+derived palette is the only thing that ever reaches a style attribute.
 
 ### Phase 6 — Stats & profile page ░ Not started · est. 4–5 days
 
@@ -445,3 +473,4 @@ the delivery mechanism is the work.
 | 2026-08-02 | Phase 2 complete: settings blob (`lib/settings.ts`) + slice + `/settings` page + `SettingsSync` (server-wins at sign-in, debounced last-write-wins after); theme migrated into the blob with the legacy `ms-theme` fallback in the no-flash script; `user_settings` JSONB mirror with GET/PUT routes. Verified live: REST round-trip + upsert + cascade delete against real Postgres; browser checks of theme persistence, pre-blob migration, and legacy-key retirement. DS Slider/Select deferred to their consuming phases. |
 | 2026-08-02 | Phase 3 complete: nine settings (swap buttons, mobile flag default, chording, confetti, share-cursor, timer/flag-counter/progress visibility, cell size) wired through Cell/useChording/confetti/emitCellHover/HUD components; Gameplay + HUD sections on /settings; cell size as token-variant ceilings. Resolved to zero server work: chording suppressed client-side, question marks deferred (recorded in §8). Verified live in the browser (compact cells measured 30px, timer hidden, settings persisted); server 663 + client 244 tests and ui-smoke green. |
 | 2026-08-02 | Phase 4 complete: sound synthesised with Web Audio (no asset files — nothing to license or load), off by default, gated in playSound with a first-gesture unlock; wired at the emit helpers (reveal/flag/unflag/chord, room + daily), cascade detection in applyCellUpdates (>8 newly-open cells), and all seven win/lose terminal sites. DS Slider built as its Phase-2-deferred consumer arrived; Sound panel with toggle + volume + Preview. UI clicks cut, music deferred (recorded in the phase). 663 server + 259 client + ui-smoke green; Preview verified through an unlocked context in a real browser. |
+| 2026-08-02 | Phase 5 complete: theme editor as nine core colours + full palette derivation (contrast-aware inks, cursor mixes, number fallback); custom themes applied as :root inline overrides with residue-free switching; `custom:` ids through the sanitiser and no-flash script (palette-layer names + hex only); ThemeStudio with live whole-page preview and legibility audit, save-anyway allowed; `user_themes` CRUD with cap-gates-new-only and a merge (not server-wins) at sign-in. 680 server + 279 client + ui-smoke green; the full editor loop verified live in the browser, server CRUD + cascade against real Postgres. |

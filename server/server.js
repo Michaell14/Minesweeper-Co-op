@@ -6,6 +6,7 @@ const { startPvpGame, resetMyBoard, pvpRematch } = require('./controllers/pvpCon
 const { offerResume, forgetRoom } = require('./controllers/sessionController');
 const { resolveSocketUser, registerProfileRoutes } = require('./controllers/profileController');
 const { registerSettingsRoutes } = require('./controllers/settingsController');
+const { registerThemesRoutes } = require('./controllers/themesController');
 const { startDaily, submitDailyScore, getDailyLeaderboard } = require('./controllers/dailyController');
 const dailyGame = require('./game/daily');
 const { PORT } = require('./config');
@@ -30,6 +31,7 @@ const {
 // Profile first: it mounts the /api JSON body parser the others rely on.
 registerProfileRoutes(app);
 registerSettingsRoutes(app);
+registerThemesRoutes(app);
 
 /**
  * Who this socket belongs to, resolved once at connect. `null` is an anonymous

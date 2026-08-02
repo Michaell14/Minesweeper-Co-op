@@ -2,6 +2,7 @@
 import React from 'react';
 import { RadioCard, RadioCardGroup } from '@/components/ds';
 import { THEMES } from '@/lib/theme';
+import { CUSTOM_THEME_PREFIX } from '@/lib/customThemes';
 import { useMinesweeperStore } from '@/app/store';
 
 /** RadioCard values are strings; the default palette has no data-theme value. */
@@ -22,12 +23,16 @@ const DEFAULT_THEME = '__default__';
  */
 export default function ThemeCards({ name }: { name: string }) {
     const theme = useMinesweeperStore((s) => s.settings.theme);
+    const customThemes = useMinesweeperStore((s) => s.customThemes);
     const setSetting = useMinesweeperStore((s) => s.setSetting);
 
     const choose = (value: string) =>
         setSetting('theme', value === DEFAULT_THEME ? null : value);
 
-    const active = THEMES.find((t) => t.id === theme);
+    const activeBuiltIn = THEMES.find((t) => t.id === theme);
+    const activeCustom = customThemes.find(
+        (t) => `${CUSTOM_THEME_PREFIX}${t.id}` === theme,
+    );
 
     return (
         <>
@@ -47,9 +52,19 @@ export default function ThemeCards({ name }: { name: string }) {
                         }
                     />
                 ))}
+                {customThemes.map((t) => (
+                    <RadioCard
+                        key={`${CUSTOM_THEME_PREFIX}${t.id}`}
+                        value={`${CUSTOM_THEME_PREFIX}${t.id}`}
+                        label={t.name}
+                        description={
+                            <span className="whitespace-nowrap text-pixel-xs">Custom</span>
+                        }
+                    />
+                ))}
             </RadioCardGroup>
             <p className="text-pixel-xs text-ink-muted mt-4" aria-live="polite">
-                {active?.note}
+                {activeCustom ? `${activeCustom.name} — your own palette.` : activeBuiltIn?.note}
             </p>
         </>
     );

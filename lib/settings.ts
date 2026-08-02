@@ -80,9 +80,14 @@ const boolean = (value: unknown): boolean | undefined =>
  * Per-field sanitisers: a valid value, or undefined to mean "take the
  * default". Never throw — they are fed raw JSON from storage and the network.
  */
+/** `custom:<slug>` — a saved custom theme. The slug rules match lib/customThemes.ts. */
+const CUSTOM_THEME_SETTING_RE = /^custom:[a-z0-9][a-z0-9-]{0,39}$/;
+
 const SANITISERS: { [K in SettingKey]: (value: unknown) => Settings[K] | undefined } = {
     theme: (value) =>
-        value === null || (typeof value === "string" && VALID_THEME_IDS.includes(value))
+        value === null ||
+        (typeof value === "string" &&
+            (VALID_THEME_IDS.includes(value) || CUSTOM_THEME_SETTING_RE.test(value)))
             ? (value as string | null)
             : undefined,
     swapMouseButtons: boolean,
@@ -177,7 +182,26 @@ export const NO_FLASH_SCRIPT = `
       }
     } catch (e) {}
     if (!t) t = localStorage.getItem(${JSON.stringify(LEGACY_THEME_KEY)});
-    if (t && ${JSON.stringify(VALID_THEME_IDS)}.indexOf(t) !== -1) {
+    if (!t) return;
+    if (t.indexOf('custom:') === 0) {
+      // A saved custom theme: stamp its resolved palette before first paint.
+      // Only palette-layer names and hex values pass — the blob is
+      // user-writable storage, not something to hand style access.
+      var themes = JSON.parse(localStorage.getItem(${JSON.stringify("minesweeper_custom_themes")}) || '[]');
+      for (var i = 0; i < themes.length; i++) {
+        if (themes[i] && themes[i].id === t.slice(7) && themes[i].palette) {
+          var p = themes[i].palette;
+          for (var k in p) {
+            if (k.indexOf('--ms-palette-') === 0 && /^#[0-9a-fA-F]{3,8}$/.test(p[k])) {
+              document.documentElement.style.setProperty(k, p[k]);
+            }
+          }
+          break;
+        }
+      }
+      return;
+    }
+    if (${JSON.stringify(VALID_THEME_IDS)}.indexOf(t) !== -1) {
       document.documentElement.setAttribute('data-theme', t);
     }
   } catch (e) {}
