@@ -48,6 +48,7 @@ Backend deps install separately: `npm --prefix server install`.
 - Redis values are all strings — booleans are stored as `'true'`/`'false'` and compared as strings, and numbers need `parseInt(..., 10)`.
 - **Go through `server/data/roomRepo` / `playerRepo`.** Don't import the Redis client or build a key string outside `server/data`. A mistyped key is a silent no-op, not an error.
 - Socket handlers validate payloads with helpers from `server/validation.js`, then call `isValid(room)` before touching state. Follow that order for new handlers, and add new rules to `validation.js` rather than inline.
+- **Anything that rewrites a board must hold an action lock**, and re-read under it — anything read before the lock is stale by the time the write runs. Co-op shares one board, so its lock is per room (`withActionLock`, taken by `game/index.js` and by `resetGame`). PVP players own separate board fields and are meant to race, so theirs is per player (`withPvpActionLock`, taken by `game/index.js`, `resetMyBoard` and `pvpRematch`) — **never key a PVP lock by room**, that serialises the racers against each other. New state a handler both reads and writes goes inside the lock too, and gets read there rather than passed in. The locks are **not reentrant**: a function holding one must not call anything that takes the same key, and the two PVP keys are only ever taken in index order. `server/game/daily.js` is the one writer that does **not** hold a lock yet — see ARCHITECTURE.md §8.2 before adding to it.
 - Board cells are always `{ isMine, isOpen, isFlagged, nearbyMines }`.
 - **Never emit a board or cell list straight from Redis.** Run it through `projectBoard` / `projectCells` (`server/domain/board.js`) so closed cells don't leak `isMine` or `nearbyMines`. Pass `{ revealMines: true }` only for terminal states. See ARCHITECTURE.md §3.1.
 
@@ -60,6 +61,7 @@ Backend deps install separately: `npm --prefix server install`.
 | PVP cell actions | `server/game/pvp.js` |
 | Deciding which mode handles an action | `server/game/index.js` — the only dispatch point |
 | PVP lifecycle (start/reset/rematch) | `server/controllers/pvpController.js` |
+| Which PVP board a socket owns | `server/domain/pvpPlayer.js` — `pvpIndexOf`; **never** default a missing index to 0 |
 | PVP disconnect grace period | `server/controllers/pvpForfeit.js` — a reload must not forfeit |
 | Daily challenge (cell actions, seeded board) | `server/game/daily.js` |
 | Daily lifecycle (start/submit/leaderboard) | `server/controllers/dailyController.js` |
@@ -135,12 +137,20 @@ clicks and chords, co-op and PVP. Both modes are compared directly in
 
 Jest, in `server/tests/`, run from the repo root with `npm test`. Covers board
 generation and the solver, board primitives and projection, payload validation,
-mode dispatch, the Redis key schema and repositories, and the `resetGame`
-require-order regression.
+mode dispatch, the Redis key schema and repositories, concurrent co-op moves, and
+the `resetGame` require-order regression.
 
 `io` and Redis are mocked globally by `server/tests/setup/mockInfra.js`, so no
 test reaches real infrastructure; declare a per-file `jest.mock` when you need to
 assert on them (`gameUtils.test.js` shows the pattern).
+
+That mock hands back canned values with **no store behind them**, and settles in
+call order, so it cannot show one write landing on top of another. Anything about
+overlapping handlers uses `server/tests/setup/fakeRedis.js` instead — a real
+in-memory store whose every command yields to the event loop, so two moves
+interleave the way they do against a real server. `coopConcurrency.test.js` shows
+the pattern: seed the room, fire two actions with `Promise.all`, assert on what
+Redis ended up holding.
 
 For the client, `npm run test:ui` drives the real app in headless Chrome against
 a local backend (`scripts/ui-smoke/`). It needs `npm run dev:all` running first,

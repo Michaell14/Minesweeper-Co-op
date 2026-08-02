@@ -18,7 +18,12 @@ jest.mock('../../utils/initializeRedisClient', () => ({
         hSet: jest.fn(),
         exists: jest.fn(),
         del: jest.fn(),
-        set: jest.fn(),
+        // Locks are taken with SET NX, and a bare jest.fn() reports every one as
+        // LOST. Co-op moves then sit in withActionLock's retry loop until its
+        // wait is exhausted, which reads as an unexplained multi-second hang in
+        // any test that never mentions locking. 'OK' — the lock was free — is
+        // the ordinary case; tests about contention override it.
+        set: jest.fn(async () => 'OK'),
         expire: jest.fn(),
         ping: jest.fn(),
         zAdd: jest.fn(),

@@ -17,6 +17,7 @@ jest.mock('../utils/initializeClient', () => ({
 }));
 
 const pvp = require('../game/pvp');
+const { pvpIndexOf } = require('../domain/pvpPlayer');
 const { redisClient } = require('../utils/initializeRedisClient');
 
 const ROOM = 'r1';
@@ -134,5 +135,37 @@ describe('a player WITH an index still works', () => {
         await pvp.toggleFlag(0, 0, ROOM, 'sock-1', startedRoom());
 
         expect(client.hSet.mock.calls.some((c) => c[1] && c[1].player1Board)).toBe(true);
+    });
+});
+
+/**
+ * The rule itself, now that the socket handlers, the dispatch layer's choice of
+ * lock key and the reset controller all derive the index from one place. It was
+ * written out separately in each, and the copies disagreed: pvpController's
+ * defaulted a missing index to 0.
+ */
+describe('pvpIndexOf', () => {
+    test('reads the index a started game assigned', () => {
+        expect(pvpIndexOf({ pvpPlayerIndex: '0' })).toBe(0);
+        expect(pvpIndexOf({ pvpPlayerIndex: '1' })).toBe(1);
+    });
+
+    test.each([
+        ['no player record', undefined],
+        ['an empty player record', {}],
+        ['a record with no index', { name: 'Nobody', score: '0' }],
+        ['an empty index', { pvpPlayerIndex: '' }],
+        ['a non-numeric index', { pvpPlayerIndex: 'first' }],
+    ])('refuses %s rather than defaulting to player one', (_label, playerData) => {
+        expect(pvpIndexOf(playerData)).toBeNull();
+    });
+
+    test('never returns 0 for anything but a real index 0', () => {
+        // The whole point: 0 addresses player1Board, so a default hands a
+        // stranger the first player's board to read, write and lock.
+        const zeros = [undefined, {}, { pvpPlayerIndex: '' }, { pvpPlayerIndex: 'first' }]
+            .map(pvpIndexOf)
+            .filter((index) => index === 0);
+        expect(zeros).toEqual([]);
     });
 });
