@@ -102,6 +102,16 @@ const dailyGenLockKey = (date) => `daily:${date}:gen_lock`;
 const dailyStartLockKey = (date, token) => `daily:${date}:start_lock:${token}`;
 
 /**
+ * Lock: one move at a time on one attempt.
+ *
+ * The same two-tab problem `dailyStartLockKey` exists for, applied to MOVES
+ * rather than starts — an attempt's board is a single hash field, so two
+ * overlapping moves rewrite all of it and erase each other. Keyed per attempt,
+ * so players never wait on one another.
+ */
+const dailyActionLockKey = (date, token) => `daily:${date}:action_lock:${token}`;
+
+/**
  * PVP stores both players' state in the SAME room hash under numbered field
  * names, one-based: player index 0 reads and writes player1Board, and so on.
  */
@@ -134,4 +144,5 @@ module.exports = {
     dailyAttemptKey,
     dailyGenLockKey,
     dailyStartLockKey,
+    dailyActionLockKey,
 };

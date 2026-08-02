@@ -169,88 +169,98 @@ const checkDailyWin = async (date, token, socketId, board) => {
     return true;
 };
 
-const openCell = async (date, token, socketId, row, col) => {
-    const attempt = await dailyRepo.getAttempt(date, token);
-    if (!attempt || !attempt.status || TERMINAL_STATUSES.includes(attempt.status)) return;
+/*
+ * The three move handlers below each read the attempt's board, mutate it and
+ * write the whole field back, so none of them is safe to run concurrently for
+ * one attempt. Each holds that attempt's action lock and does its reads inside
+ * it — an attempt is one browser, but the token lives in localStorage and is
+ * shared across tabs, and two fast clicks are enough on their own.
+ */
+const openCell = async (date, token, socketId, row, col) =>
+    dailyRepo.withAttemptLock(date, token, socketId, async () => {
+        const attempt = await dailyRepo.getAttempt(date, token);
+        if (!attempt || !attempt.status || TERMINAL_STATUSES.includes(attempt.status)) return;
 
-    const board = JSON.parse(attempt.board);
-    if (!board || row < 0 || row >= board.length || col < 0 || col >= board[0].length) return;
-    if (board[row][col] === undefined || !board[row][col] || board[row][col].isOpen || board[row][col].isFlagged) return;
+        const board = JSON.parse(attempt.board);
+        if (!board || row < 0 || row >= board.length || col < 0 || col >= board[0].length) return;
+        if (board[row][col] === undefined || !board[row][col] || board[row][col].isOpen || board[row][col].isFlagged) return;
 
-    await markStartedIfNeeded(date, token, attempt);
+        await markStartedIfNeeded(date, token, attempt);
 
-    const toUpdate = [];
-    const { hitMine } = revealFrom(board, row, col, toUpdate);
+        const toUpdate = [];
+        const { hitMine } = revealFrom(board, row, col, toUpdate);
 
-    if (hitMine) {
-        await finishAttempt(date, token, socketId, board, { won: false });
-        return;
-    }
-
-    await dailyRepo.setAttemptBoard(date, token, board);
-
-    const won = await checkDailyWin(date, token, socketId, board);
-    if (!won) {
-        io.to(socketId).emit(SERVER_EVENTS.DAILY_UPDATE_CELLS, projectCells(toUpdate));
-    }
-};
-
-const chordCell = async (date, token, socketId, row, col) => {
-    const attempt = await dailyRepo.getAttempt(date, token);
-    if (!attempt || !attempt.status || TERMINAL_STATUSES.includes(attempt.status)) return;
-
-    const board = JSON.parse(attempt.board);
-    if (!board || row < 0 || row >= board.length || col < 0 || col >= board[0].length) return;
-    if (!board[row][col] || !board[row][col].isOpen) return;
-
-    await markStartedIfNeeded(date, token, attempt);
-
-    const adjacentCells = getAdjacentCells(row, col, board);
-    const flaggedCells = adjacentCells.filter((adj) => adj.isFlagged).length;
-    const toUpdate = [];
-    let hitMine = false;
-
-    if (flaggedCells === board[row][col].nearbyMines) {
-        for (const adj of adjacentCells) {
-            if (hitMine || adj.isFlagged || adj.isOpen) continue;
-            const result = revealFrom(board, adj.row, adj.col, toUpdate);
-            if (result.hitMine) hitMine = true;
+        if (hitMine) {
+            await finishAttempt(date, token, socketId, board, { won: false });
+            return;
         }
-    }
 
-    if (hitMine) {
-        await finishAttempt(date, token, socketId, board, { won: false });
-        return;
-    }
+        await dailyRepo.setAttemptBoard(date, token, board);
 
-    await dailyRepo.setAttemptBoard(date, token, board);
+        const won = await checkDailyWin(date, token, socketId, board);
+        if (!won) {
+            io.to(socketId).emit(SERVER_EVENTS.DAILY_UPDATE_CELLS, projectCells(toUpdate));
+        }
+});
 
-    const won = await checkDailyWin(date, token, socketId, board);
-    if (!won) {
-        io.to(socketId).emit(SERVER_EVENTS.DAILY_UPDATE_CELLS, projectCells(toUpdate));
-    }
-};
+const chordCell = async (date, token, socketId, row, col) =>
+    dailyRepo.withAttemptLock(date, token, socketId, async () => {
+        const attempt = await dailyRepo.getAttempt(date, token);
+        if (!attempt || !attempt.status || TERMINAL_STATUSES.includes(attempt.status)) return;
+
+        const board = JSON.parse(attempt.board);
+        if (!board || row < 0 || row >= board.length || col < 0 || col >= board[0].length) return;
+        if (!board[row][col] || !board[row][col].isOpen) return;
+
+        await markStartedIfNeeded(date, token, attempt);
+
+        const adjacentCells = getAdjacentCells(row, col, board);
+        const flaggedCells = adjacentCells.filter((adj) => adj.isFlagged).length;
+        const toUpdate = [];
+        let hitMine = false;
+
+        if (flaggedCells === board[row][col].nearbyMines) {
+            for (const adj of adjacentCells) {
+                if (hitMine || adj.isFlagged || adj.isOpen) continue;
+                const result = revealFrom(board, adj.row, adj.col, toUpdate);
+                if (result.hitMine) hitMine = true;
+            }
+        }
+
+        if (hitMine) {
+            await finishAttempt(date, token, socketId, board, { won: false });
+            return;
+        }
+
+        await dailyRepo.setAttemptBoard(date, token, board);
+
+        const won = await checkDailyWin(date, token, socketId, board);
+        if (!won) {
+            io.to(socketId).emit(SERVER_EVENTS.DAILY_UPDATE_CELLS, projectCells(toUpdate));
+        }
+});
 
 /** Flagging is not a "real move" for timing purposes -- the clock starts on
  * open/chord only (see markStartedIfNeeded's callers), so this never stamps it. */
-const toggleFlag = async (date, token, socketId, row, col) => {
-    const attempt = await dailyRepo.getAttempt(date, token);
-    if (!attempt || !attempt.status || TERMINAL_STATUSES.includes(attempt.status)) return;
+const toggleFlag = async (date, token, socketId, row, col) =>
+    dailyRepo.withAttemptLock(date, token, socketId, async () => {
+        const attempt = await dailyRepo.getAttempt(date, token);
+        if (!attempt || !attempt.status || TERMINAL_STATUSES.includes(attempt.status)) return;
 
-    const board = JSON.parse(attempt.board);
-    if (!board || row < 0 || row >= board.length || col < 0 || col >= board[0].length) return;
-    if (board[row][col] === undefined || !board[row][col] || board[row][col].isOpen) return;
+        const board = JSON.parse(attempt.board);
+        if (!board || row < 0 || row >= board.length || col < 0 || col >= board[0].length) return;
+        if (board[row][col] === undefined || !board[row][col] || board[row][col].isOpen) return;
 
-    board[row][col].isFlagged = !board[row][col].isFlagged;
-    const toUpdate = [{ ...board[row][col], row, col }];
+        board[row][col].isFlagged = !board[row][col].isFlagged;
+        const toUpdate = [{ ...board[row][col], row, col }];
 
-    // Save before telling anyone, the same order openCell and chordCell use. A
-    // flag that is only on screen is worse than a flag that never appeared:
-    // every later action re-reads the stored board, so the next move silently
-    // undoes it and nothing anywhere reports a problem.
-    await dailyRepo.setAttemptBoard(date, token, board);
-    io.to(socketId).emit(SERVER_EVENTS.DAILY_UPDATE_CELLS, projectCells(toUpdate));
-};
+        // Save before telling anyone, the same order openCell and chordCell use. A
+        // flag that is only on screen is worse than a flag that never appeared:
+        // every later action re-reads the stored board, so the next move silently
+        // undoes it and nothing anywhere reports a problem.
+        await dailyRepo.setAttemptBoard(date, token, board);
+        io.to(socketId).emit(SERVER_EVENTS.DAILY_UPDATE_CELLS, projectCells(toUpdate));
+});
 
 module.exports = {
     generateDailyBoardForDate,

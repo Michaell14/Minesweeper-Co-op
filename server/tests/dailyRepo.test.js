@@ -23,6 +23,7 @@ describe('daily keys', () => {
         expect(keys.dailyAttemptKey('2026-07-30', 'tok-1')).toBe('daily:2026-07-30:attempt:tok-1');
         expect(keys.dailyGenLockKey('2026-07-30')).toBe('daily:2026-07-30:gen_lock');
         expect(keys.dailyStartLockKey('2026-07-30', 'tok-1')).toBe('daily:2026-07-30:start_lock:tok-1');
+        expect(keys.dailyActionLockKey('2026-07-30', 'tok-1')).toBe('daily:2026-07-30:action_lock:tok-1');
     });
 
     test('daily data has its own 48h TTL, distinct from room/player TTLs', () => {
@@ -197,5 +198,30 @@ describe('locks', () => {
 
         await dailyRepo.releaseStartLock('2026-07-30', 'tok-1');
         expect(client.del).toHaveBeenCalledWith('daily:2026-07-30:start_lock:tok-1');
+    });
+
+    test('the action lock is scoped per attempt, on the shorter move lease', async () => {
+        const ran = await dailyRepo.withAttemptLock('2026-07-30', 'tok-1', 'sock-1', async () => 'ran');
+
+        expect(ran).toBe('ran');
+        expect(client.set).toHaveBeenCalledWith('daily:2026-07-30:action_lock:tok-1', 'sock-1', { NX: true, EX: 5 });
+        expect(client.del).toHaveBeenCalledWith('daily:2026-07-30:action_lock:tok-1');
+    });
+
+    test('two attempts never share an action lock, so players do not wait on each other', () => {
+        expect(keys.dailyActionLockKey('2026-07-30', 'tok-1'))
+            .not.toBe(keys.dailyActionLockKey('2026-07-30', 'tok-2'));
+        // ...and a move lock is not the start lock: an in-flight move must not
+        // be mistaken for a start, or either could free the other's key.
+        expect(keys.dailyActionLockKey('2026-07-30', 'tok-1'))
+            .not.toBe(keys.dailyStartLockKey('2026-07-30', 'tok-1'));
+    });
+
+    test('releases the attempt lock even when the move throws', async () => {
+        await expect(
+            dailyRepo.withAttemptLock('2026-07-30', 'tok-1', 'sock-1', async () => { throw new Error('boom'); })
+        ).rejects.toThrow('boom');
+
+        expect(client.del).toHaveBeenCalledWith('daily:2026-07-30:action_lock:tok-1');
     });
 });
