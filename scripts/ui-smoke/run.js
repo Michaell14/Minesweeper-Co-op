@@ -469,6 +469,109 @@ async function rejoinOnReload(page) {
         'a reload dragged the player back into the room they left');
 }
 
+/**
+ * Every palette, measured against WCAG AA in a real browser.
+ *
+ * This is the check that cannot be done anywhere else. Contrast depends on what
+ * the browser actually painted, and a theme overrides only the palette layer —
+ * so a semantic token can pass on one palette and fail on another with nothing
+ * in the source changing. `dark` in particular deliberately KEEPS the NES
+ * accent hues while inverting the surfaces, which is exactly the arrangement
+ * that once shipped white-on-yellow at 1.16:1.
+ *
+ * Screenshot diffing would be the other way to do this and would be worse: dev
+ * is macOS, CI is Linux, and the font rasterises differently on each, so the
+ * baselines would be permanently red for reasons unrelated to the design
+ * system. Resolved colours are exact on both.
+ *
+ * ## Why this is a ratchet and not a pass/fail
+ *
+ * The two most restricted palettes cannot meet AA everywhere and still be what
+ * they are. Game Boy is four shades of green; eight distinguishable cell
+ * numbers at 4.5:1 do not exist inside it. C64 has the same problem across its
+ * sixteen. `app/ds/contrast.ts` says as much in its own header — a restricted
+ * retro palette makes this failure easy.
+ *
+ * So the known failures are listed below rather than fixed, and this asserts
+ * that the set does not GROW. A new failure, or one theme's failure appearing
+ * in another, fails the suite; the existing ones are printed every run so the
+ * debt is visible in CI rather than only to whoever opens /ds. Removing an
+ * entry here is the reward for improving a palette.
+ */
+const KNOWN_CONTRAST_FAILURES = {
+    __default__: [],
+    gameboy: [
+        'muted text on panel',
+        'primary button',
+        'cell number 1',
+        'cell number 2',
+        'cell number 3',
+    ],
+    c64: [
+        'muted text on panel',
+        'cell number 1',
+        'cell number 2',
+        'cell number 3',
+        'cell number 5',
+        'cell number 6',
+        'cell number 7',
+        'cell number 8',
+    ],
+    dark: [],
+};
+
+async function themeContrast(page) {
+    console.log('\n\x1b[1m--- THEMES ---\x1b[0m');
+
+    await page.goto(`${CLIENT}/ds`);
+    await page.waitFor(`!!document.querySelector('[aria-label="Preview palette"]')`,
+        { timeout: 60000, label: 'the catalog renders' });
+
+    const themes = JSON.parse(await page.evaluate(`
+        const group = document.querySelector('[aria-label="Preview palette"]');
+        return JSON.stringify([...group.querySelectorAll('input[type=radio]')].map(i => i.value));
+    `));
+    check(themes.length === Object.keys(KNOWN_CONTRAST_FAILURES).length,
+        `every palette is audited (${themes.length})`,
+        `found ${themes.length} palettes but ${Object.keys(KNOWN_CONTRAST_FAILURES).length} are listed above`);
+
+    for (const theme of themes) {
+        await page.evaluate(`
+            const group = document.querySelector('[aria-label="Preview palette"]');
+            [...group.querySelectorAll('input[type=radio]')].find(i => i.value === ${JSON.stringify(theme)}).click();
+            return true;
+        `);
+        // The report re-measures in an effect keyed on the theme.
+        await sleep(400);
+
+        // Each row is <p><span>{label}</span><span>{ratio} (needs N)</span></p>;
+        // only a FAILING row carries the "(needs N)" suffix.
+        const failing = JSON.parse(await page.evaluate(`
+            const rows = [...document.querySelectorAll('p')].filter(el =>
+                el.children.length === 2 &&
+                /needs [0-9]/.test(el.children[1].textContent));
+            return JSON.stringify(rows.map(el => el.children[0].textContent.trim()));
+        `));
+
+        const known = KNOWN_CONTRAST_FAILURES[theme] || [];
+        const regressions = failing.filter((f) => !known.includes(f));
+        const fixed = known.filter((k) => !failing.includes(k));
+
+        // The label prints above the failure detail either way, so it states
+        // what was measured rather than a verdict that would read as a lie on a
+        // failing run.
+        const summary = failing.length === 0
+            ? `${theme}: every audited pair meets AA`
+            : `${theme}: ${failing.length} failing (${failing.join(', ')})`;
+        check(regressions.length === 0, summary,
+            `${theme}: NEW contrast failure(s) not in KNOWN_CONTRAST_FAILURES — ${regressions.join(', ')}`);
+
+        if (fixed.length) {
+            console.log(`  \x1b[36mNOTE\x1b[0m  ${theme}: now passing, remove from KNOWN_CONTRAST_FAILURES — ${fixed.join(', ')}`);
+        }
+    }
+}
+
 async function pvp(host, guest) {
     console.log('\n\x1b[1m--- PVP ---\x1b[0m');
     const room = 'smokepvp' + Date.now().toString().slice(-6);
@@ -665,6 +768,7 @@ async function joinLink(host, guest) {
         await sizeAndDifficulty(page);
         await mobileFit(page);
         await rejoinOnReload(page);
+        await themeContrast(page);
 
         const host = await attach(await newTarget('about:blank'));
         const guest = await attach(await newTarget('about:blank'));

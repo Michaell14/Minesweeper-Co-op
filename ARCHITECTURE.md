@@ -668,7 +668,16 @@ the previous hardcoded behaviour. See `.env.example` and `server/.env.example`.
   button that stops closing.
 - `scripts/ui-smoke/` — headless Chrome against a real backend, for what jsdom
   cannot see. jsdom has no layout engine, and implements `<dialog>` without the
-  part where submitting a `method="dialog"` form closes it.
+  part where submitting a `method="dialog"` form closes it. It also walks every
+  palette and checks the WCAG audit, since contrast depends on resolved colours.
+
+Appearance has no screenshot baselines on purpose. `app/tokens.test.ts` parses
+the token file for what CSS fails silently on (a dangling `var()`, a theme
+overriding a renamed token or reaching past the palette layer, a semantic token
+holding a literal). The cross-theme contrast check is a ratchet over
+`KNOWN_CONTRAST_FAILURES` — the most restricted palettes cannot meet AA
+everywhere and remain themselves, so the suite guards against the set growing
+rather than demanding it be empty.
 
 `npm run verify:deploy` is the only check that touches the deployed stack. See
 CLAUDE.md for what belongs in which layer.

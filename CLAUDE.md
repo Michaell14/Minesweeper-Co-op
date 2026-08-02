@@ -74,6 +74,7 @@ Backend deps install separately: `npm --prefix server install`.
 | Design system (buttons, inputs, panels, dialogs, table, icons) | `components/ds/`; barrel at `components/ds/index.ts` |
 | Colours, type scale, spacing, border width | `app/tokens.css`, surfaced to Tailwind in `tailwind.config.ts` |
 | Component catalog (every primitive on one page) | `app/ds/` — `/ds` route, noindex |
+| Token/theme invariants | `app/tokens.test.ts` (parses tokens.css); cross-theme contrast in `scripts/ui-smoke/run.js` |
 | Board/controls UI | `components/game/` (Board, StatusBanner, ProgressBar, ScoreTable, FlagCounter, Timer, RoomPanel, GameSummary); `components/Grid.tsx` is layout only |
 | Daily challenge UI | `components/DailyChallenge.tsx`, `components/dialogs/DailyDialogs.tsx`, `state/dailySlice.ts` |
 | The run clock | `server/domain/clock.js` (server), `lib/gameClock.ts` (the one reading), `components/game/Timer.tsx` |
@@ -188,6 +189,21 @@ jsdom has **no layout engine**, so it can tell you a control is unreachable by
 name but never that it is off-screen, overlapping or the wrong size. It also
 implements `<dialog>` without the bit where submitting a `method="dialog"` form
 closes it. Anything in that territory belongs in the smoke suite instead.
+
+**Appearance is covered in two places, and neither is a screenshot.**
+`app/tokens.test.ts` parses `app/tokens.css` for what CSS fails silently on — a
+`var()` pointing at a name that does not exist, a theme overriding a token that
+was renamed, a theme reaching past the palette layer, a semantic token holding a
+literal colour. The smoke suite then walks every palette on `/ds` and checks the
+WCAG audit in a real browser, because contrast depends on what was painted.
+
+That second one is a **ratchet**, not a pass/fail: `gameboy` and `c64` cannot
+meet AA everywhere and still be four shades of green and sixteen C64 colours.
+The known failures are listed in `KNOWN_CONTRAST_FAILURES`, a new one fails the
+suite, and fixing one prints a note telling you to delete the entry. Deliberately
+NOT screenshot diffing — dev is macOS, CI is Linux, and the font rasterises
+differently, so pixel baselines would be permanently red for reasons unrelated
+to the design system.
 
 `npm run verify:deploy` (`scripts/verify-deploy/`) is the only check that touches
 the deployed stack. It connects real sockets to production — override with
