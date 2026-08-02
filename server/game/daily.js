@@ -9,10 +9,10 @@
  * that generation happens once per day rather than once per room.
  */
 
-const { generateSingleCandidateBoard } = require('../utils/gameUtils');
-const { solveWithStats } = require('../utils/solverUtils');
+const { generateSingleCandidateBoard } = require('../domain/boardGen');
+const { solveWithStats } = require('../domain/solverUtils');
 const { revealFrom, getAdjacentCells, projectBoard, projectCells } = require('../domain/board');
-const { hashStringToSeed, mulberry32 } = require('../utils/seededRandom');
+const { hashStringToSeed, mulberry32 } = require('../domain/seededRandom');
 const { io } = require('../utils/initializeClient');
 const dailyRepo = require('../data/dailyRepo');
 const { TERMINAL_STATUSES } = dailyRepo;
@@ -33,7 +33,7 @@ const DAILY_MAX_ATTEMPTS = 5000;
  * hardest. "Hardest" means the fewest freebies: the board isn't just
  * logic-solvable, it's the one (among many tried) that needed the most
  * subset/overlap reasoning rather than easy single-cell deductions -- see
- * solveWithStats in server/utils/solverUtils.js. A pool of 1 is what the
+ * solveWithStats in server/domain/solverUtils.js. A pool of 1 is what the
  * daily challenge used to do (first solvable board wins); this is what
  * turns "solvable" into "hard" without touching what solvable means.
  */

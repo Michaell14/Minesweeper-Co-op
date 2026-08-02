@@ -1,5 +1,5 @@
-const { isBoardSolvable, solveWithStats } = require('../utils/solverUtils');
-const { generateBoard } = require('../utils/gameUtils');
+const { isBoardSolvable, solveWithStats } = require('../domain/solverUtils');
+const { generateBoard } = require('../domain/boardGen');
 
 describe('Minesweeper Solver Utils', () => {
     test('Identifies a completely solvable 8x8 easy board', () => {

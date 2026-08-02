@@ -1,7 +1,7 @@
 const { io } = require('./initializeClient');
 const { createEmptyBoard, projectBoard } = require('../domain/board');
 const { pvpPlayerFields } = require('../data/keys');
-const { scheduleForfeit } = require('../controllers/pvpForfeit');
+const { scheduleForfeit } = require('./pvpForfeit');
 const roomRepo = require('../data/roomRepo');
 const { clockOf } = require('../domain/clock');
 const playerRepo = require('../data/playerRepo');
@@ -260,7 +260,7 @@ const removePlayer = async (socket, socketId) => {
              * A disconnect mid-race USED to hand the win over immediately. A
              * reload is a disconnect too, so refreshing the page forfeited the
              * game before the tab had finished reloading. The decision now waits
-             * to see whether they come back — see controllers/pvpForfeit.js.
+             * to see whether they come back — see pvpForfeit.js.
              */
             if (mode === 'pvp' && roomState.pvpStarted === 'true' && !roomState.winnerSocket) {
                 const player1Won = roomState.player1GameWon === 'true';

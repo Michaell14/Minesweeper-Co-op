@@ -17,7 +17,7 @@ jest.mock('../utils/initializeClient', () => ({
     server: {},
 }));
 
-const { settleForfeit } = require('../controllers/pvpForfeit');
+const { settleForfeit } = require('../utils/pvpForfeit');
 const { redisClient } = require('../utils/initializeRedisClient');
 
 const ROOM = 'r1';

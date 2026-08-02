@@ -10,7 +10,8 @@
  * that lock; do not call into this module without it.
  */
 
-const { generateBoard, checkWin } = require('../utils/gameUtils');
+const { generateBoard } = require('../domain/boardGen');
+const { checkWin } = require('../utils/gameUtils');
 const { updatePlayerStatsInRoom } = require('../utils/playerUtils');
 const { getAdjacentCells, revealFrom, projectBoard, projectCells } = require('../domain/board');
 const { clockOf, readStamp } = require('../domain/clock');

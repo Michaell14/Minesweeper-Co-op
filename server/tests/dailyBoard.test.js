@@ -6,15 +6,15 @@
  * io and Redis are globally mocked by tests/setup/mockInfra.js.
  */
 
-const { generateBoard, generateSingleCandidateBoard } = require('../utils/gameUtils');
+const { generateBoard, generateSingleCandidateBoard } = require('../domain/boardGen');
 const {
     generateDailyBoardForDate,
     hardestSolvableCandidate,
     DAILY_CANDIDATE_POOL_SIZE,
     DAILY_MAX_ATTEMPTS,
 } = require('../game/daily');
-const { isBoardSolvable, solveWithStats } = require('../utils/solverUtils');
-const { mulberry32, hashStringToSeed } = require('../utils/seededRandom');
+const { isBoardSolvable, solveWithStats } = require('../domain/solverUtils');
+const { mulberry32, hashStringToSeed } = require('../domain/seededRandom');
 const { DAILY_PRESET } = require('../../shared/boardConfig');
 
 const countMines = (board) =>

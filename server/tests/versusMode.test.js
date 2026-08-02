@@ -7,7 +7,7 @@
  * first-click safe zone, which that shared start cell relies on.
  */
 
-const { generateBoard } = require('../utils/gameUtils');
+const { generateBoard } = require('../domain/boardGen');
 
 // ---------------------------------------------------------------------------
 // helpers
