@@ -43,6 +43,11 @@ export function useGameActions(socket: AppSocket | null) {
         store.setPlayerJoined(false);
         store.setBoard([]);
         store.setName("");
+        // The roster belongs to the room being left. It also sizes the group a
+        // best time is filed under, so leaving a game with friends and then
+        // looking at the landing page would otherwise show their record for a
+        // board you were about to play alone.
+        store.setPlayerStatsInRoom([]);
         store.setBoardConfig(DEFAULT_SIZE, DEFAULT_DIFFICULTY);
         store.clearAllHovers();
         store.resetPvpState(); // also resets gameOver/gameWon

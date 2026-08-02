@@ -43,6 +43,26 @@ describe("leaveRoom", () => {
         expect(state().endedAt).toBeNull();
     });
 
+    /*
+     * The roster belongs to the room being left, and it also sizes the group a
+     * best time is filed under. Left standing, the landing page would offer the
+     * record three friends set as the target for a board about to be played
+     * alone — a time that cannot be matched and says nothing about the game.
+     */
+    test("forgets the roster, so the landing page reads as solo", () => {
+        act(() => {
+            state().setPlayerStatsInRoom([
+                { name: "Alice", score: 1 },
+                { name: "Bob", score: 2 },
+            ]);
+        });
+
+        const { leaveRoom } = actions();
+        act(() => leaveRoom());
+
+        expect(state().playerStatsInRoom).toEqual([]);
+    });
+
     test("still leaves the room", () => {
         const socket = fakeSocket();
 

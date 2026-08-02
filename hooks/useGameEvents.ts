@@ -4,7 +4,7 @@ import { useMinesweeperStore } from "@/app/store";
 import { shootConfetti } from "@/lib/confetti";
 import { cursorColorForId } from "@/lib/theme";
 import { DIALOGS, openDialog, closeDialog } from "@/lib/dialogs";
-import { boardKey, recordBestTime } from "@/lib/bestTimes";
+import { boardKey, playersForClear, recordBestTime } from "@/lib/bestTimes";
 import { elapsedSeconds } from "@/lib/gameClock";
 import { CLIENT_EVENTS, SERVER_EVENTS } from "@/shared/events";
 import type { AppSocket } from "@/lib/initSocket";
@@ -22,15 +22,19 @@ import type { SocketHandlers } from "./useSocketEvents";
  * component would re-run it on every render of a dialog that stays open.
  */
 const recordClear = () => {
-    const { startedAt, endedAt, numRows, numCols, numMines, playerStatsInRoom } =
+    const { startedAt, endedAt, numRows, numCols, numMines, playerStatsInRoom, mode } =
         useMinesweeperStore.getState();
     // No clock, no record. Better a missing best than an invented one.
     if (startedAt === null || endedAt === null) return;
 
+    // The count identifies the result, so it decides the key as well as being
+    // stored on it — see lib/bestTimes.ts for why a race counts as one player.
+    const players = playersForClear(mode, playerStatsInRoom.length);
+
     useMinesweeperStore.getState().setBestTimeResult(
-        recordBestTime(boardKey(numRows, numCols, numMines), {
+        recordBestTime(boardKey(numRows, numCols, numMines, players), {
             seconds: elapsedSeconds(startedAt, endedAt),
-            players: Math.max(1, playerStatsInRoom.length),
+            players,
             at: endedAt,
         }),
     );

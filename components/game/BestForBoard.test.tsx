@@ -20,6 +20,7 @@ const select = (rows: number, cols: number, mines: number) =>
 afterEach(() => {
     clearBestTimes();
     select(16, 16, 40);
+    useMinesweeperStore.getState().setPlayerStatsInRoom([]);
 });
 
 describe("a board never cleared", () => {
@@ -53,13 +54,21 @@ describe("a board with a record", () => {
             expect(screen.getByRole("status").textContent).toContain("12x11, 17 mines"));
     });
 
-    test("says when it took more than one player", async () => {
-        recordBestTime(boardKey(9, 9, 10), { seconds: 95, players: 2, at: 1 });
+    /*
+     * Nobody has joined anything on this page, so the record being offered as a
+     * target has to be the one you could actually match alone. A group's time on
+     * the same board is faster more or less by construction — showing it here
+     * would set a bar that has nothing to do with the game about to be played.
+     */
+    test("offers the solo record, not a faster one a group set", async () => {
+        recordBestTime(boardKey(9, 9, 10, 1), { seconds: 95, players: 1, at: 1 });
+        recordBestTime(boardKey(9, 9, 10, 3), { seconds: 40, players: 3, at: 1 });
         select(9, 9, 10);
         render(<BestForBoard />);
 
         await waitFor(() =>
-            expect(screen.getByRole("status").textContent).toContain("2 players"));
+            expect(screen.getByRole("status").textContent).toContain("01:35"));
+        expect(screen.getByRole("status").textContent).not.toContain("00:40");
     });
 });
 
