@@ -4,7 +4,8 @@ Guidance for AI agents working in this repo. Read `ARCHITECTURE.md` for the full
 
 ## What this is
 
-Real-time multiplayer Minesweeper. Two deployables in one repo:
+Real-time multiplayer Minesweeper — co-op on one shared board, a 1v1 race, and
+a single-player daily challenge. Two deployables in one repo:
 
 - **Frontend** — Next.js 14 App Router at the repo root (`app/`, `components/`, `lib/`). TypeScript, Zustand, Tailwind, and an in-repo design system in `components/ds/`. No UI component library. Vercel.
 - **Backend** — `server/`, a **separate npm package** with its own `package.json`, lockfile, and `node_modules`. CommonJS, Express + Socket.io, state in Redis. Heroku.
@@ -59,24 +60,32 @@ Backend deps install separately: `npm --prefix server install`.
 | PVP cell actions | `server/game/pvp.js` |
 | Deciding which mode handles an action | `server/game/index.js` — the only dispatch point |
 | PVP lifecycle (start/reset/rematch) | `server/controllers/pvpController.js` |
+| PVP disconnect grace period | `server/controllers/pvpForfeit.js` — a reload must not forfeit |
+| Daily challenge (cell actions, seeded board) | `server/game/daily.js` |
+| Daily lifecycle (start/submit/leaderboard) | `server/controllers/dailyController.js` |
+| Rejoin-after-reload | `server/controllers/sessionController.js`; `SESSION_RESUME` in `hooks/useGameEvents.ts` |
 | Board generation, win check, room creation | `server/utils/gameUtils.js` |
 | No-guess solvability | `server/utils/solverUtils.js` (pure — easiest place to add tests) |
 | Join/leave, scores, disconnects | `server/utils/playerUtils.js` |
-| Redis schema / any data access | `server/data/keys.js`, `server/data/roomRepo.js`, `server/data/playerRepo.js` |
+| Redis schema / any data access | `server/data/keys.js` and the repos beside it (`roomRepo`, `playerRepo`, `sessionRepo`, `dailyRepo`) |
 | Client state | `state/` (one slice per concern); import from `@/app/store` |
 | Design system (buttons, inputs, panels, dialogs, table, icons) | `components/ds/`; barrel at `components/ds/index.ts` |
 | Colours, type scale, spacing, border width | `app/tokens.css`, surfaced to Tailwind in `tailwind.config.ts` |
 | Component catalog (every primitive on one page) | `app/ds/` — `/ds` route, noindex |
-| Board/controls UI | `components/game/` (Board, StatusBanner, ProgressBar, ScoreTable, FlagCounter); `components/Grid.tsx` is layout only |
+| Board/controls UI | `components/game/` (Board, StatusBanner, ProgressBar, ScoreTable, FlagCounter, Timer, RoomPanel, GameSummary); `components/Grid.tsx` is layout only |
+| Daily challenge UI | `components/DailyChallenge.tsx`, `components/dialogs/DailyDialogs.tsx`, `state/dailySlice.ts` |
+| The run clock | `server/domain/clock.js` (server), `lib/gameClock.ts` (the one reading), `components/game/Timer.tsx` |
+| Personal best times | `lib/bestTimes.ts` (localStorage, keyed by board dimensions), `hooks/useBestTime.ts` |
 | Cell interaction | `components/game/Cell.tsx` |
 | Room create/join UI | `components/Landing.tsx` |
 | Board sizes, difficulty densities, limits, validity rule | `shared/boardConfig.js` — imported by both halves |
 | Socket event names | `shared/events.js` — imported by both halves |
 | Socket payload types | `shared/socketPayloads.ts` (+ `shared/events.d.ts` for literal names) |
 | Post-deploy check | `scripts/verify-deploy/` — `npm run verify:deploy` |
+| Client test setup (jsdom, DOM cleanup) | `vitest.config.ts`, `test/setup.ts` |
 | Motion / reduced motion | `--ms-duration-*` in `app/tokens.css`; `lib/motion.ts` for the JS path |
 | Palette / theming | `lib/theme.ts` (list, persistence, no-flash script, cursor ramp); picker in `components/ThemePicker.tsx` |
-| Dialogs | `lib/dialogs.ts` for ids and `openDialog`/`closeDialog`; `components/ds/Dialog.tsx` for the shell; markup in `components/dialogs/GameDialogs.tsx`, `Grid.tsx`, `Landing.tsx`, `Footer.tsx` |
+| Dialogs | `lib/dialogs.ts` for ids and `openDialog`/`closeDialog`; `components/ds/Dialog.tsx` for the shell; markup in `components/dialogs/` (`GameDialogs`, `DailyDialogs`), `Grid.tsx`, `Landing.tsx`, `Footer.tsx` |
 
 ## Traps
 
@@ -90,7 +99,9 @@ Read `ARCHITECTURE.md` §8-9 before changing server code. The ones most likely t
 6. **`components/ds/` primitives are shared — check every call site before changing one.** They replaced Chakra and NES.css, both now removed, so there is no upstream to fall back on. Three border treatments exist deliberately: controls are *notched* (cut corners, offset `box-shadow`, `pixel.module.css`), regions are *boxed* (square border), and board cells are *bevelled* (two inset shadows, `board.module.css`) — a board can hold 512 cells, so it takes the cheap treatment. Don't reach for `border-image` — that is what made NES.css's inputs render dashed in Chrome.
 7. **PVP players race the SAME board**, generated once by `startPvpGame` with a shared opening already revealed. Don't reintroduce per-player generation on first click — that is what used to make the layouts differ.
 8. **The root `/Procfile` and `heroku-postbuild` are load-bearing** — Heroku deploys the whole repo and starts it with them, and it is now the only Procfile (a second, inert one under `server/` was removed). Don't "tidy" the root ones, and see ARCHITECTURE.md §6 before touching the duplicated server deps in the root `package.json`.
-9. **Mine density has a measured ceiling.** Difficulty is a density in `shared/boardConfig.js`, and `Extreme` sits at 20.6% because that is the highest the no-guess generator can actually deliver — above it the retry loop exhausts and falls back to a guessy board *silently*. Don't raise a density, or lower `DEFAULT_MAX_ATTEMPTS`, without re-measuring the solvable rate; see ARCHITECTURE.md §5. Board dimensions come from the size axis, mines are always derived — never add a hand-typed mine count back.
+9. **The daily challenge is NOT a room, on purpose.** A room is a shared mutable board with a membership list and a broadcast channel; the daily is one immutable template copied per player, with nothing to broadcast. It has its own keys, repo and events, addressed by **UTC date + an opaque browser token** rather than room code + socket id — which is also what lets an attempt survive a reconnect. Don't route it through `roomRepo`, `game/index.js` or the room `isValid` guard; see ARCHITECTURE.md §5.
+10. **Board records are keyed by dimensions and mine count, never by the size/difficulty labels.** `setDimensions` gives a joining player the room's numbers and leaves `boardSize`/`difficulty` at whatever they last picked, so anything keyed on a label files a joiner's data under a board they never played. `lib/bestTimes.ts` derives the display name back from the numbers.
+11. **Mine density has a measured ceiling.** Difficulty is a density in `shared/boardConfig.js`, and `Extreme` sits at 20.6% because that is the highest the no-guess generator can actually deliver — above it the retry loop exhausts and falls back to a guessy board *silently*. Don't raise a density, or lower `DEFAULT_MAX_ATTEMPTS`, without re-measuring the solvable rate; see ARCHITECTURE.md §5. Board dimensions come from the size axis, mines are always derived — never add a hand-typed mine count back.
 
 ## CI
 
