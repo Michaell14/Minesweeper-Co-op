@@ -28,20 +28,50 @@ export default function DailyDialogs({ submitDailyScore, getDailyLeaderboard }: 
 
     /*
      * `required` alone does not cover this: a name of spaces satisfies it, and
-     * preventing the default on this click means native validation never runs.
+     * this button does not submit its form, so native validation never runs.
      * Rendered by Field rather than alert()'d -- a browser modal over a <dialog>
      * blocks the thread and ignores the theme.
      */
     const [nameError, setNameError] = React.useState('');
 
-    const confirmSubmit = (e: React.MouseEvent) => {
+    /*
+     * Nothing about an emit is visible, so between the click and the server's
+     * answer the button would sit there looking untouched — the same "dead
+     * button" the empty-name error above exists to avoid. It says so instead,
+     * and refuses a second click while the first is out.
+     *
+     * The timer is what keeps that from becoming a trap: a submission that
+     * never lands (socket down) would otherwise disable the only way to retry
+     * it, which is the dead end this dialog was just fixed for. On success
+     * `dailyScoreSubmitted` closes the dialog long before it fires.
+     */
+    const [isSubmitting, setIsSubmitting] = React.useState(false);
+    const submitTimeout = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    const stopSubmitting = React.useCallback(() => {
+        if (submitTimeout.current) clearTimeout(submitTimeout.current);
+        setIsSubmitting(false);
+    }, []);
+
+    React.useEffect(() => stopSubmitting, [stopSubmitting]);
+
+    // A resumed attempt reopens this dialog; it must not reopen mid-submit.
+    React.useEffect(() => {
+        if (dailyStatus !== 'won_pending_submit') stopSubmitting();
+    }, [dailyStatus, stopSubmitting]);
+
+    const confirmSubmit = () => {
+        if (isSubmitting) return;
+
         const nameValue = (nameInputRef.current?.value ?? '').trim();
         if (!nameValue) {
-            e.preventDefault();
             setNameError('Enter a name to go on the leaderboard.');
             return;
         }
         setNameError('');
+        setIsSubmitting(true);
+        if (submitTimeout.current) clearTimeout(submitTimeout.current);
+        submitTimeout.current = setTimeout(() => setIsSubmitting(false), 5000);
         submitDailyScore(nameValue);
     };
 
@@ -78,6 +108,12 @@ export default function DailyDialogs({ submitDailyScore, getDailyLeaderboard }: 
         shareFeedbackTimeout.current = setTimeout(() => setShareFeedback(''), 2000);
     }, [dailyDate, dailyStatus, dailyElapsedMs, dailyRank, dailyTotalEntries]);
 
+    // Cancels the pending "reset to Share Result" timer if this unmounts first,
+    // as RoomPanel's Copy Link does.
+    React.useEffect(() => () => {
+        if (shareFeedbackTimeout.current) clearTimeout(shareFeedbackTimeout.current);
+    }, []);
+
     const shareButton = (ariaLabel: string) => (
         <Button onClick={handleShare} aria-label={ariaLabel}>
             {shareFeedback || 'Share Result'}
@@ -96,9 +132,24 @@ export default function DailyDialogs({ submitDailyScore, getDailyLeaderboard }: 
                 id={DIALOGS.dailySubmit}
                 title="You solved it!"
                 actions={
-                    <DialogClose intent="success" onClick={confirmSubmit} aria-label="Submit your time to the leaderboard">
-                        Submit
-                    </DialogClose>
+                    /*
+                     * A plain Button, NOT a DialogClose: the server has the last
+                     * word on whether a submission lands, and this used to close
+                     * on the click regardless. A refusal — the attempt already
+                     * submitted from another tab, or the socket down — then left
+                     * the player with no dialog, a status still stuck at
+                     * won_pending_submit, and no way back to it short of a
+                     * reload. `dailyScoreSubmitted` closes it instead, so a
+                     * submission that never lands leaves the button there to
+                     * press again.
+                     */
+                    <Button
+                        intent="success"
+                        onClick={confirmSubmit}
+                        disabled={isSubmitting}
+                        aria-label="Submit your time to the leaderboard">
+                        {isSubmitting ? 'Submitting...' : 'Submit'}
+                    </Button>
                 }>
                 <p className="text-pixel-sm">Your time: <strong>{elapsedLabel}</strong></p>
                 <Field className="mb-4" invalid={nameError !== ''} errorText={nameError}>

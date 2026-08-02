@@ -7,6 +7,7 @@ import Board from '@/components/game/Board';
 import FlagCounter from '@/components/game/FlagCounter';
 import Timer from '@/components/game/Timer';
 import { useGameStats } from '@/hooks/useGameStats';
+import { useChording } from '@/hooks/useChording';
 import { DIALOGS, openDialog } from '@/lib/dialogs';
 
 interface DailyChallengeParams {
@@ -32,6 +33,15 @@ export default function DailyChallenge({ leaveDaily, dailyOpenCell, dailyChordCe
     const dailyStatus = useMinesweeperStore((state) => state.dailyStatus);
     const dailyRank = useMinesweeperStore((state) => state.dailyRank);
     const { remainingFlags } = useGameStats();
+
+    /*
+     * Chording works here for the same reason it works in a room: Cell records
+     * the button state whatever the mode, and this is what reads it. Mounted by
+     * Grid alone, two-button chording simply did nothing on the daily — and the
+     * button state Cell had recorded was left set, so the first chord in a room
+     * opened afterwards fired on a cell the player had not pressed twice.
+     */
+    useChording(dailyChordCell);
 
     // <Timer> reads gameSlice's shared run clock, which the daily handlers in
     // hooks/useGameEvents.ts set directly -- deriving it here reactively would

@@ -1,19 +1,20 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { useMinesweeperStore } from "@/app/store";
 import { DIALOGS } from "@/lib/dialogs";
 import DailyDialogs from "./DailyDialogs";
 
 /**
  * The daily challenge's four dialogs mix DialogClose and plain Button
- * deliberately: Submit and the leaderboard's Close SHOULD close their dialog
- * on click, but "View Leaderboard" (in dailyGameOver/dailyAlreadyPlayed) and
- * "Share Result" must NOT -- "View Leaderboard" closes its own dialog and
- * opens a different one manually (see DailyDialogs.tsx's own comment on why:
- * a DialogClose's native submit-close would race the new dialog's
- * showModal()), and Share Result needs the dialog to stay open so its
- * "Copied!"/"Shared!" feedback is visible.
+ * deliberately. Only the leaderboard's Close SHOULD close its dialog on click.
+ * "View Leaderboard" (in dailyGameOver/dailyAlreadyPlayed) closes its own
+ * dialog and opens a different one manually (see DailyDialogs.tsx's own comment
+ * on why: a DialogClose's native submit-close would race the new dialog's
+ * showModal()); "Share Result" needs the dialog to stay open so its
+ * "Copied!"/"Shared!" feedback is visible; and Submit must not close anything
+ * until the SERVER confirms, or a refusal strands the player with no dialog and
+ * a status still saying they owe one.
  *
  * Same reasoning as components/ds/Dialog.test.tsx: this checks the TYPE
  * attribute a button carries, not that it exists -- a plain Button silently
@@ -95,14 +96,94 @@ describe("dailyAlreadyPlayed: resumed after a refresh", () => {
 });
 
 describe("dailySubmit: won, name goes on the leaderboard", () => {
-    test("Submit IS type=submit -- entering a name and confirming should close the dialog", () => {
+    /*
+     * Submit is a plain Button, and that is the point: the SERVER decides
+     * whether a submission lands. Closing on the click regardless meant a
+     * refusal — the attempt already submitted from another tab, or the socket
+     * down — left the player with no dialog, a status still stuck at
+     * won_pending_submit, and no route back to it short of a reload. The
+     * `dailyScoreSubmitted` handler closes it instead, so a submission that
+     * never lands leaves the button there to press again.
+     */
+    test("Submit does NOT close its own dialog -- the server has the last word", () => {
         const store = useMinesweeperStore.getState();
         store.setDailyStatus("won_pending_submit");
         renderOpen(DIALOGS.dailySubmit);
 
         expect(
             screen.getByRole("button", { name: "Submit your time to the leaderboard" }).getAttribute("type"),
-        ).toBe("submit");
+        ).toBe("button");
+    });
+
+    /*
+     * An emit shows nothing, so between the click and the server's answer the
+     * button would sit there looking untouched — the "dead Submit button" the
+     * empty-name error below exists to avoid, just with a slow connection
+     * instead of a bad name.
+     */
+    describe("while a submission is out", () => {
+        const submitValidName = (submitDailyScore = vi.fn()) => {
+            render(<DailyDialogs submitDailyScore={submitDailyScore} getDailyLeaderboard={vi.fn()} />);
+            const dialog = document.getElementById(DIALOGS.dailySubmit) as HTMLDialogElement;
+            dialog.open = true;
+
+            fireEvent.change(screen.getByRole("textbox", { name: "Your name for the leaderboard" }), {
+                target: { value: "Alex" },
+            });
+            fireEvent.click(screen.getByRole("button", { name: "Submit your time to the leaderboard" }));
+            return submitDailyScore;
+        };
+
+        const submitButton = () =>
+            screen.getByRole("button", { name: "Submit your time to the leaderboard" });
+
+        test("the button says so, and stops taking clicks", () => {
+            submitValidName();
+
+            expect(submitButton().textContent).toMatch(/submitting/i);
+            expect((submitButton() as HTMLButtonElement).disabled).toBe(true);
+        });
+
+        test("a second click does not send a second submission", () => {
+            const submitDailyScore = submitValidName();
+
+            fireEvent.click(submitButton());
+
+            expect(submitDailyScore).toHaveBeenCalledTimes(1);
+        });
+
+        /*
+         * The part that keeps this from becoming a trap of its own. A
+         * submission that never lands — socket down — would otherwise disable
+         * the only way to retry it, which is exactly the dead end this dialog
+         * was just fixed for. On success the dialog has closed long before.
+         */
+        test("the button comes back if the server never answers", () => {
+            vi.useFakeTimers();
+            try {
+                // Fake timers first: the button's own setTimeout has to be one
+                // of theirs, or advancing them moves nothing.
+                submitValidName();
+                act(() => {
+                    vi.advanceTimersByTime(5000);
+                });
+
+                expect((submitButton() as HTMLButtonElement).disabled).toBe(false);
+                expect(submitButton().textContent).toMatch(/^Submit$/);
+            } finally {
+                vi.useRealTimers();
+            }
+        });
+
+        test("a rejected name never enters the state at all", () => {
+            const submitDailyScore = vi.fn();
+            render(<DailyDialogs submitDailyScore={submitDailyScore} getDailyLeaderboard={vi.fn()} />);
+            (document.getElementById(DIALOGS.dailySubmit) as HTMLDialogElement).open = true;
+
+            fireEvent.click(submitButton());
+
+            expect((submitButton() as HTMLButtonElement).disabled).toBe(false);
+        });
     });
 
     test("rejects an empty name without calling submitDailyScore", () => {

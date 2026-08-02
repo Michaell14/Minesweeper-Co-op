@@ -112,32 +112,37 @@ describe('a player completing their board', () => {
     });
 });
 
-describe('a player finishing after someone else already won', () => {
+describe('a player finishing at the same moment as the winner', () => {
+    /*
+     * The only way to finish after someone else has won: this move was already
+     * in flight. A move that STARTS once the race is decided is refused outright
+     * — so the snapshot it carries still says the race is open, and only the
+     * re-read inside checkWin sees the winner. Arranging it the other way round
+     * would test a move the server no longer runs.
+     */
+    const arriveJustTooLate = async () => {
+        client.hGetAll.mockImplementation(async (key) =>
+            key.startsWith('room:')
+                ? roomState({ winnerSocket: 'sock-someone-else' })
+                : { name: 'Latecomer', score: '0' }
+        );
+
+        await winTheRace();   // snapshot taken under the lock, before the win landed
+    };
+
     /*
      * Their clock stopped when the race actually ended. Stamping it again here
      * would push their finish time out to whenever they happened to fill in the
      * rest of a board that no longer counted for anything.
      */
     test('does not restamp a clock the race already stopped', async () => {
-        client.hGetAll.mockImplementation(async (key) =>
-            key.startsWith('room:')
-                ? roomState({ winnerSocket: 'sock-someone-else' })
-                : { name: 'Latecomer', score: '0' }
-        );
-
-        await winTheRace({ winnerSocket: 'sock-someone-else' });
+        await arriveJustTooLate();
 
         expect(clockPayloads()).toHaveLength(0);
     });
 
     test('still records that they finished their own board', async () => {
-        client.hGetAll.mockImplementation(async (key) =>
-            key.startsWith('room:')
-                ? roomState({ winnerSocket: 'sock-someone-else' })
-                : { name: 'Latecomer', score: '0' }
-        );
-
-        await winTheRace({ winnerSocket: 'sock-someone-else' });
+        await arriveJustTooLate();
 
         const won = client.hSet.mock.calls.some(([, fields]) => fields && fields.player1GameWon === 'true');
         expect(won).toBe(true);

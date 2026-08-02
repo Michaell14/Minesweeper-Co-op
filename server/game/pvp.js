@@ -101,6 +101,48 @@ const broadcastProgressUpdate = async (room, socketId, newProgress) => {
     }
 };
 
+/**
+ * Whether the race is already decided. The winner's own flags stop THEM, but
+ * nothing stopped the other player: their `gameOver`/`gameWon` are both still
+ * false, so they could carry on opening cells on a board whose race had ended,
+ * broadcasting progress into a game nobody was watching — and, since the loss
+ * now reveals their board, doing it with every mine on screen.
+ */
+const raceIsOver = (roomState) => Boolean(roomState.winnerSocket);
+
+/**
+ * Shows the loser the board they were racing on.
+ *
+ * Every other way a game ends here reveals it: co-op broadcasts a revealed board
+ * on a loss, and a racer who detonates gets theirs back with the mines in it.
+ * Losing the race was the one terminal state that left the player staring at a
+ * half-played grid they could no longer do anything with.
+ *
+ * Their own board, not the winner's — the two have diverged through play, and
+ * projection is allowed to reveal it only because the race is now over for them
+ * too (ARCHITECTURE.md §3.1).
+ */
+const revealToLoser = async (room, winnerSocketId) => {
+    const roomState = await roomRepo.getState(room);
+
+    // Found through the SLOTS, not the players list: the slot is what owns the
+    // board being revealed, so asking anything else for "the other player" is
+    // two sources for one answer.
+    const winnerSlot = roomRepo.pvpSlotOf(roomState, winnerSocketId);
+    if (winnerSlot === undefined) return;
+
+    const loserSlot = winnerSlot === 0 ? 1 : 0;
+    const { boardKey, socketKey } = playerKeys(loserSlot);
+    const loserSocket = roomState[socketKey];
+    const boardData = roomState[boardKey];
+    if (!loserSocket || !boardData) return;
+
+    io.to(loserSocket).emit(SERVER_EVENTS.PVP_BOARD_UPDATE, {
+        board: projectBoard(JSON.parse(boardData), { revealMines: true }),
+        playerIndex: loserSlot,
+    });
+};
+
 /** Won iff every non-mine cell on THIS player's board is open. */
 const checkWin = async (board, room, socketId, playerIndex) => {
     const { gameOverKey, gameWonKey } = playerKeys(playerIndex);
@@ -135,6 +177,8 @@ const checkWin = async (board, room, socketId, playerIndex) => {
                     winnerName: playerName
                 });
 
+                await revealToLoser(room, socketId);
+
                 await roomRepo.releaseWinnerLock(room);
             }
         } else {
@@ -155,7 +199,7 @@ const openCell = async (row, col, room, socketId, roomState, playerScore, player
     if (playerIndex === null) return;
     const { boardKey, initializedKey, gameOverKey, gameWonKey, progressKey } = playerKeys(playerIndex);
 
-    if (roomState[gameOverKey] === 'true' || roomState[gameWonKey] === 'true') {
+    if (raceIsOver(roomState) || roomState[gameOverKey] === 'true' || roomState[gameWonKey] === 'true') {
         return;
     }
 
@@ -220,7 +264,7 @@ const chordCell = async (row, col, room, socketId, roomState) => {
     const { boardKey, gameOverKey, gameWonKey, progressKey } = playerKeys(playerIndex);
 
     if (roomState.pvpStarted !== 'true') return;
-    if (roomState[gameOverKey] === 'true' || roomState[gameWonKey] === 'true') return;
+    if (raceIsOver(roomState) || roomState[gameOverKey] === 'true' || roomState[gameWonKey] === 'true') return;
 
     const boardData = roomState[boardKey];
     if (!boardData || boardData === '') return;
@@ -276,7 +320,7 @@ const toggleFlag = async (row, col, room, socketId, roomState) => {
     const { boardKey, gameOverKey, gameWonKey } = playerKeys(playerIndex);
 
     if (roomState.pvpStarted !== 'true') return;
-    if (roomState[gameOverKey] === 'true' || roomState[gameWonKey] === 'true') return;
+    if (raceIsOver(roomState) || roomState[gameOverKey] === 'true' || roomState[gameWonKey] === 'true') return;
 
     const boardData = roomState[boardKey];
     if (!boardData || boardData === '') return;
