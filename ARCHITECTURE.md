@@ -110,6 +110,7 @@ server/                   Separate npm package (own package.json, lockfile, node
     board.js              Dependency-free board primitives (createEmptyBoard, getAdjacentCells,
                           revealFrom, projectBoard/projectCells)
     clock.js              Dependency-free run-clock reads (timestamps in, payload out)
+    pvpPlayer.js          Which of a room's two boards a socket owns. One rule, no fallback
   game/
     index.js              Mode dispatch — the ONLY place that decides co-op vs PVP
     coop.js               Shared-board cell actions, broadcast to the room
@@ -195,18 +196,18 @@ re-renders the page and the whole grid. Keep it that way when adding state.
 ```
 server.js ─→ initializeClient (io) , validation , playerUtils , gameUtils , game ,
              data/* , pvpController , sessionController , dailyController
-game/index ─→ game/coop , game/pvp , data/*          ← co-op vs PVP only; daily is not dispatched here
+game/index ─→ game/coop , game/pvp , domain/pvpPlayer , data/*   ← co-op vs PVP only; daily is not dispatched here
 game/coop ─→ gameUtils , playerUtils , domain/{board,clock} , data/* , io
-game/pvp ─→ playerUtils , domain/{board,clock} , data/* , io
+game/pvp ─→ playerUtils , domain/{board,clock,pvpPlayer} , data/* , io
 game/daily ─→ gameUtils , solverUtils , domain/board , seededRandom , data/dailyRepo , io
-pvpController ─→ gameUtils , playerUtils , validation , domain/{board,clock} , data/*
+pvpController ─→ gameUtils , playerUtils , validation , domain/{board,clock,pvpPlayer} , data/*
 sessionController ─→ data/{roomRepo,sessionRepo}
 dailyController ─→ game/daily , domain/board , validation , data/dailyRepo
 gameUtils ─→ playerUtils , solverUtils , domain/{board,clock} , data/roomRepo , io
 playerUtils ─→ domain/{board,clock} , data/* , controllers/pvpForfeit , io
 data/*Repo ─→ data/keys , redis
 data/keys ─→ (nothing)
-domain/board , domain/clock ─→ (nothing)
+domain/board , domain/clock , domain/pvpPlayer ─→ (nothing)
 seededRandom , solverUtils , validation ─→ (nothing)
 ```
 
@@ -231,9 +232,10 @@ seededRandom , solverUtils , validation ─→ (nothing)
 
 1. Client emits → handler in `server.js`
 2. Payload validation via `server/validation.js` (pure, no I/O), then `isValid(room)` — room exists, player exists, player is in the room's `players` array
-3. `game/index.js` loads the room hash from Redis and **dispatches on `roomState.mode`** to `game/coop.js` or `game/pvp.js`, passing the state it already read
-4. Board JSON is mutated and written back
-5. The result is **projected** (see §3.1) and emitted via `io.to(room)` (co-op) or `io.to(socketId)` (PVP)
+3. `game/index.js` loads the room hash from Redis and **dispatches on `roomState.mode`** to `game/coop.js` or `game/pvp.js`
+4. An action lock is taken — the room's for co-op, that player's for PVP — and the room hash is **read again under it**. The snapshot from step 3 predates the lock, so it is only good for choosing the mode and (in PVP) the lock key. That fresh snapshot is what the mode module gets
+5. Board JSON is mutated and written back, and the lock released
+6. The result is **projected** (see §3.1) and emitted via `io.to(room)` (co-op) or `io.to(socketId)` (PVP)
 
 ### 3.1 Board projection — what a client is allowed to see
 
@@ -299,10 +301,17 @@ id, so it survives a reconnect. Terminal statuses (`failed`,
 **`daily:<date>:leaderboard`** — TTL 48h
 Sorted set of completion times.
 
-**Locks** — `SET NX EX 10`
-`init_lock:<room>` (co-op first click) · `winner_lock:<room>` (PVP win claim) ·
-`daily:<date>:gen_lock` (serialises board generation — an optimisation, not a
-correctness requirement) · `daily:<date>:start_lock:<token>`
+**Locks** — `SET NX EX`
+`init_lock:<room>` (co-op first click, 10s) · `winner_lock:<room>` (PVP win
+claim, 10s) · `daily:<date>:gen_lock` (serialises board generation — an
+optimisation, not a correctness requirement, 10s) ·
+`daily:<date>:start_lock:<token>` (10s) · `action_lock:<room>` (one co-op move at
+a time, 5s) · `action_lock:<room>:p<N>` (one move at a time from PVP player N, 5s)
+
+The action locks carry the shorter lease because *every* move takes one, so a
+process that dies holding one blocks that board for its lease. The PVP key is per
+**player** on purpose: the two hold separate board fields and racing each other
+is the game, so only a player's own moves are serialised.
 
 Players are keyed by socket id, so a reconnect is a new player row. That is why
 a returning browser is identified by its **session** (rooms) or its **daily
@@ -655,14 +664,71 @@ These are real, currently unfixed, and worth knowing before changing related cod
 
 1. **Heroku installs the whole frontend dependency tree and never uses it.** The root `npm install` pulls Next, React and the rest onto a dyno that only runs `cd server && node server.js`; `heroku-postbuild` replaces the `build` script, so the frontend is never built there. Wasted build time and slug size, not a correctness problem.
 
+2. **The daily challenge does not take an action lock yet.** `game/daily.js`'s
+   `openCell` / `chordCell` / `toggleFlag` each read `attempt.board`, mutate it
+   and write the whole field back with `setAttemptBoard` — the same
+   read-modify-write that co-op and PVP were just fixed for (below), and the same
+   silent loss. It landed in parallel with that fix, so it is the one board writer
+   still outside the rule. An attempt is per browser token, and the token is
+   shared across tabs via localStorage, so two rapid clicks from one player is
+   enough; reproduced with the `fakeRedis` harness. Consequence matches PVP: a
+   lost reveal leaves a closed safe cell that can never be reopened, so the
+   attempt never completes and never reaches the leaderboard. The fix is the
+   existing `withLock` keyed on `daily:<date>:attempt:<token>` — note
+   `dailyStartLockKey` already exists for the same two-tab concern on *starts*.
+
 *Fixed, kept here so they aren't reintroduced:* the `gameUtils` ⇄ `playerUtils`
 require cycle that silently broke co-op score resets (see §3); the stale room
-snapshot that let a chord into a mine also announce a win; the
-`pvpPlayerIndex || '0'` fallback that let an unassigned socket write another
-player's board; the per-mode scoring split (below); and the duplicate
+snapshot that let a chord into a mine also announce a win; the unserialised co-op
+and PVP read-modify-writes (below); the `pvpPlayerIndex || '0'` fallback that let
+an unassigned socket write another player's board — caught first in `pvp.js`'s
+cell actions, then again in `resetMyBoard`, where the surviving copy also chose
+the action lock key, so a stranger both reset and locked PLAYER ONE's board.
+Deriving the index in three places is what let two of them disagree, so
+`domain/pvpPlayer.js` is now the single rule and returns null rather than
+defaulting; the per-mode scoring split (below); and the duplicate
 `server/Procfile`, which said `web: node server.js` while the deploy ran the
 root one's `cd server && node server.js`. All but the Procfile are covered by
 tests; that one is covered by there being only one file to get wrong.
+
+**Co-op moves are serialised per room.** The board is one Redis hash field, so
+every move rewrites all of it. Two moves that overlapped both read before either
+wrote, and the second `setBoard` erased the first player's reveals — with no
+error, and with both sets of `updateCells` already delivered. The clients stayed
+permanently ahead of the server, and since the server's board still held closed
+safe cells, `checkWin` never fired: the board looked finished and the game simply
+never ended. Reproduced at 320ms between moves, so it was not a stress-only
+artifact. `game/index.js` now wraps the three co-op actions in
+`roomRepo.withActionLock` and re-reads the room hash (and the player's score)
+inside it — reading before the lock is the bug, not a shortcut.
+`server/tests/coopConcurrency.test.js` drives real overlapping moves through
+`game/index.js` against a Redis fake that resolves on the event loop; the shared
+mock has no store behind it and cannot express staleness.
+
+**PVP had the same bug, scoped per player**, and it decided races. Each of its
+actions rewrites one player's whole board field, so two of that player's own
+overlapping moves erased each other — leaving a closed safe cell they could
+never reopen, so their board never completed and they could never win, handing
+the race to their opponent with no error anywhere. `player1Progress` was lost the
+same way, and since it is never recomputed from the board, the opponent's
+progress bar stayed wrong for the rest of the race. The lock is keyed per
+**player** (`withPvpActionLock`): the two boards are separate hash fields, so one
+player's write never touched the other's, and serialising them against each other
+would break the race itself. `resetMyBoard` takes that player's lock and
+`pvpRematch` takes both, in index order — nothing takes them in any other order,
+and a move only ever holds one, so there is no cycle to deadlock on.
+`startPvpGame` needs none: it refuses to run once `pvpStarted` is `'true'`, and
+no move runs until it is. Covered by `server/tests/pvpConcurrency.test.js`, whose
+last two tests pin down that the two players stay independent.
+
+`resetGame` takes the same lock, because it is a co-op board write like any
+other. A move in flight when a reset landed used to write its board back on top
+of the fresh one, leaving a room that claimed `initialized: 'false'` while
+holding a played board — and the *next* click would then generate a second board
+over it. Which of the two lands first is genuinely ambiguous and both outcomes
+are fine; that either is complete before the other starts is the part that
+isn't. Note the lock is not reentrant, so nothing already holding it may call
+`resetGame`; the RESET_GAME handler in `server.js` is the only caller.
 
 **Scoring, both modes.** One point per safe cell a move opens, cascades
 included, whether the move was a click or a chord and whether the room is co-op

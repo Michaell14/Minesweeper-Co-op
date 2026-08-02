@@ -1,8 +1,13 @@
 /**
  * Co-op mode: every player in the room shares one board.
  *
- * Cell actions are broadcast to the whole room. Room state is fetched once by
+ * Cell actions are broadcast to the whole room. Room state is fetched by
  * game/index.js and passed in, so nothing here re-reads it on entry.
+ *
+ * Every function here reads the board, mutates it and writes all of it back, so
+ * none of them is safe to run concurrently for one room. game/index.js holds the
+ * room's action lock across the call and reads the snapshot it passes in under
+ * that lock; do not call into this module without it.
  */
 
 const { generateBoard, checkWin } = require('../utils/gameUtils');

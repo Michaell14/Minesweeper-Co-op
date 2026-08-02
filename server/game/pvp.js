@@ -6,14 +6,22 @@
  * emitted to a single socket rather than the room. Progress is broadcast to the
  * opponent as a count of revealed safe cells.
  *
- * NOTE: each player's board is generated independently on their own first click,
- * so the two players do NOT race the same mine layout. See ARCHITECTURE.md §7.
+ * Both players race the SAME mine layout: startPvpGame builds one board and
+ * hands it to both, with a shared opening already revealed. There is no
+ * per-player generation on first click — that is what used to make the two
+ * layouts differ. See ARCHITECTURE.md §5.
+ *
+ * Nothing here takes the lock it needs: game/index.js holds that player's action
+ * lock across the call and reads the snapshot it passes in under it. Every
+ * function below rewrites a whole board field, so calling one without it lets a
+ * player's own two moves erase each other.
  *
  * Lifecycle events (start, reset, rematch) live in controllers/pvpController.js.
  */
 
 const { updatePlayerStatsInRoom } = require('../utils/playerUtils');
 const { getAdjacentCells, revealFrom, projectBoard, projectCells } = require('../domain/board');
+const { pvpIndexOf } = require('../domain/pvpPlayer');
 const { io } = require('../utils/initializeClient');
 const roomRepo = require('../data/roomRepo');
 const { readStamp } = require('../domain/clock');
@@ -21,19 +29,13 @@ const playerRepo = require('../data/playerRepo');
 const { pvpPlayerFields: playerKeys } = require('../data/keys');
 const { SERVER_EVENTS } = require('../../shared/events');
 
-/**
- * This player's zero-based index, or null if startPvpGame never assigned one.
- *
- * Never fall back to 0 here: index 0 addresses player1Board, so a fallback lets
- * an unassigned socket read and write the FIRST player's board. `pvpPlayerIndex`
- * is a Redis string, so '0' is truthy and a genuine index 0 survives this check.
- */
+/** `pvpIndexOf` (see domain/pvpPlayer.js for why it never defaults), plus a log. */
 const playerIndexOf = (playerData, socketId) => {
-    if (!playerData || !playerData.pvpPlayerIndex) {
+    const playerIndex = pvpIndexOf(playerData);
+    if (playerIndex === null) {
         console.error(`Player ${socketId} has no pvpPlayerIndex set!`);
-        return null;
     }
-    return parseInt(playerData.pvpPlayerIndex, 10);
+    return playerIndex;
 };
 
 /*

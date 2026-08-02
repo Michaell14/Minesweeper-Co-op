@@ -221,7 +221,20 @@ const createRoom = async (room, numRows, numCols, numMines, mode = 'co-op', noGu
     await roomRepo.create(room, roomData);
 }
 
-const resetGame = async (room) => {
+/**
+ * Wipes the room back to an unplayed board.
+ *
+ * Holds the room's action lock, because this is a co-op board write like any
+ * other. A move already in flight would otherwise write its board back on top of
+ * the fresh one, leaving a room that claims `initialized: 'false'` while holding
+ * a played board — and the next click would then generate a second board over
+ * it. Which of the two lands first is genuinely ambiguous; that either is
+ * complete when the other starts is not.
+ *
+ * The lock is not reentrant, so nothing that already holds it may call this.
+ * Today the only caller is the RESET_GAME handler in server.js.
+ */
+const resetGame = async (room) => roomRepo.withActionLock(room, 'reset', async () => {
     // Fetch room state once
     const roomState = await roomRepo.getState(room);
     if (!roomState) return;
@@ -253,5 +266,5 @@ const resetGame = async (room) => {
         resetPlayerScores(room),
         updatePlayerStatsInRoom(room),
     ]);
-}
+});
 module.exports = { generateBoard, generateSingleCandidateBoard, checkWin, createRoom, resetGame };

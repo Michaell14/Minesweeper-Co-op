@@ -16,6 +16,15 @@ const PLAYER_TTL_SECONDS = 86400;
 const LOCK_TTL_SECONDS = 10;
 
 /**
+ * Lease on a single move, in either mode — a handful of Redis round trips, plus
+ * board generation on a co-op first click (~45ms at worst, on the largest legal
+ * board at the highest density). Shorter than LOCK_TTL_SECONDS because every
+ * move takes one: a process that dies holding it blocks that board for this
+ * long, and no move comes close to being this slow.
+ */
+const ACTION_LOCK_TTL_SECONDS = 5;
+
+/**
  * Daily challenge data outlives a room (players may check results or the
  * leaderboard the morning after), but still needs to age out on its own —
  * there is no scheduler in this app to sweep it. 48h covers "finished near
@@ -48,6 +57,22 @@ const initLockKey = (room) => `init_lock:${room}`;
 
 /** Lock: claiming the PVP win, so a simultaneous finish has exactly one winner. */
 const winnerLockKey = (room) => `winner_lock:${room}`;
+
+/**
+ * Lock: one co-op move at a time. The whole board is one hash field, so every
+ * move rewrites all of it; without this, overlapping moves erase each other.
+ */
+const actionLockKey = (room) => `action_lock:${room}`;
+
+/**
+ * Lock: one move at a time from ONE PVP player.
+ *
+ * Keyed per player, not per room, and that is the whole point: the two players
+ * hold separate board fields and are meant to race, so serialising them against
+ * each other would be a bug of its own. What must not interleave is a player's
+ * own two moves.
+ */
+const pvpActionLockKey = (room, playerIndex) => `action_lock:${room}:p${playerIndex}`;
 
 /**
  * The daily challenge is NOT modeled as a room — see ARCHITECTURE.md / the
@@ -94,12 +119,15 @@ module.exports = {
     ROOM_GRACE_PERIOD_SECONDS,
     PLAYER_TTL_SECONDS,
     LOCK_TTL_SECONDS,
+    ACTION_LOCK_TTL_SECONDS,
     DAILY_TTL_SECONDS,
     roomKey,
     playerKey,
     sessionKey,
     initLockKey,
     winnerLockKey,
+    actionLockKey,
+    pvpActionLockKey,
     pvpPlayerFields,
     dailyBoardKey,
     dailyLeaderboardKey,

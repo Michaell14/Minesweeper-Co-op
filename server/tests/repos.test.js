@@ -28,6 +28,15 @@ describe('keys', () => {
     test('lock keys match the deployed format', () => {
         expect(keys.initLockKey('abc')).toBe('init_lock:abc');
         expect(keys.winnerLockKey('abc')).toBe('winner_lock:abc');
+        expect(keys.actionLockKey('abc')).toBe('action_lock:abc');
+    });
+
+    test('the pvp action lock is keyed per PLAYER, and never collides with the co-op one', () => {
+        expect(keys.pvpActionLockKey('abc', 0)).toBe('action_lock:abc:p0');
+        expect(keys.pvpActionLockKey('abc', 1)).toBe('action_lock:abc:p1');
+        // Two racers must never share a key, or PVP stops being a race.
+        expect(keys.pvpActionLockKey('abc', 0)).not.toBe(keys.pvpActionLockKey('abc', 1));
+        expect(keys.pvpActionLockKey('abc', 0)).not.toBe(keys.actionLockKey('abc'));
     });
 
     test('PVP fields are ONE-based while the player index is zero-based', () => {
@@ -49,6 +58,12 @@ describe('keys', () => {
         expect(keys.PLAYER_TTL_SECONDS).toBe(86400);
         expect(keys.LOCK_TTL_SECONDS).toBe(10);
         expect(keys.ROOM_GRACE_PERIOD_SECONDS).toBe(600);
+    });
+
+    test('the action lock leases for less than the others, since every move takes one', () => {
+        // A process that dies holding it blocks the room for this long.
+        expect(keys.ACTION_LOCK_TTL_SECONDS).toBe(5);
+        expect(keys.ACTION_LOCK_TTL_SECONDS).toBeLessThan(keys.LOCK_TTL_SECONDS);
     });
 
     test('session keys match the deployed format', () => {
@@ -147,6 +162,90 @@ describe('roomRepo', () => {
 
         await roomRepo.releaseWinnerLock('r1');
         expect(client.del).toHaveBeenCalledWith('winner_lock:r1');
+    });
+});
+
+describe('withActionLock', () => {
+    beforeEach(() => {
+        client.set.mockResolvedValue('OK');
+        client.del.mockResolvedValue(1);
+    });
+
+    test('runs the move with the lock held and hands it back after', async () => {
+        const order = [];
+        client.set.mockImplementation(async () => { order.push('acquire'); return 'OK'; });
+        client.del.mockImplementation(async () => { order.push('release'); return 1; });
+
+        const result = await roomRepo.withActionLock('r1', 'sock-1', async () => {
+            order.push('move');
+            return 'done';
+        });
+
+        expect(order).toEqual(['acquire', 'move', 'release']);
+        expect(result).toBe('done');
+        expect(client.set).toHaveBeenCalledWith('action_lock:r1', 'sock-1', { NX: true, EX: 5 });
+    });
+
+    test('a contender waits for the lock instead of losing its move', async () => {
+        // SET NX reports the lock as taken twice, then free — the shape of one
+        // player clicking while another's move is still in flight.
+        client.set
+            .mockResolvedValueOnce(null)
+            .mockResolvedValueOnce(null)
+            .mockResolvedValueOnce('OK');
+        const move = jest.fn(async () => 'ran');
+
+        expect(await roomRepo.withActionLock('r1', 'sock-2', move)).toBe('ran');
+
+        expect(move).toHaveBeenCalledTimes(1);
+        expect(client.set).toHaveBeenCalledTimes(3);
+    });
+
+    test('releases the lock when the move throws, or the room wedges for a lease', async () => {
+        await expect(
+            roomRepo.withActionLock('r1', 'sock-1', async () => { throw new Error('boom'); })
+        ).rejects.toThrow('boom');
+
+        expect(client.del).toHaveBeenCalledWith('action_lock:r1');
+    });
+
+    test('does not release a lock it never held', async () => {
+        // Otherwise a caller that timed out waiting would delete the key out
+        // from under the player who actually holds it.
+        jest.spyOn(console, 'error').mockImplementation(() => {});
+        jest.spyOn(Date, 'now')
+            .mockReturnValueOnce(0)              // deadline is computed from this
+            .mockReturnValue(Number.MAX_SAFE_INTEGER);
+        client.set.mockResolvedValue(null);      // never free
+
+        await roomRepo.withActionLock('r1', 'sock-2', async () => 'ran anyway');
+
+        expect(client.del).not.toHaveBeenCalled();
+        Date.now.mockRestore();
+        console.error.mockRestore();
+    });
+
+    test('withPvpActionLock locks that player alone', async () => {
+        await roomRepo.withPvpActionLock('r1', 1, 'sock-2', async () => 'ran');
+
+        expect(client.set).toHaveBeenCalledWith('action_lock:r1:p1', 'sock-2', { NX: true, EX: 5 });
+        expect(client.del).toHaveBeenCalledWith('action_lock:r1:p1');
+    });
+
+    test('an exhausted wait still runs the move rather than silently dropping it', async () => {
+        jest.spyOn(console, 'error').mockImplementation(() => {});
+        jest.spyOn(Date, 'now')
+            .mockReturnValueOnce(0)
+            .mockReturnValue(Number.MAX_SAFE_INTEGER);
+        client.set.mockResolvedValue(null);
+        const move = jest.fn(async () => 'ran');
+
+        expect(await roomRepo.withActionLock('r1', 'sock-2', move)).toBe('ran');
+
+        expect(move).toHaveBeenCalled();
+        expect(console.error).toHaveBeenCalled();
+        Date.now.mockRestore();
+        console.error.mockRestore();
     });
 });
 

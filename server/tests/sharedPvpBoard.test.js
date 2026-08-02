@@ -235,15 +235,66 @@ describe('resetMyBoard', () => {
             percentage: Math.round((opened / totalSafeCells) * 100),
         });
     });
+
+    test('restores the board under that player\'s action lock, and gives it back', async () => {
+        await arrangeReset();
+
+        await resetMyBoard({ socket: { id: HOST }, room: ROOM, isValid, io });
+
+        expect(client.set).toHaveBeenCalledWith(`action_lock:${ROOM}:p0`, HOST, { NX: true, EX: 5 });
+        expect(client.del).toHaveBeenCalledWith(`action_lock:${ROOM}:p0`);
+    });
+
+    test('locks the player who asked, not always player one', async () => {
+        await arrangeReset();
+        client.hGetAll.mockImplementation(async (key) =>
+            key.startsWith('room:')
+                ? startedRoom(JSON.stringify([[]]), 0)
+                : { name: 'Guest', score: '0', pvpPlayerIndex: '1' }
+        );
+
+        await resetMyBoard({ socket: { id: GUEST }, room: ROOM, isValid, io });
+
+        expect(client.set).toHaveBeenCalledWith(`action_lock:${ROOM}:p1`, GUEST, { NX: true, EX: 5 });
+        expect(roomFields().player2Board).toBeDefined();
+        expect(roomFields().player1Board).toBeUndefined();
+    });
+
+    /**
+     * REGRESSION. This read `pvpPlayerIndex || '0'`, so a socket that startPvpGame
+     * never assigned an index fell through to index 0 — resetting PLAYER ONE's
+     * board, and (once resets took a lock) taking player one's lock to do it.
+     * pvp.js has refused that fallback since the same bug bit there; this is the
+     * one place it survived.
+     */
+    test('an unassigned socket resets nobody\'s board', async () => {
+        await arrangeReset();
+        client.hGetAll.mockImplementation(async (key) =>
+            key.startsWith('room:')
+                ? startedRoom(JSON.stringify([[]]), 0)
+                : { name: 'Stranger', score: '0' }   // no pvpPlayerIndex
+        );
+
+        await resetMyBoard({ socket: { id: 'sock-stranger' }, room: ROOM, isValid, io });
+
+        expect(roomFields()).toEqual({});
+        expect(client.set).not.toHaveBeenCalledWith(
+            expect.stringContaining('action_lock:'), expect.anything(), expect.anything()
+        );
+    });
 });
 
 describe('pvpRematch', () => {
-    test('deals a fresh board that is still identical for both', async () => {
+    const arrangeRematch = () => {
         client.hGetAll.mockImplementation(async (key) =>
             key.startsWith('room:')
                 ? lobbyRoom({ pvpStarted: 'true', player1Socket: HOST, player2Socket: GUEST })
                 : { name: 'Host', score: '0' }
         );
+    };
+
+    test('deals a fresh board that is still identical for both', async () => {
+        arrangeRematch();
 
         await pvpRematch({ socket: { id: HOST }, room: ROOM, isValid, io });
 
@@ -251,5 +302,53 @@ describe('pvpRematch', () => {
         expect(fields.player1Board).toBe(fields.player2Board);
         expect(JSON.parse(fields.player1Board).flat().filter((c) => c.isMine)).toHaveLength(10);
         expect(fields.player1Progress).toBe(fields.player2Progress);
+    });
+
+    test('holds BOTH players\' action locks, since it rewrites both boards', async () => {
+        arrangeRematch();
+
+        await pvpRematch({ socket: { id: HOST }, room: ROOM, isValid, io });
+
+        expect(client.set).toHaveBeenCalledWith(`action_lock:${ROOM}:p0`, HOST, { NX: true, EX: 5 });
+        expect(client.set).toHaveBeenCalledWith(`action_lock:${ROOM}:p1`, HOST, { NX: true, EX: 5 });
+        expect(client.del).toHaveBeenCalledWith(`action_lock:${ROOM}:p0`);
+        expect(client.del).toHaveBeenCalledWith(`action_lock:${ROOM}:p1`);
+    });
+
+    /**
+     * Deadlock freedom rests on this. A move only ever holds its own player's
+     * lock and never asks for a second, so the only way to build a cycle is for
+     * two multi-lock callers to disagree on the order — take p1 here and p0
+     * elsewhere and the two wedge each other until both leases expire.
+     */
+    test('takes them in index order, p0 before p1', async () => {
+        arrangeRematch();
+
+        await pvpRematch({ socket: { id: HOST }, room: ROOM, isValid, io });
+
+        const locked = client.set.mock.calls
+            .map((c) => c[0])
+            .filter((key) => key.startsWith(`action_lock:${ROOM}:`));
+        expect(locked).toEqual([`action_lock:${ROOM}:p0`, `action_lock:${ROOM}:p1`]);
+    });
+
+    test('writes both boards while both locks are held', async () => {
+        arrangeRematch();
+
+        await pvpRematch({ socket: { id: HOST }, room: ROOM, isValid, io });
+
+        // Spelled out so the comparisons below cannot pass on an empty set:
+        // Math.max() of no acquires is -Infinity, which every write beats.
+        expect(client.set.mock.invocationCallOrder).toHaveLength(2);
+        expect(client.del.mock.invocationCallOrder).toHaveLength(2);
+
+        const lastAcquire = Math.max(...client.set.mock.invocationCallOrder);
+        const firstRelease = Math.min(...client.del.mock.invocationCallOrder);
+        const boardWrite = client.hSet.mock.invocationCallOrder[
+            client.hSet.mock.calls.findIndex((c) => c[1] && c[1].player1Board)
+        ];
+
+        expect(boardWrite).toBeGreaterThan(lastAcquire);
+        expect(boardWrite).toBeLessThan(firstRelease);
     });
 });
