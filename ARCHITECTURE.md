@@ -65,8 +65,7 @@ components/ds/            The design system. Import via its index barrel
   cx.ts, pointer.ts       Class joiner; the shared pixel-cursor class
 shared/                   Imported by BOTH halves; viable because the whole repo deploys (§6)
   boardConfig.js          Board sizes, difficulty densities, limits, validity rule, DAILY_PRESET
-  events.js               Every socket event name, both directions
-  events.d.ts             Literal types for the above (hand-maintained alongside it)
+  events.js               Every socket event name, both directions (frozen, so TS infers literals)
   socketPayloads.ts       Payload shapes; binds the CLIENT only (the server is CommonJS)
 lib/
   dialogs.ts              Every dialog id, plus openDialog/closeDialog
@@ -392,9 +391,21 @@ in `shared/socketPayloads.ts`, so the tables in this section describe the
 protocol but are no longer the only record of it.
 
 `server/tests/events.test.js` enforces that both halves use the constants, that
-the client's table covers exactly what the server sends, that
-`shared/events.d.ts` matches the runtime names, and that every event has a
-declared payload type.
+the client's table covers exactly what the server sends, that the event objects
+stay frozen, and that every event has a declared payload type.
+
+**Why frozen.** TypeScript widens a plain object's string properties to `string`,
+which is too wide to look a payload up by — the handler table would degrade to
+`any` with nothing to see. Through `Object.freeze` it infers the literal
+`'boardUpdate'` instead. That inference is why adding an event touches four
+files rather than five: there used to be a hand-written `shared/events.d.ts`
+restating all 55 names, plus a test to stop the two drifting.
+
+The remaining four are close to irreducible. The name and the payload could in
+principle merge into one TypeScript file, but `shared/` is plain JS precisely so
+the CommonJS server can `require` it with no build step — and that is what makes
+the whole-repo Heroku deploy work (§6). Trading that for one fewer file to edit
+is not a good trade.
 
 **The types bind the client only.** They are TypeScript, and the server is
 CommonJS, so `tsc` checks every client emit and handler against them while the

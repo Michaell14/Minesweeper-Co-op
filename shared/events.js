@@ -10,14 +10,23 @@
  * event nobody listened to and no error anywhere. `server/tests/events.test.js`
  * enforces that the server's source uses these constants rather than literals.
  *
- * Payload shapes live in `shared/socketPayloads.ts`, and `shared/events.d.ts`
- * gives these names literal types so the client can look a payload up by event.
- * Both are TypeScript, so they bind the client only — this file stays plain JS
- * because the server requires it at runtime.
+ * Payload shapes live in `shared/socketPayloads.ts`, which binds the client only
+ * — this file stays plain JS because the server requires it at runtime.
+ *
+ * **`Object.freeze` is load-bearing, not defensive.** TypeScript widens a plain
+ * object's string properties to `string`, which is too wide to look a payload up
+ * by: `{ [SERVER_EVENTS.BOARD_UPDATE]: handler }` would become a plain string key
+ * and the handler's argument would silently fall back to `any`. Through
+ * `Object.freeze` it infers the literal `'boardUpdate'` instead, which is what
+ * type-checks the handler table in `hooks/useGameEvents.ts`.
+ *
+ * That inference is why there is no `events.d.ts`. There used to be one,
+ * restating all 55 names as literal types with a test to stop the two drifting —
+ * a whole file and a guard bought by four words of runtime code.
  */
 
 /** Client -> server. Every one is a `socket.on` handler in server/server.js. */
-const CLIENT_EVENTS = {
+const CLIENT_EVENTS = Object.freeze({
     CREATE_ROOM: 'createRoom',
     JOIN_ROOM: 'joinRoom',
     OPEN_CELL: 'openCell',
@@ -39,10 +48,10 @@ const CLIENT_EVENTS = {
     DAILY_TOGGLE_FLAG: 'dailyToggleFlag',
     SUBMIT_DAILY_SCORE: 'submitDailyScore',
     GET_DAILY_LEADERBOARD: 'getDailyLeaderboard',
-};
+});
 
 /** Server -> client. Every one has a handler in hooks/useGameEvents.ts. */
-const SERVER_EVENTS = {
+const SERVER_EVENTS = Object.freeze({
     // Room lifecycle
     JOIN_ROOM_SUCCESS: 'joinRoomSuccess',
     JOIN_ROOM_ERROR: 'joinRoomError',
@@ -91,6 +100,6 @@ const SERVER_EVENTS = {
     DAILY_WON: 'dailyWon',
     DAILY_SCORE_SUBMITTED: 'dailyScoreSubmitted',
     DAILY_LEADERBOARD_UPDATE: 'dailyLeaderboardUpdate',
-};
+});
 
 module.exports = { CLIENT_EVENTS, SERVER_EVENTS };
