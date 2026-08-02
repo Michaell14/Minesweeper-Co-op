@@ -25,14 +25,9 @@ export default function GameDialogs({ resetGame }: GameDialogsProps) {
 
     return (
         <>
-            {/*
-              * End of a co-op run, won or lost.
-              *
-              * One dialog for both outcomes: a win previously ended with confetti
-              * and nothing to read, and a loss with a line of text and no sense of
-              * how far the room got. What changes between them is the headline and
-              * the tone of the primary button; the numbers are the same numbers.
-              */}
+            {/* End of a co-op run, won or lost. One dialog for both: only the
+                headline and the button's tone differ, since the numbers a win
+                and a loss want to show are the same numbers. */}
             <Dialog
                 id={DIALOGS.gameSummary}
                 title={gameWon ? 'Board Cleared!' : 'Uh Oh!'}
@@ -41,11 +36,9 @@ export default function GameDialogs({ resetGame }: GameDialogsProps) {
                 actions={
                     <>
                         <DialogClose aria-label="Close summary">Close</DialogClose>
-                        {/*
-                          * type="submit" so the dialog closes on the same click —
-                          * a Button defaults to type="button" and would leave the
-                          * summary covering the fresh board.
-                          */}
+                        {/* type="submit" so the dialog closes on the same click —
+                            Button defaults to type="button", which would leave
+                            the summary covering the fresh board. */}
                         <Button
                             type="submit"
                             intent={gameWon ? 'success' : 'primary'}
@@ -60,7 +53,6 @@ export default function GameDialogs({ resetGame }: GameDialogsProps) {
                 <GameSummary />
             </Dialog>
 
-            {/* Create Room Error - room already exists */}
             <Dialog
                 id={DIALOGS.createRoomError}
                 title="This room already exists."
@@ -69,7 +61,6 @@ export default function GameDialogs({ resetGame }: GameDialogsProps) {
                 actions={<DialogClose aria-label="Close error dialog">Cancel</DialogClose>}
             />
 
-            {/* Join Room Error - room doesn't exist */}
             <Dialog
                 id={DIALOGS.joinRoomError}
                 title="This room does not exist."
@@ -78,7 +69,6 @@ export default function GameDialogs({ resetGame }: GameDialogsProps) {
                 actions={<DialogClose aria-label="Close error dialog">Cancel</DialogClose>}
             />
 
-            {/* Room Deleted Error - room became invalid during gameplay */}
             <Dialog
                 id={DIALOGS.roomDoesNotExist}
                 title="There was an error joining the room."
@@ -93,7 +83,6 @@ export default function GameDialogs({ resetGame }: GameDialogsProps) {
                 }
             />
 
-            {/* PVP Room Full - cannot join */}
             <Dialog
                 id={DIALOGS.pvpRoomFull}
                 title="Room Full!"
@@ -102,15 +91,10 @@ export default function GameDialogs({ resetGame }: GameDialogsProps) {
                 <p>This PVP room already has 2 players.</p>
             </Dialog>
 
-            {/*
-              * The three PVP dialogs below END the race, so each one carries the
-              * summary. `pvpGameOver` deliberately does not: hitting a mine stops
-              * YOUR clock but the opponent plays on, and you can reset and rejoin
-              * the race — a final scoreline there would be claiming the game is
-              * over when it is not.
-              */}
-
-            {/* PVP Game Over - this player hit a mine */}
+            {/* Every PVP dialog that ENDS the race carries the summary.
+                `pvpGameOver` deliberately does not: hitting a mine stops YOUR
+                clock, but the opponent plays on and you can reset back into the
+                race, so a final scoreline there would be a lie. */}
             <Dialog
                 id={DIALOGS.pvpGameOver}
                 title="Boom!"
@@ -121,7 +105,6 @@ export default function GameDialogs({ resetGame }: GameDialogsProps) {
                 <p>You hit a mine. Reset your board to try again!</p>
             </Dialog>
 
-            {/* PVP You Won */}
             <Dialog
                 id={DIALOGS.pvpYouWon}
                 title="Victory!"
@@ -133,7 +116,6 @@ export default function GameDialogs({ resetGame }: GameDialogsProps) {
                 <GameSummary />
             </Dialog>
 
-            {/* PVP Opponent Won */}
             <Dialog
                 id={DIALOGS.pvpOpponentWon}
                 title="Defeat"
@@ -143,7 +125,6 @@ export default function GameDialogs({ resetGame }: GameDialogsProps) {
                 <GameSummary />
             </Dialog>
 
-            {/* PVP Opponent Disconnected */}
             <Dialog
                 id={DIALOGS.pvpOpponentDisconnected}
                 title="Victory!"

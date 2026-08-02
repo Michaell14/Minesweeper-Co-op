@@ -23,10 +23,9 @@ const sessionIdOf = (socket) => socket.handshake?.auth?.sessionId || '';
  * `joinRoom`, so a resume runs the same validated path as a manual join rather
  * than a parallel one that could drift from it.
  *
- * Works for both modes. PVP needs more than co-op does — the room addresses
- * each racer's board by socket id, so the slot has to be repointed and the
- * player's index carried across — and that lives in `restorePvpRacer`, which
- * runs as part of the join this offer triggers.
+ * PVP needs more than co-op — the room addresses each racer's board by socket
+ * id, so the slot has to be repointed — but that lives in `restorePvpRacer`,
+ * which runs as part of the join this offer triggers.
  */
 const offerResume = async (socket) => {
     const sessionId = sessionIdOf(socket);

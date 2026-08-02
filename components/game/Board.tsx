@@ -12,10 +12,7 @@ export interface BoardProps {
     handleBoardLeave: () => void;
 }
 
-/**
- * The board itself. Previously this markup existed twice in Grid.tsx, once per
- * layout tree, which is how the two copies drifted apart.
- */
+/** The board itself. Mounted exactly once — see Grid.tsx. */
 export default function Board({ toggleFlag, openCell, chordCell, emitCellHover, handleBoardLeave }: BoardProps) {
     const board = useMinesweeperStore((state) => state.board);
     const boardRef = useRef<HTMLDivElement>(null);

@@ -36,7 +36,7 @@ export function useGameActions(socket: AppSocket | null) {
 
         const store = useMinesweeperStore.getState();
 
-        // Clear hover before leaving
+        // Clear the hover before leaving, or it lingers on everyone else's board.
         socket.emit(CLIENT_EVENTS.CELL_HOVER, { room: store.room, row: -1, col: -1 });
         socket.emit(CLIENT_EVENTS.PLAYER_LEAVE);
 
@@ -61,7 +61,7 @@ export function useGameActions(socket: AppSocket | null) {
         socket.emit(CLIENT_EVENTS.JOIN_ROOM, { room, name });
     }, [socket]);
 
-    /** Guarded the same way the inline versions were: no room, no action. */
+    /** No room, no action. */
     const emitCellAction = useCallback(
         (event: CellActionEvent, row: number, col: number) => {
             const { playerJoined, room } = useMinesweeperStore.getState();
@@ -137,27 +137,20 @@ export function useGameActions(socket: AppSocket | null) {
     );
 
     /**
-     * Open/chord are the only two actions that start the server's clock (see
-     * server/game/daily.js), but nothing in the protocol tells the client
-     * WHEN that happens -- dailyUpdateCells is the same generic cell-update
-     * shape every mode uses, with no room for a timestamp. Starting the local
-     * display timer optimistically, on the player's own first open/chord
-     * while still 'ready', is cosmetically correct (their own click is what
-     * starts it) and costs nothing: the leaderboard time is always the
-     * server's own startedAt/finishedAt, never this value.
+     * Open/chord are the only actions that start the server's clock, but nothing
+     * in the protocol says WHEN -- dailyUpdateCells is the same generic shape
+     * every mode uses, with no room for a timestamp. So the local display timer
+     * starts optimistically on the player's own first move. The leaderboard time
+     * is always the server's startedAt/finishedAt, never this value.
      *
-     * This can start the visible clock a beat before the server does (e.g. a
-     * click on a cell the server ends up ignoring, like a stale double-fire
-     * on an already-open cell) -- purely cosmetic drift in an on-screen
-     * number nobody's score depends on, not worth the round-trip to avoid.
+     * It can therefore start a beat before the server's (a click the server ends
+     * up ignoring) -- cosmetic drift in a number nobody's score depends on.
      */
     const markDailyStartedOptimistically = useCallback(() => {
         const { dailyStatus, setDailyStatus, setClock } = useMinesweeperStore.getState();
         if (dailyStatus !== "ready") return;
         setDailyStatus("in_progress");
-        // <Timer> reads gameSlice's shared clock (see components/game/Timer.tsx)
-        // -- without this it never learns the clock started and sits frozen at
-        // 00:00.
+        // <Timer> reads gameSlice's shared clock; without this it sits at 00:00.
         setClock({ startedAt: Date.now(), endedAt: null });
     }, []);
 

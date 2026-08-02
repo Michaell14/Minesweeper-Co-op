@@ -13,12 +13,9 @@ interface CreateFormValues {
 }
 
 /**
- * A radio card's one-line description.
- *
- * The pixel font is ~14px per glyph, so "48 mines" wraps inside a card once
- * four of them share the row — which is exactly the layout the size and
- * difficulty selectors need. Smaller and non-wrapping keeps every card one line
- * tall, which is what makes room for the third option row.
+ * A radio card's one-line description. The pixel font is ~14px per glyph, so
+ * "48 mines" wraps once four cards share a row; smaller and non-wrapping keeps
+ * every card one line tall, which is what makes room for the third option row.
  */
 const CardNote = ({ children }: { children: React.ReactNode }) => (
     <span className="whitespace-nowrap text-pixel-xs">{children}</span>
@@ -34,11 +31,7 @@ interface OptionRowProps {
     children: React.ReactNode;
 }
 
-/**
- * One labeled row of radio cards — Mode, Board Size and Difficulty all share
- * this shell. Extracted so the responsive overflow behaviour is one place to
- * change instead of three, and adding a fourth row is one line, not six.
- */
+/** One labeled row of radio cards — Mode, Board Size and Difficulty share it. */
 const OptionRow = ({ label, ariaLabel, name, value, onChange, children }: OptionRowProps) => (
     <Field label={label} className="mt-3">
         <RadioCardGroup name={name} value={value} onChange={onChange} ariaLabel={ariaLabel}>
@@ -48,15 +41,11 @@ const OptionRow = ({ label, ariaLabel, name, value, onChange, children }: Option
 );
 
 /**
- * Creating a room: the code, then mode, size and difficulty.
+ * Creating a room: the code, then mode, size and difficulty. Difficulty's cards
+ * show what each density works out to at the size selected above.
  *
- * Three option rows, so the cards are `size="sm"` with one-line descriptions.
- * That buys back roughly what the extra row costs. Difficulty's cards show what
- * each density works out to at the size selected above, which is also what
- * keeps them one line.
- *
- * Takes no props for the same reason the join form doesn't: submitting records
- * the room and opens the name dialog, and that dialog fires `createRoom`.
+ * Takes no props, like the join form: submitting records the room and opens the
+ * name dialog, and that dialog fires `createRoom`.
  */
 export default function CreateRoomForm() {
     const numRows = useMinesweeperStore((state) => state.numRows);
@@ -80,10 +69,9 @@ export default function CreateRoomForm() {
     const minesAt = (difficultyTitle: string) => mineCountFor(numRows, numCols, difficultyTitle);
 
     const onSubmit = handleSubmit((data) => {
-        // Unreachable today: every path into the store goes through
-        // setBoardConfig, and the custom dialog validates before applying.
-        // Kept as a backstop so a future writer that skips the derivation
-        // surfaces here rather than as a rejected createRoom.
+        // Unreachable today — every path goes through setBoardConfig — but kept
+        // so a future writer that skips the derivation surfaces here rather than
+        // as a rejected createRoom.
         if (!isValidBoardConfig(numRows, numCols, numMines)) {
             openDialog(DIALOGS.customError);
             return;
@@ -137,12 +125,9 @@ export default function CreateRoomForm() {
                             value={item.title}
                         />
                     ))}
-                    {/*
-                      * Custom is the one card that does not just set a value —
-                      * it opens the dimensions dialog, every time it is clicked,
-                      * including when it is already selected. That is what
-                      * onSelect is for.
-                      */}
+                    {/* Custom is the one card that does more than set a value: it
+                        opens the dimensions dialog on every click, including when
+                        already selected. That is what onSelect is for. */}
                     <RadioCard
                         description={<CardNote>{(boardSize === CUSTOM_SIZE && numRows > 0) ? `${numRows}x${numCols}` : `__x__`}</CardNote>}
                         label={CUSTOM_SIZE}

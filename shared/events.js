@@ -6,23 +6,18 @@
  * server and from the bundler. Viable only because the whole repo deploys, the
  * same as shared/boardConfig — see ARCHITECTURE.md §6.
  *
- * These were string literals typed out in both halves, so a typo produced an
- * event nobody listened to and no error anywhere. `server/tests/events.test.js`
- * enforces that the server's source uses these constants rather than literals.
+ * A typed-out literal produces an event nobody listens to and no error anywhere,
+ * so `server/tests/events.test.js` enforces that the server uses these constants.
  *
  * Payload shapes live in `shared/socketPayloads.ts`, which binds the client only
  * — this file stays plain JS because the server requires it at runtime.
  *
  * **`Object.freeze` is load-bearing, not defensive.** TypeScript widens a plain
- * object's string properties to `string`, which is too wide to look a payload up
- * by: `{ [SERVER_EVENTS.BOARD_UPDATE]: handler }` would become a plain string key
- * and the handler's argument would silently fall back to `any`. Through
- * `Object.freeze` it infers the literal `'boardUpdate'` instead, which is what
- * type-checks the handler table in `hooks/useGameEvents.ts`.
- *
- * That inference is why there is no `events.d.ts`. There used to be one,
- * restating all 55 names as literal types with a test to stop the two drifting —
- * a whole file and a guard bought by four words of runtime code.
+ * object's string properties to `string`, too wide to look a payload up by:
+ * `{ [SERVER_EVENTS.BOARD_UPDATE]: handler }` would key on a plain string and the
+ * handler's argument would fall back to `any`. Frozen, it infers the literal
+ * `'boardUpdate'`, which is what type-checks the table in useGameEvents.ts — and
+ * is why no hand-written `events.d.ts` is needed.
  */
 
 /** Client -> server. Every one is a `socket.on` handler in server/server.js. */

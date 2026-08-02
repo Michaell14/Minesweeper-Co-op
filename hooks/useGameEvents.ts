@@ -14,13 +14,12 @@ import type { SocketHandlers } from "./useSocketEvents";
 /**
  * Files a completed board as a personal best.
  *
- * Called from the WIN handlers only. A loss has a time but is not a clear, and
- * winning because an opponent disconnected is not one either — recording those
- * would make the number mean "the last time something ended" rather than "the
- * fastest I have finished this board".
+ * WIN handlers only. A loss has a time but is not a clear, and neither is
+ * winning because an opponent disconnected — recording those would make the
+ * number mean "the last time something ended".
  *
- * Reading the clock here rather than in the summary keeps it a one-off event:
- * a component would re-run it on every render of a dialog that stays open.
+ * Reading the clock here rather than in the summary keeps it a one-off: a
+ * component would re-run it on every render of a dialog that stays open.
  */
 const recordClear = () => {
     const { startedAt, endedAt, numRows, numCols, numMines, playerStatsInRoom } =
@@ -89,7 +88,7 @@ const coopHandlers = (socket: AppSocket, leaveRoom: () => void): SocketHandlers 
         store.setRoom(data.room);
         if (data.mode) store.setMode(data.mode);
         if (data.isHost !== undefined) store.setPvpIsHost(data.isHost);
-        // Sync difficulty config for joining players (fixes flag counter bug)
+        // A joiner needs the room's dimensions or their flag counter is wrong.
         if (data.numRows && data.numCols && data.numMines) {
             store.setDimensions(data.numRows, data.numCols, data.numMines);
         }
@@ -98,23 +97,16 @@ const coopHandlers = (socket: AppSocket, leaveRoom: () => void): SocketHandlers 
 
     /*
      * The server recognised this browser and its room is still alive, so put the
-     * player back rather than leaving them on the landing page.
-     *
-     * Answering with a plain joinRoom is the point: a resume then runs the exact
-     * path a manual join does — same validation, same board, same clock — with
-     * no second flow to keep in step. The server only makes this offer when the
-     * player did not leave deliberately.
+     * player back rather than leaving them on the landing page. Answering with a
+     * plain joinRoom is the point: a resume runs the exact path a manual join
+     * does, with no second flow to keep in step.
      */
     [SERVER_EVENTS.SESSION_RESUME]: ({ room, name }) => {
         const store = useMinesweeperStore.getState();
-        // The daily challenge and the resumed room are mutually exclusive
-        // views (see app/page.tsx). Without this guard, a resume offer that
-        // lands while the player is on the Daily Challenge (this only fires
-        // once per connection, so the race is real, not hypothetical) sets
-        // playerJoined in the background -- invisible until they later leave
-        // daily and land back in the old room instead of on Landing. Choosing
-        // the daily challenge over a passive resume is a real choice; it
-        // should not be silently overridden.
+        // Daily and the resumed room are mutually exclusive views. Without this
+        // guard, an offer landing while the player is on Daily sets playerJoined
+        // in the background -- invisible until they leave daily and land in the
+        // old room instead of on Landing. Picking daily is a real choice.
         if (store.playerJoined || store.dailyActive) return;
 
         store.setRoom(room);
@@ -234,8 +226,8 @@ const pvpHandlers = (socket: AppSocket): SocketHandlers => ({
 
 /**
  * Daily challenge events. Not room-scoped, and mutually exclusive with the
- * coop/pvp views, so this reuses gameSlice's board/gameOver/gameWon directly
- * rather than a parallel daily board field — see components/DailyChallenge.tsx.
+ * coop/pvp views, so this reuses gameSlice's board/gameOver/gameWon rather than
+ * a parallel daily board field.
  */
 const dailyHandlers = (): SocketHandlers => ({
     [SERVER_EVENTS.DAILY_STARTED]: ({ date, board, numRows, numCols, numMines, totalSafeCells, startedAt }) => {
@@ -251,20 +243,18 @@ const dailyHandlers = (): SocketHandlers => ({
         store.setDailyTotalEntries(null);
         store.setGameOver(false);
         store.setGameWon(false);
-        // Feeds gameSlice's shared run clock (see state/gameSlice.ts) so
-        // <Timer> -- the same component Grid.tsx uses for co-op/PVP -- just
-        // works here too. Set directly in the handler, not reactively from
-        // within DailyChallenge.tsx: that component can mount with a board
-        // already present (a resume arrives with both in one event), so a
-        // useEffect-based sync would render one frame of gameSlice's PREVIOUS
-        // clock value before catching up.
+        // Feeds gameSlice's shared run clock, so <Timer> works here unchanged.
+        // Set in the handler, not reactively from DailyChallenge.tsx: that can
+        // mount with a board already present (a resume brings both in one
+        // event), so a useEffect sync would render one frame of the PREVIOUS
+        // clock value first.
         store.setClock({ startedAt, endedAt: null });
     },
 
     /**
-     * Today's attempt already reached a terminal state. 'won_pending_submit'
-     * means the player won but never submitted a name (e.g. closed the tab
-     * before the submit dialog) -- reopen it rather than showing a dead end.
+     * Today's attempt already ended. 'won_pending_submit' means they won but
+     * never submitted a name (closed the tab before the dialog) -- reopen it
+     * rather than show a dead end.
      */
     [SERVER_EVENTS.DAILY_ALREADY_ATTEMPTED]: ({ date, status, elapsedMs, rank, totalEntries }) => {
         const store = useMinesweeperStore.getState();
@@ -274,9 +264,9 @@ const dailyHandlers = (): SocketHandlers => ({
         store.setDailyElapsedMs(elapsedMs ?? null);
         store.setDailyRank(rank ?? null);
         store.setDailyTotalEntries(totalEntries ?? null);
-        // No board comes with this event -- clear any stale one (e.g. left
-        // over from a room played earlier this session) so DailyChallenge.tsx
-        // can tell "no board available" apart from "board is just empty".
+        // No board comes with this event -- clear any stale one (e.g. from a room
+        // played earlier this session) so DailyChallenge.tsx can tell "no board"
+        // apart from "board is just empty".
         store.setBoard([]);
 
         if (status === "won_pending_submit") {
@@ -296,10 +286,9 @@ const dailyHandlers = (): SocketHandlers => ({
         store.setGameOver(true); // lets Cell.tsx reveal every mine, same as coop/PVP
         store.setDailyStatus("failed");
         store.setDailyElapsedMs(elapsedMs);
-        // gameSlice's startedAt is kept live by DAILY_STARTED (resume) and
-        // markDailyStartedOptimistically (see hooks/useGameActions.ts, fired
-        // on the player's own first open/chord). Freezing endedAt stops
-        // <Timer> and agrees with the elapsedMs this event just reported.
+        // startedAt is kept live by DAILY_STARTED and by
+        // markDailyStartedOptimistically; freezing endedAt stops <Timer> at the
+        // elapsedMs this event just reported.
         store.setClock({ startedAt: store.startedAt, endedAt: (store.startedAt ?? 0) + elapsedMs });
         openDialog(DIALOGS.dailyGameOver);
     },
@@ -330,9 +319,9 @@ const dailyHandlers = (): SocketHandlers => ({
 /**
  * The full server -> client event table.
  *
- * Handlers write through `useMinesweeperStore.getState()` rather than subscribing,
- * so this hook causes no re-renders of its own — which is why `page.tsx` no
- * longer re-renders on every remote hover event.
+ * Handlers write through `useMinesweeperStore.getState()` rather than
+ * subscribing, so this hook causes no re-renders of its own — without that,
+ * `page.tsx` re-renders on every remote hover event.
  */
 export function useGameEvents(socket: AppSocket | null, leaveRoom: () => void): SocketHandlers {
     if (!socket) return {};

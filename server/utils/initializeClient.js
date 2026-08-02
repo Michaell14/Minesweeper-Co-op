@@ -6,7 +6,7 @@ const { allowedOrigins } = require('../config');
 const app = express();
 const server = http.createServer(app);
 
-// Add CORS middleware to Express (handles preflight requests)
+// CORS, including preflight.
 app.use((req, res, next) => {
     const origin = req.headers.origin;
     if (allowedOrigins.includes(origin)) {
@@ -22,7 +22,6 @@ app.use((req, res, next) => {
     next();
 });
 
-// Test route to verify server is running
 app.get('/', (req, res) => {
     res.send('Hello World! Server is running.')
 });
@@ -51,12 +50,11 @@ app.get('/health', (req, res) => {
     res.json({ status: 'ok', socketio: 'initialized', commit: buildCommit });
 });
 
-// Initialize Socket.io with explicit path and CORS settings
 const io = new Server(server, {
     path: '/socket.io',
     cors: {
         origin: function(origin, callback) {
-            // Allow requests with no origin (mobile apps, curl, etc.)
+            // No origin at all means a non-browser client (curl, native app).
             if (!origin) return callback(null, true);
             if (allowedOrigins.includes(origin)) {
                 callback(null, true);
@@ -69,11 +67,9 @@ const io = new Server(server, {
         allowedHeaders: ["Content-Type"]
     },
     transports: ['websocket', 'polling'],
-    allowEIO3: true, // Enable compatibility with Socket.io v3 clients
+    allowEIO3: true, // Socket.io v3 clients
     connectionStateRecovery: {
-        // the backup duration of the sessions and the packets
         maxDisconnectionDuration: 2 * 60 * 1000,
-        // whether to skip middlewares upon successful recovery
         skipMiddlewares: true,
     }
 });

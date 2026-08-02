@@ -1,10 +1,8 @@
 /**
  * PVP mode: two players race on their own separate boards.
  *
- * Everything is addressed per player. Board state lives under player1Board /
- * player2Board (see ARCHITECTURE.md for the full room schema), and updates are
- * emitted to a single socket rather than the room. Progress is broadcast to the
- * opponent as a count of revealed safe cells.
+ * Everything is addressed per player — board state lives under player1Board /
+ * player2Board, and updates go to a single socket rather than the room.
  *
  * Both players race the SAME mine layout: startPvpGame builds one board and
  * hands it to both, with a shared opening already revealed. There is no
@@ -38,11 +36,10 @@ const playerIndexOf = (playerData, socketId) => {
     return playerIndex;
 };
 
-/*
- * A PVP finish is one player's, not the room's, so the stop is sent to that
- * socket and not written to room state — the opponent's clock must keep
- * running. The start still comes from the room, which is why it is read back
- * rather than invented here.
+/**
+ * Stops one player's clock. Sent to that socket alone and never written to room
+ * state — the opponent's clock must keep running. The start still comes from the
+ * room, which is why it is read back rather than invented here.
  */
 const stopFor = async (room, socketId) => {
     const startedAt = readStamp(await roomRepo.getField(room, 'startedAt'));
@@ -52,10 +49,9 @@ const stopFor = async (room, socketId) => {
 /**
  * Stops the clock for BOTH players, because a winner ends the race for both.
  *
- * The loser's clock is the easy one to forget: they are still mid-board when it
- * happens, so nothing on their side ends. Leaving it running means their timer
- * keeps counting under a dialog telling them the game is over, and the summary
- * has no finish time to show.
+ * The loser's is the easy one to forget: they are still mid-board, so nothing on
+ * their side ends. Left running, their timer counts on under a dialog saying the
+ * game is over, and the summary has no finish time to show.
  */
 const stopRace = async (room) => {
     const startedAt = readStamp(await roomRepo.getField(room, 'startedAt'));
@@ -66,8 +62,7 @@ const stopRace = async (room) => {
  * Reveals cells from (r, c) on ONE player's board. Hitting a mine ends the game
  * for that player only; the opponent keeps playing and is told they failed.
  *
- * Returns the number of safe cells revealed, or -1 if a mine was hit. Callers
- * branch on that -1, so it is kept as-is.
+ * Returns the number of safe cells revealed, or -1 if a mine was hit.
  */
 const reveal = async (board, r, c, room, socketId, toUpdate, playerIndex) => {
     const { hitMine, cellsRevealed } = revealFrom(board, r, c, toUpdate);
@@ -76,7 +71,6 @@ const reveal = async (board, r, c, room, socketId, toUpdate, playerIndex) => {
     const { gameOverKey } = playerKeys(playerIndex);
     await roomRepo.setFields(room, { [gameOverKey]: 'true' });
 
-    // Notify this player they lost
     await stopFor(room, socketId);
     io.to(socketId).emit(SERVER_EVENTS.PVP_GAME_OVER);
 
@@ -87,16 +81,14 @@ const reveal = async (board, r, c, room, socketId, toUpdate, playerIndex) => {
         playerIndex,
     });
 
-    // Notify opponent with updated progress info
     const opponentSocket = await roomRepo.opponentOf(room, socketId);
     if (opponentSocket) {
         io.to(opponentSocket).emit(SERVER_EVENTS.PVP_OPPONENT_FAILED);
     }
-    return -1; // Signal that mine was hit
+    return -1;
 };
 
-// Broadcast progress update to opponent
-const broadcastProgressUpdate = async (room, socketId, playerIndex, newProgress) => {
+const broadcastProgressUpdate = async (room, socketId, newProgress) => {
     const opponentSocket = await roomRepo.opponentOf(room, socketId);
 
     if (opponentSocket) {
@@ -109,13 +101,11 @@ const broadcastProgressUpdate = async (room, socketId, playerIndex, newProgress)
     }
 };
 
-// Check win for PVP
+/** Won iff every non-mine cell on THIS player's board is open. */
 const checkWin = async (board, room, socketId, playerIndex) => {
     const { gameOverKey, gameWonKey } = playerKeys(playerIndex);
 
     const roomState = await roomRepo.getState(room);
-
-    // Don't check win if this player already won or lost
     if (roomState[gameOverKey] === 'true' || roomState[gameWonKey] === 'true') {
         return;
     }
@@ -125,11 +115,10 @@ const checkWin = async (board, room, socketId, playerIndex) => {
     );
 
     if (allNonMinesOpened) {
-        // Check if anyone has won yet
         const winnerSocket = roomState.winnerSocket;
 
         if (!winnerSocket || winnerSocket === '') {
-            // This player is the first to win!
+            // First to finish — the lock decides it when both land at once.
             const lockAcquired = await roomRepo.acquireWinnerLock(room, socketId);
 
             if (lockAcquired) {
@@ -141,7 +130,6 @@ const checkWin = async (board, room, socketId, playerIndex) => {
 
                 const playerName = await playerRepo.getName(socketId);
 
-                // Notify both players
                 io.to(room).emit(SERVER_EVENTS.PVP_PLAYER_WON, {
                     winnerSocket: socketId,
                     winnerName: playerName
@@ -150,37 +138,29 @@ const checkWin = async (board, room, socketId, playerIndex) => {
                 await roomRepo.releaseWinnerLock(room);
             }
         } else {
-            // Someone else already won, so `stopRace` has already stopped this
-            // player's clock at the moment the race actually ended. Stamping it
-            // again here would push their finish time out to whenever they
-            // happened to fill in the rest of their board.
+            // Someone else already won, so `stopRace` stopped this player's clock
+            // when the race actually ended. Stamping it again would push their
+            // finish out to whenever they filled in the rest of their board.
             await roomRepo.setFields(room, { [gameWonKey]: 'true' });
         }
     }
 };
 
-// PVP-specific open cell
 const openCell = async (row, col, room, socketId, roomState, playerScore, playerData) => {
-    // Check if game has started
     if (roomState.pvpStarted !== 'true') {
         return;
     }
 
-    // Get player index - must be set by startPvpGame
     const playerIndex = playerIndexOf(playerData, socketId);
     if (playerIndex === null) return;
     const { boardKey, initializedKey, gameOverKey, gameWonKey, progressKey } = playerKeys(playerIndex);
 
-    // Return if this player's game is over or won
     if (roomState[gameOverKey] === 'true' || roomState[gameWonKey] === 'true') {
         return;
     }
 
     const numRows = parseInt(roomState.numRows, 10);
     const numCols = parseInt(roomState.numCols, 10);
-    const numMines = parseInt(roomState.numMines, 10);
-
-    // Validate bounds
     if (row < 0 || row >= numRows || col < 0 || col >= numCols) return;
 
     // Boards are created for both players by startPvpGame, so one always exists
@@ -197,10 +177,7 @@ const openCell = async (row, col, room, socketId, roomState, playerScore, player
     }
     const board = JSON.parse(boardData);
 
-    // Validate board
     if (!board || !Array.isArray(board) || board.length === 0) return;
-
-    // Check invalid scenarios
     if (
         board[row][col] === undefined ||
         !board[row][col] ||
@@ -208,45 +185,34 @@ const openCell = async (row, col, room, socketId, roomState, playerScore, player
         board[row][col].isFlagged
     ) return;
 
-    // Reveal cells and get count of safe cells revealed
     const toUpdate = [];
     const safeCellsRevealed = await reveal(board, row, col, room, socketId, toUpdate, playerIndex);
 
-    // If mine was hit, safeCellsRevealed will be -1
     if (safeCellsRevealed === -1) {
-        // Save board state with revealed mine
         await roomRepo.setPvpBoard(room, playerIndex, board);
         io.to(socketId).emit(SERVER_EVENTS.PVP_UPDATE_CELLS, projectCells(toUpdate));
         return;
     }
 
-    // Update progress tracking - need to get fresh state since board may have just been initialized
+    // Re-read: `reveal` may have written to the room since the snapshot was taken.
     const freshRoomState = await roomRepo.getState(room);
     const currentProgress = parseInt(freshRoomState[progressKey] || '0', 10);
     const newProgress = currentProgress + safeCellsRevealed;
     await roomRepo.setFields(room, { [progressKey]: newProgress.toString() });
 
-    // Broadcast progress to opponent
-    await broadcastProgressUpdate(room, socketId, playerIndex, newProgress);
+    await broadcastProgressUpdate(room, socketId, newProgress);
 
-    // Update player score
     if (safeCellsRevealed > 0) {
         const currentScore = parseInt(playerScore || '0', 10) || 0;
         await playerRepo.setScore(socketId, currentScore + safeCellsRevealed);
         await updatePlayerStatsInRoom(room);
     }
 
-    // Save board
     await roomRepo.setPvpBoard(room, playerIndex, board);
-
-    // Check win condition
     await checkWin(board, room, socketId, playerIndex);
-
-    // Send update to this player
     io.to(socketId).emit(SERVER_EVENTS.PVP_UPDATE_CELLS, projectCells(toUpdate));
 };
 
-// PVP-specific chord cell
 const chordCell = async (row, col, room, socketId, roomState) => {
     const playerData = await playerRepo.getState(socketId);
     const playerIndex = playerIndexOf(playerData, socketId);
@@ -275,7 +241,6 @@ const chordCell = async (row, col, room, socketId, roomState) => {
             if (!adj.isFlagged && !adj.isOpen) {
                 const safeCellsRevealed = await reveal(board, adj.row, adj.col, room, socketId, toUpdate, playerIndex);
 
-                // If mine was hit, safeCellsRevealed will be -1
                 if (safeCellsRevealed === -1) {
                     io.to(socketId).emit(SERVER_EVENTS.PVP_UPDATE_CELLS, projectCells(toUpdate));
                     await roomRepo.setPvpBoard(room, playerIndex, board);
@@ -287,16 +252,13 @@ const chordCell = async (row, col, room, socketId, roomState) => {
         }
     }
 
-    // Update progress tracking
     if (totalSafeCellsRevealed > 0) {
         const currentProgress = parseInt(roomState[progressKey] || '0', 10);
         const newProgress = currentProgress + totalSafeCellsRevealed;
         await roomRepo.setFields(room, { [progressKey]: newProgress.toString() });
 
-        // Broadcast progress to opponent
-        await broadcastProgressUpdate(room, socketId, playerIndex, newProgress);
+        await broadcastProgressUpdate(room, socketId, newProgress);
 
-        // Update player score
         const currentScore = await playerRepo.getScore(socketId);
         await playerRepo.setScore(socketId, currentScore + totalSafeCellsRevealed);
     }
@@ -307,7 +269,6 @@ const chordCell = async (row, col, room, socketId, roomState) => {
     await roomRepo.setPvpBoard(room, playerIndex, board);
 };
 
-// PVP-specific toggle flag
 const toggleFlag = async (row, col, room, socketId, roomState) => {
     const playerData = await playerRepo.getState(socketId);
     const playerIndex = playerIndexOf(playerData, socketId);

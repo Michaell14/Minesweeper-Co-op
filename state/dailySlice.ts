@@ -3,17 +3,14 @@ import type { DailyLeaderboardEntry, DailyAttemptStatus } from '@/shared/socketP
 import type { MinesweeperState } from './store';
 
 /**
- * 'idle' -- no daily view active. 'ready'/'in_progress' mirror the server's
- * attempt status while playing. The three terminal states also mirror the
- * server (see server/game/daily.js) so the client never invents its own name
- * for "already played today."
+ * 'idle' -- no daily view active. Everything else mirrors the server's attempt
+ * status, so the client never invents its own name for "already played today."
  */
 export type DailyStatus = DailyAttemptStatus | 'idle' | 'ready' | 'in_progress';
 
-/** Everything for the daily challenge view -- a sibling to room state, not a
- * replacement for it. The board itself stays in gameSlice (see DailyChallenge.tsx
- * for why): daily and room views are mutually exclusive, so reusing one board
- * field costs nothing and keeps the "board mounts exactly once" invariant. */
+/** Everything for the daily challenge view. The board itself stays in gameSlice:
+ * daily and room views are mutually exclusive, so reusing one board field costs
+ * nothing and keeps the "board mounts exactly once" invariant. */
 export interface DailySlice {
     dailyActive: boolean;              // True while the daily view is showing, instead of Landing/Grid
     dailyDate: string;                 // Server-issued date this attempt belongs to
@@ -21,9 +18,8 @@ export interface DailySlice {
     dailyElapsedMs: number | null;     // Set once the attempt reaches a terminal state
     dailyTotalSafeCells: number;
     dailyRank: number | null;
-    /** How many players had submitted a time as of this player's rank -- used
-     * only for the share-result text ("beat 44 others"), so null is fine
-     * whenever it isn't known (e.g. a loss, which has no leaderboard entry). */
+    /** Leaderboard size at the time of this rank. Only the share text uses it
+     * ("beat 44 others"), so null is fine when unknown -- a loss, say. */
     dailyTotalEntries: number | null;
     dailyLeaderboard: DailyLeaderboardEntry[];
 

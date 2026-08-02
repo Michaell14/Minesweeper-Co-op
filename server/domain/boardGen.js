@@ -1,47 +1,33 @@
 /**
- * Board generation — pure, and deliberately kept apart from room state.
+ * Board generation — pure, and deliberately kept apart from room state. Nothing
+ * here touches Redis, the socket server or the clock.
  *
- * This used to live in `utils/gameUtils.js` alongside `checkWin`, `createRoom`
- * and `resetGame`, which read and write Redis and emit. Six of that module's
- * ten importers wanted only the generator, so `pvpController` and `game/daily`
- * were transitively pulling in `io`, the repos and `playerUtils` to build an
- * array of cells.
- *
- * Nothing here touches Redis, the socket server or the clock. `rng` is
- * injectable, which is what lets the daily challenge draw every candidate from
- * a seeded sequence and makes the whole function a pure function of its seed.
+ * `rng` is injectable, which is what lets the daily challenge draw every
+ * candidate from a seeded sequence and makes generation a pure function of its
+ * seed.
  */
 
 const { isBoardSolvable } = require('./solverUtils');
 const { createEmptyBoard } = require('./board');
 
-// Generates a single random candidate board layout. `rng` defaults to
-// Math.random so every existing caller (5 args) is untouched; the daily
-// challenge is the only caller that passes a seeded generator, via `options.rng`
-// on generateBoard below.
+/** One random candidate layout, with the 3x3 around the first click kept clear. */
 const generateSingleCandidateBoard = (numRows, numCols, numMines, excludeRow, excludeCol, rng = Math.random) => {
     const board = createEmptyBoard(numRows, numCols);
 
-    // Calculate available cells (excluding the 3x3 area around first click)
-    const totalCells = numRows * numCols;
-    const excludedCells = 9; // 3x3 grid around first click
-    const maxMines = totalCells - excludedCells;
-
-    // Prevent infinite loop by capping mines at available space
+    // Cap mines at the space actually available, or the placement loop never ends.
+    const maxMines = numRows * numCols - 9;
     const actualMines = Math.min(numMines, maxMines);
 
-    // Create array of all valid positions
     const validPositions = [];
     for (let r = 0; r < numRows; r++) {
         for (let c = 0; c < numCols; c++) {
-            // Exclude 3x3 area around first click
             if (!(r >= excludeRow - 1 && r <= excludeRow + 1 && c >= excludeCol - 1 && c <= excludeCol + 1)) {
                 validPositions.push({ row: r, col: c });
             }
         }
     }
 
-    // Shuffle array using Fisher-Yates algorithm and place mines
+    // Fisher-Yates, stopping once enough positions have been drawn.
     for (let i = validPositions.length - 1; i >= validPositions.length - actualMines; i--) {
         const j = Math.floor(rng() * (i + 1));
         [validPositions[i], validPositions[j]] = [validPositions[j], validPositions[i]];
@@ -53,8 +39,7 @@ const generateSingleCandidateBoard = (numRows, numCols, numMines, excludeRow, ex
         };
     }
 
-    // For each cell, calculating the number of mines in its 3x3 perimeter
-    // Runtime: O(n^2)
+    // Neighbour counts for every non-mine cell.
     for (let r = 0; r < numRows; r++) {
         for (let c = 0; c < numCols; c++) {
             if (!board[r][c].isMine) {
@@ -82,28 +67,21 @@ const generateSingleCandidateBoard = (numRows, numCols, numMines, excludeRow, ex
 /**
  * How many candidate layouts to try before giving up on the no-guess guarantee.
  *
- * This was 50, which was enough while the densest board shipped was 18.8%.
- * Adding the Extreme difficulty (20.6%, classic Expert) made it too few: only
- * about 7% of random 20x16 layouts at that density are logic-solvable, so 50
- * attempts fell back to a guessy board 3% of the time on Large and 13% on a
- * 32x16 custom board — silently, since the fallback is indistinguishable from a
- * real result.
- *
- * 300 removed the fallback entirely across 200 games on every shipped size. It
- * costs nothing in the common case because the loop stops at the first success
- * (median 5-15 attempts); it only raises the worst case, from ~28ms to ~64ms on
- * the largest board, and that worst case is now vanishingly rare.
+ * Only ~7% of random layouts at Extreme's 20.6% density are logic-solvable, so
+ * the old value of 50 fell back to a guessy board 3% of the time on Large and
+ * 13% on a 32x16 custom — silently, since the fallback is indistinguishable from
+ * a real result. 300 removed the fallback entirely across 200 games on every
+ * shipped size, and costs nothing in the common case because the loop stops at
+ * the first success (median 5-15 attempts).
  */
 const DEFAULT_MAX_ATTEMPTS = 300;
 
 /**
- * Utility function to generate a Minesweeper board.
- * If options.noGuess is true (default), runs a Generate-and-Verify loop with isBoardSolvable
- * to guarantee that the board can be 100% solved without probabilistic 50:50 guessing.
- * options.rng defaults to Math.random; the daily challenge passes a seeded
- * generator (server/game/daily.js) so every candidate in the retry loop below
- * is drawn from the same deterministic sequence, making the whole function's
- * output a pure function of the seed.
+ * Generates a board. With `options.noGuess` (the default), retries candidates
+ * until one is 100% solvable by logic alone — no 50:50 guessing.
+ *
+ * `options.rng` defaults to Math.random; the daily challenge passes a seeded
+ * generator so every candidate comes from the same deterministic sequence.
  */
 const generateBoard = (numRows, numCols, numMines, excludeRow, excludeCol, options = { noGuess: true, maxAttempts: DEFAULT_MAX_ATTEMPTS }) => {
     const shouldEnsureNoGuess = options && options.noGuess !== false;
@@ -116,20 +94,18 @@ const generateBoard = (numRows, numCols, numMines, excludeRow, excludeCol, optio
 
     let fallbackCandidate = null;
 
-    // Retry loop: evaluate candidate layouts until a 100% logic-solvable board is found
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
         const candidate = generateSingleCandidateBoard(numRows, numCols, numMines, excludeRow, excludeCol, rng);
         if (!fallbackCandidate) {
             fallbackCandidate = candidate;
         }
 
-        // Test if candidate board is 100% solvable without guesses starting from (excludeRow, excludeCol)
         if (isBoardSolvable(candidate, excludeRow, excludeCol)) {
             return candidate;
         }
     }
 
-    // Fallback to initial candidate if max attempts reached
+    // Attempts exhausted: hand back a guessy board rather than nothing.
     return fallbackCandidate;
 };
 

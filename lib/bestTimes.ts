@@ -3,28 +3,23 @@ import { ALL_PRESETS } from "@/shared/boardConfig";
 /**
  * Your best clear of each board, kept in this browser.
  *
- * Deliberately localStorage, not the sessionStorage the session id uses: a
- * personal best is the one thing here that should outlive the tab it was set
- * in. Nothing is sent to the server — there are no accounts to hang a real
- * leaderboard off, and a server-side table nobody can be authenticated against
- * would be a scoreboard of whoever edited a socket payload last.
+ * localStorage, not the sessionStorage the session id uses: a personal best
+ * should outlive the tab it was set in. Nothing is sent to the server — with no
+ * accounts to authenticate against, a server-side table would be a scoreboard of
+ * whoever edited a socket payload last.
  *
- * Boards are keyed by their DIMENSIONS AND MINE COUNT rather than by the
- * size/difficulty labels. Those labels are only correct for the player who
- * picked them: `setDimensions` updates the numbers for someone joining a room
- * and leaves the labels at whatever they were, so keying on them would file a
- * joiner's win under the wrong board. The numbers are the board.
+ * Boards are keyed by DIMENSIONS AND MINE COUNT, never the size/difficulty
+ * labels: `setDimensions` gives a joiner the room's numbers and leaves their
+ * labels alone, so keying on a label files their win under the wrong board.
  */
 
 export interface BestTime {
     /** Seconds taken. */
     seconds: number;
     /**
-     * How many were in the room.
-     *
-     * Stored because it is what stops the number lying. Clearing Medium with
-     * three friends is a real result but not the same result as clearing it
-     * alone, and a "best" that silently mixes the two stops meaning anything.
+     * How many were in the room. Stored because clearing Medium with three
+     * friends is a real result but not the same result as clearing it alone, and
+     * a "best" that mixes the two means nothing.
      */
     players: number;
     /** When it was set, so the display can say how old a record is. */
@@ -38,11 +33,8 @@ export const boardKey = (rows: number, cols: number, mines: number) =>
     `${rows}x${cols}/${mines}`;
 
 /**
- * "Medium / Hard" for a board that matches a preset, otherwise its dimensions.
- *
- * Derived from the numbers for the same reason the key is: a custom board has
- * no preset name, and a joiner's stored labels describe whatever they last
- * picked rather than the room they are in.
+ * "Medium / Hard" for a board matching a preset, otherwise its dimensions.
+ * Derived from the numbers for the same reason the key is.
  */
 export const boardLabel = (rows: number, cols: number, mines: number) => {
     const preset = ALL_PRESETS.find(
@@ -65,11 +57,9 @@ const parseEntry = (value: unknown): BestTime | null => {
 };
 
 /**
- * Everything stored, with anything unreadable dropped.
- *
- * localStorage is shared with the user and with whatever else is on the origin,
- * so it is treated as untrusted input: a corrupt blob loses the records rather
- * than throwing on a page that has a game running in it.
+ * Everything stored, with anything unreadable dropped. localStorage is untrusted
+ * input — a corrupt blob loses the records rather than throwing on a page with a
+ * game running in it.
  */
 export const readBestTimes = (): Record<string, BestTime> => {
     if (typeof window === "undefined") return {};
@@ -103,10 +93,7 @@ export const readBestTime = (key: string): BestTime | null => readBestTimes()[ke
 
 /**
  * Files a completed run, keeping it only if it beats what is already there.
- *
- * Returns what the summary needs to say: whether this run set a record, and the
- * previous one it beat. A run that does not beat the record is not an error and
- * is simply dropped.
+ * Returns what the summary needs: whether this set a record, and what it beat.
  */
 export const recordBestTime = (
     key: string,
@@ -123,15 +110,15 @@ export const recordBestTime = (
                 JSON.stringify({ ...times, [key]: run }),
             );
         } catch {
-            // Full or blocked. The run still counts as a record for this
-            // session's display; only its persistence is lost.
+            // Full or blocked. The run still shows as a record this session;
+            // only its persistence is lost.
         }
     }
 
     return { improved, previous };
 };
 
-/** Forgets every record. Exposed for a future "reset my times" control. */
+/** Forgets every record. Used by tests to reset between cases. */
 export const clearBestTimes = () => {
     if (typeof window === "undefined") return;
     try {

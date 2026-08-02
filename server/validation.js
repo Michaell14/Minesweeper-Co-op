@@ -1,16 +1,13 @@
 /**
- * Socket payload validation.
+ * Socket payload validation. Pure — no io, no Redis — so it is cheap to test and
+ * safe to call from anywhere. Add new rules here rather than inline in a handler.
  *
- * These rules used to be copy-pasted inline in five server.js handlers, which
- * meant a new event only got validated if whoever added it noticed the pattern
- * and replicated it correctly. Everything here is pure — no io, no Redis — so
- * it is cheap to test and safe to call from anywhere.
- *
- * The limits below are the ones server.js already enforced; they are duplicated
- * on the client in components/Landing.tsx with DIFFERENT values. Unifying those
- * is a separate change (see ARCHITECTURE.md §8).
+ * The limits below are duplicated on the client with DIFFERENT values; unifying
+ * them is a separate change (see ARCHITECTURE.md §8).
  */
 
+// Re-exported below: the board rule lives in shared/ so the client checks the
+// same thing before it ever emits.
 const { isValidBoardConfig } = require('../shared/boardConfig');
 
 const MAX_ROOM_CODE_LENGTH = 100;
@@ -23,13 +20,6 @@ const MAX_COORDINATE = 100;
 /** Sentinel row/col meaning "this player is no longer hovering any cell". */
 const NO_HOVER = -1;
 
-/**
- * INTENTIONAL DIVERGENCE: createRoom/joinRoom already applied the length cap,
- * but the game-action handlers only checked `typeof room === 'string'`. They now
- * share this stricter check. No functional change -- a room code longer than the
- * cap can never have been created, so those actions failed at the room lookup a
- * moment later anyway.
- */
 const isValidRoomCode = (room) =>
     typeof room === 'string' && room.length > 0 && room.length <= MAX_ROOM_CODE_LENGTH;
 
@@ -39,12 +29,10 @@ const isValidPlayerName = (name) =>
 /**
  * A name as it will be STORED -- surrounding whitespace is not part of it.
  *
- * Validate the result of this rather than the raw input wherever a name is
- * persisted somewhere durable and public. The browser trims before it emits,
- * but a socket is an open door: anything speaking the protocol directly can
- * send '  Alex  ' or '   ', and both would otherwise land on a leaderboard --
- * the second as a row with no name in it at all, since a whitespace-only
- * string clears the length check above.
+ * Validate the RESULT of this, not the raw input, wherever a name is persisted
+ * somewhere durable and public. The browser trims before it emits, but anything
+ * speaking the protocol directly can send '   ' — which clears the length check
+ * above and lands on the leaderboard as a row with no name in it.
  */
 const normalizePlayerName = (name) => (typeof name === 'string' ? name.trim() : '');
 
@@ -58,16 +46,6 @@ const isValidDailyToken = (token) =>
  * address it; a malformed date just fails to find any matching attempt. */
 const isValidDailyDate = (date) => typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date);
 
-/**
- * Board dimensions and mine count. The rule itself lives in
- * shared/boardConfig.js so the client checks the same thing before it ever
- * emits; this is only the socket-layer entry point.
- *
- * NOTE ON NaN: the rule asks "is this VALID?" with `<` rather than "is this
- * invalid?" with `>=`. Every comparison against NaN is false, so the `>=` form
- * used to let a NaN dimension through and create a zero-length board.
- */
-
 /** Cell coordinates for openCell / chordCell / toggleFlag. */
 const isValidCoordinate = (row, col) => {
     if (typeof row !== 'number' || typeof col !== 'number') return false;
@@ -78,11 +56,10 @@ const isValidCoordinate = (row, col) => {
 /**
  * Hover coordinates, which additionally allow the "no hover" sentinel.
  *
- * QUIRK, PRESERVED VERBATIM: the original bounds check was skipped whenever
- * EITHER coordinate was -1, not only for the (-1, -1) pair. So (-1, 500) is
- * accepted here, exactly as it was before. Downstream this is harmless — the
- * client treats any -1 as "clear the hover" — but tightening it would be a
- * behavior change, so it is left alone and covered by a test.
+ * QUIRK, PRESERVED: the bounds check is skipped whenever EITHER coordinate is
+ * -1, not only for the (-1, -1) pair, so (-1, 500) is accepted. Harmless
+ * downstream — the client treats any -1 as "clear the hover" — but tightening it
+ * would be a behaviour change, so it is left alone and covered by a test.
  */
 const isValidHoverCoordinate = (row, col) => {
     if (typeof row !== 'number' || typeof col !== 'number') return false;

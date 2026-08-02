@@ -12,14 +12,12 @@ const DEFAULT_METRICS: CellMetrics = { size: 40, gap: 3 };
 /**
  * Measures the board's real geometry rather than reading the size tokens.
  *
- * Custom properties compute to a token sequence, not a length, so the moment
- * --cell-size became a clamp() to fit the viewport, `parseFloat` on it returned
- * NaN and every cursor silently fell back to the 40px default. Reading a real
- * cell is immune to however the size is arrived at.
+ * Custom properties compute to a token sequence, not a length, so once
+ * --cell-size became a clamp(), `parseFloat` on it returned NaN and every cursor
+ * silently fell back to 40px. Measuring a real cell is immune to that.
  *
- * `getComputedStyle().width` and not `getBoundingClientRect()`: cells carry a
- * scale transform during the cascade reveal, and a rect would report the
- * animating size.
+ * `getComputedStyle().width`, not `getBoundingClientRect()`: cells carry a scale
+ * transform during the cascade reveal, and a rect reports the animating size.
  */
 const readCellMetrics = (board: HTMLElement): CellMetrics => {
     const cell = board.querySelector('[role="gridcell"]');
@@ -38,11 +36,10 @@ interface CursorLayerProps {
 }
 
 /**
- * Remote co-op cursors, layered over the board. Reuses the existing
- * cellHover/playerHoverUpdate wire protocol — cell-snapped, not pixel-tracked
- * — and animates between cells via CSS transition rather than a new socket
- * event. PVP never populates playerHovers (server suppresses it), so this
- * renders nothing there.
+ * Remote co-op cursors, layered over the board. Reuses the cellHover wire
+ * protocol — cell-snapped, not pixel-tracked — and animates between cells with a
+ * CSS transition rather than a new socket event. The server suppresses hovers in
+ * PVP, so this renders nothing there.
  */
 export default function CursorLayer({ boardRef }: CursorLayerProps) {
     const playerHovers = useMinesweeperStore((state) => state.playerHovers);

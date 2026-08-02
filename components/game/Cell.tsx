@@ -18,9 +18,8 @@ interface CellParams {
 }
 
 const Cell = ({ cell, row, col, toggleFlag, openCell, chordCell, emitCellHover }: CellParams) => {
-    // Use Zustand selector to only subscribe to hovers for THIS specific cell
-    // Optimization: Use for...in loop to avoid Object.values() array allocation
-    // and return immediately on find (faster than filter)
+    // Subscribes to hovers on THIS cell only. for...in rather than Object.values
+    // so a hot path with 512 instances allocates no array per render.
     const cellHover = useMinesweeperStore((state) => {
         const hovers = state.playerHovers;
         for (const key in hovers) {
@@ -31,8 +30,8 @@ const Cell = ({ cell, row, col, toggleFlag, openCell, chordCell, emitCellHover }
         }
         return null;
     });
-    
-    // Subscribe to other store values separately to avoid unnecessary re-renders
+
+    // One selector per value, so an unrelated write does not re-render the board.
     const bothPressed = useMinesweeperStore((state) => state.bothPressed);
     const isChecked = useMinesweeperStore((state) => state.isChecked);
     const gameOver = useMinesweeperStore((state) => state.gameOver);
@@ -42,10 +41,7 @@ const Cell = ({ cell, row, col, toggleFlag, openCell, chordCell, emitCellHover }
     const setRightClick = useMinesweeperStore((state) => state.setRightClick);
     const setCoord = useMinesweeperStore((state) => state.setCoord);
 
-    // Disable cell interaction in PVP mode before game starts
     const isDisabled = mode === 'pvp' && !pvpStarted;
-
-    // Check if any player is hovering over this cell
     const isHovered = cellHover !== null;
     const hoverColor = cellHover?.color || null;
 
@@ -54,13 +50,12 @@ const Cell = ({ cell, row, col, toggleFlag, openCell, chordCell, emitCellHover }
         : undefined;
 
     /*
-     * Only revealed cells animate, so only they pay for this — a full board is
-     * mostly unopened, and building the delay for all 512 would be wasted work
-     * in the one component with a real render budget.
+     * Only revealed cells call this — building the delay for all 512 would be
+     * wasted work in the one component with a real render budget.
      *
-     * The band needs nothing from the store: a teammate's cascade sweeps just
-     * as well as your own, and no cell has to subscribe to the last-clicked
-     * coordinate, which would re-render every one of them on each mousedown.
+     * The band needs nothing from the store: a teammate's cascade sweeps just as
+     * well as your own, and subscribing to the last-clicked coordinate would
+     * re-render every cell on each mousedown.
      */
     const revealStyle = (): React.CSSProperties => ({
         ...hoverStyle,
@@ -72,27 +67,25 @@ const Cell = ({ cell, row, col, toggleFlag, openCell, chordCell, emitCellHover }
     };
 
     const handleMouseLeave = () => {
-        emitCellHover(-1, -1); // Signal "no hover"
+        emitCellHover(-1, -1);
     };
 
     const handleMouseDown = (event: React.MouseEvent) => {
-        if (isDisabled) return; // Prevent interaction before PVP starts
+        if (isDisabled) return;
 
         setCoord(row, col);
         if (event.button === 0) {
             setLeftClick(true);
         } else if (event.button === 1) {
-            // Middle mouse button - chord immediately
-            event.preventDefault();
+            event.preventDefault(); // middle-click otherwise starts autoscroll
             chordCell(row, col);
         } else if (event.button === 2) {
             setRightClick(true);
         }
-
     };
 
     const handleMouseUp = (event: React.MouseEvent) => {
-        if (isDisabled) return; // Prevent interaction before PVP starts
+        if (isDisabled) return;
 
         if (event.button === 0) {
             if (!bothPressed) {
@@ -108,7 +101,6 @@ const Cell = ({ cell, row, col, toggleFlag, openCell, chordCell, emitCellHover }
         }
     };
 
-    // Generate accessible label for screen readers
     const getAriaLabel = () => {
         if (cell.isMine && (cell.isOpen || gameOver)) {
             return `Mine at row ${row + 1}, column ${col + 1}`;
@@ -133,11 +125,9 @@ const Cell = ({ cell, row, col, toggleFlag, openCell, chordCell, emitCellHover }
             aria-label={getAriaLabel()}
             onMouseEnter={handleMouseEnter}
             onMouseLeave={handleMouseLeave}
+            // Suppress middle-click autoscroll.
             onMouseDown={(e) => {
-                // Prevent middle mouse button default behavior (scrolling)
-                if (e.button === 1) {
-                    e.preventDefault();
-                }
+                if (e.button === 1) e.preventDefault();
             }}>💣</div>;
     }
     if (cell.isOpen) {
@@ -175,11 +165,9 @@ const Cell = ({ cell, row, col, toggleFlag, openCell, chordCell, emitCellHover }
                 }}
                 onMouseEnter={handleMouseEnter}
                 onMouseLeave={handleMouseLeave}
+                // Suppress middle-click autoscroll.
                 onMouseDown={(e) => {
-                    // Prevent middle mouse button default behavior (scrolling)
-                    if (e.button === 1) {
-                        e.preventDefault();
-                    }
+                    if (e.button === 1) e.preventDefault();
                 }}>
 
                 <div className="h-full w-full xl:hidden" onClick={() => { if (!isDisabled) { !isChecked ? toggleFlag(row, col) : {} } }}>
@@ -206,11 +194,9 @@ const Cell = ({ cell, row, col, toggleFlag, openCell, chordCell, emitCellHover }
             }}
             onMouseEnter={handleMouseEnter}
             onMouseLeave={handleMouseLeave}
+            // Suppress middle-click autoscroll.
             onMouseDown={(e) => {
-                // Prevent middle mouse button default behavior (scrolling)
-                if (e.button === 1) {
-                    e.preventDefault();
-                }
+                if (e.button === 1) e.preventDefault();
             }}>
             <div className="h-full w-full xl:hidden" onClick={() => { if (!isDisabled) { isChecked ? openCell(row, col) : toggleFlag(row, col) } }} />
             <div className="h-full w-full hidden xl:block" onClick={() => {
@@ -222,8 +208,7 @@ const Cell = ({ cell, row, col, toggleFlag, openCell, chordCell, emitCellHover }
 
 Cell.displayName = 'Cell';
 
-// Custom comparison function for React.memo
-// Only re-render if cell state actually changes
+/** Re-render only on a real cell-state change. The action props are stable. */
 const arePropsEqual = (prevProps: CellParams, nextProps: CellParams) => {
     return (
         prevProps.cell.isMine === nextProps.cell.isMine &&
@@ -232,7 +217,6 @@ const arePropsEqual = (prevProps: CellParams, nextProps: CellParams) => {
         prevProps.cell.nearbyMines === nextProps.cell.nearbyMines &&
         prevProps.row === nextProps.row &&
         prevProps.col === nextProps.col
-        // Note: Functions (toggleFlag, openCell, etc.) are stable and don't need comparison
     );
 };
 

@@ -33,11 +33,8 @@ export function RadioCardGroup({
 
     return (
         <RadioCardContext.Provider value={ctx}>
-            {/*
-              * role="radiogroup" rather than a <fieldset>: the accessible name
-              * comes from aria-label, and the smoke test locates each group by
-              * exactly that label before reading the <label> cards inside it.
-              */}
+            {/* role="radiogroup" rather than a <fieldset>: the name comes from
+                aria-label, which is how the smoke test locates each group. */}
             <div
                 role="radiogroup"
                 aria-label={ariaLabel}
@@ -67,17 +64,13 @@ export function RadioCard({ value, label, description, onSelect }: RadioCardProp
     const checked = ctx.value === value;
 
     /*
-     * onClick is the ONLY real handler, and onChange below is a deliberate
-     * no-op.
+     * onClick is the ONLY real handler; onChange below is a deliberate no-op.
      *
-     * React synthesises onChange for radios and checkboxes from the very same
-     * native click event it dispatches onClick from, so wiring both ran this
-     * twice on every selection change — which meant one click on the Custom
-     * card called showModal() twice.
-     *
-     * onClick is the one to keep, because it fires whether or not checkedness
-     * actually changed: that is what lets re-clicking the ALREADY-selected
-     * Custom card reopen its dialog, which onChange alone would never do.
+     * React synthesises onChange for radios from the same native click event it
+     * dispatches onClick from, so wiring both ran this twice per selection —
+     * one click on the Custom card called showModal() twice. onClick is the one
+     * to keep, because it fires whether or not checkedness changed, which is
+     * what lets re-clicking the already-selected Custom card reopen its dialog.
      */
     const handleClick = () => {
         ctx.onChange(value);
@@ -92,9 +85,8 @@ export function RadioCard({ value, label, description, onSelect }: RadioCardProp
                 name={ctx.name}
                 value={value}
                 checked={checked}
-                /* Present only so React doesn't warn about a `checked` input
-                 * with no change handler. React restores the DOM checkedness
-                 * from props after the event, so there is nothing to do here. */
+                /* Present only to silence React's warning about a `checked` input
+                 * with no change handler. See the note above. */
                 onChange={() => {}}
                 onClick={handleClick}
             />

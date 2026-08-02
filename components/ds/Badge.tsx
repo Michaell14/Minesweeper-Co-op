@@ -8,13 +8,7 @@ export interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
     intent?: BadgeIntent;
 }
 
-/**
- * A status badge.
- *
- * One element, where NES.css needed a wrapper div sized in ems plus an
- * absolutely-positioned inner span — the wrapper existed only to reserve
- * layout space for a child that had been taken out of flow.
- */
+/** A status badge. */
 export default function Badge({
     intent = "default",
     className,

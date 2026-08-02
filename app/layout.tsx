@@ -109,12 +109,10 @@ export default function RootLayout({
         <link rel="icon" href="/favicon.ico" sizes="any" />
         <link rel="icon" href="/icon.svg" type="image/svg+xml" />
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-        {/*
-          * Applies the stored palette before first paint. Without it a themed
-          * player sees the default palette flash on every load, because nothing
-          * sets data-theme until React hydrates. <html> already carries
-          * suppressHydrationWarning, which is what lets this mutate it safely.
-          */}
+        {/* Applies the stored palette before first paint — nothing sets
+            data-theme until React hydrates, so without this a themed player sees
+            the default flash on every load. <html> carries
+            suppressHydrationWarning, which is what lets this mutate it safely. */}
         <script dangerouslySetInnerHTML={{ __html: NO_FLASH_SCRIPT }} />
         <link rel="canonical" href="https://www.minesweepercoop.com" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />

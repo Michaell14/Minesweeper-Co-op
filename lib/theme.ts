@@ -63,11 +63,9 @@ export function storeTheme(id: string | null): void {
 }
 
 /**
- * The stored choice, or null for the default.
- *
- * Unknown values are discarded rather than trusted: the key is user-writable,
- * and a stale id from a removed palette would otherwise stamp an attribute that
- * matches no rules and silently render the default while claiming otherwise.
+ * The stored choice, or null for the default. Unknown values are discarded: the
+ * key is user-writable, and a stale id from a removed palette would stamp an
+ * attribute matching no rules, rendering the default while claiming otherwise.
  */
 export function readStoredTheme(): string | null {
     try {
@@ -82,11 +80,8 @@ export function readStoredTheme(): string | null {
  * The no-flash script, inlined into <head> and run before first paint.
  *
  * Without it a themed player gets a flash of the default palette on every load,
- * because React has not hydrated yet and nothing has set the attribute. This is
- * the job next-themes used to do; it is small enough not to warrant taking the
- * dependency back.
- *
- * Deliberately dependency-free and self-contained — it runs before any bundle.
+ * because React has not hydrated and nothing has set the attribute yet.
+ * Deliberately dependency-free — it runs before any bundle.
  */
 export const NO_FLASH_SCRIPT = `
 (function () {
@@ -103,12 +98,9 @@ export const NO_FLASH_SCRIPT = `
 export const CURSOR_RAMP_SIZE = 6;
 
 /**
- * A stable cursor colour for a player, as a token reference so it follows the
- * active palette.
- *
- * Returns `var(--ms-cursor-N)` rather than a literal: the value is written to a
- * custom property and read by board.module.css, so the indirection resolves
- * and a theme switch moves live cursors with everything else.
+ * A stable cursor colour for a player, as a token reference rather than a
+ * literal: the value is written to a custom property and read by
+ * board.module.css, so a theme switch moves live cursors with everything else.
  */
 export function cursorColorForId(id: string): string {
     let hash = 0;

@@ -6,17 +6,14 @@ export interface StatusBannerProps {
     startPvpGame: () => void;
     emitConfetti: () => void;
     /**
-     * The two layouts word the PVP waiting states differently. Kept as an
-     * explicit choice rather than the accidental drift it used to be:
+     * The two layouts word the PVP waiting states differently, deliberately:
      *   desktop -> "Opponent: X" / "Waiting for host to start..."
      *   mobile  -> "vs X"        / "Waiting for host..."
      */
     variant: 'desktop' | 'mobile';
 }
 
-/**
- * The strip above the board: PVP lobby states, then win/loss badges.
- */
+/** The strip above the board: PVP lobby states, then win/loss badges. */
 export default function StatusBanner({ startPvpGame, emitConfetti, variant }: StatusBannerProps) {
     const mode = useMinesweeperStore((state) => state.mode);
     const gameOver = useMinesweeperStore((state) => state.gameOver);
@@ -34,13 +31,11 @@ export default function StatusBanner({ startPvpGame, emitConfetti, variant }: St
 
     return (
         <div className="flex items-center justify-center">
-            {/* PVP: Waiting for second player */}
             {mode === 'pvp' && !pvpRoomReady && !pvpStarted &&
                 <div className="pb-12" role="status" aria-label="Waiting for opponent">
                     <p className="text-pixel-md">Waiting for opponent...</p>
                 </div>
             }
-            {/* PVP: Room ready, host sees start button */}
             {mode === 'pvp' && pvpRoomReady && !pvpStarted && pvpIsHost &&
                 <div className="pb-12 text-center">
                     {opponentLine}
@@ -52,14 +47,12 @@ export default function StatusBanner({ startPvpGame, emitConfetti, variant }: St
                     </Button>
                 </div>
             }
-            {/* PVP: Room ready, non-host waits for host to start */}
             {mode === 'pvp' && pvpRoomReady && !pvpStarted && !pvpIsHost &&
                 <div className="pb-12 text-center">
                     {opponentLine}
                     <p className="text-pixel-md">{isDesktop ? 'Waiting for host to start...' : 'Waiting for host...'}</p>
                 </div>
             }
-            {/* Co-op or PVP game won */}
             {gameWon &&
                 <div className="pb-12" role="status" aria-label="Game won">
                     <Badge intent="success" onClick={emitConfetti}>
@@ -67,13 +60,11 @@ export default function StatusBanner({ startPvpGame, emitConfetti, variant }: St
                     </Badge>
                 </div>
             }
-            {/* Co-op game lost */}
             {gameOver && mode === 'co-op' &&
                 <div className="pb-12" role="status" aria-label="Game lost">
                     <Badge intent="error">GAME LOST!</Badge>
                 </div>
             }
-            {/* PVP: This player lost */}
             {gameOver && mode === 'pvp' && !gameWon &&
                 <div className="pb-12" role="status" aria-label={isDesktop ? 'You hit a mine' : 'Hit a mine'}>
                     <Badge intent="error">HIT A MINE!</Badge>

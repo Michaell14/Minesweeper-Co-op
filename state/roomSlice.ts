@@ -4,12 +4,12 @@ import type { MinesweeperState } from './store';
 
 /** Who is in the room, their scores, and where their cursors are. */
 export interface RoomSlice {
-    room: string;                               // Current room code
-    playerJoined: boolean;                      // True once this player is in a room
-    name: string;                               // This player's display name
-    playerStatsInRoom: PlayerStats[];           // Everyone's scores
-    gameOverName: string;                       // Who hit the mine
-    playerHovers: Record<string, PlayerHover>;  // Live hover state, by socket id
+    room: string;
+    playerJoined: boolean;                      // true once this player is in a room
+    name: string;                               // this player's display name
+    playerStatsInRoom: PlayerStats[];           // everyone's scores
+    gameOverName: string;                       // who hit the mine
+    playerHovers: Record<string, PlayerHover>;  // live hover state, by socket id
 
     setRoom: (newRoom: string) => void;
     setPlayerJoined: (isPlayerJoined: boolean) => void;

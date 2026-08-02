@@ -18,8 +18,9 @@ async function initializeRedisClient() {
             } catch (err) {
               console.error('❌ Redis ping failed:', err);
             }
-          }, 60000); // ping every 60 seconds
-          
+          }, 60000);
+
+
         await client.connect().then(() => {
             console.log('Connected to Redis');
         }).catch((err) => {
@@ -33,7 +34,6 @@ async function initializeRedisClient() {
     }
 }
 
-// Initialize Redis client immediately
 const redisClient = initializeRedisClient();
 
 module.exports = { redisClient };

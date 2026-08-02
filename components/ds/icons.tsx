@@ -7,13 +7,6 @@ import React from "react";
  * colour, so the sprite is legible and editable in place — squint at the rows
  * below and you can see the shape. A space is a transparent pixel.
  *
- * They started life as NES.css box-shadow sprites: a 1x1 ::before element
- * carrying one shadow per lit pixel, ~8KB of CSS each, scaled up with a
- * transform, so they could not be recoloured or sized except in whole
- * multiples. Converting them to SVG fixed that but left ~200 opaque coordinate
- * tuples that nobody could edit or extend; this is the same pixel data in the
- * one form that is actually maintainable.
- *
  * To add an icon: draw a 16x16 block, list its colours, export a component.
  */
 

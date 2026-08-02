@@ -12,13 +12,9 @@ export interface NameDialogProps {
 }
 
 /**
- * "Enter your Name", shown before both creating and joining.
- *
- * The two were separate copies of identical markup differing only in which
- * action they called — including two copies of a validity check that reached
- * back into the DOM with `document.querySelector('#dialog-name-create
- * input[name=name]')` to read the value it had just written to the store.
- * A ref reads the same input without needing to know the dialog's own id.
+ * "Enter your Name", shown before both creating and joining — the two differ
+ * only in which action they call. The ref reads the input without the dialog
+ * needing to know its own id.
  */
 export default function NameDialog({ id, confirmLabel, onConfirm, setName }: NameDialogProps) {
     const inputRef = React.useRef<HTMLInputElement>(null);

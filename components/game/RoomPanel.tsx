@@ -14,29 +14,22 @@ export interface RoomPanelProps {
 }
 
 /**
- * The room code, and the way to get someone else into it.
- *
- * A co-op room with nobody else in it is the most common state a new player
- * sees, and it used to look identical to a full one: a code, a Copy Link
- * button, and no indication that the game is meant for more than one person.
- * Being alone is treated as a prompt here rather than as an absence.
+ * The room code, and the way to get someone else into it. An empty co-op room is
+ * the most common state a new player sees, so being alone is treated as a prompt
+ * rather than as an absence.
  */
 export default function RoomPanel({ className = '', centered = false }: RoomPanelProps) {
     const room = useMinesweeperStore((state) => state.room);
     const mode = useMinesweeperStore((state) => state.mode);
     const playerStatsInRoom = useMinesweeperStore((state) => state.playerStatsInRoom);
 
-    /*
-     * PVP has its own waiting-for-opponent copy and a Start button gated on the
-     * second player, so it says all of this already.
-     */
+    // Co-op only: PVP's own waiting copy and gated Start button say this already.
     const isAlone = mode === 'co-op' && playerStatsInRoom.length <= 1;
 
     const [linkCopied, setLinkCopied] = React.useState(false);
     const copyTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    // Cancels the pending "reset to Copy Link" timer if the panel unmounts first
-    // (e.g. leaving the room within 2s of copying).
+    // Cancels the pending "reset to Copy Link" timer if the panel unmounts first.
     React.useEffect(() => () => {
         if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
     }, []);
@@ -75,13 +68,9 @@ export default function RoomPanel({ className = '', centered = false }: RoomPane
                 aria-label="Copy shareable room link to clipboard">
                 {linkCopied ? 'Copied!' : 'Copy Link'}
             </Button>
-            {/*
-              * aria-live on the button itself is unreliable -- screen readers
-              * don't consistently treat an interactive control as a live
-              * region, and its aria-label above never changes anyway. A
-              * dedicated hidden region is the pattern that actually gets
-              * announced.
-              */}
+            {/* aria-live on the button itself is unreliable -- screen readers do
+                not consistently treat an interactive control as a live region,
+                and its aria-label never changes anyway. */}
             <span className="sr-only" aria-live="polite">
                 {linkCopied ? 'Link copied to clipboard' : ''}
             </span>

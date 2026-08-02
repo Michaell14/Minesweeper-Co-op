@@ -12,11 +12,8 @@ export default function CustomBoardErrorDialog() {
             alert
             actionsAlign="between"
             actions={<DialogClose aria-label="Close error dialog">Cancel</DialogClose>}>
-            {/*
-              * The old copy named the mines-under-half rule, which a player can
-              * no longer break -- mines are derived from the difficulty now.
-              * What is left is the dimension range.
-              */}
+            {/* Only the dimension range can be wrong: mines are derived from the
+                difficulty, so the mines-under-half rule cannot be broken. */}
             <p className="text-pixel-sm">
                 Rows must be between {BOARD_LIMITS.MIN_ROWS} and {BOARD_LIMITS.MAX_ROWS},
                 and columns between {BOARD_LIMITS.MIN_COLS} and {BOARD_LIMITS.MAX_COLS}.

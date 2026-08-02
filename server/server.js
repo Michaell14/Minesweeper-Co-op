@@ -22,11 +22,9 @@ const {
     isValidDailyDate,
 } = require('./validation');
 
-// When a new socket connects
 io.on('connection', async (socket) => {
     socket.on(CLIENT_EVENTS.CREATE_ROOM, async ({ room, numRows, numCols, numMines, name, mode }) => {
         try {
-            // Validate input parameters
             if (
                 !isValidRoomCode(room) ||
                 !isValidPlayerName(name) ||
@@ -38,33 +36,29 @@ io.on('connection', async (socket) => {
             }
 
             const roomExists = await roomRepo.exists(room);
-
-            // If the room exists, emit an error to this socket only
             if (roomExists) {
                 socket.emit(SERVER_EVENTS.CREATE_ROOM_ERROR);
                 return;
             }
             socket.join(room);
 
-            await createRoom(room, numRows, numCols, numMines, mode); // Creates the room once we verified that it doesn't exist
+            await createRoom(room, numRows, numCols, numMines, mode);
 
-            // For PVP mode, the creator is the host
+            // In PVP the creator is the host.
             if (mode === 'pvp') {
                 await roomRepo.setFields(room, { hostSocket: socket.id });
             }
 
             await addPlayerToRoom(room, socket.id, name, socket.handshake.auth?.sessionId);
-            io.to(room).emit(SERVER_EVENTS.JOIN_ROOM_SUCCESS, { room, mode, isHost: mode === 'pvp' }); // Returns success with mode and host status
+            io.to(room).emit(SERVER_EVENTS.JOIN_ROOM_SUCCESS, { room, mode, isHost: mode === 'pvp' });
         } catch (error) {
             console.error('Error in createRoom:', error);
             socket.emit(SERVER_EVENTS.CREATE_ROOM_ERROR);
         }
     })
 
-    // When a player joins a room
     socket.on(CLIENT_EVENTS.JOIN_ROOM, async ({ room, name }) => {
         try {
-            // Validate input parameters
             if (!isValidRoomCode(room) || !isValidPlayerName(name)) {
                 socket.emit(SERVER_EVENTS.JOIN_ROOM_ERROR);
                 return;
@@ -74,20 +68,18 @@ io.on('connection', async (socket) => {
 
             socket.join(room);
 
-            // If room does not exist, emit error + leave room
             if (!roomExists) {
                 socket.emit(SERVER_EVENTS.JOIN_ROOM_ERROR);
                 socket.leave(room);
                 return;
             }
 
-            // Check if it's a PVP room and if it's full
             const roomState = await roomRepo.getState(room);
             const mode = roomState.mode || 'co-op';
 
+            // A PVP room holds two, and a reconnecting player is not a third.
             if (mode === 'pvp') {
                 const players = roomRepo.playersFrom(roomState);
-                // Check if player is already in the room (reconnecting)
                 const isReconnecting = players.includes(socket.id);
 
                 if (!isReconnecting && players.length >= 2) {
@@ -99,9 +91,8 @@ io.on('connection', async (socket) => {
 
             await addPlayerToRoom(room, socket.id, name, socket.handshake.auth?.sessionId);
 
-            // For PVP mode, check if this player is the host
             const isHost = mode === 'pvp' && roomState.hostSocket === socket.id;
-            // Include difficulty config so joining players can set their flag counter correctly
+            // The dimensions come along so the joiner's flag counter is right.
             socket.emit(SERVER_EVENTS.JOIN_ROOM_SUCCESS, {
                 room,
                 mode,
@@ -109,19 +100,16 @@ io.on('connection', async (socket) => {
                 numRows: parseInt(roomState.numRows),
                 numCols: parseInt(roomState.numCols),
                 numMines: parseInt(roomState.numMines)
-            }); // Send to joining player
+            });
 
-            // If PVP mode and now 2 players, notify that room is ready
             if (mode === 'pvp') {
                 const updatedPlayers = await roomRepo.getPlayers(room);
                 if (updatedPlayers.length === 2) {
-                    // Get host and player names
                     const hostSocket = roomState.hostSocket;
                     const guestSocket = updatedPlayers.find(p => p !== hostSocket);
                     const hostName = await playerRepo.getName(hostSocket);
                     const guestName = await playerRepo.getName(guestSocket);
 
-                    // Notify both players that room is ready with player info
                     io.to(hostSocket).emit(SERVER_EVENTS.PVP_ROOM_READY, {
                         opponentName: guestName,
                         isHost: true
@@ -148,7 +136,6 @@ io.on('connection', async (socket) => {
             return false;
         }
 
-        // Verify player is actually in the room's player list
         const roomState = await roomRepo.getState(room);
         if (!isPlayerInRoom(roomState, socket.id)) {
             socket.emit(SERVER_EVENTS.ROOM_DOES_NOT_EXIST_ERROR);
@@ -159,14 +146,11 @@ io.on('connection', async (socket) => {
         return true;
     }
 
-    // When a player opens a cell
     socket.on(CLIENT_EVENTS.OPEN_CELL, async ({ room, row, col }) => {
         try {
-            // Validate input parameters
             if (!isValidRoomCode(room) || !isValidCoordinate(row, col)) return;
 
-            // If player is somehow clicking on a cell, but they haven't managed to enter a room, then return
-            // Scenario: Room times out and gets deleted
+            // Catches a click on a room that timed out and was deleted.
             if (!(await isValid(room))) return;
             await openCell(row, col, room, socket.id);
         } catch (error) {
@@ -176,7 +160,6 @@ io.on('connection', async (socket) => {
 
     socket.on(CLIENT_EVENTS.CHORD_CELL, async ({ room, row, col }) => {
         try {
-            // Validate input parameters
             if (!isValidRoomCode(room) || !isValidCoordinate(row, col)) return;
 
             if (!(await isValid(room))) return;
@@ -188,7 +171,6 @@ io.on('connection', async (socket) => {
 
     socket.on(CLIENT_EVENTS.TOGGLE_FLAG, async ({ room, row, col }) => {
         try {
-            // Validate input parameters
             if (!isValidRoomCode(room) || !isValidCoordinate(row, col)) return;
 
             if (!(await isValid(room))) return;
@@ -200,7 +182,6 @@ io.on('connection', async (socket) => {
 
     socket.on(CLIENT_EVENTS.EMIT_CONFETTI, async ({ room }) => {
         try {
-            // Validate input parameters
             if (!isValidRoomCode(room)) return;
 
             if (!(await isValid(room))) return;
@@ -212,28 +193,25 @@ io.on('connection', async (socket) => {
 
     socket.on(CLIENT_EVENTS.CELL_HOVER, async ({ room, row, col }) => {
         try {
-            // Validate input parameters (row/col of -1 means "no hover")
+            // row/col of -1 means "no hover".
             if (!isValidRoomCode(room) || !isValidHoverCoordinate(row, col)) return;
 
-            // CRITICAL: Validate that the player is actually in the room
-            // This prevents unauthorized hover spam
+            // Membership is re-checked inline rather than via `isValid`: this
+            // must not emit an error or drop the socket, only refuse the spam.
             const roomExists = await roomRepo.exists(room);
             const playerExists = await playerRepo.exists(socket.id);
             if (!roomExists || !playerExists) return;
 
-            // Verify player is actually in the room's player list
             const roomState = await roomRepo.getState(room);
             if (!isPlayerInRoom(roomState, socket.id)) return;
 
-            // Skip hover broadcasting in PVP mode - players shouldn't see opponent's cursor
+            // PVP racers must not see each other's cursor.
             if (roomState.mode === 'pvp') return;
 
-            // Get player name for the hover event
             const playerName = await playerRepo.getName(socket.id);
             if (!playerName) return;
 
-            // Broadcast to everyone else in the room
-            socket.to(room).emit(SERVER_EVENTS.PLAYER_HOVER_UPDATE, { 
+            socket.to(room).emit(SERVER_EVENTS.PLAYER_HOVER_UPDATE, {
                 id: socket.id, 
                 row, 
                 col, 
@@ -246,7 +224,6 @@ io.on('connection', async (socket) => {
 
     socket.on(CLIENT_EVENTS.RESET_GAME, async ({ room }) => {
         try {
-            // Validate input parameters
             if (!isValidRoomCode(room)) return;
 
             if (!(await isValid(room))) return;
@@ -312,20 +289,17 @@ io.on('connection', async (socket) => {
     });
 
     socket.on(CLIENT_EVENTS.PLAYER_LEAVE, async () => {
-        // Two independent jobs, so they get two independent try/catch blocks.
-        // Sharing one meant a Redis blip in forgetRoom skipped removePlayer
-        // entirely, and leaving does NOT disconnect the socket — the client
-        // emits this and returns to the landing page still connected. So the
-        // leaver stayed in the room: still in the score table, still counted,
-        // still keeping the room alive, with their own screen already home.
+        // Two independent jobs, so two independent try/catch blocks. Sharing one
+        // meant a Redis blip in forgetRoom skipped removePlayer entirely — and
+        // leaving does NOT disconnect the socket, so the leaver stayed in the
+        // room, still scored and still counted, with their screen already home.
         try {
             // Walking out on purpose is the one exit that must not be resumed.
             // `disconnect` below runs the same removePlayer and deliberately
             // leaves the session's room intact, which is what a reload rides.
             await forgetRoom(socket);
         } catch (error) {
-            // Resume stays armed if this failed — there is nothing better to do
-            // about that here, but it must not cost them the leave as well.
+            // Resume stays armed, but that must not cost them the leave as well.
             console.error('Error forgetting room on playerLeave:', error);
         }
 
@@ -353,7 +327,6 @@ io.on('connection', async (socket) => {
     }
 });
 
-// Start the server, enter
 server.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });

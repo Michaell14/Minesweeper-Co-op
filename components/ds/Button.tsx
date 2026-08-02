@@ -17,10 +17,9 @@ export interface ButtonProps
 /**
  * The one button.
  *
- * `type` defaults to "button" on purpose. The old markup relied on the HTML
- * default of "submit", so several buttons inside the landing form submitted it
- * as a side effect and had to be talked out of it individually. Callers that
- * want a submit now say so.
+ * `type` defaults to "button", not HTML's "submit": otherwise every button
+ * inside the landing form submits it as a side effect. Callers that want a
+ * submit say so — see DialogClose, which is exactly that.
  */
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function Button(
     { intent = "default", size = "md", className, type = "button", ...rest },

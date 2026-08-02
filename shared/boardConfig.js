@@ -2,29 +2,18 @@
  * Board sizes, difficulties, limits and the validity rule — the one copy.
  *
  * Imported by BOTH halves: the client via `@/shared/boardConfig`, the server via
- * `require('../shared/boardConfig')`. Written as CommonJS so it works untouched
- * from the CJS server and from the bundler.
- *
- * This only works because Heroku deploys the whole repository. If the backend
- * ever moves back to `git subtree push --prefix server`, only `server/` would
- * ship and this import would break the deploy — see ARCHITECTURE.md §6.
- *
- * These values used to live in four places: lib/difficultyConfig, the store's
- * initial state, leaveRoom, and Landing's cancel handler — with the size rules
- * duplicated again in server/validation.js under *different* limits to the
- * client's.
+ * `require('../shared/boardConfig')`. CommonJS so it works untouched from the CJS
+ * server and from the bundler. Viable only because the whole repo deploys — see
+ * ARCHITECTURE.md §6.
  *
  * ## Size and difficulty are separate axes
  *
- * They used to be one list of three presets, so "Hard" meant both 20x16 AND 60
- * mines and you could not have a small hard board. Size now picks the
- * dimensions and difficulty picks the MINE DENSITY; `mineCountFor` combines
- * them. Only the resulting numbers cross the wire — the server never sees a
- * size or difficulty name, so this split needs no protocol change.
+ * Size picks the dimensions, difficulty picks the MINE DENSITY, and
+ * `mineCountFor` combines them, so a small hard board is possible. Only the
+ * resulting numbers cross the wire — the server never sees either label.
  *
- * The densities are chosen so the old three presets are still reachable, on the
- * diagonal: Small+Easy is 10 mines, Medium+Medium is 40, Large+Hard is 60,
- * exactly as before.
+ * The densities keep the old three presets reachable on the diagonal:
+ * Small+Easy is 10 mines, Medium+Medium is 40, Large+Hard is 60.
  */
 
 /** The named board dimensions. Custom boards are bounded by BOARD_LIMITS instead. */
@@ -40,13 +29,12 @@ const CUSTOM_SIZE = 'Custom';
 /**
  * The densest board the no-guess generator can actually deliver.
  *
- * Boards are generated with a no-guess guarantee, and the fallback when that
- * fails is SILENT — an unsolvable board is indistinguishable from a real one —
- * so the ceiling on difficulty is wherever the solver stops finding layouts,
- * not a matter of taste. Measured per-candidate solvable rates on a 20x16:
- * 18.8% -> 17%, 20.6% -> 7%, 22% -> 3%, 24% -> 0.3%. At `DEFAULT_MAX_ATTEMPTS`
- * (300, in server/utils/gameUtils.js) 20.6% never fell back across 200 games on
- * every shipped size; 22% still did.
+ * The no-guess fallback is SILENT — a guessy board is indistinguishable from a
+ * real one — so the ceiling is wherever the solver stops finding layouts, not a
+ * matter of taste. Measured per-candidate solvable rates on a 20x16: 18.8% ->
+ * 17%, 20.6% -> 7%, 22% -> 3%, 24% -> 0.3%. At `DEFAULT_MAX_ATTEMPTS` (300, in
+ * server/domain/boardGen.js) 20.6% never fell back across 200 games on every
+ * shipped size; 22% still did.
  *
  * `boardConfig.test.js` holds every density to this, so raising one without
  * re-measuring fails the suite rather than quietly turning no-guess off.
@@ -71,7 +59,7 @@ const DIFFICULTY_LEVELS = [
 const DEFAULT_SIZE = 'Medium';
 const DEFAULT_DIFFICULTY = 'Medium';
 
-/** Accepted range for a custom board. The server enforces these; the client now matches. */
+/** Accepted range for a custom board, enforced on both halves. */
 const BOARD_LIMITS = {
     MIN_ROWS: 8,
     MAX_ROWS: 32,
@@ -87,20 +75,15 @@ const BOARD_LIMITS = {
 const maxMinesFor = (area) => Math.ceil(area / 2) - 1;
 
 /**
- * How many mines a size/difficulty pair works out to.
- *
- * Pure, and the single place the two axes are combined — the client computes a
- * mine count with this before emitting createRoom, and the server only ever
- * sees the number.
+ * How many mines a size/difficulty pair works out to — pure, and the single
+ * place the two axes are combined.
  *
  * An unrecognised difficulty falls back to the default density rather than
- * throwing, so a stale label in the store can never produce a zero-mine board.
+ * throwing, so a stale label can never produce a zero-mine board.
  *
  * Anything that is not a whole board — a fraction, a negative, NaN, a string —
- * returns 0, which `isValidBoardConfig` then rejects. A loud failure at the
- * validation boundary beats a plausible-looking number for an impossible board:
- * two negative dimensions multiply to a positive area, so a laxer guard here
- * would have answered "4 mines" for a -5x-5 grid.
+ * returns 0, which `isValidBoardConfig` rejects. A laxer guard would answer
+ * "4 mines" for a -5x-5 grid, since two negatives multiply to a positive area.
  */
 const mineCountFor = (numRows, numCols, difficultyTitle) => {
     if (!Number.isInteger(numRows) || !Number.isInteger(numCols)) return 0;
@@ -128,7 +111,7 @@ const sizePreset = (sizeTitle) => BOARD_SIZES.find((s) => s.title === sizeTitle)
 
 const DEFAULT_SIZE_PRESET = sizePreset(DEFAULT_SIZE) || BOARD_SIZES[0];
 
-/** The board a fresh client starts on: 16x16, 40 mines, unchanged by the split. */
+/** The board a fresh client starts on: 16x16, 40 mines. */
 const DEFAULT_PRESET = {
     rows: DEFAULT_SIZE_PRESET.rows,
     cols: DEFAULT_SIZE_PRESET.cols,
@@ -136,12 +119,9 @@ const DEFAULT_PRESET = {
 };
 
 /**
- * The one board every player gets on a given day's Daily Challenge: Medium
- * size, Extreme difficulty -- the hardest density the no-guess generator can
- * reliably deliver (MAX_SAFE_DENSITY itself). Daily generation isn't on a
- * latency-sensitive path (server/game/daily.js runs it once per day, not per
- * click), so it can afford the extra search cost this density needs, unlike
- * a regular room where Extreme is already the ceiling players can pick.
+ * The one board every player gets each day: Medium size at Extreme difficulty,
+ * which is MAX_SAFE_DENSITY itself. Generation runs once per day rather than per
+ * click, so it can afford the extra search that density costs.
  */
 const DAILY_PRESET = {
     rows: 16,
@@ -150,11 +130,8 @@ const DAILY_PRESET = {
 };
 
 /**
- * Every size/difficulty combination the UI can produce.
- *
- * Exists so `server/tests/validation.test.js` can prove the server accepts all
- * of them — adding a size or difficulty the server would reject fails there
- * rather than when a player picks it.
+ * Every size/difficulty combination the UI can produce. Exists so
+ * `server/tests/validation.test.js` can prove the server accepts all of them.
  */
 const ALL_PRESETS = BOARD_SIZES.flatMap((size) =>
     DIFFICULTY_LEVELS.map((level) => ({

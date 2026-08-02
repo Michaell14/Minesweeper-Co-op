@@ -17,17 +17,15 @@ interface DailyChallengeParams {
     getDailyLeaderboard: () => void;
 }
 
-/** Board takes hover callbacks for co-op cursor presence, which the daily
- * challenge (solo, no room) has no use for -- extra args are ignored. */
+/** Board's hover callbacks are for co-op cursor presence; the daily is solo. */
 const noop = () => {};
 
 /**
  * Sibling to Grid.tsx, not a variant of it: none of Grid's room/PVP-progress
- * layout applies to a solo, room-free game. Reuses gameSlice's board/gameOver/
- * gameWon and the existing Board/Cell/FlagCounter components unchanged --
- * daily and room views are mutually exclusive (app/page.tsx renders exactly
- * one), so sharing those fields costs nothing and keeps the "board mounts
- * exactly once" invariant automatically.
+ * layout applies to a solo, room-free game. Reuses gameSlice's
+ * board/gameOver/gameWon and the Board/Cell/FlagCounter components unchanged —
+ * app/page.tsx renders exactly one of daily and room, so sharing those fields
+ * costs nothing and keeps the "board mounts exactly once" invariant.
  */
 export default function DailyChallenge({ leaveDaily, dailyOpenCell, dailyChordCell, dailyToggleFlag, getDailyLeaderboard }: DailyChallengeParams) {
     const board = useMinesweeperStore((state) => state.board);
@@ -35,13 +33,9 @@ export default function DailyChallenge({ leaveDaily, dailyOpenCell, dailyChordCe
     const dailyRank = useMinesweeperStore((state) => state.dailyRank);
     const { remainingFlags } = useGameStats();
 
-    // <Timer> (below) reads gameSlice's shared run clock, the same one
-    // Grid.tsx feeds for co-op/PVP. The daily socket handlers in
-    // hooks/useGameEvents.ts set it directly as each event arrives, rather
-    // than this component deriving it reactively -- this component can mount
-    // with a board already present (a resume arrives with both in one event),
-    // and a useEffect-based sync here would render one frame of gameSlice's
-    // PREVIOUS clock value before catching up.
+    // <Timer> reads gameSlice's shared run clock, which the daily handlers in
+    // hooks/useGameEvents.ts set directly -- deriving it here reactively would
+    // render one frame of the previous clock value first.
 
     const boardProps = {
         toggleFlag: dailyToggleFlag,
@@ -51,11 +45,8 @@ export default function DailyChallenge({ leaveDaily, dailyOpenCell, dailyChordCe
         handleBoardLeave: noop,
     };
 
-    /**
-     * A resumed terminal attempt (dailyAlreadyAttempted) never carries a board
-     * -- the server explicitly withholds one there -- so board.length === 0
-     * distinguishes "no board available" from a board mid-play.
-     */
+    // A resumed terminal attempt never carries a board -- the server withholds
+    // one -- so an empty board means "none available", not "none opened yet".
     const hasBoard = board.length > 0;
 
     return (

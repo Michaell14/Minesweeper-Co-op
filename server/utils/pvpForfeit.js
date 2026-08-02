@@ -1,19 +1,17 @@
 /**
  * Losing a race by walking away — but not by pressing refresh.
  *
- * Dropping out of a PVP game hands the win to whoever is left, which is right
- * when someone quits and wrong when their tab reloaded. The server cannot tell
- * the two apart: both arrive as a disconnect. So the decision waits.
+ * Dropping out hands the win to whoever is left, which is right when someone
+ * quits and wrong when their tab reloaded, and both arrive as a disconnect. So
+ * the decision waits.
  *
- * The wait needs no cancellation. When the timer fires it simply looks at the
- * room again: a player who came back is in it, and the forfeit is dropped. That
- * is why the grace period is expressed as "is the room whole again?" rather than
- * as a flag someone has to remember to clear.
+ * The wait needs no cancellation: when the timer fires it just looks at the room
+ * again, and a player who came back is in it. Hence "is the room whole again?"
+ * rather than a flag someone has to remember to clear.
  *
- * The timer is in memory, which is the honest trade for a single-process server:
- * a restart during the window means no forfeit is awarded and the race simply
- * carries on with one player. Losing a forfeit is a far cheaper failure than
- * wrongly ending someone's game.
+ * The timer is in memory, the honest trade for a single-process server — a
+ * restart mid-window means no forfeit is awarded and the race carries on with
+ * one player, a far cheaper failure than wrongly ending someone's game.
  */
 
 const roomRepo = require('../data/roomRepo');

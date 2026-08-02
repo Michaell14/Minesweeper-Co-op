@@ -1,7 +1,4 @@
-/**
- * Throttle function to limit the rate at which a function can fire
- * Used for hover events to prevent network spam
- */
+/** Rate-limits a function. Used on hover events to keep them off the wire. */
 export function throttle<T extends (...args: any[]) => any>(
     func: T,
     limit: number

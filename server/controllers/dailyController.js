@@ -12,15 +12,14 @@ const { isValidDailyToken, isValidPlayerName, normalizePlayerName } = require('.
 const { SERVER_EVENTS } = require('../../shared/events');
 
 /**
- * The server's own day boundary -- UTC midnight, never client-supplied.
- * Routes through Date.now() explicitly (rather than `new Date()`) so it
- * shares a clock with the elapsedMs timestamps in game/daily.js -- both are
- * then controllable by the same jest.spyOn(Date, 'now') in tests.
+ * The server's own day boundary -- UTC midnight, never client-supplied. Routes
+ * through Date.now() rather than `new Date()` so it shares a clock with the
+ * elapsedMs timestamps in game/daily.js, and one jest.spyOn controls both.
  */
 const todayUtc = () => new Date(Date.now()).toISOString().slice(0, 10);
 
-/** Socket.io room used only to fan out live leaderboard updates -- unrelated
- * to the Redis `room:` hash / co-op-PVP room model. */
+/** Socket.io room for fanning out live leaderboard updates -- unrelated to the
+ * Redis `room:` hash. */
 const dailyLeaderboardChannel = (date) => `daily-lb:${date}`;
 
 const parseBoard = (raw) => (raw ? JSON.parse(raw) : null);
@@ -30,10 +29,9 @@ const parseIntOrUndefined = (raw) => {
 };
 
 /**
- * Lazily generates and caches the day's board on first request. The lock here
- * is a thundering-herd optimization, not a correctness requirement: generation
- * is a pure function of `date`, so two racers converge on the identical board
- * regardless of who "wins" -- see game/daily.js and data/keys.js.
+ * Lazily generates and caches the day's board on first request. The lock is a
+ * thundering-herd optimization, not a correctness requirement: generation is a
+ * pure function of `date`, so two racers converge on the identical board.
  */
 const ensureDailyBoard = async (date) => {
     let boardState = await dailyRepo.getBoardState(date);
@@ -57,18 +55,17 @@ const ensureDailyBoard = async (date) => {
         if (boardState && boardState.board) return boardState;
     }
 
-    // Still nothing after ~2s (lock holder crashed?) -- generate locally.
-    // Deterministic, so this converges to the same board either way.
+    // Still nothing after ~2s (lock holder crashed?) -- generate locally, which
+    // is deterministic and so converges to the same board anyway.
     await dailyRepo.saveBoardState(date, generateDailyBoardForDate(date));
     return await dailyRepo.getBoardState(date);
 };
 
 /**
- * Reads (or creates, if none exists yet) the attempt and emits whichever of
- * dailyAlreadyAttempted/dailyStarted fits its status. Only ever called while
- * holding the start lock for (date, token) -- see startDaily below -- so two
- * concurrent callers for the same token can never both reach the "create a
- * fresh attempt" branch.
+ * Reads (or creates) the attempt and emits whichever of
+ * dailyAlreadyAttempted/dailyStarted fits its status. Only ever called under the
+ * start lock for (date, token), so two callers for the same token can never both
+ * reach the "create a fresh attempt" branch.
  */
 const emitStartResult = async ({ socket, date, boardState, numRows, numCols, numMines, totalSafeCells }, dailyAttemptToken) => {
     const attempt = await dailyRepo.getAttempt(date, dailyAttemptToken);
@@ -91,10 +88,9 @@ const emitStartResult = async ({ socket, date, boardState, numRows, numCols, num
     }
 
     if (attempt && attempt.status) {
-        // Resume: same board, and crucially the ORIGINAL startedAt, so the
-        // client's timer picks up true elapsed time rather than restarting
-        // at 0. This -- not the client's localStorage flag -- is the actual
-        // backstop for "one attempt per day."
+        // Resume: same board, and crucially the ORIGINAL startedAt, so the timer
+        // picks up true elapsed time rather than restarting at 0. This -- not the
+        // client's localStorage flag -- is the real backstop for one-per-day.
         socket.emit(SERVER_EVENTS.DAILY_STARTED, {
             date,
             board: projectBoard(parseBoard(attempt.board)),
@@ -137,12 +133,9 @@ const startDaily = async ({ socket, dailyAttemptToken }) => {
 
         const lockAcquired = await dailyRepo.acquireStartLock(date, dailyAttemptToken);
         if (!lockAcquired) {
-            // Another request for this same token -- e.g. a second tab of the
-            // same browser, since the attempt token is shared via
-            // localStorage -- is already creating/resolving the attempt.
-            // Wait for it rather than racing to create a second attempt: the
-            // lock must actually gate this critical section, not just decide
-            // whether to release it.
+            // Another request for this token -- a second tab, since the token is
+            // shared via localStorage -- is already resolving the attempt. Wait
+            // for it rather than racing to create a second one.
             for (let i = 0; i < 20; i++) {
                 await new Promise((resolve) => setTimeout(resolve, 100));
                 const attempt = await dailyRepo.getAttempt(date, dailyAttemptToken);
@@ -151,9 +144,8 @@ const startDaily = async ({ socket, dailyAttemptToken }) => {
                     return;
                 }
             }
-            // Lock holder never wrote anything (crashed?) -- proceed
-            // best-effort rather than leaving the player stuck; see
-            // ensureDailyBoard's identical fallback reasoning above.
+            // Lock holder never wrote anything (crashed?) -- proceed best-effort
+            // rather than leave the player stuck, as ensureDailyBoard does.
             await emitStartResult(ctx, dailyAttemptToken);
             return;
         }
@@ -171,9 +163,8 @@ const startDaily = async ({ socket, dailyAttemptToken }) => {
 /** Handles 'submitDailyScore'. Only a 'won_pending_submit' attempt can submit. */
 const submitDailyScore = async ({ socket, io, dailyAttemptToken, date, name }) => {
     try {
-        // Validate what actually gets stored, not what arrived: the leaderboard
-        // is the one durable, public thing here, and today's entry is not
-        // rewritable.
+        // Validate what gets STORED, not what arrived: the leaderboard is the one
+        // durable public thing here, and today's entry is not rewritable.
         const displayName = normalizePlayerName(name);
         if (!isValidDailyToken(dailyAttemptToken) || !isValidPlayerName(displayName)) return;
 
@@ -186,9 +177,8 @@ const submitDailyScore = async ({ socket, io, dailyAttemptToken, date, name }) =
 
         socket.emit(SERVER_EVENTS.DAILY_SCORE_SUBMITTED, { rank, elapsedMs, totalEntries });
 
-        // Join before broadcasting so the submitter (who may never have called
-        // getDailyLeaderboard) is guaranteed to receive this update too, not
-        // just other sockets already watching the channel.
+        // Join before broadcasting: the submitter may never have called
+        // getDailyLeaderboard, and must still receive this update.
         socket.join(dailyLeaderboardChannel(date));
         const entries = await dailyRepo.getLeaderboardTop(date);
         io.to(dailyLeaderboardChannel(date)).emit(SERVER_EVENTS.DAILY_LEADERBOARD_UPDATE, { entries });

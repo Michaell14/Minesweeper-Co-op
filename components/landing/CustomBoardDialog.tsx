@@ -7,22 +7,16 @@ import { Button, Dialog, DialogClose, Field, Input } from "@/components/ds";
 import { BOARD_LIMITS, CUSTOM_SIZE, DEFAULT_SIZE, isValidBoardConfig, mineCountFor } from "@/shared/boardConfig";
 import { DIALOGS, closeDialog, openDialog } from "@/lib/dialogs";
 
-/**
- * The custom dialog no longer asks for a mine count — difficulty supplies the
- * density, so mines are derived from whatever dimensions are typed here.
- */
+/** No mine count: difficulty supplies the density, so mines are derived. */
 interface CustomFormValues {
     rows: number;
     cols: number;
 }
 
 /**
- * Hand-rolled board dimensions.
- *
- * Takes no props: it reads the dimensions it is editing and the difficulty it
- * derives mines from straight off the store, and writes back through
- * `setBoardConfig`. It is opened imperatively like every other dialog here, so
- * the card that opens it needs no handle on it — see lib/dialogs.ts.
+ * Hand-rolled board dimensions. Takes no props — it reads the dimensions and the
+ * difficulty off the store and writes back through `setBoardConfig`, and it is
+ * opened imperatively, so the card that opens it needs no handle on it.
  */
 export default function CustomBoardDialog() {
     const numRows = useMinesweeperStore((state) => state.numRows);
@@ -37,9 +31,8 @@ export default function CustomBoardDialog() {
         formState: { errors },
     } = useForm<CustomFormValues>();
 
-    // Live preview of what the typed dimensions work out to at the selected
-    // difficulty. Watched rather than read on submit so the number updates as
-    // you type, which is the only feedback that the mine count is derived.
+    // Watched rather than read on submit so the count updates as you type, which
+    // is the only feedback that the mine count is derived at all.
     const previewRows = Number(watch("rows"));
     const previewCols = Number(watch("cols"));
     const previewMines = mineCountFor(previewRows, previewCols, difficulty);
@@ -49,10 +42,9 @@ export default function CustomBoardDialog() {
         const rows = parseInt(data.rows.toString());
         const cols = parseInt(data.cols.toString());
 
-        // The same check the server will run, so a board the server would
-        // reject can no longer be accepted here and fail later. Only the
-        // dimensions can be wrong now — the derived mine count is valid by
-        // construction for any in-range board.
+        // The same check the server runs, so a board it would reject cannot be
+        // accepted here and fail later. Only the dimensions can be wrong — the
+        // derived mine count is valid by construction for any in-range board.
         if (!isValidBoardConfig(rows, cols, mineCountFor(rows, cols, difficulty))) {
             openDialog(DIALOGS.customError);
             return;
@@ -63,9 +55,9 @@ export default function CustomBoardDialog() {
     });
 
     const cancel = () => {
-        // Back to the default SIZE, keeping the chosen difficulty: the two are
-        // independent now, so backing out of the dimensions dialog is no reason
-        // to throw away a difficulty the player picked separately.
+        // Back to the default SIZE, keeping the difficulty: the two are
+        // independent, so backing out of dimensions is no reason to discard a
+        // difficulty the player picked separately.
         setBoardConfig(DEFAULT_SIZE, difficulty);
         closeDialog(DIALOGS.custom);
     };
@@ -112,12 +104,9 @@ export default function CustomBoardDialog() {
                     aria-required="true"
                     {...register("cols", { required: "Number of Columns is Required." })} />
             </Field>
-            {/*
-              * No mine field: difficulty owns the density, so the count is
-              * derived. Showing it live is what makes that legible -- otherwise
-              * you would pick dimensions and not learn how many mines you got
-              * until the board rendered.
-              */}
+            {/* No mine field: difficulty owns the density. Showing the count live
+                is what makes that legible -- otherwise you would not learn how
+                many mines you got until the board rendered. */}
             <p className="mt-4 mb-0 text-pixel-sm" aria-live="polite">
                 {previewValid
                     ? `${difficulty}: ${previewMines} mines`

@@ -12,10 +12,8 @@ import { useGameActions } from "@/hooks/useGameActions";
 import { useGameEvents } from "@/hooks/useGameEvents";
 
 /**
- * Home Component
  * Chooses between the Landing page, the daily challenge, and the game Grid.
- * Daily and room are mutually exclusive with each other and with Landing, so
- * exactly one of the three is ever mounted. All socket wiring lives in hooks/:
+ * Exactly one of the three is ever mounted. All socket wiring lives in hooks/:
  *   useSocket       - connection lifecycle
  *   useGameActions  - client -> server emits
  *   useGameEvents   - server -> client handler table

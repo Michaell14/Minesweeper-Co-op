@@ -2,9 +2,9 @@
  * All room reads and writes.
  *
  * Callers pass a room CODE, never a key, and get back parsed values (boards and
- * player lists come out as arrays, not JSON strings). Remember that every value
- * in the underlying hash is a string: booleans are stored as 'true'/'false' and
- * compared as such.
+ * player lists come out as arrays, not JSON strings). Every value in the
+ * underlying hash is a string — booleans are stored and compared as
+ * 'true'/'false'.
  */
 
 const { redisClient } = require('../utils/initializeRedisClient');
@@ -18,7 +18,6 @@ const {
     pvpPlayerFields,
     ROOM_TTL_SECONDS,
     ROOM_GRACE_PERIOD_SECONDS,
-    ACTION_LOCK_TTL_SECONDS,
 } = require('./keys');
 
 const exists = async (room) => {
@@ -123,15 +122,6 @@ const releaseInitLock = (room) => releaseLock(initLockKey(room));
 const acquireWinnerLock = (room, owner) => acquireLock(winnerLockKey(room), owner);
 const releaseWinnerLock = (room) => releaseLock(winnerLockKey(room));
 
-const acquireActionLock = (room, owner) =>
-    acquireLock(actionLockKey(room), owner, ACTION_LOCK_TTL_SECONDS);
-const releaseActionLock = (room) => releaseLock(actionLockKey(room));
-
-const acquirePvpActionLock = (room, playerIndex, owner) =>
-    acquireLock(pvpActionLockKey(room, playerIndex), owner, ACTION_LOCK_TTL_SECONDS);
-const releasePvpActionLock = (room, playerIndex) =>
-    releaseLock(pvpActionLockKey(room, playerIndex));
-
 /** Serialises co-op moves, which all share the room's single board. */
 const withActionLock = (room, owner, fn) => withLock(actionLockKey(room), owner, fn);
 
@@ -161,10 +151,6 @@ module.exports = {
     releaseInitLock,
     acquireWinnerLock,
     releaseWinnerLock,
-    acquireActionLock,
-    releaseActionLock,
-    acquirePvpActionLock,
-    releasePvpActionLock,
     withActionLock,
     withPvpActionLock,
 };

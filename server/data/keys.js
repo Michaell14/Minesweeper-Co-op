@@ -1,9 +1,6 @@
 /**
- * Every Redis key and TTL the server uses.
- *
- * These were previously built as inline template strings in seven files, so the
- * data model could only be discovered by grepping for backticks. Nothing outside
- * server/data should construct a key by hand.
+ * Every Redis key and TTL the server uses. Nothing outside server/data should
+ * construct a key by hand.
  *
  * Pure — no client, no I/O.
  */
@@ -16,19 +13,17 @@ const PLAYER_TTL_SECONDS = 86400;
 const LOCK_TTL_SECONDS = 10;
 
 /**
- * Lease on a single move, in either mode — a handful of Redis round trips, plus
- * board generation on a co-op first click (~45ms at worst, on the largest legal
- * board at the highest density). Shorter than LOCK_TTL_SECONDS because every
- * move takes one: a process that dies holding it blocks that board for this
- * long, and no move comes close to being this slow.
+ * Lease on a single move — a handful of Redis round trips, plus board generation
+ * on a co-op first click (~45ms at worst). Shorter than LOCK_TTL_SECONDS because
+ * every move takes one, and a process that dies holding it blocks that board for
+ * the full lease.
  */
 const ACTION_LOCK_TTL_SECONDS = 5;
 
 /**
- * Daily challenge data outlives a room (players may check results or the
- * leaderboard the morning after), but still needs to age out on its own —
- * there is no scheduler in this app to sweep it. 48h covers "finished near
- * midnight UTC" and "checked the next morning" without a dedicated policy.
+ * Daily data outlives a room — players check results the morning after — but
+ * nothing sweeps it, so it ages out on its own. 48h covers "finished near
+ * midnight UTC, checked the next morning".
  */
 const DAILY_TTL_SECONDS = 172800;
 
@@ -46,9 +41,9 @@ const roomKey = (room) => `room:${room}`;
 const playerKey = (socketId) => `player:${socketId}`;
 
 /**
- * Hash: a browser's persistent identity, surviving reconnects and reloads.
- * Player records are keyed by socket id and so do not survive; this maps a
- * stable id from the client's localStorage onto whichever socket it holds now.
+ * Hash: a browser tab's persistent identity, surviving reconnects and reloads.
+ * Player records are keyed by socket id and so do not survive; this maps a stable
+ * id from the client's sessionStorage onto whichever socket it holds now.
  */
 const sessionKey = (sessionId) => `session:${sessionId}`;
 
@@ -65,23 +60,19 @@ const winnerLockKey = (room) => `winner_lock:${room}`;
 const actionLockKey = (room) => `action_lock:${room}`;
 
 /**
- * Lock: one move at a time from ONE PVP player.
- *
- * Keyed per player, not per room, and that is the whole point: the two players
- * hold separate board fields and are meant to race, so serialising them against
- * each other would be a bug of its own. What must not interleave is a player's
- * own two moves.
+ * Lock: one move at a time from ONE PVP player. Keyed per player, not per room —
+ * the two hold separate board fields and are meant to race, so serialising them
+ * against each other would be a bug of its own.
  */
 const pvpActionLockKey = (room, playerIndex) => `action_lock:${room}:p${playerIndex}`;
 
-/**
- * The daily challenge is NOT modeled as a room — see ARCHITECTURE.md / the
- * daily-challenge plan for why (co-op rooms share one mutable board across
- * every member, PVP is hard-capped at 2 players with numbered fields; neither
- * shape fits N independent solo attempts against one template board). This is
- * a separate, parallel key namespace instead, addressed by UTC date and, for
- * per-player state, an opaque client-generated token — never a socket id,
- * since one browser's attempt must survive a reconnect.
+/*
+ * The daily challenge is NOT modeled as a room: co-op rooms share one mutable
+ * board, PVP is hard-capped at 2 players with numbered fields, and neither shape
+ * fits N independent solo attempts against one template. So it gets a parallel
+ * key namespace, addressed by UTC date plus — for per-player state — an opaque
+ * client-generated token, never a socket id, since an attempt must survive a
+ * reconnect. See ARCHITECTURE.md §5.
  */
 
 /** Hash: the day's generated template board (seed, dims, opened start cell). */
@@ -102,12 +93,9 @@ const dailyGenLockKey = (date) => `daily:${date}:gen_lock`;
 const dailyStartLockKey = (date, token) => `daily:${date}:start_lock:${token}`;
 
 /**
- * Lock: one move at a time on one attempt.
- *
- * The same two-tab problem `dailyStartLockKey` exists for, applied to MOVES
- * rather than starts — an attempt's board is a single hash field, so two
- * overlapping moves rewrite all of it and erase each other. Keyed per attempt,
- * so players never wait on one another.
+ * Lock: one move at a time on one attempt — `dailyStartLockKey`'s two-tab problem
+ * applied to MOVES. An attempt's board is one hash field, so two overlapping
+ * moves rewrite all of it. Keyed per attempt, so players never wait on each other.
  */
 const dailyActionLockKey = (date, token) => `daily:${date}:action_lock:${token}`;
 

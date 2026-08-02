@@ -8,10 +8,9 @@ export interface TableProps extends React.TableHTMLAttributes<HTMLTableElement> 
 }
 
 /**
- * A real <table>. The smoke test finds the leaderboard with
- * `table` + `tbody tr` and checks offsetParent for visibility, so the element
- * and its structure have to stay genuinely tabular — this is a skin, not a
- * replacement for the semantics.
+ * A real <table> — a skin, not a replacement for the semantics. The smoke test
+ * finds the leaderboard with `table` + `tbody tr`, so the structure has to stay
+ * genuinely tabular.
  */
 export default function Table({ centered = true, className, ...rest }: TableProps) {
     return (

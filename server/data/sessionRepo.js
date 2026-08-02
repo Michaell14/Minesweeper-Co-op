@@ -1,11 +1,11 @@
 /**
  * Browser sessions.
  *
- * Player records are keyed by socket id, so they do not survive a reconnect —
- * a reload gives you a new socket and therefore a new player. A session is the
- * stable identity the client keeps in sessionStorage; this maps it onto whichever
- * socket currently holds it, so a returning player can be swapped back into
- * their room rather than added as a stranger.
+ * Player records are keyed by socket id, so a reload gives you a new socket and
+ * therefore a new player. A session is the stable identity the client keeps in
+ * sessionStorage; this maps it onto whichever socket holds it now, so a
+ * returning player is swapped back into their room rather than added as a
+ * stranger.
  */
 
 const { redisClient } = require('../utils/initializeRedisClient');
@@ -18,11 +18,10 @@ const getState = async (sessionId) => {
 };
 
 /**
- * Forgets which room this session was in, keeping the session itself.
- *
- * Called only when a player leaves on purpose. A disconnect deliberately does
- * NOT do this: the room it remembers is what lets a reload put them back, and
- * the two arrive at the same `removePlayer` otherwise indistinguishable.
+ * Forgets which room this session was in, keeping the session itself. Called
+ * only on a deliberate leave — a disconnect must NOT do this, since the room it
+ * remembers is what lets a reload put them back, and both otherwise arrive at
+ * the same `removePlayer` indistinguishable.
  */
 const clearRoom = async (sessionId) => {
     const client = await redisClient;

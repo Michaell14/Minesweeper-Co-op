@@ -8,21 +8,16 @@ const playerRepo = require('../data/playerRepo');
 const sessionRepo = require('../data/sessionRepo');
 const { SERVER_EVENTS } = require('../../shared/events');
 
-// Basically updates the player's stats whenever:
-// 1) A player joins/leaves the room
-// 2) A player increments their score
+/** Rebroadcasts the score table. Called on join, leave and every score change. */
 const updatePlayerStatsInRoom = async (room) => {
-    if (!room) return; // Necessary??
+    if (!room) return;
     const playersInRoom = await roomRepo.getPlayers(room);
     if (!playersInRoom) return;
 
-    // Fetch all player data in parallel for better performance
-    const playerDataPromises = playersInRoom.map(playerId =>
-        playerRepo.getState(playerId)
+    const playerStates = await Promise.all(
+        playersInRoom.map(playerId => playerRepo.getState(playerId))
     );
-    const playerStates = await Promise.all(playerDataPromises);
 
-    // Filter out null/undefined player states and map to stats
     const updatedStats = playerStates
         .filter(playerState => playerState && playerState.name)
         .map(playerState => ({
@@ -36,24 +31,11 @@ const updatePlayerStatsInRoom = async (room) => {
 const resetPlayerScores = async (room) => {
     if (!room) return;
     const playersInRoom = await roomRepo.getPlayers(room);
-
     if (!playersInRoom) return;
 
-    // Reset all player scores in parallel for better performance
-    const resetPromises = playersInRoom.map(playerId =>
-        playerRepo.resetScore(playerId)
-    );
-    await Promise.all(resetPromises);
+    await Promise.all(playersInRoom.map(playerId => playerRepo.resetScore(playerId)));
 }
 
-/**
- * Adds a player to a room, or restores one that reconnected.
- *
- * `sessionId` is the browser's persistent id. When it is supplied and already
- * points at a different socket, this is a reconnect rather than a new player:
- * the old socket's record is dropped and its place in the room is handed to the
- * new socket, so a reload does not leave a ghost behind or lose the host.
- */
 /**
  * Puts a returning racer back into a PVP game already in progress.
  *
@@ -62,9 +44,8 @@ const resetPlayerScores = async (room) => {
  * slot by socket id. A reload changes the socket, so the slot has to be
  * repointed or the room is still talking to a socket that no longer exists.
  *
- * What is sent mirrors what `startPvpGame` sends, because the client has to end
- * up in the same state either way — `pvpStarted` set, their own board on screen,
- * the opponent named and their progress known.
+ * What is sent mirrors `startPvpGame`, because the client has to end up in the
+ * same state either way.
  *
  * Returns false when there is nothing to restore, so the caller can fall back to
  * the empty board the lobby shows.
@@ -88,12 +69,10 @@ const restorePvpRacer = async (room, socketId, roomState, previousSocketId) => {
     const opponentProgress = parseInt(roomState[opponent.progressKey], 10) || 0;
 
     /*
-     * Rebuild the player's identity from the ROOM, not from their old record —
-     * `removePlayer` deleted that the moment they dropped, so by the time they
-     * are back there is nothing left to copy. The room outlives the socket and
-     * is what actually owns the race.
+     * Rebuild the player's identity from the ROOM: `removePlayer` deleted their
+     * old record the moment they dropped, so there is nothing left to copy.
      *
-     * `pvpPlayerIndex` is the load-bearing field: pvp.js refuses to act for a
+     * `pvpPlayerIndex` is the load-bearing field — pvp.js refuses to act for a
      * socket it cannot place, so without it they get their board back and every
      * click on it is silently ignored.
      */
@@ -133,6 +112,14 @@ const restorePvpRacer = async (room, socketId, roomState, previousSocketId) => {
     return true;
 };
 
+/**
+ * Adds a player to a room, or restores one that reconnected.
+ *
+ * `sessionId` is the browser's persistent id. When it is supplied and already
+ * points at a different socket, this is a reconnect rather than a new player:
+ * the old socket's record is dropped and its place in the room is handed to the
+ * new socket, so a reload does not leave a ghost behind or lose the host.
+ */
 const addPlayerToRoom = async (room, socketId, name, sessionId) => {
     // Rejoining cancels any grace period the room was counting down.
     await roomRepo.touch(room);
@@ -152,11 +139,10 @@ const addPlayerToRoom = async (room, socketId, name, sessionId) => {
     if (!playerExists) {
         await playerRepo.create(socketId, { room, name, sessionId });
     } else {
-        // Update room and name (in case player rejoins with different name)
+        // Rejoining under a different name is allowed.
         await playerRepo.setFields(socketId, { room, name, sessionId: sessionId || '' });
     }
 
-    // Add the player to the room
     const roomState = await roomRepo.getState(room);
     const mode = roomState.mode || 'co-op';
 
@@ -168,17 +154,14 @@ const addPlayerToRoom = async (room, socketId, name, sessionId) => {
     /*
      * Catching the ARRIVAL up on an outcome they missed, so it goes to them and
      * not to the room. Everyone already here saw it happen; re-broadcasting
-     * re-opens the end-of-game summary on their screen and fires the confetti
-     * again. That was rare when it took a deliberate join of a finished room —
-     * now that a reload rejoins automatically, it would fire every time someone
-     * refreshed.
+     * re-opens their end-of-game summary and fires the confetti again — which,
+     * now that a reload rejoins automatically, would happen on every refresh.
      */
     if (roomState.gameWon === "true") {
         io.to(socketId).emit(SERVER_EVENTS.GAME_WON);
     }
 
     if (roomState.gameOver === "true") {
-        // Get the name of whoever hit the mine (stored in room state or empty)
         const gameOverName = roomState.gameOverName || "Someone";
         io.to(socketId).emit(SERVER_EVENTS.GAME_OVER, gameOverName);
     }
@@ -199,8 +182,7 @@ const addPlayerToRoom = async (room, socketId, name, sessionId) => {
     // the whole reason it is stored as timestamps rather than an elapsed count.
     io.to(socketId).emit(SERVER_EVENTS.GAME_CLOCK, clockOf(roomState));
 
-    // Send the current board to the player who joined (only for co-op)
-    // For PVP, boards are sent when game starts
+    // Co-op only; PVP boards are sent when the game starts.
     if (mode === 'co-op') {
         const board = JSON.parse(roomState.board);
         // Someone joining a finished game should see the mines; mid-game they
@@ -233,7 +215,7 @@ const removePlayer = async (socket, socketId) => {
 
     const roomState = await roomRepo.getState(room);
     if (!roomState || !roomState.players) {
-        // Room already deleted, just clean up player
+        // Room already gone; just clean up the player.
         socket.leave(room);
         await playerRepo.remove(socketId);
         return;
@@ -256,12 +238,8 @@ const removePlayer = async (socket, socketId) => {
         if (playersInRoom.length === 0) {
             await roomRepo.startGracePeriod(room);
         } else {
-            /*
-             * A disconnect mid-race USED to hand the win over immediately. A
-             * reload is a disconnect too, so refreshing the page forfeited the
-             * game before the tab had finished reloading. The decision now waits
-             * to see whether they come back — see pvpForfeit.js.
-             */
+            // A reload reaches the server as a disconnect too, so the forfeit
+            // waits to see whether they come back — see pvpForfeit.js.
             if (mode === 'pvp' && roomState.pvpStarted === 'true' && !roomState.winnerSocket) {
                 const player1Won = roomState.player1GameWon === 'true';
                 const player2Won = roomState.player2GameWon === 'true';
@@ -270,22 +248,20 @@ const removePlayer = async (socket, socketId) => {
                 }
             }
 
-            // Handle PVP disconnection before game starts - reset room ready state
+            // Dropping out of the lobby puts the survivor back in the waiting state.
             if (mode === 'pvp' && roomState.pvpStarted !== 'true') {
                 const remainingPlayer = playersInRoom[0];
 
-                // If the leaving player was the host, transfer host to remaining player
                 if (roomState.hostSocket === socketId) {
                     await roomRepo.setFields(room, { hostSocket: remainingPlayer });
                     io.to(remainingPlayer).emit(SERVER_EVENTS.PVP_HOST_TRANSFERRED);
                 }
 
-                // Notify remaining player to go back to waiting state
                 io.to(remainingPlayer).emit(SERVER_EVENTS.PVP_OPPONENT_LEFT_BEFORE_START);
             }
 
             await updatePlayerStatsInRoom(room);
-            // Notify other players to remove this player's hover
+            // Clears this player's hover on everyone else's board.
             socket.to(room).emit(SERVER_EVENTS.PLAYER_LEFT, socketId);
         }
     }

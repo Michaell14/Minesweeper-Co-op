@@ -11,13 +11,7 @@ export interface InputProps
     className?: string;
 }
 
-/**
- * Text input.
- *
- * Forwards its ref, which react-hook-form's `register()` needs — the previous
- * raw <input className="nes-input"> worked only because register's props were
- * spread directly onto a DOM node.
- */
+/** Text input. Forwards its ref, which react-hook-form's `register()` needs. */
 const Input = React.forwardRef<HTMLInputElement, InputProps>(function Input(
     { size = "md", invalid, className, ...rest },
     ref,

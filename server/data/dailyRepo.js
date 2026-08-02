@@ -1,11 +1,10 @@
 /**
  * All daily-challenge reads and writes.
  *
- * Mirrors roomRepo/playerRepo's shape (raw hash reads, callers get parsed
- * values back), but addresses state by UTC date + an opaque client-generated
- * token instead of a room code / socket id — this is deliberately NOT a room
- * (see keys.js for why). Nothing outside this file should build a `daily:`
- * key by hand.
+ * Mirrors roomRepo/playerRepo's shape, but addresses state by UTC date + an
+ * opaque client-generated token rather than a room code / socket id — this is
+ * deliberately NOT a room (see keys.js). Nothing outside this file should build
+ * a `daily:` key by hand.
  */
 
 const { redisClient } = require('../utils/initializeRedisClient');
@@ -22,10 +21,8 @@ const {
 } = require('./keys');
 
 /**
- * The attempt status vocabulary. An attempt in any of these has reached
- * today's one allowed outcome -- game/daily.js and controllers/dailyController.js
- * both gate core logic on this list, so it lives here once rather than as two
- * copies that could drift.
+ * Statuses meaning the attempt has reached today's one allowed outcome. Both
+ * game/daily.js and dailyController.js gate on this, so it lives here once.
  */
 const TERMINAL_STATUSES = ['failed', 'won_pending_submit', 'completed'];
 
@@ -107,8 +104,8 @@ const markWon = (date, token, finishedAt, elapsedMs) =>
 
 /**
  * Records the player's chosen name and adds them to the leaderboard, keyed by
- * their existing elapsedMs (set by markWon — this never trusts a fresh value
- * from the caller, since the score must come from the server timestamps).
+ * the elapsedMs markWon already stored — never a value from the caller, since
+ * the score has to come from the server's own timestamps.
  */
 const submitScore = async (date, token, name) => {
     const client = await redisClient;
@@ -155,12 +152,10 @@ const getEntryCount = async (date) => {
 /**
  * SET NX EX: returns truthy only for the caller that won the race.
  *
- * The gen lock is an optimization only, not a correctness requirement like
- * PVP's init/winner locks -- two racers generating the same seed compute the
- * identical board, so a missed lock just wastes CPU. The start lock exists
- * because localStorage (and so the attempt token) is shared across every tab
- * of one browser, so two tabs racing `startDaily` for the same token is a
- * real scenario worth serialising.
+ * The gen lock is an optimization, not a correctness requirement — two racers on
+ * the same seed compute the identical board, so a missed lock only wastes CPU.
+ * The start lock is real: the attempt token comes from localStorage and is
+ * shared across every tab, so two tabs racing `startDaily` does happen.
  */
 const acquireLock = async (key, owner) => {
     const client = await redisClient;
@@ -179,12 +174,12 @@ const acquireStartLock = (date, token) => acquireLock(dailyStartLockKey(date, to
 const releaseStartLock = (date, token) => releaseLock(dailyStartLockKey(date, token));
 
 /**
- * Serialises one attempt's moves. Per attempt, so two players never wait on
- * each other — the contention this exists for is one player's own two tabs,
- * which share the token through localStorage.
+ * Serialises one attempt's moves. Per attempt, so two players never wait on each
+ * other — the contention is one player's own two tabs, which share the token
+ * through localStorage.
  *
  * Callers must read the attempt INSIDE `fn`: anything read before the lock was
- * held is the stale snapshot the lock exists to prevent acting on.
+ * held is the stale snapshot the lock exists to guard against.
  */
 const withAttemptLock = (date, token, owner, fn) =>
     withLock(dailyActionLockKey(date, token), owner, fn);

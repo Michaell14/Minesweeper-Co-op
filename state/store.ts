@@ -1,14 +1,12 @@
 /**
- * The client store, assembled from slices.
- *
- * One Zustand store, five concerns — game, board config, room, PVP, input.
- * Slices are plain creators, so a slice can still write another's fields when it
- * genuinely needs to (resetPvpState clears gameOver/gameWon).
+ * The client store, assembled from slices — game, board config, room, PVP,
+ * input, daily. Slices are plain creators, so one can still write another's
+ * fields where it genuinely needs to (resetPvpState clears gameOver/gameWon).
  *
  * Consumers import from `@/app/store`, which re-exports this. Always subscribe
- * with a selector (`useMinesweeperStore((s) => s.board)`) rather than calling the
- * hook bare, or the component re-renders on every unrelated write — including
- * remote hover events, which fire constantly.
+ * with a selector (`useMinesweeperStore((s) => s.board)`) rather than calling
+ * the hook bare, or the component re-renders on every unrelated write —
+ * including remote hover events, which fire constantly.
  */
 import { create } from 'zustand';
 import { createGameSlice, type GameSlice } from './gameSlice';

@@ -2,12 +2,11 @@
  * Per-tab session id, used by the server to recognise a reconnecting player
  * rather than treating them as someone new.
  *
- * Deliberately sessionStorage, not localStorage. localStorage is shared by every
- * tab of the same browser, so a second tab would present the same id and the
- * server would read it as "that player reconnected on a new socket" — evicting
- * the first tab from its room and handing the host role over. sessionStorage is
- * scoped to a single tab and still survives a reload, which is the case this
- * exists for. A brand new tab is genuinely a new player and gets a new id.
+ * sessionStorage, not localStorage: localStorage is shared by every tab, so a
+ * second tab would present the same id and the server would read it as "that
+ * player reconnected on a new socket", evicting the first tab from its room and
+ * handing over the host role. sessionStorage is per-tab and still survives a
+ * reload, which is the case this exists for.
  */
 const STORAGE_KEY = "minesweeper_session_id";
 
