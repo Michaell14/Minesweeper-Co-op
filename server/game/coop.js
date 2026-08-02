@@ -101,13 +101,28 @@ const openCell = async (row, col, room, socketId, roomState, playerScore) => {
             }
         } else {
             // Someone else holds it: poll briefly for their board.
+            let generated = false;
             for (let i = 0; i < 5; i++) {
                 await new Promise(resolve => setTimeout(resolve, 100));
                 const currentState = await roomRepo.getField(room, 'initialized');
                 if (currentState === 'true') {
                     board = await roomRepo.getBoard(room);
+                    generated = true;
                     break;
                 }
+            }
+
+            /*
+             * Give up on the CLICK rather than on the board. `board` is still
+             * the empty grid this room was created with, and every cell of it
+             * claims zero adjacent mines — so revealing from it cascades the
+             * whole thing open and writes that over the layout the lock holder
+             * is in the middle of generating. Losing one click to a retry is the
+             * cheaper of the two.
+             */
+            if (!generated) {
+                console.error(`[coop] board for ${room} was never initialised; dropping the move`);
+                return;
             }
         }
     }

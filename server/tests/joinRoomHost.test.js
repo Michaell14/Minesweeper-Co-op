@@ -140,6 +140,78 @@ describe('a PVP host who reloads in the lobby', () => {
     });
 });
 
+/*
+ * A PVP room holds two. The check that enforces it cannot recognise a
+ * reconnecting player by socket id — theirs is new — and cannot be made on a
+ * snapshot either, since two people can read "there is space" at the same time.
+ */
+describe('the two-player limit', () => {
+    /** A full lobby: both slots taken, neither of them this browser. */
+    const seedFull = () => {
+        mockRedis.seed(`room:${ROOM}`, {
+            ...mockRedis.read(`room:${ROOM}`),
+            players: JSON.stringify([OLD_HOST, GUEST]),
+        });
+        mockRedis.seed(`player:${OLD_HOST}`, { room: ROOM, name: 'Host', score: '0' });
+    };
+
+    const join = async (id, sessionId, name) => {
+        const socket = makeSocket(id, sessionId);
+        await onConnection(socket);
+        await socket.handlers.joinRoom({ room: ROOM, name });
+        return socket;
+    };
+
+    const wasToldFull = (socket) =>
+        socket.emit.mock.calls.some(([event]) => event === 'pvpRoomFull');
+
+    test('turns a genuine third player away', async () => {
+        seedFull();
+
+        const socket = await join('sock-third', 'sess-third', 'Third');
+
+        expect(wasToldFull(socket)).toBe(true);
+        expect(mockRedis.read(`room:${ROOM}`).players).toBe(JSON.stringify([OLD_HOST, GUEST]));
+    });
+
+    /*
+     * A reload races its own disconnect. If the new socket connects before the
+     * old one's removal is processed, the players list still holds two — and
+     * the returning player was shown "Room Full!" for their own room. The
+     * session is the one thing that spans both sockets, so it is what the check
+     * has to ask.
+     */
+    test('lets a reconnecting player back in while their old socket is still listed', async () => {
+        seedFull();
+
+        const socket = await join(NEW_HOST, HOST_SESSION, 'Host');
+
+        expect(wasToldFull(socket)).toBe(false);
+        expect(mockRedis.read(`room:${ROOM}`).players).toContain(NEW_HOST);
+    });
+
+    /*
+     * Unlocked, both of these read a room with one free slot and both take it,
+     * leaving three players in a room `startPvpGame` refuses to start — a lobby
+     * that can never begin, with nothing on screen to say why.
+     */
+    test('two players arriving together cannot both take the last slot', async () => {
+        mockRedis.seed(`room:${ROOM}`, {
+            ...mockRedis.read(`room:${ROOM}`),
+            players: JSON.stringify([GUEST]),
+        });
+
+        const [a, b] = await Promise.all([
+            join('sock-a', 'sess-a', 'A'),
+            join('sock-b', 'sess-b', 'B'),
+        ]);
+
+        const players = JSON.parse(mockRedis.read(`room:${ROOM}`).players);
+        expect(players).toHaveLength(2);
+        expect([wasToldFull(a), wasToldFull(b)].filter(Boolean)).toHaveLength(1);
+    });
+});
+
 describe('an ordinary guest joining a PVP lobby', () => {
     test('is not made host by the re-read', async () => {
         mockRedis.seed(`room:${ROOM}`, {

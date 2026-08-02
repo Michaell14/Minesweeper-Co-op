@@ -3,7 +3,7 @@
 import { useCallback, useMemo } from "react";
 import { useMinesweeperStore } from "@/app/store";
 import { throttle } from "@/lib/throttle";
-import { getOrCreateDailyAttemptToken } from "@/lib/dailyIdentity";
+import { getOrCreateDailyAttemptToken, readDailyAttemptToken } from "@/lib/dailyIdentity";
 import { DEFAULT_DIFFICULTY, DEFAULT_SIZE } from "@/shared/boardConfig";
 import { CLIENT_EVENTS } from "@/shared/events";
 import type { AppSocket } from "@/lib/initSocket";
@@ -47,6 +47,13 @@ export function useGameActions(socket: AppSocket | null) {
         store.clearAllHovers();
         store.resetPvpState(); // also resets gameOver/gameWon
         store.setMode("co-op");
+        // The clock is the record of the run THIS browser played, and
+        // `recordClear` treats a set one as proof there was a run to record.
+        // Left standing, joining a room whose game was already won filed the
+        // previous game's time as a personal best for a board never played:
+        // the server catches an arriving player up with `gameWon`, and the
+        // handler had a stale clock to read.
+        store.setClock({ startedAt: null, endedAt: null });
     }, [socket]);
 
     const createRoom = useCallback(() => {
@@ -90,8 +97,14 @@ export function useGameActions(socket: AppSocket | null) {
     const pvpRematch = useCallback(() => emitForRoom(CLIENT_EVENTS.PVP_REMATCH), [emitForRoom]);
 
     const resetMyBoard = useCallback(() => {
+        const store = useMinesweeperStore.getState();
+        // Nothing confirms a reset, so `gameOver` is cleared optimistically —
+        // which has to follow the same rule the SERVER refuses on. Once the race
+        // has a winner it rejects the reset, and clearing anyway left a board
+        // that looked playable and ignored every click.
+        if (store.pvpWinner) return;
         emitForRoom(CLIENT_EVENTS.RESET_MY_BOARD);
-        useMinesweeperStore.getState().setGameOver(false);
+        store.setGameOver(false);
     }, [emitForRoom]);
 
     const emitCellHover = useCallback(
@@ -125,13 +138,20 @@ export function useGameActions(socket: AppSocket | null) {
         store.setGameOver(false);
         store.setGameWon(false);
         store.resetDailyState();
+        // Same reason as leaveRoom: a clock left running is read as a run this
+        // browser played, and the next room to announce a win would record it.
+        store.setClock({ startedAt: null, endedAt: null });
     }, []);
 
     const emitDailyCellAction = useCallback(
         (event: DailyCellActionEvent, row: number, col: number) => {
             const { dailyActive, dailyDate } = useMinesweeperStore.getState();
             if (!dailyActive || !socket) return;
-            socket.emit(event, { dailyAttemptToken: getOrCreateDailyAttemptToken(), date: dailyDate, row, col });
+            // Read, never mint: the move belongs to the attempt already in
+            // flight. See lib/dailyIdentity.ts for what minting here cost.
+            const dailyAttemptToken = readDailyAttemptToken();
+            if (!dailyAttemptToken) return;
+            socket.emit(event, { dailyAttemptToken, date: dailyDate, row, col });
         },
         [socket]
     );
@@ -178,7 +198,9 @@ export function useGameActions(socket: AppSocket | null) {
         (name: string) => {
             if (!socket) return;
             const { dailyDate } = useMinesweeperStore.getState();
-            socket.emit(CLIENT_EVENTS.SUBMIT_DAILY_SCORE, { dailyAttemptToken: getOrCreateDailyAttemptToken(), date: dailyDate, name });
+            const dailyAttemptToken = readDailyAttemptToken();
+            if (!dailyAttemptToken) return;
+            socket.emit(CLIENT_EVENTS.SUBMIT_DAILY_SCORE, { dailyAttemptToken, date: dailyDate, name });
         },
         [socket]
     );

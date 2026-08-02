@@ -20,8 +20,11 @@ export default function NameDialog({ id, confirmLabel, onConfirm, setName }: Nam
     const inputRef = React.useRef<HTMLInputElement>(null);
 
     const confirm = (e: React.MouseEvent) => {
-        const nameValue = inputRef.current?.value ?? '';
-        if (nameValue.trim().length === 0) {
+        // Trimmed, not merely trim-CHECKED: the surrounding spaces are not part
+        // of the name, and storing them put "  Bob  " on the scoreboard while
+        // every comment about this path claimed the browser had trimmed it.
+        const nameValue = (inputRef.current?.value ?? '').trim();
+        if (nameValue.length === 0) {
             e.preventDefault();
             alert('Please enter a valid name');
             return;

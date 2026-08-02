@@ -57,6 +57,12 @@ const createFakeRedis = () => {
             strings.set(key, value);
             return 'OK';
         }),
+        // The one script the server runs: withLock's ownership-checked release.
+        eval: jest.fn(async (_script, { keys, arguments: args }) => {
+            if (strings.get(keys[0]) !== args[0]) return 0;
+            strings.delete(keys[0]);
+            return 1;
+        }),
         expire: jest.fn(async () => 1),
         zAdd: jest.fn(async (key, { score, value }) => {
             const z = zsets.get(key) || new Map();

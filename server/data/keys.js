@@ -54,6 +54,13 @@ const initLockKey = (room) => `init_lock:${room}`;
 const winnerLockKey = (room) => `winner_lock:${room}`;
 
 /**
+ * Lock: one PVP join at a time for a room. The capacity check and the join that
+ * follows it are one decision, and two people opening the same invite together
+ * would otherwise both find space and both take it.
+ */
+const joinLockKey = (room) => `join_lock:${room}`;
+
+/**
  * Lock: one co-op move at a time. The whole board is one hash field, so every
  * move rewrites all of it; without this, overlapping moves erase each other.
  */
@@ -126,6 +133,7 @@ module.exports = {
     winnerLockKey,
     actionLockKey,
     pvpActionLockKey,
+    joinLockKey,
     pvpPlayerFields,
     dailyBoardKey,
     dailyLeaderboardKey,

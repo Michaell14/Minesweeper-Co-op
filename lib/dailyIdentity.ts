@@ -25,24 +25,60 @@ const generateToken = (): string =>
         ? crypto.randomUUID()
         : Math.random().toString(36).substring(2) + Date.now().toString(36);
 
+/**
+ * The last record this page minted or read, so an attempt survives storage
+ * being unavailable. Only ever a FALLBACK: localStorage is shared between tabs
+ * and is the real record, so a readable one always wins over this.
+ */
+let inMemoryRecord: DailyIdentityRecord | null = null;
+
+/** The current record, or null if there is none anywhere. */
+const readRecord = (): DailyIdentityRecord | null => {
+    try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+            const record = JSON.parse(raw) as DailyIdentityRecord;
+            if (record?.token) return record;
+        }
+    } catch {
+        // Malformed, or storage is blocked entirely.
+    }
+    return inMemoryRecord;
+};
+
+/**
+ * The token an attempt already in flight belongs to, whatever day it was minted
+ * on. Never mints one.
+ *
+ * Moves and score submissions use THIS, not the function below. Re-deriving
+ * "today" on every click meant a browser crossing UTC midnight mid-attempt
+ * silently swapped its token: the server still held the attempt under the old
+ * one, so every move addressed a record that did not exist and was dropped
+ * without a word. The board simply stopped responding.
+ */
+export function readDailyAttemptToken(): string {
+    if (typeof window === "undefined") return "";
+    return readRecord()?.token ?? "";
+}
+
+/** The token for today's attempt, minting one if this browser has none yet. */
 export function getOrCreateDailyAttemptToken(): string {
     if (typeof window === "undefined") return "";
 
     const today = todayUtc();
 
-    try {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        if (raw) {
-            const record = JSON.parse(raw) as DailyIdentityRecord;
-            if (record?.date === today && record?.token) {
-                return record.token;
-            }
-        }
-    } catch {
-        // Malformed record -- fall through and mint a fresh one.
-    }
+    const record = readRecord();
+    if (record?.date === today) return record.token;
 
-    const token = generateToken();
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ date: today, token }));
-    return token;
+    const minted = { date: today, token: generateToken() };
+    inMemoryRecord = minted;
+    try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(minted));
+    } catch {
+        // Blocked or full, e.g. Safari private browsing. The in-memory copy
+        // keeps the attempt playable for this page; only surviving a reload is
+        // lost. Throwing here used to take the whole feature out — the button
+        // did nothing at all, because this call sits inside `startDaily`.
+    }
+    return minted.token;
 }

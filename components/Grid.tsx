@@ -12,7 +12,7 @@
  * Duplicating it would put 512 cells in the DOM for a 16x16 game and make every
  * DOM query ambiguous. DOM order alone does this; no `order` juggling.
  */
-import React, { useEffect } from 'react';
+import React from 'react';
 import { useMinesweeperStore } from '@/app/store';
 import { Button, Dialog, DialogClose, Panel, Switch, TrophyIcon } from '@/components/ds';
 import Board from '@/components/game/Board';
@@ -23,6 +23,7 @@ import FlagCounter from '@/components/game/FlagCounter';
 import Timer from '@/components/game/Timer';
 import RoomPanel from '@/components/game/RoomPanel';
 import { useGameStats } from '@/hooks/useGameStats';
+import { useChording } from '@/hooks/useChording';
 import { DIALOGS, openDialog } from '@/lib/dialogs';
 
 /** Actions passed down from Home. */
@@ -41,10 +42,6 @@ interface GridParams {
 }
 
 const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell, emitConfetti, emitCellHover, handleBoardLeave, startPvpGame, resetMyBoard, pvpRematch }: GridParams) => {
-    const r = useMinesweeperStore((state) => state.r);
-    const c = useMinesweeperStore((state) => state.c);
-    const leftClick = useMinesweeperStore((state) => state.leftClick);
-    const rightClick = useMinesweeperStore((state) => state.rightClick);
     const isChecked = useMinesweeperStore((state) => state.isChecked);
     const mode = useMinesweeperStore((state) => state.mode);
     const gameOver = useMinesweeperStore((state) => state.gameOver);
@@ -55,33 +52,17 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
     const pvpOpponentName = useMinesweeperStore((state) => state.pvpOpponentName);
     const pvpOpponentStatus = useMinesweeperStore((state) => state.pvpOpponentStatus);
     const setIsChecked = useMinesweeperStore((state) => state.setIsChecked);
-    const setBothPressed = useMinesweeperStore((state) => state.setBothPressed);
 
     const { remainingFlags, ownProgressPercent, opponentProgressPercent } = useGameStats();
+
+    // Both-buttons chording, and clearing the button state on a release that
+    // never reaches a cell. See hooks/useChording.ts.
+    useChording(chordCell);
 
     const boardProps = { toggleFlag, openCell, chordCell, emitCellHover, handleBoardLeave };
 
     /** Mobile only — desktop shows the score table inline. */
     const openPlayersDialog = () => openDialog(DIALOGS.players);
-
-    /**
-     * Chording: both buttons pressed together on an opened number opens its
-     * unflagged neighbours. `bothPressed` is the lock that stops the release
-     * from also firing open/flag. `chordCell` must stay memoized in the parent.
-     */
-    useEffect(() => {
-        if (leftClick && rightClick) {
-            setBothPressed(true);
-            if (r >= 0 && c >= 0) {
-                chordCell(r, c);
-            }
-            return;
-        }
-
-        if (!leftClick && !rightClick) {
-            setBothPressed(false);
-        }
-    }, [leftClick, rightClick, r, c, chordCell, setBothPressed]);
 
     /** Reset / rematch controls, shared by both layouts. */
     const actionButtons = (

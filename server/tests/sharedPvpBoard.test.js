@@ -21,6 +21,7 @@ jest.mock('../utils/initializeClient', () => ({
 
 const { startPvpGame, resetMyBoard, pvpRematch } = require('../controllers/pvpController');
 const { redisClient } = require('../utils/initializeRedisClient');
+const { lockedBy, releasedLock } = require('./setup/lockAssertions');
 
 const ROOM = 'r1';
 const HOST = 'sock-host';
@@ -241,8 +242,8 @@ describe('resetMyBoard', () => {
 
         await resetMyBoard({ socket: { id: HOST }, room: ROOM, isValid, io });
 
-        expect(client.set).toHaveBeenCalledWith(`action_lock:${ROOM}:p0`, HOST, { NX: true, EX: 5 });
-        expect(client.del).toHaveBeenCalledWith(`action_lock:${ROOM}:p0`);
+        expect(client.set).toHaveBeenCalledWith(`action_lock:${ROOM}:p0`, lockedBy(HOST), { NX: true, EX: 5 });
+        expect(releasedLock(client, `action_lock:${ROOM}:p0`)).toBe(true);
     });
 
     test('locks the player who asked, not always player one', async () => {
@@ -255,7 +256,7 @@ describe('resetMyBoard', () => {
 
         await resetMyBoard({ socket: { id: GUEST }, room: ROOM, isValid, io });
 
-        expect(client.set).toHaveBeenCalledWith(`action_lock:${ROOM}:p1`, GUEST, { NX: true, EX: 5 });
+        expect(client.set).toHaveBeenCalledWith(`action_lock:${ROOM}:p1`, lockedBy(GUEST), { NX: true, EX: 5 });
         expect(roomFields().player2Board).toBeDefined();
         expect(roomFields().player1Board).toBeUndefined();
     });
@@ -285,10 +286,21 @@ describe('resetMyBoard', () => {
 });
 
 describe('pvpRematch', () => {
-    const arrangeRematch = () => {
+    /**
+     * A race that has FINISHED — a rematch is refused while one is still live,
+     * since a host could otherwise rebuild both boards out from under a race
+     * they were losing. `winnerSocket` is what marks it settled.
+     */
+    const arrangeRematch = (extra = {}) => {
         client.hGetAll.mockImplementation(async (key) =>
             key.startsWith('room:')
-                ? lobbyRoom({ pvpStarted: 'true', player1Socket: HOST, player2Socket: GUEST })
+                ? lobbyRoom({
+                    pvpStarted: 'true',
+                    player1Socket: HOST,
+                    player2Socket: GUEST,
+                    winnerSocket: GUEST,
+                    ...extra,
+                })
                 : { name: 'Host', score: '0' }
         );
     };
@@ -309,10 +321,10 @@ describe('pvpRematch', () => {
 
         await pvpRematch({ socket: { id: HOST }, room: ROOM, isValid, io });
 
-        expect(client.set).toHaveBeenCalledWith(`action_lock:${ROOM}:p0`, HOST, { NX: true, EX: 5 });
-        expect(client.set).toHaveBeenCalledWith(`action_lock:${ROOM}:p1`, HOST, { NX: true, EX: 5 });
-        expect(client.del).toHaveBeenCalledWith(`action_lock:${ROOM}:p0`);
-        expect(client.del).toHaveBeenCalledWith(`action_lock:${ROOM}:p1`);
+        expect(client.set).toHaveBeenCalledWith(`action_lock:${ROOM}:p0`, lockedBy(HOST), { NX: true, EX: 5 });
+        expect(client.set).toHaveBeenCalledWith(`action_lock:${ROOM}:p1`, lockedBy(HOST), { NX: true, EX: 5 });
+        expect(releasedLock(client, `action_lock:${ROOM}:p0`)).toBe(true);
+        expect(releasedLock(client, `action_lock:${ROOM}:p1`)).toBe(true);
     });
 
     /**
@@ -332,6 +344,31 @@ describe('pvpRematch', () => {
         expect(locked).toEqual([`action_lock:${ROOM}:p0`, `action_lock:${ROOM}:p1`]);
     });
 
+    /*
+     * The Rematch button only appears once a winner exists, so a rematch during
+     * a live race can only come from something other than the UI. Ungated, the
+     * host could rebuild both boards — new layout, clock back to zero — out from
+     * under a race they were losing, and the opponent's own board would change
+     * mid-move with nothing to explain it.
+     */
+    test('is refused while the race is still undecided', async () => {
+        arrangeRematch({ winnerSocket: '' });
+
+        await pvpRematch({ socket: { id: HOST }, room: ROOM, isValid, io });
+
+        expect(roomFields()).toEqual({});
+    });
+
+    test('a race nobody has started yet is not a race to protect', async () => {
+        // Equivalent to startPvpGame, and reachable if the host clicks before
+        // the lobby has caught up. Nothing is in flight, so nothing is lost.
+        arrangeRematch({ pvpStarted: 'false', winnerSocket: '' });
+
+        await pvpRematch({ socket: { id: HOST }, room: ROOM, isValid, io });
+
+        expect(roomFields().player1Board).toBeDefined();
+    });
+
     test('writes both boards while both locks are held', async () => {
         arrangeRematch();
 
@@ -339,11 +376,12 @@ describe('pvpRematch', () => {
 
         // Spelled out so the comparisons below cannot pass on an empty set:
         // Math.max() of no acquires is -Infinity, which every write beats.
+        // Releases are `eval`, not `del` — see setup/lockAssertions.js.
         expect(client.set.mock.invocationCallOrder).toHaveLength(2);
-        expect(client.del.mock.invocationCallOrder).toHaveLength(2);
+        expect(client.eval.mock.invocationCallOrder).toHaveLength(2);
 
         const lastAcquire = Math.max(...client.set.mock.invocationCallOrder);
-        const firstRelease = Math.min(...client.del.mock.invocationCallOrder);
+        const firstRelease = Math.min(...client.eval.mock.invocationCallOrder);
         const boardWrite = client.hSet.mock.invocationCallOrder[
             client.hSet.mock.calls.findIndex((c) => c[1] && c[1].player1Board)
         ];

@@ -91,6 +91,23 @@ const createFakeRedis = () => {
             return 1;
         },
 
+        /*
+         * The only script the server runs is data/locks.js's release-if-owned,
+         * so this simulates that one rather than interpreting Lua: delete
+         * KEYS[0] iff it still holds ARGV[0]. Getting this wrong in the fake
+         * would hide exactly the bug the real script exists to prevent, so it
+         * asserts rather than guessing at anything else.
+         */
+        eval: async (script, { keys = [], arguments: args = [] } = {}) => {
+            await tick();
+            if (!script.includes('redis.call("del", KEYS[1])')) {
+                throw new Error('fakeRedis.eval only implements the release-if-owned script');
+            }
+            if (store.get(keys[0]) !== args[0]) return 0;
+            store.delete(keys[0]);
+            return 1;
+        },
+
         ping: async () => 'PONG',
     };
 };
