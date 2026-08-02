@@ -12,56 +12,84 @@ Real-time multiplayer Minesweeper with two modes: **co-op** (everyone shares one
 
 ```
 app/                      Next.js App Router (client-side app; no server components, no API routes)
-  page.tsx                "Home" — picks Landing vs Grid, owns the top-level dialogs
+  page.tsx                "Home" — picks Landing, Grid or DailyChallenge; owns the top-level dialogs
   store.ts                Re-exports the store from state/ (keeps the @/app/store path)
   layout.tsx              Metadata/SEO, fonts, global stylesheets, Footer
-  tokens.css              Design tokens: palette -> semantic colour, type scale, spacing
+  tokens.css              Design tokens: palette -> semantic colour, type scale, spacing, motion
   ds/                     Component catalog at /ds (noindex); dev surface, not a player page
+    contrast.ts           WCAG maths + the audited pairs the catalog measures live
+    themes.ts             The palettes the catalog previews
   globals.css
 state/                    The Zustand store, one file per concern
   store.ts                Composes the slices
   types.ts                Cell, PlayerStats, PlayerHover
-  gameSlice.ts            board, gameOver, gameWon
+  gameSlice.ts            board, gameOver, gameWon, the run clock, the best-time verdict
   boardConfigSlice.ts     rows/cols/mines, board size, difficulty, mode
   roomSlice.ts            room, players, scores, hovers
   pvpSlice.ts             everything 1v1
+  dailySlice.ts           everything daily-challenge; a SIBLING of room state, not a replacement
   inputSlice.ts           pointer state for chording and mobile flag mode
 hooks/
   useSocket.ts            Socket lifecycle (create on mount, disconnect on unmount)
   useSocketEvents.ts      Registers a handler table; derives its own cleanup
-  useGameEvents.ts        The server -> client handler table, co-op + PVP
+  useGameEvents.ts        The server -> client handler table: co-op + PVP + daily
   useGameActions.ts       Every client -> server emit
-  useGameStats.ts         Remaining flags and PVP progress percentages
+  useGameStats.ts         Remaining flags, cleared counts and PVP progress percentages
+  useBestTime.ts          This browser's record for the board in play/selected (reads after mount)
 components/
   Grid.tsx                Layout only: one board, two control arrangements
+  DailyChallenge.tsx      The daily view; reuses gameSlice's board (see §5)
+  ThemePicker.tsx         Palette switcher
   dialogs/
-    GameDialogs.tsx       Game-over, room errors and PVP outcome dialogs
+    GameDialogs.tsx       End-of-game summary, room errors and PVP outcome dialogs
+    DailyDialogs.tsx      Daily-challenge outcome, leaderboard and share dialogs
   game/                   Shared pieces used by both layouts
-    Board.tsx             The grid of cells
+    Board.tsx             The grid of cells; publishes --board-cols for the fit maths
+    CursorLayer.tsx       Remote co-op cursors, positioned from measured cell geometry
     StatusBanner.tsx      PVP lobby states and win/loss badges
     ProgressBar.tsx       One PVP progress bar
     ScoreTable.tsx        Co-op leaderboard
     FlagCounter.tsx       Mines remaining
+    Timer.tsx             The run clock, ticking locally from a server timestamp
+    GameSummary.tsx       End-of-game numbers; reads co-op vs PVP differently
+    BestTimeNote.tsx      Your record for this board, and whether this run beat it
+    BestForBoard.tsx      The same record on the landing page, before you play
+    RoomPanel.tsx         Room code, copy-link, and the invite prompt when you are alone
     Cell.tsx              One cell: mouse handling, hover highlight, memoized
-    board.module.css      Board and cell styles
-  Landing.tsx             Create/join forms, custom-size dialog, name dialogs
-  Footer.tsx              GitHub link + how-to-play dialog
+    board.module.css      Board and cell styles, incl. the viewport-fit cell sizing
+  Landing.tsx             Create/join forms, custom-size dialog, name dialogs, daily entry
+  Footer.tsx              GitHub link, how-to-play and theme dialogs
 components/ds/            The design system. Import via its index barrel
   pixel.module.css        The two border treatments: notched (controls), boxed (regions)
   icons.tsx               16x16 sprites stored as editable character grids
+  cx.ts, pointer.ts       Class joiner; the shared pixel-cursor class
 shared/                   Imported by BOTH halves; viable because the whole repo deploys (§6)
-  boardConfig.js          Board sizes, difficulty densities, limits, validity rule
+  boardConfig.js          Board sizes, difficulty densities, limits, validity rule, DAILY_PRESET
   events.js               Every socket event name, both directions
+  events.d.ts             Literal types for the above (hand-maintained alongside it)
+  socketPayloads.ts       Payload shapes; binds the CLIENT only (the server is CommonJS)
 lib/
   dialogs.ts              Every dialog id, plus openDialog/closeDialog
   initSocket.ts           socket.io-client factory (URL from NEXT_PUBLIC_SOCKET_URL)
+  session.ts              Per-tab session id (sessionStorage) used for reconnect
   throttle.ts             throttle() + generateColorFromId() for hover colors
   confetti.ts             canvas-confetti wrapper
+  motion.ts               prefersReducedMotion() and the cascade banding
+  theme.ts                Palettes, persistence, the no-flash script, cursor ramp
+  gameClock.ts            elapsedSeconds/formatClock — the one reading of the run clock
+  bestTimes.ts            Personal bests in localStorage, keyed by board dimensions
+  roomLink.ts             Builds a shareable join URL
+  dailyIdentity.ts        The opaque per-browser token a daily attempt is filed under
+  dailyShare.ts           The shareable result text
+test/
+  setup.ts                Vitest setup; DOM cleanup, guarded so Node-only tests skip it
 types/
   canvas-confetti.d.ts    Local typings for a dependency that ships none
 scripts/
   ensure-redis.js         Dev helper: starts local Redis if port 6379 is closed
+  write-version.js        Stamps the build version
   ui-smoke/               Headless-Chrome smoke test for the client (npm run test:ui)
+  verify-deploy/          Plays a real game against the DEPLOYED backend (npm run verify:deploy)
 server/                   Separate npm package (own package.json, lockfile, node_modules)
   server.js               Every socket.on handler + isValid() room/membership guard
   config.js               Env-resolved settings: allowed CORS origins, PORT
@@ -71,19 +99,26 @@ server/                   Separate npm package (own package.json, lockfile, node
     roomRepo.js           All room reads/writes, incl. board JSON, players list and locks
     playerRepo.js         All player reads/writes
     sessionRepo.js        Browser sessions, mapping a stable id onto the current socket
+    dailyRepo.js          The day's board template, attempts and leaderboard
   domain/
     board.js              Dependency-free board primitives (createEmptyBoard, getAdjacentCells,
                           revealFrom, projectBoard/projectCells)
+    clock.js              Dependency-free run-clock reads (timestamps in, payload out)
   game/
     index.js              Mode dispatch — the ONLY place that decides co-op vs PVP
     coop.js               Shared-board cell actions, broadcast to the room
     pvp.js                Per-player cell actions, emitted to one socket
+    daily.js              Seeded board generation + the daily cell actions
   controllers/
     pvpController.js      PVP lifecycle: startPvpGame / resetMyBoard / pvpRematch
+    pvpForfeit.js         The reconnect grace period before a disconnect forfeits a race
+    sessionController.js  Offers a returning browser its room back; forgets it on a real leave
+    dailyController.js    Daily lifecycle: start, submit, leaderboard
   utils/
     gameUtils.js          Board generation, checkWin, createRoom, resetGame
     playerUtils.js        Join/leave, score stats, PVP disconnect handling
-    solverUtils.js        No-guess solvability engine (pure, no I/O — the only dependency-free module)
+    solverUtils.js        No-guess solvability engine (pure, no I/O)
+    seededRandom.js       Deterministic RNG for the daily board (pure)
     initializeClient.js   Express app + io singleton + CORS
     initializeRedisClient.js  Redis singleton (exported as a Promise)
   tests/                  Jest (`npm test` from /server, or `npm test` at the repo root)
@@ -97,9 +132,13 @@ server/                   Separate npm package (own package.json, lockfile, node
 
 ```
 layout.tsx → tokens.css + globals.css → page.tsx + Footer + Analytics
-page.tsx ──┬→ Landing   (when !playerJoined)
-           └→ Grid      (when playerJoined) → Cell[][]
+page.tsx ──┬→ DailyChallenge (when dailyActive)   → Cell[][]
+           ├→ Landing        (when !playerJoined)
+           └→ Grid           (when playerJoined)  → Cell[][]
 ```
+
+The three are mutually exclusive, which is what lets the daily view reuse
+`gameSlice`'s board and keeps exactly one board mounted (trap #3).
 
 `page.tsx` drills 11 callbacks from `useGameActions` into `Grid`, which drills 4 into each `Cell`. Everything else flows through the Zustand store.
 
@@ -110,14 +149,15 @@ socket. `page.tsx` itself subscribes only to `playerJoined` and `gameOverName`.
 
 ### State (`state/`, re-exported by `app/store.ts`)
 
-One store, assembled from five slices:
+One store, assembled from seven slices:
 
 | Group | Fields |
 |---|---|
-| Game | `board`, `gameOver`, `gameWon` |
+| Game | `board`, `gameOver`, `gameWon`, `startedAt`, `endedAt`, `bestTimeResult` |
 | Board config | `numRows`, `numCols`, `numMines`, `boardSize`, `difficulty`, `mode` |
 | Room/player | `room`, `playerJoined`, `name`, `playerStatsInRoom`, `gameOverName`, `playerHovers` |
 | PVP | `pvpStarted`, `pvpOpponentName`, `pvpOpponentStatus`, `pvpWinner`, `pvpRoomReady`, `pvpIsHost`, `pvpOpponentProgress`, `pvpTotalSafeCells` |
+| Daily | `dailyActive`, `dailyDate`, `dailyStatus`, `dailyElapsedMs`, `dailyRank`, `dailyLeaderboard`, … |
 | Mouse/UI | `isChecked` (mobile click-vs-flag), `r`, `c`, `leftClick`, `rightClick`, `bothPressed` |
 
 Each row above is one slice file. Slices are plain creators sharing one `set`, so
@@ -125,6 +165,14 @@ a slice can write another's fields where that is genuinely the behaviour —
 `resetPvpState` clears `gameOver`/`gameWon` because a rematch must.
 
 Every field has its own setter, plus `resetPvpState()` (which also clears `gameOver`/`gameWon`).
+
+**The daily challenge borrows `gameSlice`'s `board` rather than holding its own.**
+The daily view and the room view are mutually exclusive — `page.tsx` shows one or
+the other — so one board field costs nothing and keeps the "board mounts exactly
+once" invariant intact. `dailyActive` is what decides which view is showing, and
+it is also why the `sessionResume` handler bails when it is set: a resume offer
+landing while the player is on the daily must not quietly put them back in a
+room.
 
 **Subscription note:** every consumer now subscribes with per-field selectors —
 `page.tsx` to just `playerJoined` and `gameOverName`, `Grid.tsx` to the fields it
@@ -139,17 +187,21 @@ re-renders the page and the whole grid. Keep it that way when adding state.
 ### Module dependencies
 
 ```
-server.js ─→ initializeClient (io) , validation , playerUtils , gameUtils , game , data/* , pvpController
-game/index ─→ game/coop , game/pvp , data/*
-game/coop ─→ gameUtils , playerUtils , domain/board , data/* , io
-game/pvp ─→ gameUtils , playerUtils , domain/board , data/* , io
-pvpController ─→ domain/board , playerUtils , validation , data/*
-gameUtils ─→ solverUtils , domain/board , data/roomRepo , io
-playerUtils ─→ domain/board , data/* , io
-data/roomRepo , data/playerRepo ─→ data/keys , redis
+server.js ─→ initializeClient (io) , validation , playerUtils , gameUtils , game ,
+             data/* , pvpController , sessionController , dailyController
+game/index ─→ game/coop , game/pvp , data/*          ← co-op vs PVP only; daily is not dispatched here
+game/coop ─→ gameUtils , playerUtils , domain/{board,clock} , data/* , io
+game/pvp ─→ playerUtils , domain/{board,clock} , data/* , io
+game/daily ─→ gameUtils , solverUtils , domain/board , seededRandom , data/dailyRepo , io
+pvpController ─→ gameUtils , playerUtils , validation , domain/{board,clock} , data/*
+sessionController ─→ data/{roomRepo,sessionRepo}
+dailyController ─→ game/daily , domain/board , validation , data/dailyRepo
+gameUtils ─→ playerUtils , solverUtils , domain/{board,clock} , data/roomRepo , io
+playerUtils ─→ domain/{board,clock} , data/* , controllers/pvpForfeit , io
+data/*Repo ─→ data/keys , redis
 data/keys ─→ (nothing)
-domain/board ─→ (nothing)
-validation ─→ (nothing)
+domain/board , domain/clock ─→ (nothing)
+seededRandom , solverUtils , validation ─→ (nothing)
 ```
 
 > `gameUtils` and `playerUtils` used to require each other, which meant `gameUtils`
@@ -158,6 +210,14 @@ validation ─→ (nothing)
 > dependency-free source for board helpers. **Keep it dependency-free, and don't
 > reintroduce imports between `gameUtils` and `playerUtils`** —
 > `tests/resetGame.test.js` guards this and depends on its own require order.
+> `domain/clock.js` was added on the same terms and must stay dependency-free too.
+
+> **One edge points the wrong way.** `playerUtils` (a util) requires
+> `controllers/pvpForfeit` (a controller), because a disconnect is detected in
+> `playerUtils` but the grace period it starts is PVP lifecycle. It is acyclic
+> today only because `pvpForfeit` imports nothing back. That is the same shape as
+> the `gameUtils`/`playerUtils` cycle above before it bit, so treat it as a
+> boundary worth straightening rather than a pattern to copy.
 
 `redisClient` is imported only by `data/`. `io` is still a module-scope singleton imported wherever something emits, so handlers need it mocked to be tested (see `server/tests/setup/mockInfra.js`, which mocks both globally).
 
@@ -197,11 +257,15 @@ the guardrails.
 
 ### Redis data model
 
-Defined in `server/data/keys.js`; all access goes through `roomRepo` / `playerRepo`.
-Nothing outside `server/data` should build a key or touch the Redis client directly.
+Defined in `server/data/keys.js`; all access goes through the repos in
+`server/data`. Nothing outside that directory should build a key or touch the
+Redis client directly.
 
 **`room:<roomCode>`** — TTL 24h
-`mode` `noGuess` `gameOver` `gameWon` `gameOverName` `initialized` `players` (JSON array of socket ids) `numRows` `numCols` `numMines` `board` (co-op only, JSON)
+`mode` `noGuess` `gameOver` `gameWon` `gameOverName` `initialized` `players` (JSON array of socket ids) `numRows` `numCols` `numMines` `board` (co-op only, JSON) `startedAt` `endedAt`
+
+`startedAt`/`endedAt` are the run clock, as epoch milliseconds. They are
+timestamps rather than an elapsed count on purpose — see §5.
 
 PVP adds: `pvpStarted` `hostSocket` `player1Socket` `player2Socket` `player{1,2}Board` `player{1,2}Initialized` `player{1,2}GameOver` `player{1,2}GameWon` `player{1,2}Progress` `totalSafeCells` `winnerSocket` `sharedBoardSeed` *(written, never read)*
 
@@ -217,10 +281,26 @@ can be swapped back into their slot instead of joining as a stranger.
 **`player:<socketId>`** — TTL 24h
 `room` `name` `score`, plus `pvpPlayerIndex` and `opponentName` in PVP
 
-**Locks** — `SET NX EX 10`
-`init_lock:<room>` (co-op first click) · `winner_lock:<room>` (PVP win claim)
+**`daily:<date>:board`** — TTL 48h
+The day's generated template: `board` (JSON) `seed` `numRows` `numCols` `numMines` `openedCells` `startRow` `startCol`. One per UTC date, shared by every player.
 
-Players are keyed by socket id, so a reconnect is a new player row.
+**`daily:<date>:attempt:<token>`** — TTL 48h
+One player's attempt, filed under an opaque browser token rather than a socket
+id, so it survives a reconnect. Terminal statuses (`failed`,
+`won_pending_submit`, `completed`) are defined once in `dailyRepo` because both
+`game/daily.js` and `controllers/dailyController.js` gate on them.
+
+**`daily:<date>:leaderboard`** — TTL 48h
+Sorted set of completion times.
+
+**Locks** — `SET NX EX 10`
+`init_lock:<room>` (co-op first click) · `winner_lock:<room>` (PVP win claim) ·
+`daily:<date>:gen_lock` (serialises board generation — an optimisation, not a
+correctness requirement) · `daily:<date>:start_lock:<token>`
+
+Players are keyed by socket id, so a reconnect is a new player row. That is why
+a returning browser is identified by its **session** (rooms) or its **daily
+token** (the daily challenge) instead.
 
 ---
 
@@ -242,6 +322,13 @@ Players are keyed by socket id, so a reconnect is a new player row.
 | `resetMyBoard` | `{room}` | `pvpController.js:87` |
 | `pvpRematch` | `{room}` | `pvpController.js:146` |
 | `playerLeave` | — | `server.js:293` |
+| `startDaily` | `{token, date?}` | `dailyController.js` |
+| `dailyOpenCell` / `dailyChordCell` / `dailyToggleFlag` | `{token, row, col}` | `game/daily.js` |
+| `submitDailyScore` | `{token, name}` | `dailyController.js` |
+| `getDailyLeaderboard` | `{date?}` | `dailyController.js` |
+
+Daily actions carry a **token**, not a room: the daily challenge is not a room
+(see §5), so there is no membership to check and nothing to broadcast to.
 
 Shapes are typed in `shared/socketPayloads.ts` (`ClientToServerEvents`).
 
@@ -276,6 +363,27 @@ Shapes are typed in `shared/socketPayloads.ts` (`ClientToServerEvents`).
 | `pvpOpponentProgress` | `{progress, totalSafeCells, percentage}` |
 | `pvpOpponentDisconnected` | `{winnerSocket, winnerName}` |
 | `pvpRematchStarted` | `{totalSafeCells, isHost}` |
+
+### Server → Client — daily challenge
+
+| Event | Payload |
+|---|---|
+| `dailyStarted` | the day's board, date, status and totals |
+| `dailyAlreadyAttempted` | — (one attempt per browser per day) |
+| `dailyUpdateCells` / `dailyBoardUpdate` | same shapes as their co-op counterparts |
+| `dailyGameOver` / `dailyWon` | the attempt's outcome |
+| `dailyScoreSubmitted` | `{rank, totalEntries}` |
+| `dailyLeaderboardUpdate` | the day's times |
+
+Every daily event goes to ONE socket. Nothing about the daily challenge is
+broadcast, because no two players share state in it.
+
+### Shared
+
+| Event | Payload |
+|---|---|
+| `gameClock` | `{startedAt, endedAt}` — epoch ms, either may be null |
+| `sessionResume` | `{room, name}` — sent on connect to a browser whose room is still alive |
 
 Shapes are typed in `shared/socketPayloads.ts` (`ServerToClientEvents`).
 
@@ -326,7 +434,94 @@ The densities are picked so the three pre-split presets stay reachable on the di
 Create room → board is an empty grid → first click generates mines → `reveal()` flood-fills → `updateCells` broadcast to the room → `checkWin` auto-flags remaining mines and emits `gameWon`. Hitting a mine sets `gameOver` for everyone and names the player who hit it.
 
 ### PVP flow
-Create room with `mode: 'pvp'` (creator becomes `hostSocket`) → second player joins (a third gets `pvpRoomFull`) → both receive `pvpRoomReady` → **host** emits `startPvpGame`, which builds ONE board and gives it to both players → progress is broadcast to the opponent as a percentage → first to clear wins (guarded by `winner_lock`). A player who hits a mine can `resetMyBoard` and keep racing. The host can trigger `pvpRematch`. Disconnecting mid-game hands the win to the opponent.
+Create room with `mode: 'pvp'` (creator becomes `hostSocket`) → second player joins (a third gets `pvpRoomFull`) → both receive `pvpRoomReady` → **host** emits `startPvpGame`, which builds ONE board and gives it to both players → progress is broadcast to the opponent as a percentage → first to clear wins (guarded by `winner_lock`). A player who hits a mine can `resetMyBoard` and keep racing. The host can trigger `pvpRematch`.
+
+Disconnecting mid-game does **not** immediately hand the win over. It starts a
+grace period (`controllers/pvpForfeit.js`); the forfeit only lands if the player
+does not come back before it expires, which is what makes a reload survivable
+rather than fatal. Rejoining cancels it implicitly, by making the room whole
+again.
+
+### Daily challenge
+
+One seeded board per UTC date, identical for everyone, ranked by
+server-authoritative completion time.
+
+**It is deliberately not a room.** A room is a shared, mutable board with a
+membership list and a broadcast channel; the daily challenge is the opposite —
+every player gets their own copy of one immutable template, nobody sees anyone
+else's progress, and there is nothing to broadcast. Modelling it as a room would
+mean either one room per player (a membership list of one, a lock nobody
+contends, a broadcast to a single socket) or one shared room (where one player's
+click would reveal cells on everyone's board). So it has its own keys
+(`daily:<date>:*`), its own repo, and its own events, all addressed by **date +
+an opaque browser token** rather than room code + socket id. The token is what
+lets an attempt survive a reconnect.
+
+**The board is generated once per day, and picked for difficulty rather than
+just solvability.** `game/daily.js` seeds a deterministic RNG from the date,
+draws candidates until it has `DAILY_CANDIDATE_POOL_SIZE` (30) no-guess-solvable
+ones, and keeps the *hardest* — the one that needed the most subset/overlap
+reasoning rather than easy single-cell deductions, scored by `solveWithStats`.
+The ordinary generator stops at the first solvable board; this is what turns
+"solvable" into "hard" without changing what solvable means. Generation is
+serialised by a lock, but only as an optimisation — two servers generating the
+same seed produce the same board.
+
+One attempt per browser per day, in the terminal statuses defined once in
+`dailyRepo` (`failed`, `won_pending_submit`, `completed`).
+
+### The run clock
+
+The server stores `startedAt`/`endedAt` on the room and the client ticks locally
+from `startedAt`. Timestamps rather than an elapsed count means no per-second
+event, every co-op player reads the same clock, and a player arriving mid-run
+joins the clock already running instead of starting a second one.
+
+The clock starts on the **first reveal**, not on room creation — a room can sit
+open for minutes before anyone clicks. A co-op run stops for the whole room. A
+PVP race shares a start (both players race the same board from the same moment,
+so it is room state) but its finishes are per-player and are sent to that socket
+only: writing an end to room state would stop the opponent's clock while they
+were still playing.
+
+`lib/gameClock.ts` is the one place that turns those timestamps into a reading,
+so the live timer and the end-of-game summary cannot disagree.
+
+### Personal best times
+
+Kept in `localStorage`, never sent to the server: there are no accounts to hang
+a real leaderboard off, and a server-side table nobody can be authenticated
+against would rank whoever edited a socket payload last. (The daily challenge
+*does* have a server leaderboard — it can afford one because the board is fixed
+and the time is server-authoritative.)
+
+Records are keyed by the board's **dimensions and mine count**, not by its
+size/difficulty labels: `setDimensions` gives a joining player the room's
+numbers and leaves the labels at whatever they last picked, so a label-keyed
+record would file a joiner's win under a board they never played. Each record
+also stores how many players were in the room, because clearing a board with
+three friends is a real result but not the same one.
+
+Only a cleared board counts. A loss has a time but is not a completion, and
+winning because an opponent disconnected is not one either.
+
+### Rejoining after a reload
+
+Player records are keyed by socket id, so a reload destroys one. The **session**
+(`session:<id>`, with the id in sessionStorage) outlives it and remembers the
+room, so on connect the server offers the browser its room back and the client
+answers with an ordinary `joinRoom` — a resume therefore runs the same validated
+path a manual join does, rather than a parallel one that could drift.
+
+The distinction that makes it safe: leaving on purpose and dropping off the
+network reach the same `removePlayer` and are otherwise indistinguishable. Only
+the deliberate exit calls `sessionController.forgetRoom`, so only the accident
+is ever resumed.
+
+PVP needs more than co-op does, because the room addresses each racer's board by
+socket id: the slot is repointed at the new socket and `pvpPlayerIndex` is
+rebuilt **from the room**, since the old player record is already gone.
 
 > **Both players race the same board.** `startPvpGame` generates one layout,
 > no-guess verified around a cell at the centre, opens that cell, and stores it as
@@ -399,6 +594,7 @@ npm install                # frontend deps (repo root)
 npm --prefix server install   # backend deps
 npm run dev:all            # starts local Redis if needed, then server (:3001) + Next (:3000)
 npm test                   # server test suite (Jest) — proxies to `npm --prefix server test`
+npm run test:client        # client unit tests (Vitest): pure logic + component rendering
 npm run test:ui            # client smoke test in headless Chrome (needs dev:all running)
                            # also runs in CI, as its own job with a redis service
 npm run verify:deploy      # plays a real game against the DEPLOYED backend; not in CI
@@ -417,9 +613,21 @@ the previous hardcoded behaviour. See `.env.example` and `server/.env.example`.
 | `PORT` | server | 3001 |
 | `HOST`, `REDIS_PORT`, `DB_PASS` | server | local Redis with no auth |
 
-**Tests.** `server/tests/` covers the server with Jest and no real infrastructure.
-`scripts/ui-smoke/` drives the actual client in headless Chrome against a local
-backend — the only automated frontend coverage there is. See CLAUDE.md.
+**Tests.** Three layers, each answering something the others cannot:
+
+- `server/tests/` — Jest over the server, with `io` and Redis mocked globally, so
+  no test touches real infrastructure.
+- `npm run test:client` — Vitest over the frontend. Pure logic runs in Node; a
+  file that renders a component opts into a DOM with `// @vitest-environment
+  jsdom` on its first line, so the fast majority never pays for one. Aimed at
+  what fails *silently* — an accessible name that stops resolving, a dialog
+  button that stops closing.
+- `scripts/ui-smoke/` — headless Chrome against a real backend, for what jsdom
+  cannot see. jsdom has no layout engine, and implements `<dialog>` without the
+  part where submitting a `method="dialog"` form closes it.
+
+`npm run verify:deploy` is the only check that touches the deployed stack. See
+CLAUDE.md for what belongs in which layer.
 
 ---
 
@@ -460,4 +668,7 @@ through both modes and compares, so the two can't drift apart again.
 | Join-link query param | `lib/roomLink.ts` (`ROOM_QUERY_PARAM`, `buildJoinUrl`) | — |
 | Cell reveal (flood fill) | `domain/board.js` `revealFrom()` | each mode wraps it to react to a mine: co-op ends the room's game, PVP ends only that player's |
 | Neighbor enumeration | `domain/board.js` `getAdjacentCells()` | plus `solverUtils.js:10` (`getAdjacentCoords`) and inline loops in `gameUtils.js:56` and `:250` |
-| Board rendering | `components/game/Board.tsx` | still mounted by both layout wrappers, so the DOM holds two copies; the markup exists once |
+| Board rendering | `components/game/Board.tsx` | mounted once; the layouts sit either side of it (trap #3) |
+| The run clock's reading | `lib/gameClock.ts` | the live timer and the summary both use it, so they cannot disagree |
+| Daily terminal statuses | `server/data/dailyRepo.js` (`TERMINAL_STATUSES`) | mirrored by name in `state/dailySlice.ts`'s `DailyStatus` |
+| A board's identity for records | `lib/bestTimes.ts` (`boardKey`) | derived from dimensions + mines, never from the size/difficulty labels |
