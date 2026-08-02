@@ -91,21 +91,31 @@ io.on('connection', async (socket) => {
 
             await addPlayerToRoom(room, socket.id, name, socket.handshake.auth?.sessionId);
 
-            const isHost = mode === 'pvp' && roomState.hostSocket === socket.id;
+            /*
+             * Re-read, because `addPlayerToRoom` may have just changed who the
+             * host is: a reconnecting host keeps the role, so `hostSocket` is
+             * repointed at THIS socket. The snapshot above still names the one
+             * that dropped, and describing the room from it broke a reloaded
+             * host's lobby twice over — they were told `isHost: false`, and the
+             * guest lookup below compared against an id no longer in the players
+             * list, so it picked the host as their own opponent.
+             */
+            const joinedState = await roomRepo.getState(room);
+            const isHost = mode === 'pvp' && joinedState.hostSocket === socket.id;
             // The dimensions come along so the joiner's flag counter is right.
             socket.emit(SERVER_EVENTS.JOIN_ROOM_SUCCESS, {
                 room,
                 mode,
                 isHost,
-                numRows: parseInt(roomState.numRows),
-                numCols: parseInt(roomState.numCols),
-                numMines: parseInt(roomState.numMines)
+                numRows: parseInt(joinedState.numRows),
+                numCols: parseInt(joinedState.numCols),
+                numMines: parseInt(joinedState.numMines)
             });
 
             if (mode === 'pvp') {
                 const updatedPlayers = await roomRepo.getPlayers(room);
                 if (updatedPlayers.length === 2) {
-                    const hostSocket = roomState.hostSocket;
+                    const hostSocket = joinedState.hostSocket;
                     const guestSocket = updatedPlayers.find(p => p !== hostSocket);
                     const hostName = await playerRepo.getName(hostSocket);
                     const guestName = await playerRepo.getName(guestSocket);

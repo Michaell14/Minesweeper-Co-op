@@ -22,8 +22,14 @@ const { SERVER_EVENTS } = require('../../shared/events');
 
 /**
  * Reveals cells from (r, c) and returns how many SAFE cells were opened, which
- * is what the player scores. Hitting a mine ends the game for the WHOLE room and
- * records who did it, which is the only way this differs from the PVP version.
+ * is what the player scores, or -1 if a mine was hit. Hitting a mine ends the
+ * game for the WHOLE room and records who did it, which is the only way this
+ * differs from the PVP version.
+ *
+ * The -1 matters to chording, which reveals up to eight cells in a loop: without
+ * a way to tell a detonation from "nothing to open", the loop carried on
+ * revealing after the room's game had already ended — announcing a second
+ * gameOver, renaming who lost, and scoring the cells it opened afterwards.
  */
 const reveal = async (board, r, c, room, socketId, toUpdate) => {
     const { hitMine, cellsRevealed } = revealFrom(board, r, c, toUpdate);
@@ -45,7 +51,7 @@ const reveal = async (board, r, c, room, socketId, toUpdate) => {
     // Required: clients are not given mine positions up front, so without this
     // the board would show a single detonated mine and nothing else.
     io.to(room).emit(SERVER_EVENTS.BOARD_UPDATE, projectBoard(board, { revealMines: true }));
-    return cellsRevealed;
+    return -1;
 };
 
 const openCell = async (row, col, room, socketId, roomState, playerScore) => {
@@ -107,14 +113,15 @@ const openCell = async (row, col, room, socketId, roomState, playerScore) => {
     }
 
     const toUpdate = [];
-    const cellsRevealed = await reveal(board, row, col, room, socketId, toUpdate);
+    const safeCellsRevealed = await reveal(board, row, col, room, socketId, toUpdate);
 
     // One point per safe cell opened, cascades included — the same rule PVP
     // uses. Scoring per click instead undercounted the player who triggered a
     // large cascade, and disagreed with chording, which already scored per cell.
-    if (cellsRevealed > 0) {
+    // A detonation (-1) scores nothing, as it does in PVP and the daily.
+    if (safeCellsRevealed > 0) {
         const currentScore = parseInt(playerScore || '0', 10) || 0;
-        await playerRepo.setScore(socketId, currentScore + cellsRevealed);
+        await playerRepo.setScore(socketId, currentScore + safeCellsRevealed);
         await updatePlayerStatsInRoom(room);
     }
 
@@ -157,7 +164,21 @@ const chordCell = async (row, col, room, socketId, roomState) => {
     if (flaggedCells === board[row][col].nearbyMines) {
         for (const adj of adjacentCells) {
             if (!adj.isFlagged && !adj.isOpen) {
-                scoreIncrement += await reveal(board, adj.row, adj.col, room, socketId, toUpdate);
+                const safeCellsRevealed = await reveal(board, adj.row, adj.col, room, socketId, toUpdate);
+
+                // A chord can uncover more than one mine. `reveal` has already
+                // ended the room's game, so carrying on would announce a second
+                // gameOver, overwrite who lost, and score cells opened after the
+                // loss. PVP and the daily both stop here too.
+                //
+                // Nothing more is emitted: `reveal` sent the whole revealed
+                // board, which already contains every cell this loop opened.
+                if (safeCellsRevealed === -1) {
+                    await roomRepo.setBoard(room, board);
+                    return;
+                }
+
+                scoreIncrement += safeCellsRevealed;
             }
         }
     }

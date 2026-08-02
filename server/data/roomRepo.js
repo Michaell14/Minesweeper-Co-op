@@ -93,6 +93,20 @@ const opponentOf = async (room, socketId) => {
     return players.find((p) => p !== socketId);
 };
 
+/**
+ * Which of the two PVP slots a socket holds according to the ROOM, or undefined.
+ *
+ * Distinct from `domain/pvpPlayer.js`'s `pvpIndexOf`, which asks the PLAYER
+ * record — a reconnect deletes that record, so the room is the only place left
+ * that remembers, and it remembers by socket id. Kept here beside `playersFrom`
+ * because both read a room hash the caller already holds, and because the field
+ * names are this module's to know.
+ */
+const pvpSlotOf = (roomState, socketId) => {
+    if (!roomState) return undefined;
+    return [0, 1].find((index) => roomState[pvpPlayerFields(index).socketKey] === socketId);
+};
+
 // --- Boards -----------------------------------------------------------------
 
 /** Co-op board (the shared one). */
@@ -144,6 +158,7 @@ module.exports = {
     setPlayers,
     playersFrom,
     opponentOf,
+    pvpSlotOf,
     getBoard,
     setBoard,
     setPvpBoard,

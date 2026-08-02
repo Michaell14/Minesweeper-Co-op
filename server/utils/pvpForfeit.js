@@ -16,6 +16,7 @@
 
 const roomRepo = require('../data/roomRepo');
 const playerRepo = require('../data/playerRepo');
+const { pvpPlayerFields } = require('../data/keys');
 const { io } = require('../utils/initializeClient');
 const { SERVER_EVENTS } = require('../../shared/events');
 const { PVP_RECONNECT_GRACE_MS } = require('../config');
@@ -32,6 +33,15 @@ const settleForfeit = async (room, survivor) => {
 
     // They came back. This is the whole point of waiting.
     if (roomRepo.playersFrom(roomState).length > 1) return false;
+
+    /*
+     * Being the last one here is not the same as having won. A player sitting on
+     * a board they detonated was told "Boom!" and offered a reset; handing them
+     * "Victory!" on top of that contradicts their own screen. Their reset clears
+     * `gameOver`, so finishing the board still wins it the ordinary way.
+     */
+    const slot = roomRepo.pvpSlotOf(roomState, survivor);
+    if (slot !== undefined && roomState[pvpPlayerFields(slot).gameOverKey] === 'true') return false;
 
     await roomRepo.setFields(room, { winnerSocket: survivor });
 
