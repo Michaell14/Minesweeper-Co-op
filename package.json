@@ -22,7 +22,9 @@
   "dependencies": {
     "@vercel/analytics": "^1.4.1",
     "canvas-confetti": "^1.9.3",
+    "jose": "^6.2.7",
     "next": "14.2.4",
+    "next-auth": "^4.24.15",
     "react": "^18",
     "react-dom": "^18",
     "react-hook-form": "^7.54.2",

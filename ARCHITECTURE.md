@@ -593,6 +593,38 @@ Both mouse buttons pressed together, or the middle button. `Cell.tsx` writes `le
 ### Hover presence (co-op only)
 `Cell` `onMouseEnter` → throttled 100ms → `cellHover` → server broadcasts `playerHoverUpdate` to everyone else → each client colors the cell using a hash of the socket id. Suppressed in PVP (`server.js:251`).
 
+### Accounts and the auth bridge
+
+Sign-in is OAuth-only (Google, GitHub) via Auth.js v4 in the Next app — see
+`USER_PROFILES_PRD.md` for the feature plan. The parts worth knowing:
+
+**Two tokens, on purpose.** NextAuth's session cookie is an encrypted JWE bound
+to the Vercel deploy; the game server neither can nor should read it. When the
+client needs to prove itself to Heroku it asks `/api/socket-token` (with
+`/api/auth/*`, the app's first API routes — everything game-shaped still speaks
+the socket) for a **bridge token**: a 1-hour HS256 JWT carrying just the OAuth
+identity, signed with `AUTH_BRIDGE_SECRET`, which both deploys hold.
+`lib/authBridge.ts` caches it and `lib/initSocket.ts` presents it on the
+socket handshake — `auth` is a *function* so every reconnect re-reads it —
+plus `lib/profileApi.ts` sends it as a bearer on the REST calls.
+
+**The server's two transports have opposite failure policies.**
+`server/utils/authToken.js` verifies (never throws);
+`server/controllers/profileController.js` applies it twice: the socket path
+resolves any failure — bad token, no `DATABASE_URL`, Postgres down — to
+`socket.data.user = null`, an anonymous player, because auth being down must
+never block a game. The REST path (`GET/PUT/DELETE /api/me`) answers honestly
+with 401/503 instead, because account data is all it serves. OAuth sign-in and
+sign-out are full-page redirects, so the socket always reconnects fresh with
+the right token state; nothing reconciles mid-session.
+
+**Users live in Postgres** (`server/data/userRepo.js`, the first
+Postgres-backed repo) keyed by `(provider, provider_account_id)`, created on
+first sight with one upserting statement. Email refreshes each sign-in;
+`display_name` deliberately does not — renames made in the account menu must
+survive. Deletion is a hard `DELETE`; tables added by later phases must declare
+`ON DELETE CASCADE` against `users` so it stays the single deletion point.
+
 ### Mobile flag mode
 `isChecked` toggles tap-to-open vs tap-to-flag. `Grid` renders a separate mobile tree below the `xl` breakpoint; `Cell` renders both a `hideFrom="xl"` and a `hideBelow="xl"` hit area.
 
@@ -676,6 +708,9 @@ the previous hardcoded behaviour. See `.env.example` and `server/.env.example`.
 | `PORT` | server | 3001 |
 | `HOST`, `REDIS_PORT`, `DB_PASS` | server | local Redis with no auth |
 | `DATABASE_URL` | server | unset — no Postgres, account features off |
+| `AUTH_BRIDGE_SECRET` | both | unset — sign-in off; must be the SAME value on both deploys |
+| `GOOGLE_CLIENT_ID/SECRET`, `GITHUB_CLIENT_ID/SECRET` | client | unset — that provider's sign-in button absent |
+| `NEXTAUTH_URL`, `NEXTAUTH_SECRET` | client | NextAuth's own session; required in production for sign-in |
 
 **Tests.** Three layers, each answering something the others cannot:
 

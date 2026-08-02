@@ -7,6 +7,7 @@ import "./globals.css";
 import { Analytics } from '@vercel/analytics/next';
 import { NO_FLASH_SCRIPT } from "@/lib/theme";
 import Footer from "@/components/Footer";
+import AuthProvider from "@/components/AuthProvider";
 
 const inter = Inter({ subsets: ["latin"] });
 const pressStart2P = Press_Start_2P({
@@ -159,8 +160,10 @@ export default function RootLayout({
       </head>
 
       <body className={inter.className}>
-        {children}
-        <Footer />
+        <AuthProvider>
+          {children}
+          <Footer />
+        </AuthProvider>
         <Analytics />
       </body>
 

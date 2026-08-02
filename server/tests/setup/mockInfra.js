@@ -38,7 +38,8 @@ jest.mock('../../utils/initializeRedisClient', () => ({
 }));
 
 jest.mock('../../utils/initializeClient', () => ({
-    io: { to: jest.fn(() => ({ emit: jest.fn() })) },
+    app: { use: jest.fn(), get: jest.fn(), put: jest.fn(), delete: jest.fn() },
+    io: { to: jest.fn(() => ({ emit: jest.fn() })), use: jest.fn() },
     server: { listen: jest.fn() },
 }));
 

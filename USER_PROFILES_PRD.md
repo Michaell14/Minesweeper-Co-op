@@ -185,22 +185,55 @@ Small but load-bearing; everything stacks on it.
       `fakeDb` waits until a concurrency test actually needs one (Phase 6).
       New `tests/pgClient.test.js` covers both modes of the real module
 
-### Phase 1 — Auth & identity ░ Not started · est. 4–6 days
+### Phase 1 — Auth & identity ✔ Code done 2026-08-02 · awaiting OAuth apps + secrets
 
-- [ ] Create Google + GitHub OAuth apps; secrets into Vercel + Heroku
-- [ ] Auth.js in the Next app (first API route) with the two providers
-- [ ] JWT strategy: HS256 shared secret so the CJS server can verify
-- [ ] Express middleware verifying JWTs; applied to socket handshake →
-      `socket.data.userId | null`
-- [ ] `server/data/userRepo.js` (create-or-get on first sign-in, lookups)
-- [ ] `server/controllers/profileController.js` + REST routes: `GET /api/me`,
-      `DELETE /api/me`
-- [ ] Sign-in/out UI: DS-styled account menu (header/footer), display-name edit
-- [ ] Account deletion: hard-delete user + settings + themes + results; confirm
-      dialog; document in a privacy note
-- [ ] Privacy policy page/section (email storage now exists)
-- [ ] Amend ARCHITECTURE.md: auth flow, first API route, new config vars
-- [ ] Tests: JWT middleware (valid/expired/absent), userRepo, deletion cascade
+- [ ] Create Google + GitHub OAuth apps; secrets into Vercel + Heroku —
+      **manual step, Michael**. Vercel additionally needs `NEXTAUTH_URL`,
+      `NEXTAUTH_SECRET`, and `AUTH_BRIDGE_SECRET`; Heroku needs the same
+      `AUTH_BRIDGE_SECRET`. Until set, the account dialog says sign-in is not
+      configured and everything else is unaffected
+- [x] Auth.js v4 in the Next app with the two providers
+      (`lib/authOptions.ts`, `app/api/auth/[...nextauth]/route.ts` — the
+      app's first API routes). Providers register only when their env pair is
+      set; the client discovers them via NextAuth's providers endpoint
+- [x] HS256 shared-secret JWT — landed as a **separate bridge token**
+      (`app/api/socket-token/route.ts`, signed with jose) rather than
+      re-shaping NextAuth's own cookie: the session stays an encrypted JWE and
+      the game server sees only a purpose-built 1h token with minimal claims.
+      Cached client-side by `lib/authBridge.ts`; jose↔jsonwebtoken interop
+      verified live
+- [x] Express verification: `server/utils/authToken.js` (never throws) +
+      io middleware in `server.js` → `socket.data.user | null`, presented via
+      a re-evaluating handshake `auth` function in `lib/initSocket.ts`.
+      Policy proven live: valid token creates the user row; garbage, absent,
+      or database-down all connect anonymous
+- [x] `server/data/userRepo.js` — single-statement upsert keyed on the OAuth
+      identity (two-tabs race safe); email refreshes per sign-in,
+      display_name never overwritten by sign-in
+- [x] `server/controllers/profileController.js` + REST: GET/PUT/DELETE
+      `/api/me` (PUT added for renames), CORS widened for
+      PUT/DELETE/Authorization, `express.json()` scoped to `/api`. Socket
+      path degrades to anonymous; REST answers 401/503 honestly
+- [x] Sign-in/out UI: account button + dialogs in the Footer cluster
+      (`components/AccountMenu.tsx`, new `UserIcon`), display-name edit with
+      save/error states; Enter is intercepted so the dialog form doesn't
+      close-without-saving
+- [x] Account deletion: hard delete + `alert` confirm dialog; later tables
+      cascade via FK (recorded in userRepo and ARCHITECTURE.md)
+- [x] Privacy: a Privacy dialog (not a separate page — one-page app) stating
+      exactly what is stored and how deletion works, linked from the account
+      dialog
+- [x] ARCHITECTURE.md: "Accounts and the auth bridge" section + config table
+- [x] Tests: `authToken.test.js` (expiry, wrong secret/issuer/audience,
+      unsigned, no-secret mode), `userRepo.test.js`, `profileController.test.js`
+      (both failure policies), client `authBridge.test.ts` +
+      `AccountMenu.test.tsx`. Suites: 37 server / 24 client files green;
+      ui-smoke green. Live-verified: full REST round-trip + socket handshake
+      against a real Postgres
+
+**Deviation from sketch:** the socket carries the whole verified user object as
+`socket.data.user` (not just an id) — game-end recording in Phase 6 needs the
+display name anyway and it saves a lookup.
 
 ### Phase 2 — Settings foundation ░ Not started · est. 4–5 days
 
@@ -333,3 +366,4 @@ the delivery mechanism is the work.
 |---|---|
 | 2026-08-02 | PRD created; all top-level decisions settled (see §2). |
 | 2026-08-02 | Phase 0 code complete: pg pool singleton (`utils/initializePgClient.js`), `users` migration, `release:`-phase runner, layering + mockInfra updates, `pgClient.test.js`. Full suite green (34 suites / 606 tests). Migration verified up/down against a real Postgres 14. Outstanding: provision Heroku Postgres (manual). |
+| 2026-08-02 | Phase 1 code complete: Auth.js (Google+GitHub) + bridge-token pipe end to end — socket-token route, client cache, handshake auth function, server verify → `socket.data.user`, `userRepo`, `/api/me` GET/PUT/DELETE, account/delete/privacy dialogs in the Footer. 642 server + 211 client tests and ui-smoke green; REST round-trip and socket auth verified live against a real Postgres (jose-signed token, jsonwebtoken verify). Outstanding: create the OAuth apps and set the five secrets (manual). |

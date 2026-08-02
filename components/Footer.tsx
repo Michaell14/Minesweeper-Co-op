@@ -1,13 +1,15 @@
 'use client'
 import React from 'react';
 import { DIALOGS, openDialog } from '@/lib/dialogs';
-import { CoinIcon, Dialog, DialogClose, GithubIcon, PaletteIcon, pointerClass } from '@/components/ds';
+import { CoinIcon, Dialog, DialogClose, GithubIcon, PaletteIcon, UserIcon, pointerClass } from '@/components/ds';
 import ThemePicker from '@/components/ThemePicker';
+import AccountMenu from '@/components/AccountMenu';
 
 export default function Footer() {
 
     const openGuideDialog = () => openDialog(DIALOGS.guide);
     const openThemeDialog = () => openDialog(DIALOGS.theme);
+    const openAccountDialog = () => openDialog(DIALOGS.account);
 
     return (
         <>
@@ -39,6 +41,13 @@ export default function Footer() {
                     className={pointerClass}>
                     <PaletteIcon size={48} />
                 </button>
+                <button
+                    type="button"
+                    onClick={openAccountDialog}
+                    aria-label="Account"
+                    className={pointerClass}>
+                    <UserIcon size={48} />
+                </button>
             </div>
 
             <Dialog
@@ -69,6 +78,7 @@ export default function Footer() {
             </Dialog>
 
             <ThemePicker />
+            <AccountMenu />
         </>
     )
 }

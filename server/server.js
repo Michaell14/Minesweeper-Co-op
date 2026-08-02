@@ -1,9 +1,10 @@
-const { server, io } = require('./utils/initializeClient');
+const { app, server, io } = require('./utils/initializeClient');
 const { removePlayer, addPlayerToRoom } = require('./utils/playerUtils');
 const { createRoom, resetGame } = require('./utils/gameUtils');
 const { openCell, chordCell, toggleFlag } = require('./game');
 const { startPvpGame, resetMyBoard, pvpRematch } = require('./controllers/pvpController');
 const { offerResume, forgetRoom } = require('./controllers/sessionController');
+const { resolveSocketUser, registerProfileRoutes } = require('./controllers/profileController');
 const { startDaily, submitDailyScore, getDailyLeaderboard } = require('./controllers/dailyController');
 const dailyGame = require('./game/daily');
 const { PORT } = require('./config');
@@ -23,6 +24,21 @@ const {
     isValidDailyToken,
     isValidDailyDate,
 } = require('./validation');
+
+// The account routes — the server's first HTTP surface beyond health checks.
+registerProfileRoutes(app);
+
+/**
+ * Who this socket belongs to, resolved once at connect. `null` is an anonymous
+ * player — fully supported, and the guaranteed outcome when the token is
+ * absent, invalid, or the database is missing; auth being down never blocks a
+ * connection. Skipped on connection-state recovery (`skipMiddlewares: true`),
+ * where the previous `socket.data` is restored instead.
+ */
+io.use(async (socket, next) => {
+    socket.data.user = await resolveSocketUser(socket.handshake.auth);
+    next();
+});
 
 io.on('connection', async (socket) => {
     socket.on(CLIENT_EVENTS.CREATE_ROOM, async ({ room, numRows, numCols, numMines, name, mode }) => {

@@ -183,3 +183,32 @@ export const TrophyIcon = (props: PixelIconProps) => <PixelIcon sprite={TROPHY_R
 
 const PALETTE_RECTS = toRects(PALETTE);
 export const PaletteIcon = (props: PixelIconProps) => <PixelIcon sprite={PALETTE_RECTS} {...props} />;
+
+/** Head and shoulders — the account menu. */
+const USER = {
+    palette: {
+        "#": "#333",
+        "w": "#fff",
+    },
+    rows: [
+        "                ",
+        "     ######     ",
+        "    #wwwwww#    ",
+        "    #wwwwww#    ",
+        "    #wwwwww#    ",
+        "    #wwwwww#    ",
+        "     ######     ",
+        "      #ww#      ",
+        "   ####ww####   ",
+        "  #wwwwwwwwww#  ",
+        " #wwwwwwwwwwww# ",
+        " #wwwwwwwwwwww# ",
+        " #wwwwwwwwwwww# ",
+        " #wwwwwwwwwwww# ",
+        " ############## ",
+        "                ",
+    ],
+} as const;
+
+const USER_RECTS = toRects(USER);
+export const UserIcon = (props: PixelIconProps) => <PixelIcon sprite={USER_RECTS} {...props} />;
