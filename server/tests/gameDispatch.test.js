@@ -28,6 +28,7 @@ const coop = require('../game/coop');
 const pvp = require('../game/pvp');
 const { openCell, chordCell, toggleFlag, modeOf } = require('../game');
 const { redisClient } = require('../utils/initializeRedisClient');
+const { lockedBy, releasedLock } = require('./setup/lockAssertions');
 
 let client;
 
@@ -148,8 +149,8 @@ describe('the co-op action lock', () => {
 
         await act();
 
-        expect(client.set).toHaveBeenCalledWith(ACTION_LOCK, 'sock-1', { NX: true, EX: 5 });
-        expect(client.del).toHaveBeenCalledWith(ACTION_LOCK);
+        expect(client.set).toHaveBeenCalledWith(ACTION_LOCK, lockedBy('sock-1'), { NX: true, EX: 5 });
+        expect(releasedLock(client, ACTION_LOCK)).toBe(true);
     });
 
     test('gives it back even when the move throws, or the room wedges', async () => {
@@ -158,7 +159,7 @@ describe('the co-op action lock', () => {
 
         await expect(openCell(3, 4, 'r1', 'sock-1')).rejects.toThrow('boom');
 
-        expect(client.del).toHaveBeenCalledWith(ACTION_LOCK);
+        expect(releasedLock(client, ACTION_LOCK)).toBe(true);
     });
 
     test('hands the mode module the snapshot read UNDER the lock, not the one before it', async () => {
@@ -197,8 +198,8 @@ describe('the pvp per-player action lock', () => {
 
         await act();
 
-        expect(client.set).toHaveBeenCalledWith('action_lock:r1:p0', 'sock-1', { NX: true, EX: 5 });
-        expect(client.del).toHaveBeenCalledWith('action_lock:r1:p0');
+        expect(client.set).toHaveBeenCalledWith('action_lock:r1:p0', lockedBy('sock-1'), { NX: true, EX: 5 });
+        expect(releasedLock(client, 'action_lock:r1:p0')).toBe(true);
     });
 
     test('player two locks a different key, so neither ever waits on the other', async () => {
@@ -206,7 +207,7 @@ describe('the pvp per-player action lock', () => {
 
         await openCell(3, 4, 'r1', 'sock-1');
 
-        expect(client.set).toHaveBeenCalledWith('action_lock:r1:p1', 'sock-1', { NX: true, EX: 5 });
+        expect(client.set).toHaveBeenCalledWith('action_lock:r1:p1', lockedBy('sock-1'), { NX: true, EX: 5 });
         expect(client.set).not.toHaveBeenCalledWith('action_lock:r1:p0', expect.anything(), expect.anything());
     });
 
@@ -217,7 +218,7 @@ describe('the pvp per-player action lock', () => {
 
         await openCell(3, 4, 'r1', 'sock-1');
 
-        expect(client.set).toHaveBeenCalledWith('action_lock:r1:p0', 'sock-1', { NX: true, EX: 5 });
+        expect(client.set).toHaveBeenCalledWith('action_lock:r1:p0', lockedBy('sock-1'), { NX: true, EX: 5 });
     });
 
     test('a socket with no index gets no lock, and the move is refused downstream', async () => {

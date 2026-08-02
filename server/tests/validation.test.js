@@ -139,13 +139,15 @@ describe('isValidHoverCoordinate', () => {
         expect(isValidHoverCoordinate(-1, -1)).toBe(true);
     });
 
-    test('PRESERVED QUIRK: skips the bounds check whenever either value is -1', () => {
-        // The original inline check was
-        //   if ((row !== -1 && col !== -1) && (row < 0 || row > 100 || ...)) return;
-        // so a half-sentinel pair bypasses bounds entirely. Ported as-is; if this
-        // is ever tightened, it is a deliberate behavior change, not a typo fix.
-        expect(isValidHoverCoordinate(-1, 5000)).toBe(true);
-        expect(isValidHoverCoordinate(5000, -1)).toBe(true);
+    test('rejects a HALF sentinel, which is neither a cell nor a clear', () => {
+        // This used to be accepted, on the reasoning that the client reads any
+        // -1 as "clear the hover". It does not — it clears on the (-1, -1) pair
+        // alone — so (-1, 5000) was broadcast, drawn as a cursor off the board,
+        // and left there, since nothing that follows can clear a hover the
+        // client never filed as one.
+        expect(isValidHoverCoordinate(-1, 5000)).toBe(false);
+        expect(isValidHoverCoordinate(5000, -1)).toBe(false);
+        expect(isValidHoverCoordinate(-1, 5)).toBe(false);
     });
 
     test.each([

@@ -9,10 +9,12 @@ const dailyGame = require('./game/daily');
 const { PORT } = require('./config');
 const roomRepo = require('./data/roomRepo');
 const playerRepo = require('./data/playerRepo');
+const sessionRepo = require('./data/sessionRepo');
 const { CLIENT_EVENTS, SERVER_EVENTS } = require('../shared/events');
 const {
     isValidRoomCode,
     isValidPlayerName,
+    normalizePlayerName,
     isValidMode,
     isValidBoardConfig,
     isValidCoordinate,
@@ -25,9 +27,11 @@ const {
 io.on('connection', async (socket) => {
     socket.on(CLIENT_EVENTS.CREATE_ROOM, async ({ room, numRows, numCols, numMines, name, mode }) => {
         try {
+            // Validate the name as it will be STORED — see joinRoom below.
+            const displayName = normalizePlayerName(name);
             if (
                 !isValidRoomCode(room) ||
-                !isValidPlayerName(name) ||
+                !isValidPlayerName(displayName) ||
                 !isValidBoardConfig(numRows, numCols, numMines) ||
                 !isValidMode(mode)
             ) {
@@ -49,7 +53,7 @@ io.on('connection', async (socket) => {
                 await roomRepo.setFields(room, { hostSocket: socket.id });
             }
 
-            await addPlayerToRoom(room, socket.id, name, socket.handshake.auth?.sessionId);
+            await addPlayerToRoom(room, socket.id, displayName, socket.handshake.auth?.sessionId);
             io.to(room).emit(SERVER_EVENTS.JOIN_ROOM_SUCCESS, { room, mode, isHost: mode === 'pvp' });
         } catch (error) {
             console.error('Error in createRoom:', error);
@@ -59,7 +63,11 @@ io.on('connection', async (socket) => {
 
     socket.on(CLIENT_EVENTS.JOIN_ROOM, async ({ room, name }) => {
         try {
-            if (!isValidRoomCode(room) || !isValidPlayerName(name)) {
+            // Whitespace is not part of a name. The browser sends what was
+            // typed, and anything speaking the protocol directly sends whatever
+            // it likes.
+            const displayName = normalizePlayerName(name);
+            if (!isValidRoomCode(room) || !isValidPlayerName(displayName)) {
                 socket.emit(SERVER_EVENTS.JOIN_ROOM_ERROR);
                 return;
             }
@@ -74,22 +82,48 @@ io.on('connection', async (socket) => {
                 return;
             }
 
+            const sessionId = socket.handshake.auth?.sessionId;
             const roomState = await roomRepo.getState(room);
             const mode = roomState.mode || 'co-op';
 
-            // A PVP room holds two, and a reconnecting player is not a third.
+            /*
+             * A PVP room holds two, and a reconnecting player is not a third.
+             *
+             * Their socket id is new, so the players list cannot recognise them
+             * — it still holds the id they arrived under last time, if their
+             * disconnect has not been processed yet. Asking the SESSION is what
+             * the reconnect itself is keyed on, and without it a fast reload was
+             * turned away from its own room with "Room Full!".
+             *
+             * The capacity check and the join that follows it are one decision,
+             * so they are serialised: unlocked, two people opening the same
+             * invite together both read a room with space and both take it,
+             * leaving three players in a room `startPvpGame` will then refuse to
+             * start, permanently.
+             */
             if (mode === 'pvp') {
-                const players = roomRepo.playersFrom(roomState);
-                const isReconnecting = players.includes(socket.id);
+                const previousSocketId = sessionId ? await sessionRepo.getSocketId(sessionId) : null;
 
-                if (!isReconnecting && players.length >= 2) {
+                const admitted = await roomRepo.withJoinLock(room, socket.id, async () => {
+                    const players = roomRepo.playersFrom(await roomRepo.getState(room));
+                    const isReconnecting =
+                        players.includes(socket.id) ||
+                        Boolean(previousSocketId && players.includes(previousSocketId));
+
+                    if (!isReconnecting && players.length >= 2) return false;
+
+                    await addPlayerToRoom(room, socket.id, displayName, sessionId);
+                    return true;
+                });
+
+                if (!admitted) {
                     socket.emit(SERVER_EVENTS.PVP_ROOM_FULL);
                     socket.leave(room);
                     return;
                 }
+            } else {
+                await addPlayerToRoom(room, socket.id, displayName, sessionId);
             }
-
-            await addPlayerToRoom(room, socket.id, name, socket.handshake.auth?.sessionId);
 
             /*
              * Re-read, because `addPlayerToRoom` may have just changed who the

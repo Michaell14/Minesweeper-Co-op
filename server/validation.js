@@ -56,18 +56,18 @@ const isValidCoordinate = (row, col) => {
 /**
  * Hover coordinates, which additionally allow the "no hover" sentinel.
  *
- * QUIRK, PRESERVED: the bounds check is skipped whenever EITHER coordinate is
- * -1, not only for the (-1, -1) pair, so (-1, 500) is accepted. Harmless
- * downstream — the client treats any -1 as "clear the hover" — but tightening it
- * would be a behaviour change, so it is left alone and covered by a test.
+ * The sentinel is the PAIR (-1, -1), and nothing else. This used to skip the
+ * bounds check whenever either coordinate was -1, on the reasoning that the
+ * client reads any -1 as "clear the hover" — but it does not: it clears only on
+ * (-1, -1), so a half-sentinel like (-1, 5000) was stored and drawn as a remote
+ * cursor at a position off the board, which no later hover could ever move or
+ * remove.
  */
 const isValidHoverCoordinate = (row, col) => {
     if (typeof row !== 'number' || typeof col !== 'number') return false;
     if (!Number.isInteger(row) || !Number.isInteger(col)) return false;
-    if (row !== NO_HOVER && col !== NO_HOVER) {
-        return row >= 0 && row <= MAX_COORDINATE && col >= 0 && col <= MAX_COORDINATE;
-    }
-    return true;
+    if (row === NO_HOVER && col === NO_HOVER) return true;
+    return row >= 0 && row <= MAX_COORDINATE && col >= 0 && col <= MAX_COORDINATE;
 };
 
 /**

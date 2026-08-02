@@ -15,6 +15,7 @@ const {
     winnerLockKey,
     actionLockKey,
     pvpActionLockKey,
+    joinLockKey,
     pvpPlayerFields,
     ROOM_TTL_SECONDS,
     ROOM_GRACE_PERIOD_SECONDS,
@@ -140,6 +141,13 @@ const releaseWinnerLock = (room) => releaseLock(winnerLockKey(room));
 const withActionLock = (room, owner, fn) => withLock(actionLockKey(room), owner, fn);
 
 /**
+ * Serialises "is there room for me, and if so add me" for a PVP join. Its own
+ * key rather than the action lock's: a join is not a board write, and a lobby
+ * that has not started has no moves to wait behind.
+ */
+const withJoinLock = (room, owner, fn) => withLock(joinLockKey(room), owner, fn);
+
+/**
  * Serialises ONE PVP player's moves. Per player rather than per room, because
  * the two players own separate board fields and racing each other is the game.
  */
@@ -168,4 +176,5 @@ module.exports = {
     releaseWinnerLock,
     withActionLock,
     withPvpActionLock,
+    withJoinLock,
 };

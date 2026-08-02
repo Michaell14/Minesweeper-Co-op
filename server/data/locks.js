@@ -24,6 +24,39 @@ const releaseLock = async (key) => {
     return await client.del(key);
 };
 
+/**
+ * Deletes the lock only if this owner still holds it.
+ *
+ * A plain DEL is a bug waiting for a slow moment: leases are short, so a holder
+ * that overruns one has already had the key expire and handed the lock to
+ * somebody else — and its release then deletes THEIR lock, putting two moves
+ * back inside the section the lock exists to keep them out of.
+ *
+ * Lua because the check and the delete have to be one round trip; done as a GET
+ * then a DEL, the same expiry can land between them.
+ */
+const RELEASE_IF_OWNED = `
+if redis.call("get", KEYS[1]) == ARGV[1] then
+    return redis.call("del", KEYS[1])
+else
+    return 0
+end`;
+
+const releaseLockIfOwned = async (key, owner) => {
+    const client = await redisClient;
+    return await client.eval(RELEASE_IF_OWNED, { keys: [key], arguments: [String(owner)] });
+};
+
+/**
+ * A value unique to ONE acquisition, so the ownership check can tell two
+ * attempts apart even when they come from the same socket — which is the
+ * ordinary case for a PVP or daily lock, where the key is per player and the
+ * only contention IS that player's own two moves. The caller's `owner` stays in
+ * it so a stuck lock still says who is holding it.
+ */
+let acquisitions = 0;
+const lockToken = (owner) => `${owner}#${process.pid}.${++acquisitions}`;
+
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /** Backoff for a contended action lock: quick first, then out of Redis's way. */
@@ -56,11 +89,12 @@ const ACTION_LOCK_MAX_WAIT_MS = (ACTION_LOCK_TTL_SECONDS + 2) * 1000;
  */
 const withLock = async (key, owner, fn) => {
     const deadline = Date.now() + ACTION_LOCK_MAX_WAIT_MS;
+    const token = lockToken(owner);
     let retryMs = ACTION_LOCK_FIRST_RETRY_MS;
     let held = false;
 
     do {
-        held = Boolean(await acquireLock(key, owner, ACTION_LOCK_TTL_SECONDS));
+        held = Boolean(await acquireLock(key, token, ACTION_LOCK_TTL_SECONDS));
         if (held) break;
         await sleep(retryMs);
         retryMs = Math.min(retryMs * 2, ACTION_LOCK_MAX_RETRY_MS);
@@ -73,8 +107,10 @@ const withLock = async (key, owner, fn) => {
     try {
         return await fn();
     } finally {
-        if (held) await releaseLock(key);
+        // Ownership-checked: `fn` can outlive the lease, and a bare DEL would
+        // then delete whichever move acquired the key next.
+        if (held) await releaseLockIfOwned(key, token);
     }
 };
 
-module.exports = { acquireLock, releaseLock, withLock };
+module.exports = { acquireLock, releaseLock, releaseLockIfOwned, withLock };

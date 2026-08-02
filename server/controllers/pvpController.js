@@ -208,6 +208,15 @@ const pvpRematch = async ({ socket, room, isValid, io }) => {
 
         if (roomState.hostSocket !== socket.id) return;
 
+        /*
+         * A rematch is what you do once the last race is settled. Ungated, the
+         * host could rebuild both boards mid-race — resetting the clock and the
+         * position they were losing from — and the UI never offers it, since the
+         * Rematch button only appears once a winner exists. So the server should
+         * refuse what the client would never send.
+         */
+        if (roomState.pvpStarted === 'true' && !roomState.winnerSocket) return;
+
         const players = roomRepo.playersFrom(roomState);
         if (players.length !== 2) return;
 

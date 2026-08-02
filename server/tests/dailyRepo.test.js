@@ -8,6 +8,7 @@
 const keys = require('../data/keys');
 const dailyRepo = require('../data/dailyRepo');
 const { redisClient } = require('../utils/initializeRedisClient');
+const { lockedBy, releasedLock } = require('./setup/lockAssertions');
 
 let client;
 
@@ -204,8 +205,8 @@ describe('locks', () => {
         const ran = await dailyRepo.withAttemptLock('2026-07-30', 'tok-1', 'sock-1', async () => 'ran');
 
         expect(ran).toBe('ran');
-        expect(client.set).toHaveBeenCalledWith('daily:2026-07-30:action_lock:tok-1', 'sock-1', { NX: true, EX: 5 });
-        expect(client.del).toHaveBeenCalledWith('daily:2026-07-30:action_lock:tok-1');
+        expect(client.set).toHaveBeenCalledWith('daily:2026-07-30:action_lock:tok-1', lockedBy('sock-1'), { NX: true, EX: 5 });
+        expect(releasedLock(client, 'daily:2026-07-30:action_lock:tok-1')).toBe(true);
     });
 
     test('two attempts never share an action lock, so players do not wait on each other', () => {
@@ -222,6 +223,6 @@ describe('locks', () => {
             dailyRepo.withAttemptLock('2026-07-30', 'tok-1', 'sock-1', async () => { throw new Error('boom'); })
         ).rejects.toThrow('boom');
 
-        expect(client.del).toHaveBeenCalledWith('daily:2026-07-30:action_lock:tok-1');
+        expect(releasedLock(client, 'daily:2026-07-30:action_lock:tok-1')).toBe(true);
     });
 });

@@ -24,6 +24,10 @@ jest.mock('../../utils/initializeRedisClient', () => ({
         // any test that never mentions locking. 'OK' — the lock was free — is
         // the ordinary case; tests about contention override it.
         set: jest.fn(async () => 'OK'),
+        // withLock's ownership-checked release. Like `set` above, the useful
+        // default is the ordinary case — the lock was still ours — since a
+        // bare jest.fn() here just returns undefined and asserts nothing.
+        eval: jest.fn(async () => 1),
         expire: jest.fn(),
         ping: jest.fn(),
         zAdd: jest.fn(),

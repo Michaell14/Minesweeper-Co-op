@@ -42,8 +42,18 @@ export type DialogId = (typeof DIALOGS)[keyof typeof DIALOGS];
 
 const find = (id: DialogId) => document.getElementById(id) as HTMLDialogElement | null;
 
-/** Opens a dialog modally. No-op if it is not mounted. */
-export const openDialog = (id: DialogId) => find(id)?.showModal();
+/**
+ * Opens a dialog modally. No-op if it is not mounted, or already open.
+ *
+ * `showModal()` THROWS on a dialog that is already open, and these are opened
+ * from socket handlers, where the same outcome can legitimately arrive twice —
+ * a duplicated `gameOver`, a resume landing on top of a dialog nobody closed.
+ * An exception there kills the handler mid-way, so the guard is not cosmetic.
+ */
+export const openDialog = (id: DialogId) => {
+    const dialog = find(id);
+    if (dialog && !dialog.open) dialog.showModal();
+};
 
 /** Closes a dialog. No-op if it is not mounted. */
 export const closeDialog = (id: DialogId) => find(id)?.close();

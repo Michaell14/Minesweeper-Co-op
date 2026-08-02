@@ -11,6 +11,7 @@ const keys = require('../data/keys');
 const roomRepo = require('../data/roomRepo');
 const playerRepo = require('../data/playerRepo');
 const { redisClient } = require('../utils/initializeRedisClient');
+const { lockedBy, releasedLock } = require('./setup/lockAssertions');
 
 let client;
 
@@ -168,13 +169,13 @@ describe('roomRepo', () => {
 describe('withActionLock', () => {
     beforeEach(() => {
         client.set.mockResolvedValue('OK');
-        client.del.mockResolvedValue(1);
+        client.eval.mockResolvedValue(1);
     });
 
     test('runs the move with the lock held and hands it back after', async () => {
         const order = [];
         client.set.mockImplementation(async () => { order.push('acquire'); return 'OK'; });
-        client.del.mockImplementation(async () => { order.push('release'); return 1; });
+        client.eval.mockImplementation(async () => { order.push('release'); return 1; });
 
         const result = await roomRepo.withActionLock('r1', 'sock-1', async () => {
             order.push('move');
@@ -183,7 +184,7 @@ describe('withActionLock', () => {
 
         expect(order).toEqual(['acquire', 'move', 'release']);
         expect(result).toBe('done');
-        expect(client.set).toHaveBeenCalledWith('action_lock:r1', 'sock-1', { NX: true, EX: 5 });
+        expect(client.set).toHaveBeenCalledWith('action_lock:r1', lockedBy('sock-1'), { NX: true, EX: 5 });
     });
 
     test('a contender waits for the lock instead of losing its move', async () => {
@@ -206,7 +207,7 @@ describe('withActionLock', () => {
             roomRepo.withActionLock('r1', 'sock-1', async () => { throw new Error('boom'); })
         ).rejects.toThrow('boom');
 
-        expect(client.del).toHaveBeenCalledWith('action_lock:r1');
+        expect(releasedLock(client, 'action_lock:r1')).toBe(true);
     });
 
     test('does not release a lock it never held', async () => {
@@ -220,16 +221,50 @@ describe('withActionLock', () => {
 
         await roomRepo.withActionLock('r1', 'sock-2', async () => 'ran anyway');
 
-        expect(client.del).not.toHaveBeenCalled();
+        expect(client.eval).not.toHaveBeenCalled();
         Date.now.mockRestore();
         console.error.mockRestore();
+    });
+
+    /*
+     * The lease is short — five seconds — because every move takes one and a
+     * process that dies holding it blocks that board for the full lease. The
+     * flip side is that a move CAN outlive it: once it expires the key is gone,
+     * the next move acquires freely, and the first one's release then deletes a
+     * lock it no longer holds, putting two moves inside the section at once.
+     *
+     * Which is also why the key does not hold the caller's socket id. On a PVP
+     * or daily lock the key is per player, so the contention IS one socket's own
+     * two moves, and an owner check on the socket alone could not tell them
+     * apart.
+     */
+    describe('releasing a lock the lease already took away', () => {
+        test('holds a value unique to this acquisition, not just the owner', async () => {
+            await roomRepo.withActionLock('r1', 'sock-1', async () => 'a');
+            await roomRepo.withActionLock('r1', 'sock-1', async () => 'b');
+
+            const [first, second] = client.set.mock.calls.map(([, value]) => value);
+            expect(first).toContain('sock-1');
+            expect(second).toContain('sock-1');
+            expect(first).not.toBe(second);
+        });
+
+        test('the release is conditional on still holding it', async () => {
+            await roomRepo.withActionLock('r1', 'sock-1', async () => 'done');
+
+            const [script, options] = client.eval.mock.calls[0];
+            expect(script).toContain('redis.call("get", KEYS[1])');
+            expect(options.keys).toEqual(['action_lock:r1']);
+            // The token it acquired with, so a re-acquired key is left alone.
+            expect(options.arguments[0]).toBe(client.set.mock.calls[0][1]);
+        });
     });
 
     test('withPvpActionLock locks that player alone', async () => {
         await roomRepo.withPvpActionLock('r1', 1, 'sock-2', async () => 'ran');
 
-        expect(client.set).toHaveBeenCalledWith('action_lock:r1:p1', 'sock-2', { NX: true, EX: 5 });
-        expect(client.del).toHaveBeenCalledWith('action_lock:r1:p1');
+        expect(client.set).toHaveBeenCalledWith('action_lock:r1:p1', lockedBy('sock-2'), { NX: true, EX: 5 });
+        expect(releasedLock(client, 'action_lock:r1:p1')).toBe(true);
     });
 
     test('an exhausted wait still runs the move rather than silently dropping it', async () => {

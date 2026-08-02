@@ -135,6 +135,31 @@ describe('the first click on a room', () => {
 
         expect(client.del).toHaveBeenCalledWith(`init_lock:${ROOM}`);
     });
+
+    /*
+     * Losing the init lock and then never seeing a board appear is the one case
+     * with no good answer, so it needs the LEAST bad one. The local `board` is
+     * still the empty grid the room was created with — and every cell of it
+     * claims zero adjacent mines, so revealing from it cascades the entire thing
+     * open and writes that over the layout the lock holder is still generating.
+     * Dropping the click costs a retry; carrying on costs the game.
+     */
+    test('drops the move rather than writing a blank board over the real one', async () => {
+        jest.spyOn(console, 'error').mockImplementation(() => {});
+        client.set.mockResolvedValue(null);                     // the lock is taken
+        client.hGet.mockImplementation(async (key, field) =>
+            field === 'initialized' ? 'false' : null            // ...and never comes good
+        );
+
+        await coop.openCell(1, 1, ROOM, SOCKET, firstClickState(), '0');
+
+        expect(client.hSet).not.toHaveBeenCalledWith(`room:${ROOM}`, expect.objectContaining({
+            board: expect.anything(),
+        }));
+        expect(emitted('boardUpdate')).toBeNull();
+        expect(emitted('updateCells')).toBeNull();
+        console.error.mockRestore();
+    });
 });
 
 describe('a later click on an initialised board', () => {
