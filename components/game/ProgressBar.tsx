@@ -15,7 +15,13 @@ export interface ProgressBarProps {
     boldPercent?: boolean;
 }
 
-/** One labelled progress bar, used for both players in PVP. */
+/**
+ * One labelled progress bar, used for both players in PVP.
+ *
+ * The show/hide setting is applied by Grid.tsx, not here: the desktop bars sit
+ * inside a titled "Progress" panel, and hiding only the bars would leave an
+ * empty box with a heading.
+ */
 export default function ProgressBar({ label, percent, colorClass, size = 'md', ariaLabel, boldPercent }: ProgressBarProps) {
     const track = size === 'md' ? 'w-full bg-surface-track rounded h-4 overflow-hidden' : 'w-full bg-surface-track rounded h-3';
 

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, test, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { useMinesweeperStore } from "@/app/store";
 import Cell from "./Cell";
 import type { Cell as CellType } from "@/app/store";
@@ -93,5 +93,54 @@ describe("a closed cell the server says is a mine", () => {
         renderCell(closedMine);
 
         expect(isShownAsAMine()).toBe(false);
+    });
+});
+
+/**
+ * The swap-mouse-buttons setting. Asserted through what each physical button
+ * FIRES, because that is the whole feature: the wrong mapping still renders a
+ * pixel-perfect board and fails only in the player's hand.
+ */
+describe("swapped mouse buttons", () => {
+    const closed: CellType = { isMine: false, isOpen: false, isFlagged: false, nearbyMines: 0 };
+
+    const renderClosedWith = (swap: boolean) => {
+        useMinesweeperStore.setState((state) => ({
+            settings: { ...state.settings, swapMouseButtons: swap },
+        }));
+        const openCell = vi.fn();
+        const toggleFlag = vi.fn();
+        render(
+            <Cell
+                cell={closed}
+                row={0}
+                col={0}
+                toggleFlag={toggleFlag}
+                openCell={openCell}
+                chordCell={vi.fn()}
+                emitCellHover={vi.fn()}
+            />,
+        );
+        return { openCell, toggleFlag };
+    };
+
+    const desktopHitArea = () =>
+        screen.getByRole("gridcell", { name: /^Unrevealed/ }).querySelector<HTMLElement>(".xl\\:block")!;
+
+    test("default: left opens, right flags", () => {
+        const { openCell, toggleFlag } = renderClosedWith(false);
+        fireEvent.click(desktopHitArea());
+        expect(openCell).toHaveBeenCalledWith(0, 0);
+        fireEvent.contextMenu(screen.getByRole("gridcell", { name: /^Unrevealed/ }));
+        expect(toggleFlag).toHaveBeenCalledWith(0, 0);
+    });
+
+    test("swapped: left flags, right opens", () => {
+        const { openCell, toggleFlag } = renderClosedWith(true);
+        fireEvent.click(desktopHitArea());
+        expect(toggleFlag).toHaveBeenCalledWith(0, 0);
+        expect(openCell).not.toHaveBeenCalled();
+        fireEvent.contextMenu(screen.getByRole("gridcell", { name: /^Unrevealed/ }));
+        expect(openCell).toHaveBeenCalledWith(0, 0);
     });
 });

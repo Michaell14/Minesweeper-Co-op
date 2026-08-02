@@ -45,7 +45,12 @@ export const createSettingsSlice: StateCreator<MinesweeperState, [], [], Setting
     hydrateSettings: () => {
         const settings = readStoredSettings();
         applySideEffects(settings);
-        set({ settings, settingsHydrated: true });
+        // The mobile tap-mode default is applied at hydration ONLY: it seeds
+        // the toggle for this visit. setSetting/replaceSettings deliberately
+        // leave `isChecked` alone — flipping the in-game toggle under the
+        // player mid-run because a sync arrived would be worse than any
+        // default. (isChecked=true means "tap opens".)
+        set({ settings, settingsHydrated: true, isChecked: !settings.mobileDefaultFlag });
     },
 
     setSetting: (key, value) =>

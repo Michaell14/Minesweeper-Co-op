@@ -135,3 +135,44 @@ describe("NO_FLASH_SCRIPT", () => {
         delete document.documentElement.dataset.theme;
     });
 });
+
+describe("the gameplay and HUD settings", () => {
+    it("defaults to the classic bindings with everything visible", () => {
+        expect(DEFAULT_SETTINGS).toMatchObject({
+            swapMouseButtons: false,
+            mobileDefaultFlag: false,
+            chording: true,
+            confetti: true,
+            shareCursor: true,
+            showTimer: true,
+            showFlagCounter: true,
+            showProgressBar: true,
+            cellSize: "standard",
+        });
+    });
+
+    it("accepts booleans and rejects everything else, per key", () => {
+        const flipped = sanitizeSettings({
+            swapMouseButtons: true,
+            chording: false,
+            confetti: false,
+            shareCursor: false,
+            showTimer: false,
+        });
+        expect(flipped.swapMouseButtons).toBe(true);
+        expect(flipped.chording).toBe(false);
+        expect(flipped.showTimer).toBe(false);
+
+        // "true"-the-string is the classic localStorage corruption.
+        const corrupt = sanitizeSettings({ swapMouseButtons: "true", chording: 1 });
+        expect(corrupt.swapMouseButtons).toBe(false);
+        expect(corrupt.chording).toBe(true);
+    });
+
+    it("accepts each cell size and defaults an unknown one", () => {
+        expect(sanitizeSettings({ cellSize: "compact" }).cellSize).toBe("compact");
+        expect(sanitizeSettings({ cellSize: "large" }).cellSize).toBe("large");
+        expect(sanitizeSettings({ cellSize: "enormous" }).cellSize).toBe("standard");
+        expect(sanitizeSettings({ cellSize: 40 }).cellSize).toBe("standard");
+    });
+});

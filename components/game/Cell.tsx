@@ -34,6 +34,8 @@ const Cell = ({ cell, row, col, toggleFlag, openCell, chordCell, emitCellHover }
     // One selector per value, so an unrelated write does not re-render the board.
     const bothPressed = useMinesweeperStore((state) => state.bothPressed);
     const isChecked = useMinesweeperStore((state) => state.isChecked);
+    const swapButtons = useMinesweeperStore((state) => state.settings.swapMouseButtons);
+    const chordingEnabled = useMinesweeperStore((state) => state.settings.chording);
     const gameOver = useMinesweeperStore((state) => state.gameOver);
     const mode = useMinesweeperStore((state) => state.mode);
     const pvpStarted = useMinesweeperStore((state) => state.pvpStarted);
@@ -77,6 +79,15 @@ const Cell = ({ cell, row, col, toggleFlag, openCell, chordCell, emitCellHover }
         '--reveal-delay': `calc(var(--ms-cascade-step) * ${cascadeBand(row, col)})`,
     } as React.CSSProperties);
 
+    /*
+     * The swap setting exchanges what the two buttons MEAN, not what they do
+     * mechanically: chording still needs both buttons and the bothPressed
+     * latch, so mousedown keeps recording physical buttons and only the
+     * action each release fires is swapped.
+     */
+    const primaryAction = swapButtons ? toggleFlag : openCell;   // left button
+    const secondaryAction = swapButtons ? openCell : toggleFlag; // right button
+
     const handleMouseEnter = () => {
         emitCellHover(row, col);
     };
@@ -93,7 +104,7 @@ const Cell = ({ cell, row, col, toggleFlag, openCell, chordCell, emitCellHover }
             setLeftClick(true);
         } else if (event.button === 1) {
             event.preventDefault(); // middle-click otherwise starts autoscroll
-            chordCell(row, col);
+            if (chordingEnabled) chordCell(row, col);
         } else if (event.button === 2) {
             setRightClick(true);
         }
@@ -104,13 +115,13 @@ const Cell = ({ cell, row, col, toggleFlag, openCell, chordCell, emitCellHover }
 
         if (event.button === 0) {
             if (!bothPressed) {
-                openCell(row, col);
+                primaryAction(row, col);
             }
             setLeftClick(false);
 
         } else if (event.button === 2) {
             if (!bothPressed) {
-                toggleFlag(row, col);
+                secondaryAction(row, col);
             }
             setRightClick(false);
         }
@@ -174,9 +185,15 @@ const Cell = ({ cell, row, col, toggleFlag, openCell, chordCell, emitCellHover }
                 aria-label={getAriaLabel()}
                 className={`${styles.cell} ${styles.flagged} ${isHovered ? styles.hovered : ''} text-pixel-lg`}
                 style={hoverStyle}
+                /*
+                 * Both buttons fire their MAPPED action here; the server's
+                 * flag protection makes the open a no-op on a flagged cell, so
+                 * whichever button currently means "flag" is the one that
+                 * unflags — under swap that is the left button.
+                 */
                 onContextMenu={(e) => {
                     e.preventDefault();
-                    toggleFlag(row, col);
+                    if (!isDisabled) secondaryAction(row, col);
                 }}
                 onMouseEnter={handleMouseEnter}
                 onMouseLeave={handleMouseLeave}
@@ -188,7 +205,9 @@ const Cell = ({ cell, row, col, toggleFlag, openCell, chordCell, emitCellHover }
                 <div className="h-full w-full xl:hidden" onClick={() => { if (!isDisabled) { !isChecked ? toggleFlag(row, col) : {} } }}>
                     🚩
                 </div>
-                <div className="h-full w-full hidden xl:block">
+                <div
+                    className="h-full w-full hidden xl:block"
+                    onClick={() => { if (!isDisabled) primaryAction(row, col); }}>
                     🚩
                 </div>
             </div>
@@ -205,7 +224,7 @@ const Cell = ({ cell, row, col, toggleFlag, openCell, chordCell, emitCellHover }
             style={hoverStyle}
             onContextMenu={(e) => {
                 e.preventDefault();
-                if (!isDisabled) toggleFlag(row, col);
+                if (!isDisabled) secondaryAction(row, col);
             }}
             onMouseEnter={handleMouseEnter}
             onMouseLeave={handleMouseLeave}
@@ -213,9 +232,10 @@ const Cell = ({ cell, row, col, toggleFlag, openCell, chordCell, emitCellHover }
             onMouseDown={(e) => {
                 if (e.button === 1) e.preventDefault();
             }}>
+            {/* Mobile taps follow the flag-mode toggle, never the swap setting. */}
             <div className="h-full w-full xl:hidden" onClick={() => { if (!isDisabled) { isChecked ? openCell(row, col) : toggleFlag(row, col) } }} />
             <div className="h-full w-full hidden xl:block" onClick={() => {
-                if (!isDisabled) openCell(row, col);
+                if (!isDisabled) primaryAction(row, col);
             }} />
         </div>
     );

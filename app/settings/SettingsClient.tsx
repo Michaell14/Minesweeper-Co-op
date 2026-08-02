@@ -2,9 +2,19 @@
 import React from 'react';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
-import { Button, Panel } from '@/components/ds';
+import { Button, Panel, RadioCard, RadioCardGroup } from '@/components/ds';
 import { DIALOGS, openDialog } from '@/lib/dialogs';
 import ThemeCards from '@/components/ThemeCards';
+import SettingRow from './SettingRow';
+import { useMinesweeperStore } from '@/app/store';
+import { CELL_SIZES, type CellSize } from '@/lib/settings';
+
+/** Card copy for the cell-size choice. */
+const CELL_SIZE_LABELS: Record<CellSize, { label: string; short: string }> = {
+    compact: { label: 'Compact', short: 'More board' },
+    standard: { label: 'Standard', short: 'The default' },
+    large: { label: 'Large', short: 'Bigger targets' },
+};
 
 /**
  * The settings page body. Each section is a titled Panel with a real heading,
@@ -14,6 +24,8 @@ import ThemeCards from '@/components/ThemeCards';
  */
 export default function SettingsClient() {
     const { status } = useSession();
+    const cellSize = useMinesweeperStore((s) => s.settings.cellSize);
+    const setSetting = useMinesweeperStore((s) => s.setSetting);
 
     return (
         <main className="max-w-3xl mx-auto px-6 pt-10 pb-24">
@@ -27,6 +39,82 @@ export default function SettingsClient() {
             <section aria-labelledby="settings-appearance" className="mb-8">
                 <Panel title={<span id="settings-appearance">Appearance</span>}>
                     <ThemeCards name="app-theme-settings" />
+                </Panel>
+            </section>
+
+            <section aria-labelledby="settings-gameplay" className="mb-8">
+                <Panel title={<span id="settings-gameplay">Gameplay</span>}>
+                    <SettingRow
+                        settingKey="swapMouseButtons"
+                        name="Swap mouse buttons"
+                        description="Left click flags, right click opens."
+                    />
+                    <SettingRow
+                        settingKey="chording"
+                        name="Chording"
+                        description="Both buttons (or middle click) on a number opens its unflagged neighbours."
+                    />
+                    <SettingRow
+                        settingKey="mobileDefaultFlag"
+                        name="Start taps in flag mode"
+                        description="On touch screens, tapping flags by default instead of opening."
+                    />
+                    <SettingRow
+                        settingKey="confetti"
+                        name="Confetti"
+                        description="The celebration burst on a win."
+                    />
+                    <SettingRow
+                        settingKey="shareCursor"
+                        name="Share your cursor"
+                        description="Teammates in a co-op room see which cell you are hovering."
+                    />
+                </Panel>
+            </section>
+
+            <section aria-labelledby="settings-hud" className="mb-8">
+                <Panel title={<span id="settings-hud">HUD</span>}>
+                    <SettingRow
+                        settingKey="showTimer"
+                        name="Timer"
+                        description="The live clock. Runs are still timed for the summary either way."
+                    />
+                    <SettingRow
+                        settingKey="showFlagCounter"
+                        name="Flag counter"
+                        description="Mines remaining, next to the board."
+                    />
+                    <SettingRow
+                        settingKey="showProgressBar"
+                        name="PVP progress bars"
+                        description="Yours and your opponent's, during a race."
+                    />
+                    <div className="pt-3">
+                        <p className="text-pixel-sm m-0 mb-3">Cell size</p>
+                        <RadioCardGroup
+                            name="cell-size"
+                            ariaLabel="Cell size"
+                            value={cellSize}
+                            onChange={(value) => setSetting('cellSize', value as CellSize)}
+                        >
+                            {CELL_SIZES.map((size) => (
+                                <RadioCard
+                                    key={size}
+                                    value={size}
+                                    label={CELL_SIZE_LABELS[size].label}
+                                    description={
+                                        <span className="whitespace-nowrap text-pixel-xs">
+                                            {CELL_SIZE_LABELS[size].short}
+                                        </span>
+                                    }
+                                />
+                            ))}
+                        </RadioCardGroup>
+                        <p className="text-pixel-xs text-ink-muted mt-3">
+                            A ceiling, not a fixed size — boards still shrink to fit your
+                            screen.
+                        </p>
+                    </div>
                 </Panel>
             </section>
 

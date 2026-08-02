@@ -23,14 +23,21 @@ export function useChording(chordCell: (row: number, col: number) => void): void
     const c = useMinesweeperStore((state) => state.c);
     const leftClick = useMinesweeperStore((state) => state.leftClick);
     const rightClick = useMinesweeperStore((state) => state.rightClick);
+    const chordingEnabled = useMinesweeperStore((state) => state.settings.chording);
     const setBothPressed = useMinesweeperStore((state) => state.setBothPressed);
     const setLeftClick = useMinesweeperStore((state) => state.setLeftClick);
     const setRightClick = useMinesweeperStore((state) => state.setRightClick);
 
     useEffect(() => {
         if (leftClick && rightClick) {
+            /*
+             * The latch is set even with chording OFF: without it, releasing
+             * a both-buttons press would fire the open AND the flag the two
+             * buttons mean alone. Disabled chording means the pair does
+             * nothing — not two accidents.
+             */
             setBothPressed(true);
-            if (r >= 0 && c >= 0) {
+            if (chordingEnabled && r >= 0 && c >= 0) {
                 chordCell(r, c);
             }
             return;
@@ -39,7 +46,7 @@ export function useChording(chordCell: (row: number, col: number) => void): void
         if (!leftClick && !rightClick) {
             setBothPressed(false);
         }
-    }, [leftClick, rightClick, r, c, chordCell, setBothPressed]);
+    }, [leftClick, rightClick, r, c, chordCell, chordingEnabled, setBothPressed]);
 
     useEffect(() => {
         const clear = () => {

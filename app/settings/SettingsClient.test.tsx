@@ -73,3 +73,37 @@ describe('the account section', () => {
         expect(screen.getByRole('button', { name: 'Manage account' })).toBeTruthy();
     });
 });
+
+describe('the gameplay and HUD sections', () => {
+    it('renders every toggle by name, reflecting defaults', () => {
+        render(<SettingsClient />);
+        const expectSwitch = (name: string, checked: boolean) => {
+            const control = screen.getByRole('switch', { name }) as HTMLInputElement;
+            expect(control.checked).toBe(checked);
+        };
+        expectSwitch('Swap mouse buttons', false);
+        expectSwitch('Chording', true);
+        expectSwitch('Start taps in flag mode', false);
+        expectSwitch('Confetti', true);
+        expectSwitch('Share your cursor', true);
+        expectSwitch('Timer', true);
+        expectSwitch('Flag counter', true);
+        expectSwitch('PVP progress bars', true);
+    });
+
+    it('flipping a toggle writes the store and storage', () => {
+        render(<SettingsClient />);
+        fireEvent.click(screen.getByRole('switch', { name: 'Swap mouse buttons' }));
+        expect(useMinesweeperStore.getState().settings.swapMouseButtons).toBe(true);
+        expect(localStorage.getItem('minesweeper_settings')).toContain('"swapMouseButtons":true');
+    });
+
+    it('offers the three cell sizes and stores a choice', () => {
+        render(<SettingsClient />);
+        for (const name of [/Compact/, /Standard/, /Large/]) {
+            expect(screen.getByRole('radio', { name })).toBeTruthy();
+        }
+        fireEvent.click(screen.getByRole('radio', { name: /Compact/ }));
+        expect(useMinesweeperStore.getState().settings.cellSize).toBe('compact');
+    });
+});

@@ -39,7 +39,12 @@ export interface TimerProps {
 export default function Timer({ variant }: TimerProps) {
     const startedAt = useMinesweeperStore((state) => state.startedAt);
     const endedAt = useMinesweeperStore((state) => state.endedAt);
+    const showTimer = useMinesweeperStore((state) => state.settings.showTimer);
     const seconds = useElapsedSeconds(startedAt, endedAt);
+
+    // The HUD setting. The run still times — the end-of-game summary reports
+    // it from the same timestamps — the player just doesn't watch it tick.
+    if (!showTimer) return null;
 
     const value = formatClock(seconds);
     /*

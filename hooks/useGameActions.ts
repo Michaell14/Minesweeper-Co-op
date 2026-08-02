@@ -109,8 +109,12 @@ export function useGameActions(socket: AppSocket | null) {
 
     const emitCellHover = useCallback(
         (row: number, col: number) => {
-            const { room, playerJoined } = useMinesweeperStore.getState();
+            const { room, playerJoined, settings } = useMinesweeperStore.getState();
             if (!socket || !room || !playerJoined) return;
+            // The share-cursor opt-out (privacy setting). The (-1,-1) clear is
+            // still allowed through so toggling off mid-hover removes your
+            // cursor from teammates' boards instead of freezing it there.
+            if (!settings.shareCursor && !(row === -1 && col === -1)) return;
             socket.emit(CLIENT_EVENTS.CELL_HOVER, { room, row, col });
         },
         [socket]

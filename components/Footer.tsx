@@ -1,6 +1,7 @@
 'use client'
 import React from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { DIALOGS, openDialog } from '@/lib/dialogs';
 import { CoinIcon, Dialog, DialogClose, GearIcon, GithubIcon, PaletteIcon, UserIcon, pointerClass } from '@/components/ds';
 import ThemePicker from '@/components/ThemePicker';
@@ -12,9 +13,18 @@ export default function Footer() {
     const openThemeDialog = () => openDialog(DIALOGS.theme);
     const openAccountDialog = () => openDialog(DIALOGS.account);
 
+    /*
+     * The floating cluster overlaps the settings page's own controls (it is
+     * absolutely positioned over the content column), and everything it opens
+     * is reachable from that page anyway — palette in Appearance, account in
+     * Account, settings is the page itself. The DIALOGS below stay mounted on
+     * every route: the settings page opens the account dialog imperatively.
+     */
+    const showCluster = usePathname() !== '/settings';
+
     return (
         <>
-            <div className="xl:absolute mr-8 mb-6 xl:ml-0 xl:mb-0 float-right right-8 bottom-8 flex items-center gap-3">
+            {showCluster && <div className="xl:absolute mr-8 mb-6 xl:ml-0 xl:mb-0 float-right right-8 bottom-8 flex items-center gap-3">
                 <a
                     href="https://github.com/Michaell14/Minesweeper-Co-op"
                     target="_blank"
@@ -52,7 +62,7 @@ export default function Footer() {
                 <Link href="/settings" aria-label="Settings" className={pointerClass}>
                     <GearIcon size={48} />
                 </Link>
-            </div>
+            </div>}
 
             <Dialog
                 id={DIALOGS.guide}

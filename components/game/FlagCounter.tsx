@@ -1,5 +1,6 @@
 import React from 'react';
 import { Panel } from '@/components/ds';
+import { useMinesweeperStore } from '@/app/store';
 
 export interface FlagCounterProps {
     remainingFlags: number;
@@ -14,7 +15,12 @@ export interface FlagCounterProps {
 
 /** Mines remaining, i.e. total mines minus flags placed. */
 export default function FlagCounter({ remainingFlags, variant }: FlagCounterProps) {
+    const showFlagCounter = useMinesweeperStore((state) => state.settings.showFlagCounter);
     const label = `${remainingFlags} flags remaining`;
+
+    // The HUD setting hides the LIVE counter only; the dialog variant is part
+    // of the end-of-game summary, which is a report, not a HUD.
+    if (!showFlagCounter && variant !== 'dialog') return null;
 
     /* The sticky bar is tight on height, so no panel chrome around it. */
     if (variant === 'hud') {

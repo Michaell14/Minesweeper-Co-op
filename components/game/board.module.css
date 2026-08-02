@@ -1,3 +1,15 @@
+/*
+ * The cell-size setting: a different CEILING for the fit clamp below, never a
+ * fixed size — "large" still shrinks on a phone, "compact" still respects
+ * --ms-cell-min. Board.tsx stamps data-cell-size from the settings slice.
+ */
+.gameBoard[data-cell-size="compact"] {
+    --ms-cell-size: var(--ms-cell-size-compact);
+}
+.gameBoard[data-cell-size="large"] {
+    --ms-cell-size: var(--ms-cell-size-large);
+}
+
 /* Grid container for the game board - using CSS Grid for better performance */
 .gameBoard {
     /*

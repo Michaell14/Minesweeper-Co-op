@@ -129,3 +129,25 @@ describe("teardown", () => {
         expect(state().leftClick).toBe(true);
     });
 });
+
+describe("with chording disabled in settings", () => {
+    test("both buttons fire no chord, but still latch bothPressed", () => {
+        useMinesweeperStore.setState((s) => ({
+            settings: { ...s.settings, chording: false },
+        }));
+        const chordCell = vi.fn();
+        render(<Probe chordCell={chordCell} />);
+
+        press({ left: true });
+        press({ right: true });
+
+        expect(chordCell).not.toHaveBeenCalled();
+        // The latch still guards the releases: without it, letting go would
+        // fire the open AND the flag the two buttons mean on their own.
+        expect(state().bothPressed).toBe(true);
+
+        useMinesweeperStore.setState((s) => ({
+            settings: { ...s.settings, chording: true },
+        }));
+    });
+});

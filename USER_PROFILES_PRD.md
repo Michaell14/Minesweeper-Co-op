@@ -277,27 +277,52 @@ display name anyway and it saves a lookup.
       client green; ui-smoke green; live REST round-trip verified against a
       real Postgres
 
-### Phase 3 — Gameplay preferences & HUD ░ Not started · est. 4–6 days
+### Phase 3 — Gameplay preferences & HUD ✔ Done 2026-08-02
 
-Client-only first, server-touching second.
+Ended up **entirely client-side** — see the two decisions at the bottom.
 
 **Client-only**
-- [ ] Swap left/right click (open ↔ flag)
-- [ ] Default mobile flag-mode (`isChecked` initial value from settings)
-- [ ] Confetti toggle (compose with `prefersReducedMotion()` in `lib/motion.ts`)
-- [ ] Timer visibility · [ ] Flag-counter visibility · [ ] Progress-bar visibility
-- [ ] Cell size (spacing token scale, not raw px)
-- [ ] Hover-presence opt-out — **privacy setting**: stops broadcasting your
-      cursor to the room (client simply stops emitting `cellHover`)
+- [x] Swap left/right click: `primaryAction`/`secondaryAction` mapping in
+      `Cell.tsx`. Mousedown keeps recording PHYSICAL buttons (the chord latch
+      needs them); only what each release fires is swapped. On a flagged cell
+      both buttons fire their mapped action and the server's flag protection
+      no-ops the wrong one. Mobile taps follow the flag-mode toggle, never the
+      swap. Covered by button-mapping tests in `Cell.test.tsx`
+- [x] Default mobile flag-mode: `mobileDefaultFlag` seeds `isChecked` in
+      `hydrateSettings` ONLY — a sync arriving mid-run must not flip the
+      in-game toggle under the player
+- [x] Confetti toggle: gated inside `shootConfetti` so every caller (own win,
+      teammate's shared burst) obeys it; composes with `prefersReducedMotion`.
+      SENDING confetti is ungated — the setting is about your screen
+- [x] Timer visibility (component-gated; runs still timed for the summary) ·
+      Flag-counter visibility (live variants only — the summary dialog is a
+      report, not a HUD) · Progress-bar visibility (gated in `Grid.tsx`, whole
+      titled panel, so no empty box remains)
+- [x] Cell size: `compact | standard | large` as token variants
+      (`--ms-cell-size-{compact,large}` in tokens.css) selected via
+      `data-cell-size` on the board — a different CEILING for the viewport-fit
+      clamp, so `large` still shrinks on phones. Verified live: compact board
+      measured at exactly 30px cells
+- [x] Hover-presence opt-out (`shareCursor`): gated in `emitCellHover`, with
+      the (-1,-1) clear still allowed through so toggling off removes your
+      cursor from teammates' boards instead of freezing it there
+- [x] `/settings` gains Gameplay + HUD sections (Switch rows via a shared
+      `SettingRow`, cell-size RadioCards); the floating footer cluster now
+      hides on /settings, where it overlapped the controls and everything it
+      opens is on the page anyway
 
-**Server-touching** (each pays the four-place socket-event tax)
-- [ ] Question-mark flag state (cell cycle closed → flag → ? → closed; touches
-      the cell shape — scope carefully, may need `isQuestioned` on cells and
-      projection updates in `server/domain/board.js`)
-- [ ] Chord on/off (client-side suppression may suffice — prefer that; only go
-      server-side if needed)
-- [ ] Decide transport: prefs ride the socket handshake vs. a `setPrefs` event;
-      validate in `server/validation.js`
+**Server-touching — resolved to zero server work**
+- [x] **Question-mark flags: deferred, deliberately.** The cell shape
+      (`isQuestioned`) ripples through projection, chording's flag counts,
+      both mode files and the validation layer — a high-cost change for a
+      low-demand feature. Recorded here; revisit only if players ask
+- [x] Chord on/off: client-side suppression in `useChording` + `Cell`
+      (middle-click). The latch still sets with chording off, so a
+      both-buttons press does nothing rather than two accidents. A hacked
+      client re-enabling chording is just… a player chording — not an
+      integrity concern
+- [x] Transport decision: **no per-player prefs reach the server at all** in
+      this phase, so no handshake field, no event, no four-place tax
 
 ### Phase 4 — Sound ░ Not started · est. 3–5 days
 
@@ -380,8 +405,8 @@ the delivery mechanism is the work.
 - [ ] Display-name rules (length/charset) — private-only, so minimal; decide in Phase 1
 - [ ] Whether the daily streak (the Wordle hook) ships in Phase 6 or later — the
       `game_results` rows make it cheap to add
-- [ ] Whether question-mark flags are worth the cell-shape/projection change or
-      get cut — decide at Phase 3
+- [x] Question-mark flags — **deferred at Phase 3** (2026-08-02): the cell-shape
+      and projection ripple outweighs demand; revisit only if players ask
 - [ ] Recent-window size (default 50) — confirm before Phase 6
 
 ## 9. Progress log
@@ -392,3 +417,4 @@ the delivery mechanism is the work.
 | 2026-08-02 | Phase 0 code complete: pg pool singleton (`utils/initializePgClient.js`), `users` migration, `release:`-phase runner, layering + mockInfra updates, `pgClient.test.js`. Full suite green (34 suites / 606 tests). Migration verified up/down against a real Postgres 14. Outstanding: provision Heroku Postgres (manual). |
 | 2026-08-02 | Phase 1 code complete: Auth.js (Google+GitHub) + bridge-token pipe end to end — socket-token route, client cache, handshake auth function, server verify → `socket.data.user`, `userRepo`, `/api/me` GET/PUT/DELETE, account/delete/privacy dialogs in the Footer. 642 server + 211 client tests and ui-smoke green; REST round-trip and socket auth verified live against a real Postgres (jose-signed token, jsonwebtoken verify). Outstanding: create the OAuth apps and set the five secrets (manual). |
 | 2026-08-02 | Phase 2 complete: settings blob (`lib/settings.ts`) + slice + `/settings` page + `SettingsSync` (server-wins at sign-in, debounced last-write-wins after); theme migrated into the blob with the legacy `ms-theme` fallback in the no-flash script; `user_settings` JSONB mirror with GET/PUT routes. Verified live: REST round-trip + upsert + cascade delete against real Postgres; browser checks of theme persistence, pre-blob migration, and legacy-key retirement. DS Slider/Select deferred to their consuming phases. |
+| 2026-08-02 | Phase 3 complete: nine settings (swap buttons, mobile flag default, chording, confetti, share-cursor, timer/flag-counter/progress visibility, cell size) wired through Cell/useChording/confetti/emitCellHover/HUD components; Gameplay + HUD sections on /settings; cell size as token-variant ceilings. Resolved to zero server work: chording suppressed client-side, question marks deferred (recorded in §8). Verified live in the browser (compact cells measured 30px, timer hidden, settings persisted); server 663 + client 247 tests and ui-smoke green. |

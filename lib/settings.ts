@@ -16,12 +16,35 @@
 
 import { VALID_THEME_IDS, THEME_STORAGE_KEY as LEGACY_THEME_KEY } from "@/lib/theme";
 
+/** The board's cell-size ceiling — token variants in app/tokens.css. */
+export const CELL_SIZES = ["compact", "standard", "large"] as const;
+export type CellSize = (typeof CELL_SIZES)[number];
+
 export interface Settings {
     /** Bumped only when a stored shape needs rewriting, not for new keys —
      * unknown keys are dropped and missing ones defaulted regardless. */
     version: 1;
     /** data-theme id, or null for the default palette. */
     theme: string | null;
+
+    // --- Gameplay ---
+    /** Left click flags, right click opens. */
+    swapMouseButtons: boolean;
+    /** Mobile taps start in flag mode instead of open mode. */
+    mobileDefaultFlag: boolean;
+    /** Both-buttons / middle-click chording. */
+    chording: boolean;
+    /** Win celebration bursts (composed with prefers-reduced-motion). */
+    confetti: boolean;
+    /** Broadcast your cursor position to the co-op room. Privacy setting. */
+    shareCursor: boolean;
+
+    // --- HUD ---
+    showTimer: boolean;
+    showFlagCounter: boolean;
+    /** The PVP progress bars. */
+    showProgressBar: boolean;
+    cellSize: CellSize;
 }
 
 export type SettingKey = Exclude<keyof Settings, "version">;
@@ -31,7 +54,19 @@ export const SETTINGS_STORAGE_KEY = "minesweeper_settings";
 export const DEFAULT_SETTINGS: Settings = {
     version: 1,
     theme: null,
+    swapMouseButtons: false,
+    mobileDefaultFlag: false,
+    chording: true,
+    confetti: true,
+    shareCursor: true,
+    showTimer: true,
+    showFlagCounter: true,
+    showProgressBar: true,
+    cellSize: "standard",
 };
+
+const boolean = (value: unknown): boolean | undefined =>
+    typeof value === "boolean" ? value : undefined;
 
 /**
  * Per-field sanitisers: a valid value, or undefined to mean "take the
@@ -42,6 +77,16 @@ const SANITISERS: { [K in SettingKey]: (value: unknown) => Settings[K] | undefin
         value === null || (typeof value === "string" && VALID_THEME_IDS.includes(value))
             ? (value as string | null)
             : undefined,
+    swapMouseButtons: boolean,
+    mobileDefaultFlag: boolean,
+    chording: boolean,
+    confetti: boolean,
+    shareCursor: boolean,
+    showTimer: boolean,
+    showFlagCounter: boolean,
+    showProgressBar: boolean,
+    cellSize: (value) =>
+        CELL_SIZES.includes(value as CellSize) ? (value as CellSize) : undefined,
 };
 
 /** A complete, valid Settings from anything at all. */
