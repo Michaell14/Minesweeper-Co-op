@@ -1,3 +1,5 @@
+"use client";
+
 import React from 'react';
 import { useMinesweeperStore } from '@/app/store';
 import { useBestTime } from '@/hooks/useBestTime';

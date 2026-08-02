@@ -67,6 +67,8 @@ afterEach(() => {
     store.setPvpOpponentName("");
     store.setPvpOpponentProgress(0);
     store.setPvpTotalSafeCells(0);
+    /* setClock above already drops this, but say so rather than rely on it. */
+    store.setBestTimeResult(null);
 });
 
 describe("the time", () => {
@@ -179,6 +181,20 @@ describe("PVP", () => {
 
         expect(screen.getByText("40%")).toBeDefined(); // 40 of 99 safe cells
         expect(screen.getByText("61%")).toBeDefined(); // 60 of 99, rounded
+    });
+
+    /*
+     * A race is won through DIALOGS.pvpYouWon rather than the co-op summary
+     * dialog, so it is easy to assume the record note only reaches co-op. It
+     * reaches both because that dialog renders this component — this test is
+     * what keeps that true if the summary is ever split per mode.
+     */
+    test("still celebrates a record set in a race", () => {
+        race();
+        useMinesweeperStore.getState().setBestTimeResult({ improved: true, previous: null });
+        render(<GameSummary />);
+
+        expect(screen.getByText("🏆 New best!")).toBeDefined();
     });
 
     /* A disconnect can end a race before a name ever arrived. */
