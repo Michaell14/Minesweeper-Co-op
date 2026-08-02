@@ -85,10 +85,22 @@ function CoverageReport({ coverage }: { coverage: ThemeCoverage | null }) {
     );
 }
 
-function ContrastReport({ results }: { results: ContrastResult[] }) {
+/*
+ * `auditedTheme` is the palette these numbers were MEASURED under, not the one
+ * currently selected — the two differ for the render between a palette change
+ * and the effect that re-measures. It is published as a data attribute because
+ * scripts/ui-smoke walks every palette here and reads the failures out: without
+ * it the walk has nothing to wait on, and a read that lands early sees the
+ * previous palette's rows. Rows that show no failures then look exactly like a
+ * palette that passes.
+ *
+ * null until the first measurement lands, so the attribute is absent rather
+ * than present-and-lying while there is nothing to report.
+ */
+function ContrastReport({ results, auditedTheme }: { results: ContrastResult[]; auditedTheme: string | null }) {
     const failing = results.filter((r) => !r.passes);
     return (
-        <div>
+        <div data-audited-theme={auditedTheme ?? undefined}>
             <p className="text-pixel-sm mb-3">
                 {failing.length === 0
                     ? "All audited pairs meet WCAG AA."
@@ -115,6 +127,12 @@ export default function DsCatalogClient() {
     const [flagMode, setFlagMode] = React.useState(true);
     const [theme, setTheme] = React.useState<string | null>(null);
     const [contrast, setContrast] = React.useState<ContrastResult[]>([]);
+    /*
+     * Set in the same effect as `contrast`, so the two always commit together.
+     * Starts null rather than at DEFAULT_THEME: before the first measurement
+     * there are no results, and a value here would claim there were.
+     */
+    const [auditedTheme, setAuditedTheme] = React.useState<string | null>(null);
     const [coverage, setCoverage] = React.useState<ThemeCoverage | null>(null);
 
     /*
@@ -126,6 +144,7 @@ export default function DsCatalogClient() {
     React.useEffect(() => {
         applyTheme(theme);
         setContrast(measure(AUDITED_PAIRS));
+        setAuditedTheme(theme ?? DEFAULT_THEME);
         setCoverage(coverageOf(theme));
         return () => applyTheme(null);
     }, [theme]);
@@ -183,7 +202,7 @@ export default function DsCatalogClient() {
                 title="Contrast"
                 note="Measured from resolved colours in the DOM, so it reflects the theme currently applied rather than the token source."
             >
-                <ContrastReport results={contrast} />
+                <ContrastReport results={contrast} auditedTheme={auditedTheme} />
             </Section>
 
             <Section

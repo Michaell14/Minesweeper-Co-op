@@ -30,20 +30,30 @@ const declarationsIn = (block: string) =>
         value: m[2].trim(),
     }));
 
+const escapeForRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 /**
  * The body of a top-level block, found by brace matching.
  *
  * A regex up to the first `}` would stop inside a nested `@media`, which the
  * root block contains — and would then report most of the file as missing.
+ *
+ * The selector is matched as a rule HEAD — at the start of a line, followed by
+ * its brace — rather than as a substring. `:root` is a prefix of every
+ * `:root[data-theme=...]` head and also appears indented inside the `@media`
+ * blocks, so a substring search returns whichever comes first in the file. It
+ * does today; reordering the file is all it would take to have `:root` quietly
+ * return a theme's body instead, and every test below would then be checking
+ * that block against itself.
  */
-const blockBody = (selector: string) => {
-    const start = TOKENS.indexOf(selector);
-    if (start === -1) throw new Error(`no block for ${selector}`);
-    const open = TOKENS.indexOf("{", start);
+export const blockBody = (selector: string, source = TOKENS) => {
+    const head = new RegExp(`^${escapeForRegExp(selector)}\\s*\\{`, "m").exec(source);
+    if (!head) throw new Error(`no block for ${selector}`);
+    const open = head.index + head[0].length - 1;
     let depth = 0;
-    for (let i = open; i < TOKENS.length; i++) {
-        if (TOKENS[i] === "{") depth++;
-        if (TOKENS[i] === "}" && --depth === 0) return TOKENS.slice(open + 1, i);
+    for (let i = open; i < source.length; i++) {
+        if (source[i] === "{") depth++;
+        if (source[i] === "}" && --depth === 0) return source.slice(open + 1, i);
     }
     throw new Error(`unbalanced braces after ${selector}`);
 };
@@ -86,6 +96,40 @@ describe("every token resolves to something", () => {
 
     test("the palette is actually the bulk of it, so this is checking the real file", () => {
         expect(paletteNames.length).toBeGreaterThan(50);
+    });
+});
+
+/*
+ * The file order this suite reads is not a rule anyone enforces, so the reader
+ * must not depend on it. Everything above would still pass if `:root` resolved
+ * to a theme's body — it would just be comparing that block against itself.
+ */
+describe("the block reader finds heads, not substrings", () => {
+    const REORDERED = [
+        ':root[data-theme="dark"] {',
+        "    --ms-palette-themed: #111;",
+        "}",
+        ":root {",
+        "    --ms-palette-root: #fff;",
+        "}",
+    ].join("\n");
+
+    test(":root is not satisfied by a theme block that precedes it", () => {
+        expect(blockBody(":root", REORDERED)).toContain("--ms-palette-root");
+        expect(blockBody(":root", REORDERED)).not.toContain("--ms-palette-themed");
+    });
+
+    test("a theme selector still finds its own block", () => {
+        expect(blockBody(':root[data-theme="dark"]', REORDERED)).toContain("--ms-palette-themed");
+    });
+
+    test("an indented nested rule is not mistaken for a top-level block", () => {
+        const NESTED = ["@media (foo) {", "    :root {", "        --ms-palette-nested: #000;", "    }", "}", ":root {", "    --ms-palette-real: #fff;", "}"].join("\n");
+        expect(blockBody(":root", NESTED)).toContain("--ms-palette-real");
+    });
+
+    test("a selector with no block of its own is an error, not an empty pass", () => {
+        expect(() => blockBody(':root[data-theme="nope"]', REORDERED)).toThrow(/no block/);
     });
 });
 

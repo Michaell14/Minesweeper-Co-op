@@ -541,13 +541,24 @@ async function themeContrast(page) {
             [...group.querySelectorAll('input[type=radio]')].find(i => i.value === ${JSON.stringify(theme)}).click();
             return true;
         `);
-        // The report re-measures in an effect keyed on the theme.
-        await sleep(400);
+        /*
+         * The report re-measures in an effect keyed on the theme, and stamps
+         * the palette it measured on the container when it commits. Waiting for
+         * that rather than sleeping is the difference between a check and a
+         * coin toss: a read that lands early sees the PREVIOUS palette's rows,
+         * finds no new failures in them, and passes — which is the exact false
+         * pass this ratchet exists to catch.
+         */
+        await page.waitFor(
+            `document.querySelector('[data-audited-theme]')?.dataset.auditedTheme === ${JSON.stringify(theme)}`,
+            { label: `${theme} audit re-measures` });
 
         // Each row is <p><span>{label}</span><span>{ratio} (needs N)</span></p>;
-        // only a FAILING row carries the "(needs N)" suffix.
+        // only a FAILING row carries the "(needs N)" suffix. Scoped to the
+        // report so no other <p> on the catalog can be read as a row.
         const failing = JSON.parse(await page.evaluate(`
-            const rows = [...document.querySelectorAll('p')].filter(el =>
+            const report = document.querySelector('[data-audited-theme]');
+            const rows = [...report.querySelectorAll('p')].filter(el =>
                 el.children.length === 2 &&
                 /needs [0-9]/.test(el.children[1].textContent));
             return JSON.stringify(rows.map(el => el.children[0].textContent.trim()));
