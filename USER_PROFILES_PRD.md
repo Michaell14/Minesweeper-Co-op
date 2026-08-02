@@ -273,7 +273,7 @@ display name anyway and it saves a lookup.
 - [x] Tests: `lib/settings.test.ts` (sanitise round-trip, unknown-key drop,
       legacy migration, no-flash executed under jsdom for both storage
       shapes), `SettingsClient.test.tsx` by accessible name,
-      `settingsRepo.test.js`, `settingsController.test.js`. 668 server + 235
+      `settingsRepo.test.js`, `settingsController.test.js`. 663 server + 235
       client green; ui-smoke green; live REST round-trip verified against a
       real Postgres
 
