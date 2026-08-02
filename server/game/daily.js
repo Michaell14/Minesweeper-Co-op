@@ -244,8 +244,12 @@ const toggleFlag = async (date, token, socketId, row, col) => {
     board[row][col].isFlagged = !board[row][col].isFlagged;
     const toUpdate = [{ ...board[row][col], row, col }];
 
-    io.to(socketId).emit(SERVER_EVENTS.DAILY_UPDATE_CELLS, projectCells(toUpdate));
+    // Save before telling anyone, the same order openCell and chordCell use. A
+    // flag that is only on screen is worse than a flag that never appeared:
+    // every later action re-reads the stored board, so the next move silently
+    // undoes it and nothing anywhere reports a problem.
     await dailyRepo.setAttemptBoard(date, token, board);
+    io.to(socketId).emit(SERVER_EVENTS.DAILY_UPDATE_CELLS, projectCells(toUpdate));
 };
 
 module.exports = {

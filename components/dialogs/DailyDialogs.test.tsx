@@ -107,7 +107,6 @@ describe("dailySubmit: won, name goes on the leaderboard", () => {
 
     test("rejects an empty name without calling submitDailyScore", () => {
         const submitDailyScore = vi.fn();
-        const alertSpy = vi.spyOn(window, "alert").mockImplementation(() => {});
         render(<DailyDialogs submitDailyScore={submitDailyScore} getDailyLeaderboard={vi.fn()} />);
         const dialog = document.getElementById(DIALOGS.dailySubmit) as HTMLDialogElement;
         dialog.open = true;
@@ -115,8 +114,24 @@ describe("dailySubmit: won, name goes on the leaderboard", () => {
         fireEvent.click(screen.getByRole("button", { name: "Submit your time to the leaderboard" }));
 
         expect(submitDailyScore).not.toHaveBeenCalled();
-        expect(alertSpy).toHaveBeenCalled();
-        alertSpy.mockRestore();
+        // Rejecting silently would read as a dead Submit button.
+        expect(screen.getByRole("alert").textContent).toMatch(/enter a name/i);
+    });
+
+    /* `required` is satisfied by spaces, so the input alone does not catch this. */
+    test("rejects a name that is only whitespace", () => {
+        const submitDailyScore = vi.fn();
+        render(<DailyDialogs submitDailyScore={submitDailyScore} getDailyLeaderboard={vi.fn()} />);
+        const dialog = document.getElementById(DIALOGS.dailySubmit) as HTMLDialogElement;
+        dialog.open = true;
+
+        fireEvent.change(screen.getByRole("textbox", { name: "Your name for the leaderboard" }), {
+            target: { value: "   " },
+        });
+        fireEvent.click(screen.getByRole("button", { name: "Submit your time to the leaderboard" }));
+
+        expect(submitDailyScore).not.toHaveBeenCalled();
+        expect(screen.getByRole("alert")).toBeDefined();
     });
 
     test("trims and submits a valid name", () => {
