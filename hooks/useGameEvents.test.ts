@@ -1,8 +1,14 @@
+// @vitest-environment jsdom
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { useMinesweeperStore } from "@/app/store";
 import { CLIENT_EVENTS, SERVER_EVENTS } from "@/shared/events";
+import { boardKey, clearBestTimes, readBestTime } from "@/lib/bestTimes";
 import { useGameEvents } from "./useGameEvents";
 import type { AppSocket } from "@/lib/initSocket";
+
+// A win shoots confetti, which wants a real canvas. Nothing here is about the
+// flourish, and jsdom's canvas has no 2d context to give it.
+vi.mock("@/lib/confetti", () => ({ shootConfetti: vi.fn() }));
 
 /**
  * `sessionResume` — the offer the server makes to a browser it recognises.
@@ -22,8 +28,9 @@ import type { AppSocket } from "@/lib/initSocket";
  * are about the refusal being narrow enough: it must still cover the daily, and
  * still cover an offer for some OTHER room.
  *
- * Pure logic, no DOM: the handler table is a plain object, so a fake socket and
- * the real store are the whole fixture.
+ * The handler table is a plain object, so a fake socket and the real store are
+ * the whole fixture. It asks for a DOM only because the win handlers below file
+ * a personal best, and that is localStorage.
  */
 
 const ROOM = "room-a";
@@ -104,5 +111,84 @@ describe("when the offer is not for the room on screen", () => {
 
         expect(joinEmits(socket)).toEqual([]);
         expect(useMinesweeperStore.getState().playerJoined).toBe(false);
+    });
+});
+
+/*
+ * Which slot a clear is filed in, driven through the real win handlers.
+ *
+ * `playersForClear` decides it and is unit-tested next door; what these are
+ * about is the handler using it for the KEY as well as for the number stored on
+ * the record. Filed under one count and looked up under another, a record is
+ * simply never found again — and nothing says so.
+ */
+describe("filing a clear as a personal best", () => {
+    const BOARD = { rows: 16, cols: 16, mines: 40 };
+
+    const roomOf = (size: number) =>
+        Array.from({ length: size }, (_, i) => ({ name: `P${i + 1}`, score: 0 }));
+
+    const finishAt = (seconds: number) => {
+        const store = useMinesweeperStore.getState();
+        store.setDimensions(BOARD.rows, BOARD.cols, BOARD.mines);
+        store.setClock({ startedAt: 0, endedAt: seconds * 1000 });
+    };
+
+    const win = (socket: AppSocket, event: "gameWon" | "pvpPlayerWon") => {
+        const handlers = useGameEvents(socket, vi.fn());
+        if (event === "gameWon") handlers[SERVER_EVENTS.GAME_WON]!();
+        else handlers[SERVER_EVENTS.PVP_PLAYER_WON]!({ winnerSocket: socket.id!, winnerName: "You" });
+    };
+
+    beforeEach(() => {
+        clearBestTimes();
+        const store = useMinesweeperStore.getState();
+        store.setMode("co-op");
+        store.setPlayerStatsInRoom([]);
+    });
+
+    test("a co-op clear is filed under the size of the room", () => {
+        useMinesweeperStore.getState().setPlayerStatsInRoom(roomOf(3));
+        finishAt(120);
+
+        win(fakeSocket(), "gameWon");
+
+        expect(readBestTime(boardKey(BOARD.rows, BOARD.cols, BOARD.mines, 3))?.seconds).toBe(120);
+        expect(readBestTime(boardKey(BOARD.rows, BOARD.cols, BOARD.mines))).toBeNull();
+    });
+
+    /*
+     * The race is the case that was wrong. Both racers are in the room, so the
+     * roster said two — but you cleared the whole board yourself, and it was
+     * filed next to co-op clears that split one between two people, captioned
+     * "with 2 players".
+     */
+    test("winning a race is filed as solo, not as the two in the room", () => {
+        const store = useMinesweeperStore.getState();
+        store.setMode("pvp");
+        store.setPlayerStatsInRoom(roomOf(2));
+        finishAt(200);
+
+        win(fakeSocket(), "pvpPlayerWon");
+
+        const solo = readBestTime(boardKey(BOARD.rows, BOARD.cols, BOARD.mines));
+        expect(solo?.seconds).toBe(200);
+        expect(solo?.players).toBe(1);
+        expect(readBestTime(boardKey(BOARD.rows, BOARD.cols, BOARD.mines, 2))).toBeNull();
+    });
+
+    /* The whole point: one no longer takes the other's slot. */
+    test("a group's fast clear does not stop a solo one being a record", () => {
+        useMinesweeperStore.getState().setPlayerStatsInRoom(roomOf(2));
+        finishAt(60);
+        win(fakeSocket(), "gameWon");
+
+        useMinesweeperStore.getState().setPlayerStatsInRoom([]);
+        finishAt(300);
+        win(fakeSocket(), "gameWon");
+
+        expect(useMinesweeperStore.getState().bestTimeResult?.improved).toBe(true);
+        expect(readBestTime(boardKey(BOARD.rows, BOARD.cols, BOARD.mines))?.seconds).toBe(300);
+        expect(readBestTime(boardKey(BOARD.rows, BOARD.cols, BOARD.mines, 2))?.seconds).toBe(60);
     });
 });

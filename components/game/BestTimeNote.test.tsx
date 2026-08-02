@@ -34,10 +34,24 @@ beforeEach(() => {
 afterEach(() => {
     setResult(null);
     clearBestTimes();
+    useMinesweeperStore.getState().setPlayerStatsInRoom([]);
 });
 
-const withRecord = (seconds: number, players = 1) =>
-    recordBestTime(boardKey(BOARD.rows, BOARD.cols, BOARD.mines), { seconds, players, at: 1 });
+/**
+ * Files a record for this board and puts the browser in a room of that size.
+ * Both halves matter: the group is part of which record is looked up, so a
+ * three-player time is simply not found while sitting in a room of one.
+ */
+const withRecord = (seconds: number, players = 1) => {
+    useMinesweeperStore.getState().setPlayerStatsInRoom(
+        Array.from({ length: players }, (_, i) => ({ name: `P${i + 1}`, score: 0 })),
+    );
+    return recordBestTime(boardKey(BOARD.rows, BOARD.cols, BOARD.mines, players), {
+        seconds,
+        players,
+        at: 1,
+    });
+};
 
 describe("a board with no record yet", () => {
     test("says nothing at all", async () => {

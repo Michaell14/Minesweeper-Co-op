@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useMinesweeperStore } from "@/app/store";
-import { boardKey, boardLabel, readBestTime, type BestTime } from "@/lib/bestTimes";
+import { boardKey, boardLabel, playersForClear, readBestTime, type BestTime } from "@/lib/bestTimes";
 
 /**
  * This browser's record for the board currently in play or selected.
@@ -13,7 +13,10 @@ import { boardKey, boardLabel, readBestTime, type BestTime } from "@/lib/bestTim
  * reason the theme is applied by a script rather than by React.
  *
  * It re-reads when the board changes, which is what stops a record following
- * the player onto a different difficulty and being read as that board's.
+ * the player onto a different difficulty and being read as that board's. The
+ * SIZE OF THE GROUP is part of that board's identity, so it re-reads on that
+ * too: on the landing page nobody has joined yet, which reads as solo — the
+ * record you would be chasing if you played it alone.
  *
  * `refreshKey` exists for the end-of-game case: the record is written by the
  * win handler, so a component already mounted needs a reason to look again.
@@ -22,12 +25,18 @@ export function useBestTime(refreshKey: unknown = null): { best: BestTime | null
     const numRows = useMinesweeperStore((state) => state.numRows);
     const numCols = useMinesweeperStore((state) => state.numCols);
     const numMines = useMinesweeperStore((state) => state.numMines);
+    const mode = useMinesweeperStore((state) => state.mode);
+    const playersInRoom = useMinesweeperStore((state) => state.playerStatsInRoom.length);
+
+    // The same derivation the win handler files under. Two spellings of it is
+    // how a record gets written where nothing will ever look for it.
+    const players = playersForClear(mode, playersInRoom);
 
     const [best, setBest] = useState<BestTime | null>(null);
 
     useEffect(() => {
-        setBest(readBestTime(boardKey(numRows, numCols, numMines)));
-    }, [numRows, numCols, numMines, refreshKey]);
+        setBest(readBestTime(boardKey(numRows, numCols, numMines, players)));
+    }, [numRows, numCols, numMines, players, refreshKey]);
 
     return { best, label: boardLabel(numRows, numCols, numMines) };
 }
