@@ -24,7 +24,8 @@ jest.mock('../utils/initializeRedisClient', () => ({
     redisClient: Promise.resolve(mockRedisClient),
 }));
 
-const { generateBoard, checkWin } = require('../utils/gameUtils');
+const { generateBoard } = require('../domain/boardGen');
+const { checkWin } = require('../utils/gameUtils');
 
 beforeEach(() => {
     jest.clearAllMocks();

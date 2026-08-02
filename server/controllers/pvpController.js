@@ -1,5 +1,5 @@
 const { revealFrom, projectBoard } = require('../domain/board');
-const { generateBoard } = require('../utils/gameUtils');
+const { generateBoard } = require('../domain/boardGen');
 const { updatePlayerStatsInRoom } = require('../utils/playerUtils');
 const { isValidRoomCode } = require('../validation');
 const roomRepo = require('../data/roomRepo');

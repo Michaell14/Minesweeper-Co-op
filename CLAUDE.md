@@ -62,12 +62,12 @@ Backend deps install separately: `npm --prefix server install`.
 | Deciding which mode handles an action | `server/game/index.js` — the only dispatch point |
 | PVP lifecycle (start/reset/rematch) | `server/controllers/pvpController.js` |
 | Which PVP board a socket owns | `server/domain/pvpPlayer.js` — `pvpIndexOf`; **never** default a missing index to 0 |
-| PVP disconnect grace period | `server/controllers/pvpForfeit.js` — a reload must not forfeit |
+| PVP disconnect grace period | `server/utils/pvpForfeit.js` — a reload must not forfeit |
 | Daily challenge (cell actions, seeded board) | `server/game/daily.js` |
 | Daily lifecycle (start/submit/leaderboard) | `server/controllers/dailyController.js` |
 | Rejoin-after-reload | `server/controllers/sessionController.js`; `SESSION_RESUME` in `hooks/useGameEvents.ts` |
-| Board generation, win check, room creation | `server/utils/gameUtils.js` |
-| No-guess solvability | `server/utils/solverUtils.js` (pure — easiest place to add tests) |
+| Win check, room creation, reset | `server/utils/gameUtils.js` (generation moved to `domain/boardGen.js`) |
+| Board generation, no-guess solvability | `server/domain/boardGen.js`, `server/domain/solverUtils.js` (pure — easiest place to add tests) |
 | Join/leave, scores, disconnects | `server/utils/playerUtils.js` |
 | Redis schema / any data access | `server/data/keys.js` and the repos beside it (`roomRepo`, `playerRepo`, `sessionRepo`, `dailyRepo`) |
 | Client state | `state/` (one slice per concern); import from `@/app/store` |
@@ -93,7 +93,7 @@ Backend deps install separately: `npm --prefix server install`.
 
 Read `ARCHITECTURE.md` §8-9 before changing server code. The ones most likely to bite:
 
-1. **Don't reintroduce imports between `gameUtils` and `playerUtils`.** They used to require each other, which made `resetGame()` throw silently depending on load order. Shared board helpers go in `server/domain/board.js`, which must stay dependency-free. `tests/resetGame.test.js` guards this and its require order is load-bearing.
+1. **The server's layers are enforced, not suggested.** `tests/layering.test.js` derives the import graph from source and fails on a cycle, on any module importing a higher layer, or on anything in `domain/` reaching outside it. Order, lowest first: `config`/`validation` → the io and Redis singletons → `domain/` (pure) → `data/` → `utils/` → `game/` → `controllers/` → `server.js`. This exists because `gameUtils` and `playerUtils` used to require each other, which made `resetGame()` throw *depending on which file node loaded first*; `tests/resetGame.test.js` still guards that one function and its require order is load-bearing.
 2. **Adding a socket event touches four places**: `shared/events.js` (the name), `shared/socketPayloads.ts` (the payload), the server handler/emit, and the client table in `hooks/useGameEvents.ts`. `server/tests/events.test.js` fails if they drift. It was five until `shared/events.js` started freezing its objects — `Object.freeze` makes TypeScript infer `'boardUpdate'` instead of widening to `string`, which is what a hand-written `events.d.ts` used to buy. **Don't unfreeze them**: nothing breaks loudly, the handler table just degrades to `any`.
 3. **`components/Grid.tsx` mounts the board exactly ONCE.** Two *control* clusters remain (desktop `hidden xl:flex`, mobile `xl:hidden`) because those arrangements genuinely differ, but they sit on one flex line with the single board between them. Don't move `<Board>` inside a cluster to "fix" a layout — that puts 512 cells in the DOM for a 16x16 game and makes every DOM query ambiguous. `scripts/ui-smoke/run.js` asserts the count and will fail. Where the layouts genuinely differ it is an explicit prop (`variant`), not a second copy.
 4. **Socket handlers go in the `hooks/useGameEvents.ts` table**, not in a component. Registration and cleanup are derived from that table; don't call `socket.on` directly.

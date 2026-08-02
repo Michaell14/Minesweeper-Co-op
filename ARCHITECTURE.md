@@ -106,26 +106,27 @@ server/                   Separate npm package (own package.json, lockfile, node
     playerRepo.js         All player reads/writes
     sessionRepo.js        Browser sessions, mapping a stable id onto the current socket
     dailyRepo.js          The day's board template, attempts and leaderboard
-  domain/
-    board.js              Dependency-free board primitives (createEmptyBoard, getAdjacentCells,
+  domain/                 Pure. No Redis, no io, no config — enforced by tests/layering.test.js
+    board.js              Board primitives (createEmptyBoard, getAdjacentCells,
                           revealFrom, projectBoard/projectCells)
-    clock.js              Dependency-free run-clock reads (timestamps in, payload out)
+    clock.js              Run-clock reads (timestamps in, payload out)
     pvpPlayer.js          Which of a room's two boards a socket owns. One rule, no fallback
+    boardGen.js           Board generation and the no-guess retry loop; `rng` is injectable
+    solverUtils.js        No-guess solvability engine
+    seededRandom.js       Deterministic RNG for the daily board
   game/
     index.js              Mode dispatch — the ONLY place that decides co-op vs PVP
     coop.js               Shared-board cell actions, broadcast to the room
     pvp.js                Per-player cell actions, emitted to one socket
     daily.js              Seeded board generation + the daily cell actions
-  controllers/
+  controllers/            Lifecycle flows. Each one answers a socket event
     pvpController.js      PVP lifecycle: startPvpGame / resetMyBoard / pvpRematch
-    pvpForfeit.js         The reconnect grace period before a disconnect forfeits a race
     sessionController.js  Offers a returning browser its room back; forgets it on a real leave
     dailyController.js    Daily lifecycle: start, submit, leaderboard
-  utils/
-    gameUtils.js          Board generation, checkWin, createRoom, resetGame
+  utils/                  Services over the repos and io, plus the singletons themselves
+    gameUtils.js          Room lifecycle: checkWin, createRoom, resetGame
     playerUtils.js        Join/leave, score stats, PVP disconnect handling
-    solverUtils.js        No-guess solvability engine (pure, no I/O)
-    seededRandom.js       Deterministic RNG for the daily board (pure)
+    pvpForfeit.js         The reconnect grace period before a disconnect forfeits a race
     initializeClient.js   Express app + io singleton + CORS
     initializeRedisClient.js  Redis singleton (exported as a Promise)
   tests/                  Jest (`npm test` from /server, or `npm test` at the repo root)
@@ -197,18 +198,18 @@ re-renders the page and the whole grid. Keep it that way when adding state.
 server.js ─→ initializeClient (io) , validation , playerUtils , gameUtils , game ,
              data/* , pvpController , sessionController , dailyController
 game/index ─→ game/coop , game/pvp , domain/pvpPlayer , data/*   ← co-op vs PVP only; daily is not dispatched here
-game/coop ─→ gameUtils , playerUtils , domain/{board,clock} , data/* , io
+game/coop ─→ gameUtils , playerUtils , domain/{board,clock,boardGen} , data/* , io
 game/pvp ─→ playerUtils , domain/{board,clock,pvpPlayer} , data/* , io
-game/daily ─→ gameUtils , solverUtils , domain/board , seededRandom , data/dailyRepo , io
-pvpController ─→ gameUtils , playerUtils , validation , domain/{board,clock,pvpPlayer} , data/*
+game/daily ─→ gameUtils , domain/{board,boardGen,solverUtils,seededRandom} , data/dailyRepo , io
+pvpController ─→ gameUtils , playerUtils , validation , domain/{board,clock,boardGen,pvpPlayer} , data/*
 sessionController ─→ data/{roomRepo,sessionRepo}
 dailyController ─→ game/daily , domain/board , validation , data/dailyRepo
-gameUtils ─→ playerUtils , solverUtils , domain/{board,clock} , data/roomRepo , io
-playerUtils ─→ domain/{board,clock} , data/* , controllers/pvpForfeit , io
-data/*Repo ─→ data/keys , redis
-data/keys ─→ (nothing)
-domain/board , domain/clock , domain/pvpPlayer ─→ (nothing)
-seededRandom , solverUtils , validation ─→ (nothing)
+gameUtils ─→ playerUtils , domain/{board,clock,boardGen} , data/roomRepo , io
+playerUtils ─→ utils/pvpForfeit , domain/{board,clock} , data/* , io
+utils/pvpForfeit ─→ domain/clock , data/* , config , io
+data/*Repo ─→ data/keys , initializeRedisClient
+domain/* ─→ only other domain/*
+data/keys , config , validation ─→ (nothing)
 ```
 
 > `gameUtils` and `playerUtils` used to require each other, which meant `gameUtils`
@@ -217,14 +218,30 @@ seededRandom , solverUtils , validation ─→ (nothing)
 > dependency-free source for board helpers. **Keep it dependency-free, and don't
 > reintroduce imports between `gameUtils` and `playerUtils`** —
 > `tests/resetGame.test.js` guards this and depends on its own require order.
-> `domain/clock.js` was added on the same terms and must stay dependency-free too.
+> `domain/clock.js` and `domain/boardGen.js` were added on the same terms.
 
-> **One edge points the wrong way.** `playerUtils` (a util) requires
-> `controllers/pvpForfeit` (a controller), because a disconnect is detected in
-> `playerUtils` but the grace period it starts is PVP lifecycle. It is acyclic
-> today only because `pvpForfeit` imports nothing back. That is the same shape as
-> the `gameUtils`/`playerUtils` cycle above before it bit, so treat it as a
-> boundary worth straightening rather than a pattern to copy.
+**None of this is on the honour system any more.** `tests/layering.test.js`
+derives the graph from the source and fails on a cycle, on any module importing
+a higher layer, or on anything in `domain/` reaching outside it. Reintroducing
+the `gameUtils` ⇄ `playerUtils` cycle fails it by name.
+
+The layers, lowest first — a module may import its own layer or below:
+
+| | |
+|---|---|
+| 0 | `config.js`, `validation.js` — leaves, import nothing |
+| 1 | `initializeClient`, `initializeRedisClient` — the io and Redis singletons |
+| 2 | `domain/` — pure logic |
+| 3 | `data/` — repositories |
+| 4 | `utils/` — services over repos + io |
+| 5 | `game/` — per-mode cell actions |
+| 6 | `controllers/` — lifecycle flows |
+| 7 | `server.js` — socket wiring |
+
+`pvpForfeit` used to sit in `controllers/`, which made `playerUtils` (a util)
+import a controller. It handles no socket event — it is a timer over the repos —
+so it was misfiled rather than mis-wired, and moving it to `utils/` removed the
+inversion without inventing a layer.
 
 `redisClient` is imported only by `data/`. `io` is still a module-scope singleton imported wherever something emits, so handlers need it mocked to be tested (see `server/tests/setup/mockInfra.js`, which mocks both globally).
 
@@ -464,7 +481,7 @@ Create room → board is an empty grid → first click generates mines → `reve
 Create room with `mode: 'pvp'` (creator becomes `hostSocket`) → second player joins (a third gets `pvpRoomFull`) → both receive `pvpRoomReady` → **host** emits `startPvpGame`, which builds ONE board and gives it to both players → progress is broadcast to the opponent as a percentage → first to clear wins (guarded by `winner_lock`). A player who hits a mine can `resetMyBoard` and keep racing. The host can trigger `pvpRematch`.
 
 Disconnecting mid-game does **not** immediately hand the win over. It starts a
-grace period (`controllers/pvpForfeit.js`); the forfeit only lands if the player
+grace period (`utils/pvpForfeit.js`); the forfeit only lands if the player
 does not come back before it expires, which is what makes a reload survivable
 rather than fatal. Rejoining cancels it implicitly, by making the room whole
 again.

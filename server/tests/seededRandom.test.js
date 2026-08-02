@@ -1,12 +1,12 @@
 /**
- * Tests for server/utils/seededRandom.js — the daily challenge's PRNG.
+ * Tests for server/domain/seededRandom.js — the daily challenge's PRNG.
  *
  * Pure, no mocks: the entire contract this file exists for is "same seed in,
  * identical sequence out," since that is what lets every player receive a
  * byte-identical daily board.
  */
 
-const { hashStringToSeed, mulberry32 } = require('../utils/seededRandom');
+const { hashStringToSeed, mulberry32 } = require('../domain/seededRandom');
 
 describe('hashStringToSeed', () => {
     test('is deterministic for the same string', () => {
