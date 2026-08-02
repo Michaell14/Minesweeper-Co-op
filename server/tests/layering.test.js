@@ -34,7 +34,16 @@ const path = require('path');
 
 const SERVER_ROOT = path.join(__dirname, '..');
 
-/** Where a file sits. See the table above. */
+/**
+ * Where a file sits. See the table above.
+ *
+ * Returns null for anything the table does not name, rather than defaulting to
+ * the top layer. A default is what makes forgetting to edit this look safe: a
+ * new `server/services/` would land at 7 alongside server.js, and every file in
+ * it could then import from anywhere without tripping the ordering rule — the
+ * enforcement quietly switched off for exactly the directory nobody had
+ * thought about yet. An unclassified file fails the suite instead.
+ */
 const layerOf = (file) => {
     const rel = path.relative(SERVER_ROOT, file);
     if (rel === 'config.js' || rel === 'validation.js') return 0;
@@ -44,7 +53,8 @@ const layerOf = (file) => {
     if (rel.startsWith(`utils${path.sep}`)) return 4;
     if (rel.startsWith(`game${path.sep}`)) return 5;
     if (rel.startsWith(`controllers${path.sep}`)) return 6;
-    return 7;
+    if (rel === 'server.js') return 7;
+    return null;
 };
 
 /** Every .js file we ship, excluding tests and dependencies. */
@@ -72,6 +82,17 @@ const importsOf = (file) => {
 const graph = new Map(sourceFiles().map((f) => [f, importsOf(f)]));
 const show = (f) => path.relative(SERVER_ROOT, f);
 
+/**
+ * The layer, or a failure. Used by the comparison rules below so an
+ * unclassified file cannot slip through them as a `null > 6` that quietly
+ * evaluates false — the rule would report nothing and read as a pass.
+ */
+const layerOrThrow = (file) => {
+    const layer = layerOf(file);
+    if (layer === null) throw new Error(`${show(file)} is in no layer — add its directory to layerOf() above`);
+    return layer;
+};
+
 describe('the module graph', () => {
     test('has no cycles', () => {
         const state = new Map();
@@ -95,11 +116,22 @@ describe('the module graph', () => {
         expect(found).toEqual([]);
     });
 
+    /*
+     * Ahead of the rules, because it is what keeps them meaningful: a file the
+     * table does not name is not a file with no constraints, it is a hole in
+     * the constraint. Naming the whole tree is the price of the rules below
+     * meaning anything.
+     */
+    test('every file is in a named layer', () => {
+        const homeless = [...graph.keys()].filter((f) => layerOf(f) === null).map(show);
+        expect(homeless).toEqual([]);
+    });
+
     test('never imports upwards', () => {
         const inversions = [];
         for (const [file, deps] of graph) {
             for (const dep of deps) {
-                if (layerOf(dep) > layerOf(file)) {
+                if (layerOrThrow(dep) > layerOrThrow(file)) {
                     inversions.push(`${show(file)} (L${layerOf(file)}) -> ${show(dep)} (L${layerOf(dep)})`);
                 }
             }
@@ -116,9 +148,9 @@ describe('the module graph', () => {
     test('domain/ depends on nothing outside domain/', () => {
         const escapes = [];
         for (const [file, deps] of graph) {
-            if (layerOf(file) !== 2) continue;
+            if (layerOrThrow(file) !== 2) continue;
             for (const dep of deps) {
-                if (layerOf(dep) !== 2) escapes.push(`${show(file)} -> ${show(dep)}`);
+                if (layerOrThrow(dep) !== 2) escapes.push(`${show(file)} -> ${show(dep)}`);
             }
         }
         expect(escapes).toEqual([]);
