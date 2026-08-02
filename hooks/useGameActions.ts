@@ -7,6 +7,7 @@ import { getOrCreateDailyAttemptToken, readDailyAttemptToken } from "@/lib/daily
 import { DEFAULT_DIFFICULTY, DEFAULT_SIZE } from "@/shared/boardConfig";
 import { CLIENT_EVENTS } from "@/shared/events";
 import type { AppSocket } from "@/lib/initSocket";
+import { playSound, type SoundName } from "@/lib/sound";
 import type { ClientToServerEvents } from "@/shared/socketPayloads";
 
 /** The emits that take a room code and a cell. */
@@ -29,6 +30,21 @@ type RoomActionEvent = Extract<
  * socket, which matters because `Cell` is memoized on cell state alone and would
  * otherwise hold on to whichever callbacks it first received.
  */
+
+/**
+ * The click sound for a cell action, decided CLIENT-side at emit time so
+ * feedback is immediate rather than a round-trip later. Flag vs unflag is
+ * read off the local board — the same state the player is looking at.
+ */
+const cellActionSound = (isToggleFlag: boolean, isChord: boolean, row: number, col: number): SoundName => {
+    if (isChord) return 'chord';
+    if (isToggleFlag) {
+        const cell = useMinesweeperStore.getState().board[row]?.[col];
+        return cell?.isFlagged ? 'unflag' : 'flag';
+    }
+    return 'reveal';
+};
+
 export function useGameActions(socket: AppSocket | null) {
     /** Leave the room and reset local state back to the Landing defaults. */
     const leaveRoom = useCallback(() => {
@@ -73,6 +89,7 @@ export function useGameActions(socket: AppSocket | null) {
         (event: CellActionEvent, row: number, col: number) => {
             const { playerJoined, room } = useMinesweeperStore.getState();
             if (!playerJoined || !socket) return;
+            playSound(cellActionSound(event === CLIENT_EVENTS.TOGGLE_FLAG, event === CLIENT_EVENTS.CHORD_CELL, row, col));
             socket.emit(event, { room, row, col });
         },
         [socket]
@@ -155,6 +172,7 @@ export function useGameActions(socket: AppSocket | null) {
             // flight. See lib/dailyIdentity.ts for what minting here cost.
             const dailyAttemptToken = readDailyAttemptToken();
             if (!dailyAttemptToken) return;
+            playSound(cellActionSound(event === CLIENT_EVENTS.DAILY_TOGGLE_FLAG, event === CLIENT_EVENTS.DAILY_CHORD_CELL, row, col));
             socket.emit(event, { dailyAttemptToken, date: dailyDate, row, col });
         },
         [socket]

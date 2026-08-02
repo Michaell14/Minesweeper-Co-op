@@ -2,6 +2,7 @@
 
 import { useMinesweeperStore } from "@/app/store";
 import { shootConfetti } from "@/lib/confetti";
+import { playSound } from "@/lib/sound";
 import { cursorColorForId } from "@/lib/theme";
 import { DIALOGS, openDialog, closeDialog } from "@/lib/dialogs";
 import { boardKey, recordBestTime } from "@/lib/bestTimes";
@@ -38,6 +39,15 @@ const recordClear = () => {
 
 const applyCellUpdates = (updates: CellUpdate[]) => {
     const { setCell } = useMinesweeperStore.getState();
+    /*
+     * The server only sends CHANGED cells, so open entries here are newly
+     * opened — a batch this big means a flood fill swept the board. The
+     * threshold keeps a plain reveal (1 cell) and a chord (up to ~8) on their
+     * click sounds; only a real cascade gets the arpeggio. Shared by co-op,
+     * PVP and daily, and it fires for a teammate's cascade too — their sweep
+     * is on your board.
+     */
+    if (updates.filter((cell) => cell.isOpen).length > 8) playSound('cascade');
     updates.forEach((cell) => {
         setCell(cell.row, cell.col, {
             isMine: cell.isMine,
@@ -63,12 +73,14 @@ const coopHandlers = (socket: AppSocket, leaveRoom: () => void): SocketHandlers 
     // --- Win / loss ---
     [SERVER_EVENTS.GAME_WON]: () => {
         shootConfetti();
+        playSound('win');
         useMinesweeperStore.getState().setGameWon(true);
         recordClear();
         openDialog(DIALOGS.gameSummary);
     },
 
     [SERVER_EVENTS.GAME_OVER]: (name) => {
+        playSound('lose');
         const store = useMinesweeperStore.getState();
         store.setGameOver(true);
         store.setGameOverName(name);
@@ -179,6 +191,7 @@ const pvpHandlers = (socket: AppSocket): SocketHandlers => ({
     [SERVER_EVENTS.PVP_UPDATE_CELLS]: applyCellUpdates,
 
     [SERVER_EVENTS.PVP_GAME_OVER]: () => {
+        playSound('lose');
         const store = useMinesweeperStore.getState();
         store.setGameOver(true);
         store.setPvpOpponentStatus("playing"); // Opponent might still be playing
@@ -195,11 +208,13 @@ const pvpHandlers = (socket: AppSocket): SocketHandlers => ({
 
         if (socket.id === winnerSocket) {
             shootConfetti();
+            playSound('win');
             store.setGameWon(true);
             // Winning a race means clearing the board, so it counts.
             recordClear();
             openDialog(DIALOGS.pvpYouWon);
         } else {
+            playSound('lose');
             openDialog(DIALOGS.pvpOpponentWon);
         }
     },
@@ -213,6 +228,7 @@ const pvpHandlers = (socket: AppSocket): SocketHandlers => ({
         store.setPvpWinner(winnerName);
         store.setPvpOpponentStatus("disconnected");
         shootConfetti();
+        playSound('win');
         store.setGameWon(true);
         openDialog(DIALOGS.pvpOpponentDisconnected);
     },
@@ -294,6 +310,7 @@ const dailyHandlers = (): SocketHandlers => ({
     [SERVER_EVENTS.DAILY_BOARD_UPDATE]: ({ board }) => useMinesweeperStore.getState().setBoard(board),
 
     [SERVER_EVENTS.DAILY_GAME_OVER]: ({ elapsedMs }) => {
+        playSound('lose');
         const store = useMinesweeperStore.getState();
         store.setGameOver(true); // lets Cell.tsx reveal every mine, same as coop/PVP
         store.setDailyStatus("failed");
@@ -306,6 +323,7 @@ const dailyHandlers = (): SocketHandlers => ({
     },
 
     [SERVER_EVENTS.DAILY_WON]: ({ elapsedMs }) => {
+        playSound('win');
         const store = useMinesweeperStore.getState();
         shootConfetti();
         store.setGameWon(true);

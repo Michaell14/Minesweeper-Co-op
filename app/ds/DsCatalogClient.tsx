@@ -11,6 +11,7 @@ import {
     Panel,
     RadioCard,
     RadioCardGroup,
+    Slider,
     Switch,
     Table,
     TrophyIcon,
@@ -124,6 +125,7 @@ function ContrastReport({ results, auditedTheme }: { results: ContrastResult[]; 
 export default function DsCatalogClient() {
     const [size, setSize] = React.useState("Medium");
     const [flagMode, setFlagMode] = React.useState(true);
+    const [volume, setVolume] = React.useState(50);
     const [theme, setTheme] = React.useState<string | null>(null);
     const [contrast, setContrast] = React.useState<ContrastResult[]>([]);
     /*
@@ -315,6 +317,20 @@ export default function DsCatalogClient() {
                         aria-label="Toggle click and flag mode"
                     />
                     <p className="text-pixel-sm">{flagMode ? "Click" : "Flag"} Mode</p>
+                </div>
+            </Section>
+
+            <Section
+                title="Slider"
+                note="A restyled native range input — keyboard and screen-reader behaviour come from the browser, only the paint is ours. Square thumb and track, matching the Switch."
+            >
+                <div className="flex items-center gap-4">
+                    <Slider
+                        value={volume}
+                        onChange={setVolume}
+                        aria-label="Demo volume"
+                    />
+                    <p className="text-pixel-sm w-12 text-right">{volume}%</p>
                 </div>
             </Section>
 

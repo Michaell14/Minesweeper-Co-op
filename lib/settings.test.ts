@@ -176,3 +176,18 @@ describe("the gameplay and HUD settings", () => {
         expect(sanitizeSettings({ cellSize: 40 }).cellSize).toBe("standard");
     });
 });
+
+describe("the sound settings", () => {
+    it("ships OFF — nobody gets surprise audio", () => {
+        expect(DEFAULT_SETTINGS.sound).toBe(false);
+        expect(DEFAULT_SETTINGS.soundVolume).toBe(0.5);
+    });
+
+    it("clamps the volume into [0, 1] and defaults garbage", () => {
+        expect(sanitizeSettings({ soundVolume: 0.8 }).soundVolume).toBe(0.8);
+        expect(sanitizeSettings({ soundVolume: 7 }).soundVolume).toBe(1);
+        expect(sanitizeSettings({ soundVolume: -2 }).soundVolume).toBe(0);
+        expect(sanitizeSettings({ soundVolume: "loud" }).soundVolume).toBe(0.5);
+        expect(sanitizeSettings({ soundVolume: NaN }).soundVolume).toBe(0.5);
+    });
+});

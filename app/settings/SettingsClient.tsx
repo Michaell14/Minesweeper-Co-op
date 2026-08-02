@@ -8,6 +8,8 @@ import ThemeCards from '@/components/ThemeCards';
 import SettingRow from './SettingRow';
 import { useMinesweeperStore } from '@/app/store';
 import { CELL_SIZES, type CellSize } from '@/lib/settings';
+import { playSound } from '@/lib/sound';
+import { Slider } from '@/components/ds';
 
 /** Card copy for the cell-size choice. */
 const CELL_SIZE_LABELS: Record<CellSize, { label: string; short: string }> = {
@@ -25,6 +27,8 @@ const CELL_SIZE_LABELS: Record<CellSize, { label: string; short: string }> = {
 export default function SettingsClient() {
     const { status } = useSession();
     const cellSize = useMinesweeperStore((s) => s.settings.cellSize);
+    const soundOn = useMinesweeperStore((s) => s.settings.sound);
+    const soundVolume = useMinesweeperStore((s) => s.settings.soundVolume);
     const setSetting = useMinesweeperStore((s) => s.setSetting);
 
     return (
@@ -69,6 +73,42 @@ export default function SettingsClient() {
                         name="Share your cursor"
                         description="Teammates in a co-op room see which cell you are hovering."
                     />
+                </Panel>
+            </section>
+
+            <section aria-labelledby="settings-sound" className="mb-8">
+                <Panel title={<span id="settings-sound">Sound</span>}>
+                    <SettingRow
+                        settingKey="sound"
+                        name="Sound effects"
+                        description="8-bit blips for reveals, flags, cascades, wins and losses. Off by default."
+                    />
+                    <div className="flex items-center justify-between gap-6 py-3">
+                        <div>
+                            <p className="text-pixel-sm m-0">Volume</p>
+                            <p className="text-pixel-xs text-ink-muted m-0 mt-1">
+                                Preview plays a reveal blip at this level.
+                            </p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <Slider
+                                aria-label="Sound volume"
+                                value={Math.round(soundVolume * 100)}
+                                min={0}
+                                max={100}
+                                step={5}
+                                disabled={!soundOn}
+                                onChange={(value) => setSetting('soundVolume', value / 100)}
+                            />
+                            {/* Also the surest audio unlock: a real click. */}
+                            <Button
+                                size="sm"
+                                disabled={!soundOn}
+                                onClick={() => playSound('win')}>
+                                Preview
+                            </Button>
+                        </div>
+                    </div>
                 </Panel>
             </section>
 

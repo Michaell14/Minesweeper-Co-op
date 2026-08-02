@@ -3,6 +3,7 @@ import React from 'react';
 import { useSession } from 'next-auth/react';
 import { useMinesweeperStore } from '@/app/store';
 import { fetchSettings, saveSettings } from '@/lib/settingsApi';
+import { installSoundUnlock } from '@/lib/sound';
 
 /**
  * Renders nothing; owns the settings lifecycle. Mounted once in the layout.
@@ -34,6 +35,11 @@ export default function SettingsSync() {
 
     React.useEffect(() => {
         hydrateSettings();
+        // Piggybacks on the one always-mounted lifecycle component: the audio
+        // context must be unlocked by the FIRST user gesture, wherever it
+        // lands, or server-initiated sounds (a win, a teammate's cascade)
+        // stay silent until the player happens to click after enabling sound.
+        installSoundUnlock();
     }, [hydrateSettings]);
 
     React.useEffect(() => {

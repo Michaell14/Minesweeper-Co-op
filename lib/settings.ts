@@ -39,6 +39,12 @@ export interface Settings {
     /** Broadcast your cursor position to the co-op room. Privacy setting. */
     shareCursor: boolean;
 
+    // --- Sound ---
+    /** Off by default — nobody gets surprise audio. */
+    sound: boolean;
+    /** 0..1, scaled again by lib/sound.ts's master ceiling. */
+    soundVolume: number;
+
     // --- HUD ---
     showTimer: boolean;
     showFlagCounter: boolean;
@@ -59,6 +65,8 @@ export const DEFAULT_SETTINGS: Settings = {
     chording: true,
     confetti: true,
     shareCursor: true,
+    sound: false,
+    soundVolume: 0.5,
     showTimer: true,
     showFlagCounter: true,
     showProgressBar: true,
@@ -82,6 +90,11 @@ const SANITISERS: { [K in SettingKey]: (value: unknown) => Settings[K] | undefin
     chording: boolean,
     confetti: boolean,
     shareCursor: boolean,
+    sound: boolean,
+    soundVolume: (value) =>
+        typeof value === "number" && Number.isFinite(value)
+            ? Math.min(1, Math.max(0, value))
+            : undefined,
     showTimer: boolean,
     showFlagCounter: boolean,
     showProgressBar: boolean,

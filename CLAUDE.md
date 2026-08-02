@@ -88,6 +88,7 @@ Backend deps install separately: `npm --prefix server install`.
 | Post-deploy check | `scripts/verify-deploy/` — `npm run verify:deploy` |
 | Client test setup (jsdom, DOM cleanup) | `vitest.config.ts`, `test/setup.ts` |
 | Motion / reduced motion | `--ms-duration-*` in `app/tokens.css`; `lib/motion.ts` for the JS path |
+| Sound effects | `lib/sound.ts` — synthesised Web Audio blips, NO asset files; gates on `settings.sound` + background tabs; unlock installed by `SettingsSync` |
 | Palette / theming | `lib/theme.ts` (list, applyTheme, cursor ramp); cards in `components/ThemeCards.tsx`, dialog in `components/ThemePicker.tsx` |
 | Settings (schema, storage, no-flash script) | `lib/settings.ts`; slice in `state/settingsSlice.ts`; page at `app/settings/`; sync in `components/SettingsSync.tsx` + `lib/settingsApi.ts`; server side `server/data/settingsRepo.js`, `server/controllers/settingsController.js` |
 | Dialogs | `lib/dialogs.ts` for ids and `openDialog`/`closeDialog`; `components/ds/Dialog.tsx` for the shell; markup in `components/dialogs/` (`GameDialogs`, `DailyDialogs`), `Grid.tsx`, `Landing.tsx`, `Footer.tsx` |

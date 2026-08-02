@@ -324,21 +324,47 @@ Ended up **entirely client-side** — see the two decisions at the bottom.
 - [x] Transport decision: **no per-player prefs reach the server at all** in
       this phase, so no handshake field, no event, no four-place tax
 
-### Phase 4 — Sound ░ Not started · est. 3–5 days
+### Phase 4 — Sound ✔ Done 2026-08-02
 
-The repo has zero audio today; this is from scratch.
+The repo had zero audio; it still has zero audio FILES.
 
-- [ ] Source/produce SFX set (reveal, flag, cascade, mine, win, lose, chord,
-      UI clicks) — 8-bit to match the aesthetic; license documented
-- [ ] `lib/sound.ts`: preload, play, master + per-category volume, mute;
-      user-gesture unlock for browser autoplay policy
-- [ ] Hook into game events (reveal/flag/cascade/win/loss) via the existing
-      handler table — no new socket events needed
-- [ ] Settings: master volume, SFX volume, mute toggle (Slider from Phase 2)
-- [ ] Default: muted or low until the user opts in (avoid the surprise-audio
-      first impression)
-- [ ] Respect a "no sound on background tabs" sanity check
-- [ ] Tests: `lib/sound.ts` state machine (pure logic; no jsdom audio needed)
+- [x] SFX are **synthesised, not sourced**: square/triangle blips built with
+      the Web Audio API at play time (`lib/sound.ts`), pitched on a C-major
+      arpeggio. No assets means nothing to license, load, preload or
+      cache-bust, and every sound is editable in place as numbers — the same
+      spirit as the character-grid icon sprites. Set: reveal, flag, unflag,
+      chord, cascade, win, lose. UI clicks cut (wiring every DS Button is
+      invasive for marginal delight); music deferred — procedural music is a
+      project of its own, revisit if ever wanted
+- [x] `lib/sound.ts`: lazy AudioContext, per-play master gain from the volume
+      setting, settings gate INSIDE `playSound` (mirroring lib/confetti.ts) so
+      call sites stay one-liners; `installSoundUnlock` resumes the context on
+      the first user gesture (from SettingsSync) so server-initiated sounds —
+      a win landing, a teammate's cascade — are audible; a play that finds the
+      context still suspended is dropped, never queued to fire stale
+- [x] Wired with no new socket events: reveal/flag-vs-unflag/chord decided
+      client-side at the emit helpers (both room and daily), cascade detected
+      in the shared `applyCellUpdates` (server only sends changed cells, so
+      >8 newly-open cells = a flood fill — fires for teammates' sweeps too),
+      win/lose at all seven terminal sites in `useGameEvents` (co-op, both
+      PVP outcomes, opponent-disconnect win, daily won/failed)
+- [x] Settings: Sound panel with the master toggle + volume Slider + a
+      Preview button (which is also the surest unlock — a real click). One
+      volume, not per-category: there is one category
+- [x] **Off by default** (`sound: false`) — nobody gets surprise audio;
+      volume clamped to [0,1] by the sanitiser
+- [x] Background tabs stay silent (`document.hidden` gate) — socket events
+      still arrive there
+- [x] DS **Slider** built (its first consumer arrived, per the Phase 2
+      deferral): a restyled native range input — keyboard/screen-reader
+      behaviour from the browser, square thumb and track matching the Switch;
+      catalogued on `/ds`
+- [x] Tests: `lib/sound.test.ts` gates against a fake AudioContext (off by
+      default, volume zero, background tab, refused unlock dropped not
+      queued, context reuse, per-blip scheduling), Slider round-trip,
+      sound-section page tests, volume sanitiser. 663 server + 259 client +
+      ui-smoke green; verified in a real browser (enabled via the UI, Preview
+      played through an unlocked context, no console errors)
 
 ### Phase 5 — Theme editor ░ Not started · est. 5–7 days
 
@@ -418,3 +444,4 @@ the delivery mechanism is the work.
 | 2026-08-02 | Phase 1 code complete: Auth.js (Google+GitHub) + bridge-token pipe end to end — socket-token route, client cache, handshake auth function, server verify → `socket.data.user`, `userRepo`, `/api/me` GET/PUT/DELETE, account/delete/privacy dialogs in the Footer. 642 server + 211 client tests and ui-smoke green; REST round-trip and socket auth verified live against a real Postgres (jose-signed token, jsonwebtoken verify). Outstanding: create the OAuth apps and set the five secrets (manual). |
 | 2026-08-02 | Phase 2 complete: settings blob (`lib/settings.ts`) + slice + `/settings` page + `SettingsSync` (server-wins at sign-in, debounced last-write-wins after); theme migrated into the blob with the legacy `ms-theme` fallback in the no-flash script; `user_settings` JSONB mirror with GET/PUT routes. Verified live: REST round-trip + upsert + cascade delete against real Postgres; browser checks of theme persistence, pre-blob migration, and legacy-key retirement. DS Slider/Select deferred to their consuming phases. |
 | 2026-08-02 | Phase 3 complete: nine settings (swap buttons, mobile flag default, chording, confetti, share-cursor, timer/flag-counter/progress visibility, cell size) wired through Cell/useChording/confetti/emitCellHover/HUD components; Gameplay + HUD sections on /settings; cell size as token-variant ceilings. Resolved to zero server work: chording suppressed client-side, question marks deferred (recorded in §8). Verified live in the browser (compact cells measured 30px, timer hidden, settings persisted); server 663 + client 244 tests and ui-smoke green. |
+| 2026-08-02 | Phase 4 complete: sound synthesised with Web Audio (no asset files — nothing to license or load), off by default, gated in playSound with a first-gesture unlock; wired at the emit helpers (reveal/flag/unflag/chord, room + daily), cascade detection in applyCellUpdates (>8 newly-open cells), and all seven win/lose terminal sites. DS Slider built as its Phase-2-deferred consumer arrived; Sound panel with toggle + volume + Preview. UI clicks cut, music deferred (recorded in the phase). 663 server + 259 client + ui-smoke green; Preview verified through an unlocked context in a real browser. |

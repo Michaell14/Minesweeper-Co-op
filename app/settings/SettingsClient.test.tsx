@@ -107,3 +107,25 @@ describe('the gameplay and HUD sections', () => {
         expect(useMinesweeperStore.getState().settings.cellSize).toBe('compact');
     });
 });
+
+describe('the sound section', () => {
+    it('ships off, with the volume controls disabled until enabled', () => {
+        render(<SettingsClient />);
+        const toggle = screen.getByRole('switch', { name: 'Sound effects' }) as HTMLInputElement;
+        expect(toggle.checked).toBe(false);
+        const slider = screen.getByRole('slider', { name: 'Sound volume' }) as HTMLInputElement;
+        expect(slider.disabled).toBe(true);
+        expect((screen.getByRole('button', { name: 'Preview' }) as HTMLButtonElement).disabled).toBe(true);
+    });
+
+    it('enabling sound unlocks the slider, which writes the 0..1 volume', () => {
+        render(<SettingsClient />);
+        fireEvent.click(screen.getByRole('switch', { name: 'Sound effects' }));
+        expect(useMinesweeperStore.getState().settings.sound).toBe(true);
+
+        const slider = screen.getByRole('slider', { name: 'Sound volume' }) as HTMLInputElement;
+        expect(slider.disabled).toBe(false);
+        fireEvent.change(slider, { target: { value: '80' } });
+        expect(useMinesweeperStore.getState().settings.soundVolume).toBe(0.8);
+    });
+});
