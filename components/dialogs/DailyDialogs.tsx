@@ -1,6 +1,6 @@
 import React from 'react';
 import { useMinesweeperStore } from '@/app/store';
-import { Button, DialogClose, Dialog, Input, Table } from '@/components/ds';
+import { Button, DialogClose, Dialog, Field, Input, Table } from '@/components/ds';
 import { DIALOGS, openDialog, closeDialog } from '@/lib/dialogs';
 import { buildDailyShareText, shareDailyResult, formatElapsed } from '@/lib/dailyShare';
 
@@ -26,13 +26,23 @@ export default function DailyDialogs({ submitDailyScore, getDailyLeaderboard }: 
 
     const nameInputRef = React.useRef<HTMLInputElement>(null);
 
+    /*
+     * `required` alone does not cover this: a name of spaces satisfies it, and
+     * preventing the default on this click means native validation never runs
+     * anyway. The message is rendered by Field rather than alert()'d -- a
+     * browser modal on top of a <dialog> blocks the thread, ignores the theme,
+     * and is the one piece of UI here nothing in components/ds can style.
+     */
+    const [nameError, setNameError] = React.useState('');
+
     const confirmSubmit = (e: React.MouseEvent) => {
         const nameValue = (nameInputRef.current?.value ?? '').trim();
         if (!nameValue) {
             e.preventDefault();
-            alert('Please enter a valid name');
+            setNameError('Enter a name to go on the leaderboard.');
             return;
         }
+        setNameError('');
         submitDailyScore(nameValue);
     };
 
@@ -93,16 +103,18 @@ export default function DailyDialogs({ submitDailyScore, getDailyLeaderboard }: 
                     </DialogClose>
                 }>
                 <p className="text-pixel-sm">Your time: <strong>{elapsedLabel}</strong></p>
-                <Input
-                    ref={nameInputRef}
-                    type="text"
-                    name="name"
-                    maxLength={16}
-                    minLength={1}
-                    required
-                    className="mb-4"
-                    aria-label="Your name for the leaderboard"
-                    aria-required="true" />
+                <Field className="mb-4" invalid={nameError !== ''} errorText={nameError}>
+                    <Input
+                        ref={nameInputRef}
+                        type="text"
+                        name="name"
+                        maxLength={16}
+                        minLength={1}
+                        required
+                        invalid={nameError !== ''}
+                        aria-label="Your name for the leaderboard"
+                        aria-required="true" />
+                </Field>
             </Dialog>
 
             {/* Hit a mine: no retry today. */}

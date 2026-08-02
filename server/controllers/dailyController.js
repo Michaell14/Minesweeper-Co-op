@@ -8,7 +8,7 @@ const { projectBoard } = require('../domain/board');
 const { generateDailyBoardForDate } = require('../game/daily');
 const dailyRepo = require('../data/dailyRepo');
 const { TERMINAL_STATUSES } = dailyRepo;
-const { isValidDailyToken, isValidPlayerName } = require('../validation');
+const { isValidDailyToken, isValidPlayerName, normalizePlayerName } = require('../validation');
 const { SERVER_EVENTS } = require('../../shared/events');
 
 /**
@@ -171,12 +171,16 @@ const startDaily = async ({ socket, dailyAttemptToken }) => {
 /** Handles 'submitDailyScore'. Only a 'won_pending_submit' attempt can submit. */
 const submitDailyScore = async ({ socket, io, dailyAttemptToken, date, name }) => {
     try {
-        if (!isValidDailyToken(dailyAttemptToken) || !isValidPlayerName(name)) return;
+        // Validate what actually gets stored, not what arrived: the leaderboard
+        // is the one durable, public thing here, and today's entry is not
+        // rewritable.
+        const displayName = normalizePlayerName(name);
+        if (!isValidDailyToken(dailyAttemptToken) || !isValidPlayerName(displayName)) return;
 
         const attempt = await dailyRepo.getAttempt(date, dailyAttemptToken);
         if (!attempt || attempt.status !== 'won_pending_submit') return;
 
-        const elapsedMs = await dailyRepo.submitScore(date, dailyAttemptToken, name);
+        const elapsedMs = await dailyRepo.submitScore(date, dailyAttemptToken, displayName);
         const rank = await dailyRepo.getRank(date, dailyAttemptToken);
         const totalEntries = await dailyRepo.getEntryCount(date);
 

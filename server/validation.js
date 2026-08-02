@@ -36,6 +36,18 @@ const isValidRoomCode = (room) =>
 const isValidPlayerName = (name) =>
     typeof name === 'string' && name.length > 0 && name.length <= MAX_PLAYER_NAME_LENGTH;
 
+/**
+ * A name as it will be STORED -- surrounding whitespace is not part of it.
+ *
+ * Validate the result of this rather than the raw input wherever a name is
+ * persisted somewhere durable and public. The browser trims before it emits,
+ * but a socket is an open door: anything speaking the protocol directly can
+ * send '  Alex  ' or '   ', and both would otherwise land on a leaderboard --
+ * the second as a row with no name in it at all, since a whitespace-only
+ * string clears the length check above.
+ */
+const normalizePlayerName = (name) => (typeof name === 'string' ? name.trim() : '');
+
 const isValidMode = (mode) => mode === 'co-op' || mode === 'pvp';
 
 /** Opaque client-generated id for a daily attempt -- same shape as a room code. */
@@ -99,6 +111,7 @@ const isPlayerInRoom = (roomState, socketId) => {
 module.exports = {
     isValidRoomCode,
     isValidPlayerName,
+    normalizePlayerName,
     isValidMode,
     isValidBoardConfig,
     isValidCoordinate,

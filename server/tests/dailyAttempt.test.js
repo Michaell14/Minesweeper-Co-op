@@ -292,6 +292,25 @@ describe('timing: startedAt is stamped only on the first open/chord, never at st
         expect(attempt.startedAt).toBe('');
     });
 
+    /*
+     * A flag the client draws but the server never stored is worse than one
+     * that never appeared: every later action re-reads the stored board, so
+     * the next move silently drops it and nothing reports a problem. Saving
+     * first makes a failed write a flag that simply did not land.
+     */
+    test('a flag that fails to persist is never drawn on the client', async () => {
+        const socket = socketFor('sock-1');
+        await startDaily({ socket, dailyAttemptToken: 'tok-1' });
+        mockEmit.mockClear();
+
+        const save = jest.spyOn(dailyRepo, 'setAttemptBoard').mockRejectedValueOnce(new Error('redis blip'));
+
+        await expect(dailyGame.toggleFlag(DATE, 'tok-1', 'sock-1', 0, 1)).rejects.toThrow('redis blip');
+        expect(mockEmit).not.toHaveBeenCalledWith('dailyUpdateCells', expect.anything());
+
+        save.mockRestore();
+    });
+
     test('the first open stamps startedAt and flips to in_progress', async () => {
         const socket = socketFor('sock-1');
         nowSpy.mockReturnValue(BASE_TIME + 5_000);
@@ -388,6 +407,43 @@ describe('submitDailyScore and the leaderboard', () => {
 
         const completed = await dailyRepo.getAttempt(DATE, 'tok-1');
         expect(completed.status).toBe('completed');
+    });
+
+    /*
+     * The browser trims before it emits, so these two only reach the server
+     * from something speaking the protocol directly -- which a socket makes
+     * easy. Today's leaderboard entry is durable and public and cannot be
+     * rewritten, so the name is normalised before it is stored, not after.
+     */
+    const winWith = async (token, socketId) => {
+        const socket = socketFor(socketId);
+        nowSpy.mockReturnValue(BASE_TIME + 1_000);
+        await startDaily({ socket, dailyAttemptToken: token });
+        await dailyGame.openCell(DATE, token, socketId, 1, 1);
+        await dailyGame.openCell(DATE, token, socketId, 2, 0);
+        nowSpy.mockReturnValue(BASE_TIME + 3_000);
+        await dailyGame.openCell(DATE, token, socketId, 2, 1); // wins
+        return socket;
+    };
+
+    test('a padded name lands on the leaderboard trimmed', async () => {
+        const socket = await winWith('tok-1', 'sock-1');
+
+        await submitDailyScore({ socket, io: { to: mockTo }, dailyAttemptToken: 'tok-1', date: DATE, name: '  Alex  ' });
+
+        const [entry] = await dailyRepo.getLeaderboardTop(DATE);
+        expect(entry.name).toBe('Alex');
+    });
+
+    test('a name that is only whitespace is refused rather than filed as a blank row', async () => {
+        const socket = await winWith('tok-1', 'sock-1');
+
+        await submitDailyScore({ socket, io: { to: mockTo }, dailyAttemptToken: 'tok-1', date: DATE, name: '   ' });
+
+        expect(await dailyRepo.getLeaderboardTop(DATE)).toEqual([]);
+        // Still submittable with a real name -- refusing must not burn the run.
+        const attempt = await dailyRepo.getAttempt(DATE, 'tok-1');
+        expect(attempt.status).toBe('won_pending_submit');
     });
 
     test('getDailyLeaderboard joins the per-date channel and replies with current standings', async () => {
