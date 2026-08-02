@@ -657,6 +657,15 @@ npm run lint
 
 Local Redis is expected on `127.0.0.1:6379`; `scripts/ensure-redis.js` will try to start it.
 
+**Postgres is optional.** It holds durable account data (users, settings, stats
+— see `USER_PROFILES_PRD.md`); without `DATABASE_URL` the server logs one line
+at boot and runs the whole game with account features off, so contributors not
+touching profiles need no database. To work on account features locally: run a
+Postgres, set `DATABASE_URL` in `server/.env`, and apply migrations with
+`npm --prefix server run migrate`. On Heroku, migrations run in the `release`
+phase (`scripts/run-migrations.js` via `/Procfile`) — after the build, before
+new dynos boot, skipping harmlessly when no database is provisioned.
+
 **Configuration.** Every variable has a working default, so an unset one keeps
 the previous hardcoded behaviour. See `.env.example` and `server/.env.example`.
 
@@ -666,6 +675,7 @@ the previous hardcoded behaviour. See `.env.example` and `server/.env.example`.
 | `ALLOWED_ORIGINS` | server | comma-separated; falls back to localhost:3000 plus the deployed frontends |
 | `PORT` | server | 3001 |
 | `HOST`, `REDIS_PORT`, `DB_PASS` | server | local Redis with no auth |
+| `DATABASE_URL` | server | unset — no Postgres, account features off |
 
 **Tests.** Three layers, each answering something the others cannot:
 

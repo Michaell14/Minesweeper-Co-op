@@ -41,3 +41,19 @@ jest.mock('../../utils/initializeClient', () => ({
     io: { to: jest.fn(() => ({ emit: jest.fn() })) },
     server: { listen: jest.fn() },
 }));
+
+/*
+ * Postgres is OPTIONAL in production — no DATABASE_URL means account features
+ * are off and the game runs untouched — and that is also the right default
+ * here: no test reaches a real database by accident, and code exercising a
+ * best-effort stats write sees exactly the "not configured" failure a
+ * database-less deploy produces. Tests about Postgres-backed repos declare a
+ * per-file mock with canned rows, same as the Redis pattern above.
+ */
+jest.mock('../../utils/initializePgClient', () => ({
+    pgPool: null,
+    isDbEnabled: () => false,
+    query: jest.fn(async () => {
+        throw new Error('Postgres is not configured (DATABASE_URL is unset)');
+    }),
+}));

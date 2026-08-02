@@ -5,16 +5,21 @@
   "scripts": {
     "test": "jest",
     "test:watch": "jest --watch",
-    "start": "node server.js"
+    "start": "node server.js",
+    "migrate": "node-pg-migrate -m migrations up",
+    "migrate:down": "node-pg-migrate -m migrations down",
+    "migrate:create": "node-pg-migrate -m migrations create"
   },
   "author": "",
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "dotenv": "^16.4.7",
     "express": "^4.21.2",
+    "node-pg-migrate": "^9.0.0",
+    "pg": "^8.22.0",
     "redis": "^4.7.0",
-    "socket.io": "^4.8.1",
-    "dotenv": "^16.4.7"
+    "socket.io": "^4.8.1"
   },
   "devDependencies": {
     "jest": "^29.7.0"

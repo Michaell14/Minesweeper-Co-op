@@ -149,20 +149,41 @@ leaderboard row shows the account display name.
 Order is dependency order. Every phase is independently deployable; signed-out
 play must never regress. Estimated total: **4–5 weeks** focused.
 
-### Phase 0 — Infrastructure ░ Not started
+### Phase 0 — Infrastructure ✔ Code done 2026-08-02 · awaiting Heroku provisioning
 
 Small but load-bearing; everything stacks on it.
 
-- [ ] Provision Heroku Postgres; `DATABASE_URL` in Heroku config
-- [ ] Add `pg` + `node-pg-migrate` to `server/package.json`
-- [ ] `server/data/db.js` — pool singleton beside the Redis singleton
-- [ ] Wire migrations into `heroku-postbuild`; document rollback
-- [ ] Update `tests/layering.test.js` to admit `db` at the singleton layer
-- [ ] First migration: `users` table
-- [ ] Local dev story: Postgres in `npm run dev:all` (or a documented opt-out —
-      the game must still run without Postgres for contributors)
-- [ ] Test infra: decide how server tests fake Postgres (extend
-      `mockInfra.js` pattern; a `fakeDb` if concurrency tests need one)
+- [ ] Provision Heroku Postgres; `DATABASE_URL` in Heroku config — **manual
+      step, Michael** (needs the Heroku account; everything below skips
+      harmlessly until it exists)
+- [x] Add `pg` + `node-pg-migrate` to `server/package.json` (as regular deps —
+      Heroku prunes only the root package's devDeps, but release-phase needs
+      these at runtime)
+- [x] Pool singleton beside the Redis singleton — landed as
+      `server/utils/initializePgClient.js`, following the existing
+      `initialize*Client` naming/layer-1 convention rather than the PRD's
+      `data/db.js` sketch. Optional by design: no `DATABASE_URL` → no pool,
+      `isDbEnabled()` false, one boot log line, game untouched
+- [x] Wire migrations into the deploy — as a **`release:` phase** in
+      `/Procfile` (`scripts/run-migrations.js`), not `heroku-postbuild`:
+      release runs after the build with full config vars, and a failure aborts
+      the release instead of booting a server ahead of its schema. Rollback:
+      `npm --prefix server run migrate:down`; expand→migrate→contract rule
+      documented in the runner
+- [x] Update `tests/layering.test.js`: pg singleton admitted at layer 1;
+      `migrations/` excluded from the runtime graph as a documented decision
+- [x] First migration: `users` table (uuid PK, OAuth identity unique on
+      `(provider, provider_account_id)`, email deliberately non-unique).
+      Verified up + down + duplicate-identity rejection against a real
+      Postgres 14
+- [x] Local dev story: documented opt-out (ARCHITECTURE.md §7) — the game runs
+      fully without Postgres; contributors touching accounts set
+      `DATABASE_URL` and run `npm --prefix server run migrate`
+- [x] Test infra decided: `mockInfra.js` globally mocks the pg singleton as
+      *disabled* (matches a database-less deploy; nothing reaches real infra);
+      repo tests will declare per-file mocks like the Redis pattern; a
+      `fakeDb` waits until a concurrency test actually needs one (Phase 6).
+      New `tests/pgClient.test.js` covers both modes of the real module
 
 ### Phase 1 — Auth & identity ░ Not started · est. 4–6 days
 
@@ -311,3 +332,4 @@ the delivery mechanism is the work.
 | Date | Change |
 |---|---|
 | 2026-08-02 | PRD created; all top-level decisions settled (see §2). |
+| 2026-08-02 | Phase 0 code complete: pg pool singleton (`utils/initializePgClient.js`), `users` migration, `release:`-phase runner, layering + mockInfra updates, `pgClient.test.js`. Full suite green (34 suites / 606 tests). Migration verified up/down against a real Postgres 14. Outstanding: provision Heroku Postgres (manual). |
