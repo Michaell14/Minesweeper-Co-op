@@ -15,6 +15,7 @@ const { isValidBoardConfig } = require('../shared/boardConfig');
 
 const MAX_ROOM_CODE_LENGTH = 100;
 const MAX_PLAYER_NAME_LENGTH = 50;
+const MAX_DAILY_TOKEN_LENGTH = 100;
 
 /** Upper bound on a cell coordinate, independent of the room's real dimensions. */
 const MAX_COORDINATE = 100;
@@ -36,6 +37,14 @@ const isValidPlayerName = (name) =>
     typeof name === 'string' && name.length > 0 && name.length <= MAX_PLAYER_NAME_LENGTH;
 
 const isValidMode = (mode) => mode === 'co-op' || mode === 'pvp';
+
+/** Opaque client-generated id for a daily attempt -- same shape as a room code. */
+const isValidDailyToken = (token) =>
+    typeof token === 'string' && token.length > 0 && token.length <= MAX_DAILY_TOKEN_LENGTH;
+
+/** The server's own YYYY-MM-DD (UTC) -- never trusted to gate state, only to
+ * address it; a malformed date just fails to find any matching attempt. */
+const isValidDailyDate = (date) => typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date);
 
 /**
  * Board dimensions and mine count. The rule itself lives in
@@ -95,4 +104,6 @@ module.exports = {
     isValidCoordinate,
     isValidHoverCoordinate,
     isPlayerInRoom,
+    isValidDailyToken,
+    isValidDailyDate,
 };

@@ -3,7 +3,9 @@ import React from "react";
 import { useMinesweeperStore } from './store';
 import Landing from "@/components/Landing";
 import Grid from "@/components/Grid";
+import DailyChallenge from "@/components/DailyChallenge";
 import GameDialogs from "@/components/dialogs/GameDialogs";
+import DailyDialogs from "@/components/dialogs/DailyDialogs";
 import { useSocket } from "@/hooks/useSocket";
 import { useSocketEvents } from "@/hooks/useSocketEvents";
 import { useGameActions } from "@/hooks/useGameActions";
@@ -11,8 +13,9 @@ import { useGameEvents } from "@/hooks/useGameEvents";
 
 /**
  * Home Component
- * Chooses between the Landing page and the game Grid. All socket wiring lives in
- * hooks/:
+ * Chooses between the Landing page, the daily challenge, and the game Grid.
+ * Daily and room are mutually exclusive with each other and with Landing, so
+ * exactly one of the three is ever mounted. All socket wiring lives in hooks/:
  *   useSocket       - connection lifecycle
  *   useGameActions  - client -> server emits
  *   useGameEvents   - server -> client handler table
@@ -26,11 +29,20 @@ export default function Home() {
     // Subscribed narrowly on purpose: this component re-renders only when the
     // view switches, not on every board or hover update.
     const playerJoined = useMinesweeperStore((state) => state.playerJoined);
+    const dailyActive = useMinesweeperStore((state) => state.dailyActive);
 
     return (
         <>
-            {!playerJoined ? (
-                <Landing createRoom={actions.createRoom} joinRoom={actions.joinRoom} />
+            {dailyActive ? (
+                <DailyChallenge
+                    leaveDaily={actions.leaveDaily}
+                    dailyOpenCell={actions.dailyOpenCell}
+                    dailyChordCell={actions.dailyChordCell}
+                    dailyToggleFlag={actions.dailyToggleFlag}
+                    getDailyLeaderboard={actions.getDailyLeaderboard}
+                />
+            ) : !playerJoined ? (
+                <Landing createRoom={actions.createRoom} joinRoom={actions.joinRoom} startDaily={actions.startDaily} />
             ) : (
                 <Grid
                     leaveRoom={actions.leaveRoom}
@@ -48,6 +60,7 @@ export default function Home() {
             )}
 
             <GameDialogs resetGame={actions.resetGame} />
+            <DailyDialogs submitDailyScore={actions.submitDailyScore} getDailyLeaderboard={actions.getDailyLeaderboard} />
         </>
     );
 };

@@ -43,15 +43,25 @@ const floodFillZero = (r, c, solverBoard, numRows, numCols) => {
 };
 
 /**
- * Evaluates whether a board layout is 100% solvable without guessing from (startRow, startCol).
+ * Same solve as isBoardSolvable, but also reports HOW it was solved: how many
+ * times each rule fired. Rule 1 (single-cell logic) is the deduction anyone
+ * scanning a board does at a glance; Rule 2 (subset/overlap reduction) is the
+ * "compare two overlapping numbers" reasoning that makes a board feel hard.
+ * A board solvable using Rule 1 alone is logic-solvable but trivial -- this is
+ * what lets the daily challenge (server/game/daily.js) pick a genuinely hard
+ * layout instead of just the first one that avoids a 50/50 guess.
+ *
  * @param {Array<Array<Object>>} board - 2D grid of cells ({ isMine, nearbyMines })
  * @param {number} startRow - Row of initial click
  * @param {number} startCol - Col of initial click
- * @returns {boolean} - Returns true if board is 100% logic-solvable without guesses
+ * @returns {{ solvable: boolean, rule1Count: number, rule2Count: number }}
  */
-const isBoardSolvable = (board, startRow, startCol) => {
+const solveWithStats = (board, startRow, startCol) => {
     const numRows = board.length;
     const numCols = board[0].length;
+
+    let rule1Count = 0;
+    let rule2Count = 0;
 
     // Create lightweight simulation board state
     let totalNonMines = 0;
@@ -70,7 +80,7 @@ const isBoardSolvable = (board, startRow, startCol) => {
 
     // Initial click simulation
     const startCell = solverBoard[startRow][startCol];
-    if (startCell.isMine) return false;
+    if (startCell.isMine) return { solvable: false, rule1Count: 0, rule2Count: 0 };
     startCell.isOpen = true;
     if (startCell.nearbyMines === 0) {
         floodFillZero(startRow, startCol, solverBoard, numRows, numCols);
@@ -109,6 +119,7 @@ const isBoardSolvable = (board, startRow, startCol) => {
                         solverBoard[nr][nc].isFlagged = true;
                         madeProgress = true;
                     }
+                    rule1Count++;
                 }
                 // Case 1B: All required mines are flagged -> remaining unrevealed neighbors are safe
                 else if (unrevealed.length > 0 && flagCount === cell.nearbyMines) {
@@ -120,6 +131,7 @@ const isBoardSolvable = (board, startRow, startCol) => {
                             floodFillZero(nr, nc, solverBoard, numRows, numCols);
                         }
                     }
+                    rule1Count++;
                 }
             }
         }
@@ -180,26 +192,36 @@ const isBoardSolvable = (board, startRow, startCol) => {
 
                         // Case 2A: No extra mines in diff -> all diff cells are safe
                         if (diffMines === 0 && diffCells.length > 0) {
+                            // Tracked locally, not via the shared `madeProgress`: an
+                            // earlier pair in this same scan may have already set
+                            // that true, which would otherwise credit THIS pair with
+                            // a step it did not actually contribute.
+                            let pairMadeProgress = false;
                             for (const { r: nr, c: nc } of diffCells) {
                                 const target = solverBoard[nr][nc];
                                 if (!target.isOpen && !target.isFlagged) {
                                     target.isOpen = true;
                                     madeProgress = true;
+                                    pairMadeProgress = true;
                                     if (target.nearbyMines === 0) {
                                         floodFillZero(nr, nc, solverBoard, numRows, numCols);
                                     }
                                 }
                             }
+                            if (pairMadeProgress) rule2Count++;
                         }
                         // Case 2B: All diff cells must be mines
                         else if (diffMines === diffCells.length && diffCells.length > 0) {
+                            let pairMadeProgress = false;
                             for (const { r: nr, c: nc } of diffCells) {
                                 const target = solverBoard[nr][nc];
                                 if (!target.isFlagged && !target.isOpen) {
                                     target.isFlagged = true;
                                     madeProgress = true;
+                                    pairMadeProgress = true;
                                 }
                             }
+                            if (pairMadeProgress) rule2Count++;
                         }
                     }
                 }
@@ -218,7 +240,16 @@ const isBoardSolvable = (board, startRow, startCol) => {
         }
     }
 
-    return openNonMineCount === totalNonMines;
+    return { solvable: openNonMineCount === totalNonMines, rule1Count, rule2Count };
 };
 
-module.exports = { isBoardSolvable };
+/**
+ * Evaluates whether a board layout is 100% solvable without guessing from (startRow, startCol).
+ * @param {Array<Array<Object>>} board - 2D grid of cells ({ isMine, nearbyMines })
+ * @param {number} startRow - Row of initial click
+ * @param {number} startCol - Col of initial click
+ * @returns {boolean} - Returns true if board is 100% logic-solvable without guesses
+ */
+const isBoardSolvable = (board, startRow, startCol) => solveWithStats(board, startRow, startCol).solvable;
+
+module.exports = { isBoardSolvable, solveWithStats };

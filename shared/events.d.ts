@@ -29,6 +29,12 @@ export declare const CLIENT_EVENTS: {
     readonly RESET_MY_BOARD: 'resetMyBoard';
     readonly PVP_REMATCH: 'pvpRematch';
     readonly PLAYER_LEAVE: 'playerLeave';
+    readonly START_DAILY: 'startDaily';
+    readonly DAILY_OPEN_CELL: 'dailyOpenCell';
+    readonly DAILY_CHORD_CELL: 'dailyChordCell';
+    readonly DAILY_TOGGLE_FLAG: 'dailyToggleFlag';
+    readonly SUBMIT_DAILY_SCORE: 'submitDailyScore';
+    readonly GET_DAILY_LEADERBOARD: 'getDailyLeaderboard';
 };
 
 export declare const SERVER_EVENTS: {
@@ -61,6 +67,14 @@ export declare const SERVER_EVENTS: {
     readonly PVP_OPPONENT_LEFT_BEFORE_START: 'pvpOpponentLeftBeforeStart';
     readonly PVP_HOST_TRANSFERRED: 'pvpHostTransferred';
     readonly PVP_REMATCH_STARTED: 'pvpRematchStarted';
+    readonly DAILY_STARTED: 'dailyStarted';
+    readonly DAILY_ALREADY_ATTEMPTED: 'dailyAlreadyAttempted';
+    readonly DAILY_UPDATE_CELLS: 'dailyUpdateCells';
+    readonly DAILY_BOARD_UPDATE: 'dailyBoardUpdate';
+    readonly DAILY_GAME_OVER: 'dailyGameOver';
+    readonly DAILY_WON: 'dailyWon';
+    readonly DAILY_SCORE_SUBMITTED: 'dailyScoreSubmitted';
+    readonly DAILY_LEADERBOARD_UPDATE: 'dailyLeaderboardUpdate';
 };
 
 /**

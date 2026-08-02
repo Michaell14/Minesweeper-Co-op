@@ -3,7 +3,7 @@
 import { useMinesweeperStore } from "@/app/store";
 import { shootConfetti } from "@/lib/confetti";
 import { cursorColorForId } from "@/lib/theme";
-import { DIALOGS, openDialog } from "@/lib/dialogs";
+import { DIALOGS, openDialog, closeDialog } from "@/lib/dialogs";
 import { CLIENT_EVENTS, SERVER_EVENTS } from "@/shared/events";
 import type { AppSocket } from "@/lib/initSocket";
 import type { CellUpdate } from "@/shared/socketPayloads";
@@ -78,7 +78,15 @@ const coopHandlers = (socket: AppSocket, leaveRoom: () => void): SocketHandlers 
      */
     [SERVER_EVENTS.SESSION_RESUME]: ({ room, name }) => {
         const store = useMinesweeperStore.getState();
-        if (store.playerJoined) return;
+        // The daily challenge and the resumed room are mutually exclusive
+        // views (see app/page.tsx). Without this guard, a resume offer that
+        // lands while the player is on the Daily Challenge (this only fires
+        // once per connection, so the race is real, not hypothetical) sets
+        // playerJoined in the background -- invisible until they later leave
+        // daily and land back in the old room instead of on Landing. Choosing
+        // the daily challenge over a passive resume is a real choice; it
+        // should not be silently overridden.
+        if (store.playerJoined || store.dailyActive) return;
 
         store.setRoom(room);
         store.setName(name);
@@ -192,6 +200,101 @@ const pvpHandlers = (socket: AppSocket): SocketHandlers => ({
 });
 
 /**
+ * Daily challenge events. Not room-scoped, and mutually exclusive with the
+ * coop/pvp views, so this reuses gameSlice's board/gameOver/gameWon directly
+ * rather than a parallel daily board field — see components/DailyChallenge.tsx.
+ */
+const dailyHandlers = (): SocketHandlers => ({
+    [SERVER_EVENTS.DAILY_STARTED]: ({ date, board, numRows, numCols, numMines, totalSafeCells, startedAt }) => {
+        const store = useMinesweeperStore.getState();
+        store.setDailyActive(true);
+        store.setDailyDate(date);
+        store.setBoard(board);
+        store.setDimensions(numRows, numCols, numMines); // so FlagCounter's remainingFlags matches this board
+        store.setDailyTotalSafeCells(totalSafeCells);
+        store.setDailyStatus(startedAt !== null ? "in_progress" : "ready");
+        store.setDailyElapsedMs(null);
+        store.setDailyRank(null);
+        store.setDailyTotalEntries(null);
+        store.setGameOver(false);
+        store.setGameWon(false);
+        // Feeds gameSlice's shared run clock (see state/gameSlice.ts) so
+        // <Timer> -- the same component Grid.tsx uses for co-op/PVP -- just
+        // works here too. Set directly in the handler, not reactively from
+        // within DailyChallenge.tsx: that component can mount with a board
+        // already present (a resume arrives with both in one event), so a
+        // useEffect-based sync would render one frame of gameSlice's PREVIOUS
+        // clock value before catching up.
+        store.setClock({ startedAt, endedAt: null });
+    },
+
+    /**
+     * Today's attempt already reached a terminal state. 'won_pending_submit'
+     * means the player won but never submitted a name (e.g. closed the tab
+     * before the submit dialog) -- reopen it rather than showing a dead end.
+     */
+    [SERVER_EVENTS.DAILY_ALREADY_ATTEMPTED]: ({ date, status, elapsedMs, rank, totalEntries }) => {
+        const store = useMinesweeperStore.getState();
+        store.setDailyActive(true);
+        store.setDailyDate(date);
+        store.setDailyStatus(status);
+        store.setDailyElapsedMs(elapsedMs ?? null);
+        store.setDailyRank(rank ?? null);
+        store.setDailyTotalEntries(totalEntries ?? null);
+        // No board comes with this event -- clear any stale one (e.g. left
+        // over from a room played earlier this session) so DailyChallenge.tsx
+        // can tell "no board available" apart from "board is just empty".
+        store.setBoard([]);
+
+        if (status === "won_pending_submit") {
+            openDialog(DIALOGS.dailySubmit);
+        } else {
+            openDialog(DIALOGS.dailyAlreadyPlayed);
+        }
+    },
+
+    [SERVER_EVENTS.DAILY_UPDATE_CELLS]: applyCellUpdates,
+
+    /** Terminal states only -- the full board, with mines revealed/flagged. */
+    [SERVER_EVENTS.DAILY_BOARD_UPDATE]: ({ board }) => useMinesweeperStore.getState().setBoard(board),
+
+    [SERVER_EVENTS.DAILY_GAME_OVER]: ({ elapsedMs }) => {
+        const store = useMinesweeperStore.getState();
+        store.setGameOver(true); // lets Cell.tsx reveal every mine, same as coop/PVP
+        store.setDailyStatus("failed");
+        store.setDailyElapsedMs(elapsedMs);
+        // gameSlice's startedAt is kept live by DAILY_STARTED (resume) and
+        // markDailyStartedOptimistically (see hooks/useGameActions.ts, fired
+        // on the player's own first open/chord). Freezing endedAt stops
+        // <Timer> and agrees with the elapsedMs this event just reported.
+        store.setClock({ startedAt: store.startedAt, endedAt: (store.startedAt ?? 0) + elapsedMs });
+        openDialog(DIALOGS.dailyGameOver);
+    },
+
+    [SERVER_EVENTS.DAILY_WON]: ({ elapsedMs }) => {
+        const store = useMinesweeperStore.getState();
+        shootConfetti();
+        store.setGameWon(true);
+        store.setDailyStatus("won_pending_submit");
+        store.setDailyElapsedMs(elapsedMs);
+        store.setClock({ startedAt: store.startedAt, endedAt: (store.startedAt ?? 0) + elapsedMs });
+        openDialog(DIALOGS.dailySubmit);
+    },
+
+    [SERVER_EVENTS.DAILY_SCORE_SUBMITTED]: ({ rank, elapsedMs, totalEntries }) => {
+        const store = useMinesweeperStore.getState();
+        store.setDailyStatus("completed");
+        store.setDailyRank(rank);
+        store.setDailyElapsedMs(elapsedMs);
+        store.setDailyTotalEntries(totalEntries);
+        closeDialog(DIALOGS.dailySubmit);
+        openDialog(DIALOGS.dailyLeaderboard);
+    },
+
+    [SERVER_EVENTS.DAILY_LEADERBOARD_UPDATE]: ({ entries }) => useMinesweeperStore.getState().setDailyLeaderboard(entries),
+});
+
+/**
  * The full server -> client event table.
  *
  * Handlers write through `useMinesweeperStore.getState()` rather than subscribing,
@@ -200,5 +303,5 @@ const pvpHandlers = (socket: AppSocket): SocketHandlers => ({
  */
 export function useGameEvents(socket: AppSocket | null, leaveRoom: () => void): SocketHandlers {
     if (!socket) return {};
-    return { ...coopHandlers(socket, leaveRoom), ...pvpHandlers(socket) };
+    return { ...coopHandlers(socket, leaveRoom), ...pvpHandlers(socket), ...dailyHandlers() };
 }

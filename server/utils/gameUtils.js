@@ -6,8 +6,11 @@ const { stoppedAt } = require('../domain/clock');
 const { createEmptyBoard, projectBoard } = require('../domain/board');
 const { SERVER_EVENTS } = require('../../shared/events');
 
-// Generates a single random candidate board layout
-const generateSingleCandidateBoard = (numRows, numCols, numMines, excludeRow, excludeCol) => {
+// Generates a single random candidate board layout. `rng` defaults to
+// Math.random so every existing caller (5 args) is untouched; the daily
+// challenge is the only caller that passes a seeded generator, via `options.rng`
+// on generateBoard below.
+const generateSingleCandidateBoard = (numRows, numCols, numMines, excludeRow, excludeCol, rng = Math.random) => {
     const board = createEmptyBoard(numRows, numCols);
 
     // Calculate available cells (excluding the 3x3 area around first click)
@@ -31,7 +34,7 @@ const generateSingleCandidateBoard = (numRows, numCols, numMines, excludeRow, ex
 
     // Shuffle array using Fisher-Yates algorithm and place mines
     for (let i = validPositions.length - 1; i >= validPositions.length - actualMines; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
+        const j = Math.floor(rng() * (i + 1));
         [validPositions[i], validPositions[j]] = [validPositions[j], validPositions[i]];
 
         const { row, col } = validPositions[i];
@@ -88,20 +91,25 @@ const DEFAULT_MAX_ATTEMPTS = 300;
  * Utility function to generate a Minesweeper board.
  * If options.noGuess is true (default), runs a Generate-and-Verify loop with isBoardSolvable
  * to guarantee that the board can be 100% solved without probabilistic 50:50 guessing.
+ * options.rng defaults to Math.random; the daily challenge passes a seeded
+ * generator (server/game/daily.js) so every candidate in the retry loop below
+ * is drawn from the same deterministic sequence, making the whole function's
+ * output a pure function of the seed.
  */
 const generateBoard = (numRows, numCols, numMines, excludeRow, excludeCol, options = { noGuess: true, maxAttempts: DEFAULT_MAX_ATTEMPTS }) => {
     const shouldEnsureNoGuess = options && options.noGuess !== false;
     const maxAttempts = (options && options.maxAttempts) || DEFAULT_MAX_ATTEMPTS;
+    const rng = (options && options.rng) || Math.random;
 
     if (!shouldEnsureNoGuess) {
-        return generateSingleCandidateBoard(numRows, numCols, numMines, excludeRow, excludeCol);
+        return generateSingleCandidateBoard(numRows, numCols, numMines, excludeRow, excludeCol, rng);
     }
 
     let fallbackCandidate = null;
 
     // Retry loop: evaluate candidate layouts until a 100% logic-solvable board is found
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
-        const candidate = generateSingleCandidateBoard(numRows, numCols, numMines, excludeRow, excludeCol);
+        const candidate = generateSingleCandidateBoard(numRows, numCols, numMines, excludeRow, excludeCol, rng);
         if (!fallbackCandidate) {
             fallbackCandidate = candidate;
         }
@@ -246,4 +254,4 @@ const resetGame = async (room) => {
         updatePlayerStatsInRoom(room),
     ]);
 }
-module.exports = { generateBoard, checkWin, createRoom, resetGame };
+module.exports = { generateBoard, generateSingleCandidateBoard, checkWin, createRoom, resetGame };

@@ -30,6 +30,7 @@ interface CustomFormValues {
 interface LandingParams {
     createRoom: () => void;
     joinRoom: () => void;
+    startDaily: () => void;
 }
 
 /**
@@ -129,7 +130,7 @@ const NameDialog = ({ id, confirmLabel, onConfirm, setName }: NameDialogProps) =
 };
 
 
-export default function Landing({ createRoom, joinRoom }: LandingParams) {
+export default function Landing({ createRoom, joinRoom, startDaily }: LandingParams) {
 
     const [bannerVisible, setBannerVisible] = React.useState(true);
     const { numRows, numCols, numMines, boardSize, difficulty, mode, setBoardSize, setBoardConfig, setMode, setRoom, setName } = useMinesweeperStore();
@@ -237,7 +238,7 @@ export default function Landing({ createRoom, joinRoom }: LandingParams) {
             {bannerVisible && (
                 <div className="bg-surface-banner text-ink-banner px-4 py-2 text-center relative flex items-center justify-center" role="banner" aria-label="Website milestone announcement">
                     <p className="text-pixel-2xs md:text-pixel-sm m-0">
-                    PvP Mode just dropped! Go head-to-head with friends. Got feedback? <a href="https://forms.gle/ALpScH8K7K2QsA8M7" target="_blank" rel="noopener noreferrer" className="underline hover:text-ink-muted-hover">Tell us!</a>
+                    Daily Challenge just dropped! One board, everyone plays it, ranked by time. Got feedback? <a href="https://forms.gle/ALpScH8K7K2QsA8M7" target="_blank" rel="noopener noreferrer" className="underline hover:text-ink-muted-hover">Tell us!</a>
                     </p>
                     <button
                         onClick={() => setBannerVisible(false)}
@@ -256,6 +257,23 @@ export default function Landing({ createRoom, joinRoom }: LandingParams) {
               */}
             <div className="text-center pt-4 lg:pt-8">
                 <h1 className="text-pixel-2xl md:text-pixel-4xl font-bold">Minesweeper Co-op</h1>
+                {/*
+                  * The daily challenge is the lowest-friction entry point: no
+                  * room code, no name (that's collected on a win, in the
+                  * dailySubmit dialog) -- one click straight onto today's
+                  * board. A single inline button under the title rather than
+                  * its own bordered section, so it reads as a shortcut next
+                  * to the game's name, not a second billboard competing with
+                  * Join/Create for attention.
+                  */}
+                <Button
+                    intent="primary"
+                    size="sm"
+                    className="mt-3"
+                    onClick={startDaily}
+                    aria-label="Play today's daily challenge — same board for everyone, ranked by time, one attempt">
+                    🗓️ Play Today&apos;s Puzzle
+                </Button>
             </div>
             {/* Chakra <Center pb={12}><Container maxW="2xl"> — 672px is
                 max-w-2xl exactly, and the container's own inline padding was

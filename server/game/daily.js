@@ -1,0 +1,259 @@
+/**
+ * Daily challenge: one seeded board, identical for every player, ranked by
+ * server-authoritative completion time. NOT a room — see data/keys.js for why.
+ *
+ * Board generation (this file's pure-ish half) mirrors pvp.js's
+ * buildSharedBoard: generate once around a fixed center cell, open it up
+ * front, hand every player the identical result. The difference is the
+ * randomness source — a seed derived from the date, not Math.random() — and
+ * that generation happens once per day rather than once per room.
+ */
+
+const { generateSingleCandidateBoard } = require('../utils/gameUtils');
+const { solveWithStats } = require('../utils/solverUtils');
+const { revealFrom, getAdjacentCells, projectBoard, projectCells } = require('../domain/board');
+const { hashStringToSeed, mulberry32 } = require('../utils/seededRandom');
+const { io } = require('../utils/initializeClient');
+const dailyRepo = require('../data/dailyRepo');
+const { TERMINAL_STATUSES } = dailyRepo;
+const { SERVER_EVENTS } = require('../../shared/events');
+const { DAILY_PRESET } = require('../../shared/boardConfig');
+
+/**
+ * Safety net on the raw candidate count, in case a seed is unusually
+ * unlucky. Generation isn't on a latency-sensitive path (once/day, not per
+ * click), so this can afford to be generous -- at DAILY_PRESET's density
+ * (MAX_SAFE_DENSITY, ~7% solvable per candidate) this is roughly 10x the
+ * ~430 candidates expected to fill DAILY_CANDIDATE_POOL_SIZE.
+ */
+const DAILY_MAX_ATTEMPTS = 5000;
+
+/**
+ * How many no-guess-solvable candidates to sample before picking the
+ * hardest. "Hardest" means the fewest freebies: the board isn't just
+ * logic-solvable, it's the one (among many tried) that needed the most
+ * subset/overlap reasoning rather than easy single-cell deductions -- see
+ * solveWithStats in server/utils/solverUtils.js. A pool of 1 is what the
+ * daily challenge used to do (first solvable board wins); this is what
+ * turns "solvable" into "hard" without touching what solvable means.
+ */
+const DAILY_CANDIDATE_POOL_SIZE = 30;
+
+const dailySeedString = (date) => `minesweeper-daily:${date}`;
+
+/**
+ * Scores one seed: draws candidates from `rng` until DAILY_CANDIDATE_POOL_SIZE
+ * solvable ones are found (or DAILY_MAX_ATTEMPTS is exhausted), and returns
+ * whichever of those required the most Rule 2 (subset-reduction) steps to
+ * solve. Ties keep the first found, so the result stays a pure function of
+ * the seed. Returns null if the seed never produced a single solvable board.
+ */
+const hardestSolvableCandidate = (rows, cols, mines, startRow, startCol, rng) => {
+    let best = null;
+    let solvableFound = 0;
+
+    for (let attempt = 0; attempt < DAILY_MAX_ATTEMPTS && solvableFound < DAILY_CANDIDATE_POOL_SIZE; attempt++) {
+        const candidate = generateSingleCandidateBoard(rows, cols, mines, startRow, startCol, rng);
+        const { solvable, rule2Count } = solveWithStats(candidate, startRow, startCol);
+        if (!solvable) continue;
+
+        solvableFound++;
+        if (!best || rule2Count > best.rule2Count) {
+            best = { board: candidate, rule2Count };
+        }
+    }
+
+    return best;
+};
+
+/**
+ * Builds the day's board: deterministic from `date` alone, no-guess verified,
+ * opened at a fixed center cell (same shape as PVP's shared board).
+ *
+ * Regular rooms accept the FIRST no-guess-solvable candidate, which is
+ * "solvable" but not necessarily hard -- most of a board's difficulty comes
+ * from how MUCH subset reasoning it demands, not just whether a guess is ever
+ * required. The daily challenge instead samples a pool of solvable candidates
+ * from the same deterministic seed and keeps the one that needed the most of
+ * that reasoning (hardestSolvableCandidate, above). This never changes what
+ * "solvable" means (unaffected by gameUtils.js's DEFAULT_MAX_ATTEMPTS / silent
+ * fallback, which regular rooms still use as before) -- only which solvable
+ * board gets picked.
+ *
+ * A daily seed that fails would fail identically forever, so this throws
+ * rather than ever handing out an unverified board; deterministic fallback
+ * seeds are tried first, in order, before giving up entirely.
+ */
+const generateDailyBoardForDate = (date) => {
+    const { rows, cols, mines } = DAILY_PRESET;
+    const startRow = Math.floor(rows / 2);
+    const startCol = Math.floor(cols / 2);
+
+    const seedCandidates = [
+        dailySeedString(date),
+        `${dailySeedString(date)}:fallback-1`,
+        `${dailySeedString(date)}:fallback-2`,
+    ];
+
+    for (const seedString of seedCandidates) {
+        const seed = hashStringToSeed(seedString);
+        const rng = mulberry32(seed);
+        const result = hardestSolvableCandidate(rows, cols, mines, startRow, startCol, rng);
+
+        if (result) {
+            const { board } = result;
+            const { cellsRevealed } = revealFrom(board, startRow, startCol, []);
+            return { board, seed, numRows: rows, numCols: cols, numMines: mines, startRow, startCol, openedCells: cellsRevealed };
+        }
+    }
+
+    throw new Error(`[daily] no solvable board found for ${date} after ${seedCandidates.length} seeds`);
+};
+
+/**
+ * Stamps the server-authoritative start of the clock, the first time an
+ * attempt sees a real move (open or chord) rather than at attempt-creation.
+ * Idempotent: once `in_progress`, this is a no-op and the ORIGINAL startedAt
+ * is what a refresh resumes from, never a fresh one.
+ */
+const markStartedIfNeeded = async (date, token, attempt) => {
+    if (attempt.status === 'ready') {
+        await dailyRepo.markStarted(date, token, Date.now());
+    }
+};
+
+/**
+ * Ends today's attempt, win or loss: computes elapsedMs from the two server
+ * timestamps (never a client-supplied value), reveals the full board (mines
+ * shown, like coop/PVP's terminal-state reveal), and notifies this socket.
+ * A win does not yet touch the leaderboard -- that happens at submitScore,
+ * once the player has supplied a name.
+ */
+const finishAttempt = async (date, token, socketId, board, { won }) => {
+    const attempt = await dailyRepo.getAttempt(date, token);
+    // Re-check rather than trust the caller's earlier read: two near-
+    // simultaneous moves for the same token (e.g. two tabs) could both have
+    // passed openCell/chordCell's own terminal check before either wrote --
+    // this is the same double-check gameUtils.checkWin does for co-op, so
+    // only the first to actually finish emits a result.
+    if (!attempt || TERMINAL_STATUSES.includes(attempt.status)) return;
+
+    const startedAt = parseInt(attempt.startedAt, 10);
+    const finishedAt = Date.now();
+    const elapsedMs = finishedAt - startedAt;
+
+    if (won) {
+        // Auto-flag remaining mines for a clean visual completion, same as
+        // gameUtils.checkWin does for co-op/PVP.
+        for (let r = 0; r < board.length; r++) {
+            for (let c = 0; c < board[r].length; c++) {
+                if (board[r][c].isMine) board[r][c].isFlagged = true;
+            }
+        }
+        await dailyRepo.markWon(date, token, finishedAt, elapsedMs);
+    } else {
+        await dailyRepo.markFailed(date, token, finishedAt, elapsedMs);
+    }
+    await dailyRepo.setAttemptBoard(date, token, board);
+
+    io.to(socketId).emit(SERVER_EVENTS.DAILY_BOARD_UPDATE, { board: projectBoard(board, { revealMines: true }) });
+    io.to(socketId).emit(won ? SERVER_EVENTS.DAILY_WON : SERVER_EVENTS.DAILY_GAME_OVER, { elapsedMs });
+};
+
+/** Win iff every non-mine cell is open. Ends the attempt via finishAttempt when true. */
+const checkDailyWin = async (date, token, socketId, board) => {
+    const allNonMinesOpened = board.every((row) => row.every((cell) => cell.isMine || cell.isOpen));
+    if (!allNonMinesOpened) return false;
+
+    await finishAttempt(date, token, socketId, board, { won: true });
+    return true;
+};
+
+const openCell = async (date, token, socketId, row, col) => {
+    const attempt = await dailyRepo.getAttempt(date, token);
+    if (!attempt || !attempt.status || TERMINAL_STATUSES.includes(attempt.status)) return;
+
+    const board = JSON.parse(attempt.board);
+    if (!board || row < 0 || row >= board.length || col < 0 || col >= board[0].length) return;
+    if (board[row][col] === undefined || !board[row][col] || board[row][col].isOpen || board[row][col].isFlagged) return;
+
+    await markStartedIfNeeded(date, token, attempt);
+
+    const toUpdate = [];
+    const { hitMine } = revealFrom(board, row, col, toUpdate);
+
+    if (hitMine) {
+        await finishAttempt(date, token, socketId, board, { won: false });
+        return;
+    }
+
+    await dailyRepo.setAttemptBoard(date, token, board);
+
+    const won = await checkDailyWin(date, token, socketId, board);
+    if (!won) {
+        io.to(socketId).emit(SERVER_EVENTS.DAILY_UPDATE_CELLS, projectCells(toUpdate));
+    }
+};
+
+const chordCell = async (date, token, socketId, row, col) => {
+    const attempt = await dailyRepo.getAttempt(date, token);
+    if (!attempt || !attempt.status || TERMINAL_STATUSES.includes(attempt.status)) return;
+
+    const board = JSON.parse(attempt.board);
+    if (!board || row < 0 || row >= board.length || col < 0 || col >= board[0].length) return;
+    if (!board[row][col] || !board[row][col].isOpen) return;
+
+    await markStartedIfNeeded(date, token, attempt);
+
+    const adjacentCells = getAdjacentCells(row, col, board);
+    const flaggedCells = adjacentCells.filter((adj) => adj.isFlagged).length;
+    const toUpdate = [];
+    let hitMine = false;
+
+    if (flaggedCells === board[row][col].nearbyMines) {
+        for (const adj of adjacentCells) {
+            if (hitMine || adj.isFlagged || adj.isOpen) continue;
+            const result = revealFrom(board, adj.row, adj.col, toUpdate);
+            if (result.hitMine) hitMine = true;
+        }
+    }
+
+    if (hitMine) {
+        await finishAttempt(date, token, socketId, board, { won: false });
+        return;
+    }
+
+    await dailyRepo.setAttemptBoard(date, token, board);
+
+    const won = await checkDailyWin(date, token, socketId, board);
+    if (!won) {
+        io.to(socketId).emit(SERVER_EVENTS.DAILY_UPDATE_CELLS, projectCells(toUpdate));
+    }
+};
+
+/** Flagging is not a "real move" for timing purposes -- the clock starts on
+ * open/chord only (see markStartedIfNeeded's callers), so this never stamps it. */
+const toggleFlag = async (date, token, socketId, row, col) => {
+    const attempt = await dailyRepo.getAttempt(date, token);
+    if (!attempt || !attempt.status || TERMINAL_STATUSES.includes(attempt.status)) return;
+
+    const board = JSON.parse(attempt.board);
+    if (!board || row < 0 || row >= board.length || col < 0 || col >= board[0].length) return;
+    if (board[row][col] === undefined || !board[row][col] || board[row][col].isOpen) return;
+
+    board[row][col].isFlagged = !board[row][col].isFlagged;
+    const toUpdate = [{ ...board[row][col], row, col }];
+
+    io.to(socketId).emit(SERVER_EVENTS.DAILY_UPDATE_CELLS, projectCells(toUpdate));
+    await dailyRepo.setAttemptBoard(date, token, board);
+};
+
+module.exports = {
+    generateDailyBoardForDate,
+    DAILY_MAX_ATTEMPTS,
+    DAILY_CANDIDATE_POOL_SIZE,
+    hardestSolvableCandidate,
+    openCell,
+    chordCell,
+    toggleFlag,
+};
