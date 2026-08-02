@@ -3,6 +3,7 @@ import { useMinesweeperStore } from '@/app/store';
 import ScoreTable from '@/components/game/ScoreTable';
 import { useGameStats } from '@/hooks/useGameStats';
 import { elapsedSeconds, formatClock } from '@/lib/gameClock';
+import BestTimeNote from '@/components/game/BestTimeNote';
 
 /** One number and its caption. */
 function Stat({ label, value }: { label: string; value: string }) {
@@ -58,6 +59,8 @@ export default function GameSummary() {
                     </>
                 )}
             </dl>
+
+            <BestTimeNote />
 
             {!isPvp && playerStatsInRoom.length > 0 && (
                 <div className="overflow-x-auto">

@@ -11,6 +11,7 @@ import {
     RadioCardGroup,
 } from "@/components/ds";
 import { BOARD_SIZES, CUSTOM_SIZE, DIFFICULTY_LEVELS, DEFAULT_SIZE, BOARD_LIMITS, isValidBoardConfig, mineCountFor } from "@/shared/boardConfig";
+import BestForBoard from '@/components/game/BestForBoard';
 import { DIALOGS, openDialog, closeDialog } from "@/lib/dialogs";
 import { ROOM_QUERY_PARAM } from "@/lib/roomLink";
 
@@ -398,6 +399,7 @@ export default function Landing({ createRoom, joinRoom, startDaily }: LandingPar
                         </OptionRow>
                         <div className="mt-2">
                             <Button type="submit" intent="primary" size="sm" aria-label="Create room with selected settings">Create</Button>
+                            <BestForBoard />
                         </div>
                     </form>
                 </div>

@@ -4,10 +4,38 @@ import { useMinesweeperStore } from "@/app/store";
 import { shootConfetti } from "@/lib/confetti";
 import { cursorColorForId } from "@/lib/theme";
 import { DIALOGS, openDialog, closeDialog } from "@/lib/dialogs";
+import { boardKey, recordBestTime } from "@/lib/bestTimes";
+import { elapsedSeconds } from "@/lib/gameClock";
 import { CLIENT_EVENTS, SERVER_EVENTS } from "@/shared/events";
 import type { AppSocket } from "@/lib/initSocket";
 import type { CellUpdate } from "@/shared/socketPayloads";
 import type { SocketHandlers } from "./useSocketEvents";
+
+/**
+ * Files a completed board as a personal best.
+ *
+ * Called from the WIN handlers only. A loss has a time but is not a clear, and
+ * winning because an opponent disconnected is not one either — recording those
+ * would make the number mean "the last time something ended" rather than "the
+ * fastest I have finished this board".
+ *
+ * Reading the clock here rather than in the summary keeps it a one-off event:
+ * a component would re-run it on every render of a dialog that stays open.
+ */
+const recordClear = () => {
+    const { startedAt, endedAt, numRows, numCols, numMines, playerStatsInRoom } =
+        useMinesweeperStore.getState();
+    // No clock, no record. Better a missing best than an invented one.
+    if (startedAt === null || endedAt === null) return;
+
+    useMinesweeperStore.getState().setBestTimeResult(
+        recordBestTime(boardKey(numRows, numCols, numMines), {
+            seconds: elapsedSeconds(startedAt, endedAt),
+            players: Math.max(1, playerStatsInRoom.length),
+            at: endedAt,
+        }),
+    );
+};
 
 const applyCellUpdates = (updates: CellUpdate[]) => {
     const { setCell } = useMinesweeperStore.getState();
@@ -37,6 +65,7 @@ const coopHandlers = (socket: AppSocket, leaveRoom: () => void): SocketHandlers 
     [SERVER_EVENTS.GAME_WON]: () => {
         shootConfetti();
         useMinesweeperStore.getState().setGameWon(true);
+        recordClear();
         openDialog(DIALOGS.gameSummary);
     },
 
@@ -163,6 +192,8 @@ const pvpHandlers = (socket: AppSocket): SocketHandlers => ({
         if (socket.id === winnerSocket) {
             shootConfetti();
             store.setGameWon(true);
+            // Winning a race means clearing the board, so it counts.
+            recordClear();
             openDialog(DIALOGS.pvpYouWon);
         } else {
             openDialog(DIALOGS.pvpOpponentWon);
@@ -171,6 +202,8 @@ const pvpHandlers = (socket: AppSocket): SocketHandlers => ({
 
     [SERVER_EVENTS.PVP_OPPONENT_PROGRESS]: ({ progress }) => useMinesweeperStore.getState().setPvpOpponentProgress(progress),
 
+    // No recordClear here on purpose: winning because the other player left is
+    // not a board you finished.
     [SERVER_EVENTS.PVP_OPPONENT_DISCONNECTED]: ({ winnerName }) => {
         const store = useMinesweeperStore.getState();
         store.setPvpWinner(winnerName);
