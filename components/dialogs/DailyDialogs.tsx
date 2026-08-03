@@ -186,12 +186,17 @@ export default function DailyDialogs({ submitDailyScore, getDailyLeaderboard }: 
                 actions={
                     <>
                         {shareButton("Share your daily challenge result")}
-                        <Button
-                            intent="error"
-                            onClick={viewLeaderboard(DIALOGS.dailyGameOver)}
-                            aria-label="Close dialog and view today's leaderboard">
-                            View Leaderboard
-                        </Button>
+                        <div className="flex items-center gap-3">
+                            <Button
+                                intent="error"
+                                onClick={viewLeaderboard(DIALOGS.dailyGameOver)}
+                                aria-label="Close dialog and view today's leaderboard">
+                                View Leaderboard
+                            </Button>
+                            <DialogClose aria-label="Close dialog and view your board">
+                                Close
+                            </DialogClose>
+                        </div>
                     </>
                 }>
                 <p className="text-pixel-sm">You hit a mine at <strong>{elapsedLabel}</strong>. Come back tomorrow for a new puzzle!</p>
@@ -206,11 +211,16 @@ export default function DailyDialogs({ submitDailyScore, getDailyLeaderboard }: 
                 actions={
                     <>
                         {shareButton("Share your daily challenge result")}
-                        <Button
-                            onClick={viewLeaderboard(DIALOGS.dailyAlreadyPlayed)}
-                            aria-label="Close dialog and view today's leaderboard">
-                            View Leaderboard
-                        </Button>
+                        <div className="flex items-center gap-3">
+                            <Button
+                                onClick={viewLeaderboard(DIALOGS.dailyAlreadyPlayed)}
+                                aria-label="Close dialog and view today's leaderboard">
+                                View Leaderboard
+                            </Button>
+                            <DialogClose aria-label="Close dialog and view your board">
+                                Close
+                            </DialogClose>
+                        </div>
                     </>
                 }>
                 {dailyStatus === 'completed' ? (

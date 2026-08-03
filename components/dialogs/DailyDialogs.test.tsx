@@ -310,3 +310,23 @@ describe("sharing a result", () => {
         expect(shared).not.toMatch(/isMine|isOpen|nearbyMines/); // never the board
     });
 });
+
+describe('closing the terminal dialogs directly', () => {
+    test.each([
+        ['dialog-daily-game-over'],
+        ['dialog-daily-already-played'],
+    ])('%s offers a direct Close beside View Leaderboard', (id) => {
+        renderOpen(id);
+
+        const dialog = document.getElementById(id)!;
+        const close = within(dialog as HTMLElement).getByRole('button', {
+            name: 'Close dialog and view your board',
+        });
+        expect((close as HTMLButtonElement).type).toBe('submit');
+        expect(
+            within(dialog as HTMLElement).getByRole('button', {
+                name: 'Close dialog and view today\'s leaderboard',
+            }),
+        ).toBeTruthy();
+    });
+});
