@@ -187,6 +187,29 @@
         inset calc(-1 * var(--ms-cell-bevel)) calc(-1 * var(--ms-cell-bevel)) 0 0 var(--ms-cell-shade);
 }
 
+/*
+ * The press.
+ *
+ * Nothing about a click is local: the cell changes only when the server's
+ * updateCells lands a round trip later, so without this the board is visually
+ * frozen from mousedown until the reply arrives. Sinking the cell to the opened
+ * face is the original game's answer, and it is most of why a click feels
+ * immediate there even on slow hardware.
+ *
+ * Not motion, so no duration token — a press that eases in is a press that is
+ * late, which is the thing this exists to fix.
+ *
+ * `:active` matches ancestors of the pressed element, so it still fires from the
+ * inner hit areas that carry the click handlers.
+ *
+ * FLAGGED cells are excluded on purpose. A flag is protection and the server
+ * refuses the open, so depressing one would promise a reveal that never comes.
+ */
+.cell.closed:not([aria-disabled]):active {
+    background-color: var(--ms-cell-open);
+    box-shadow: none;
+}
+
 /* Opened cells are flat: nothing left to press. */
 .cell.open {
     background-color: var(--ms-cell-open);

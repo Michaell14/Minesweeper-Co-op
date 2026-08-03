@@ -5,19 +5,20 @@ import { useMinesweeperStore, Cell as CellType } from '@/app/store';
 // cell (256+ on a medium board) and has no business pulling in Dialog, Button
 // and the icon sprites to get one class name.
 import { pointerClass } from '@/components/ds/pointer';
-import { cascadeBand } from '@/lib/motion';
+import { cascadeBand, type CascadeOrigin } from '@/lib/motion';
 
 interface CellParams {
     cell: CellType,
     row: number,
     col: number,
+    cascadeOrigin?: CascadeOrigin,
     toggleFlag: (row: number, col: number) => void;
     openCell: (row: number, col: number) => void;
     chordCell: (row: number, col: number) => void;
     emitCellHover: (row: number, col: number) => void;
 }
 
-const Cell = ({ cell, row, col, toggleFlag, openCell, chordCell, emitCellHover }: CellParams) => {
+const Cell = ({ cell, row, col, cascadeOrigin, toggleFlag, openCell, chordCell, emitCellHover }: CellParams) => {
     // Subscribes to hovers on THIS cell only. for...in rather than Object.values
     // so a hot path with 512 instances allocates no array per render.
     const cellHover = useMinesweeperStore((state) => {
@@ -70,13 +71,14 @@ const Cell = ({ cell, row, col, toggleFlag, openCell, chordCell, emitCellHover }
      * Only revealed cells call this — building the delay for all 512 would be
      * wasted work in the one component with a real render budget.
      *
-     * The band needs nothing from the store: a teammate's cascade sweeps just as
-     * well as your own, and subscribing to the last-clicked coordinate would
-     * re-render every cell on each mousedown.
+     * The origin arrives as a PROP rather than through a selector: a subscription
+     * would re-run in all 512 cells on every reveal, and `arePropsEqual` ignores
+     * it, so only the cells that actually changed read the new one. Those are
+     * exactly the cells about to animate; the rest have already swept.
      */
     const revealStyle = (): React.CSSProperties => ({
         ...hoverStyle,
-        '--reveal-delay': `calc(var(--ms-cascade-step) * ${cascadeBand(row, col)})`,
+        '--reveal-delay': `calc(var(--ms-cascade-step) * ${cascadeBand(row, col, cascadeOrigin)})`,
     } as React.CSSProperties);
 
     /*
@@ -220,6 +222,10 @@ const Cell = ({ cell, row, col, toggleFlag, openCell, chordCell, emitCellHover }
             key={col}
             role="gridcell"
             aria-label={getAriaLabel()}
+            // Also what the press state in board.module.css keys off: a board
+            // waiting for the race to start must not depress under a click it
+            // is going to ignore.
+            aria-disabled={isDisabled || undefined}
             className={`${styles.cell} ${styles.closed} ${isHovered ? styles.hovered : ''} ${isDisabled ? 'opacity-50 cursor-not-allowed' : pointerClass}`}
             style={hoverStyle}
             onContextMenu={(e) => {
@@ -243,7 +249,12 @@ const Cell = ({ cell, row, col, toggleFlag, openCell, chordCell, emitCellHover }
 
 Cell.displayName = 'Cell';
 
-/** Re-render only on a real cell-state change. The action props are stable. */
+/**
+ * Re-render only on a real cell-state change. The action props are stable, and
+ * `cascadeOrigin` is deliberately not compared: a cell whose state did not
+ * change has already swept, and re-rendering it for a new origin would restart
+ * its reveal.
+ */
 const arePropsEqual = (prevProps: CellParams, nextProps: CellParams) => {
     return (
         prevProps.cell.isMine === nextProps.cell.isMine &&

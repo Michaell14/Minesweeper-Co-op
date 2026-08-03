@@ -23,13 +23,25 @@ export function prefersReducedMotion(): boolean {
  */
 export const CASCADE_BANDS = 10;
 
+/** The cell a reveal started from, when one is known. */
+export type CascadeOrigin = { row: number; col: number } | null;
+
 /**
  * Which band of the cascade sweep a cell belongs to.
  *
- * The wrap is the point: on the raw diagonal, a cascade mid-board waited for its
- * ABSOLUTE index before any cell appeared — ~240ms of nothing, which reads as
- * lag rather than a reveal. Wrapping bounds the wait to one band.
+ * Measured from the cell the reveal STARTED at, so the clicked cell is always
+ * band 0 and the wave sweeps outward from the player's finger. Anchoring it to
+ * the board diagonal instead put up to CASCADE_BANDS - 1 steps of delay on a
+ * single-cell open — ~126ms at the current step, varying with (row + col), which
+ * read as inconsistent lag on top of the server round trip rather than as motion.
+ *
+ * The wrap is still the point: without it a cascade mid-board waited for its
+ * absolute distance before any cell appeared. Wrapping bounds the wait to one band.
+ *
+ * No origin means no single cell started it — a whole board arriving at once, as
+ * on a game-over reveal — and the diagonal is the right ramp for that.
  */
-export function cascadeBand(row: number, col: number): number {
-    return (row + col) % CASCADE_BANDS;
+export function cascadeBand(row: number, col: number, origin?: CascadeOrigin): number {
+    if (!origin) return (row + col) % CASCADE_BANDS;
+    return (Math.abs(row - origin.row) + Math.abs(col - origin.col)) % CASCADE_BANDS;
 }

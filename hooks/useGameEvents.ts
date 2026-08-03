@@ -42,7 +42,17 @@ const recordClear = () => {
 };
 
 const applyCellUpdates = (updates: CellUpdate[]) => {
-    const { setCell } = useMinesweeperStore.getState();
+    const { setCells, setCascadeOrigin } = useMinesweeperStore.getState();
+    /*
+     * Where the sweep starts. `revealFrom` pushes the cell it was called on
+     * first, so the first OPEN entry is the one that was clicked — for a chord
+     * it is the first neighbour rather than the chorded cell, one step off and
+     * indistinguishable at 14ms a band.
+     *
+     * Set before the cells, so the render that first shows them already has it.
+     */
+    const origin = updates.find((cell) => cell.isOpen);
+    if (origin) setCascadeOrigin({ row: origin.row, col: origin.col });
     /*
      * The server only sends CHANGED cells, so open entries here are newly
      * opened — a batch this big means a flood fill swept the board. The
@@ -52,14 +62,9 @@ const applyCellUpdates = (updates: CellUpdate[]) => {
      * is on your board.
      */
     if (updates.filter((cell) => cell.isOpen).length > 8) playSound('cascade');
-    updates.forEach((cell) => {
-        setCell(cell.row, cell.col, {
-            isMine: cell.isMine,
-            isOpen: cell.isOpen,
-            isFlagged: cell.isFlagged,
-            nearbyMines: cell.nearbyMines,
-        });
-    });
+    // One write for the batch. Per cell it was one store notification each, and
+    // the board rebuilt in full behind every one of them.
+    setCells(updates);
 };
 
 /** Shared + co-op events. */

@@ -166,6 +166,130 @@ describe("cellActionSound", () => {
 });
 
 /**
+ * The optimistic flag. It is the ONLY action the client can resolve itself —
+ * opening needs `isMine` and `nearbyMines`, which a closed cell is never told —
+ * so it is also the only one that can appear without a round trip.
+ *
+ * What these pin down is the refusal side. A flag drawn on a cell the server
+ * rejects is a flag nothing takes back: the server answers a refused action with
+ * silence, and only the cells it CHANGED are ever broadcast.
+ */
+describe("flagging before the server answers", () => {
+    const closed = { isMine: false, isOpen: false, isFlagged: false, nearbyMines: 0 };
+    const open = { ...closed, isOpen: true };
+
+    const flagged = (row: number, col: number) => state().board[row][col].isFlagged;
+
+    beforeEach(() => {
+        act(() => {
+            state().setBoard([[{ ...closed }, { ...open }]]);
+            state().setGameOver(false);
+            state().setGameWon(false);
+            state().setMode("co-op");
+            state().setPvpWinner(null);
+        });
+    });
+
+    test("the flag is on the board before the socket has replied", () => {
+        const { toggleFlag } = actions();
+
+        act(() => toggleFlag(0, 0));
+
+        expect(flagged(0, 0)).toBe(true);
+    });
+
+    test("flagging again takes it off", () => {
+        const { toggleFlag } = actions();
+
+        act(() => toggleFlag(0, 0));
+        act(() => toggleFlag(0, 0));
+
+        expect(flagged(0, 0)).toBe(false);
+    });
+
+    test("an open cell is left alone — the server refuses those", () => {
+        const { toggleFlag } = actions();
+
+        act(() => toggleFlag(0, 1));
+
+        expect(flagged(0, 1)).toBe(false);
+    });
+
+    /*
+     * The one refusal with nothing behind it to correct it. A finished board
+     * still has closed cells, and the server will not touch them again, so a
+     * flag placed here would sit there for the rest of the summary.
+     */
+    test("a finished game takes no more flags", () => {
+        act(() => state().setGameOver(true));
+
+        const { toggleFlag } = actions();
+        act(() => toggleFlag(0, 0));
+
+        expect(flagged(0, 0)).toBe(false);
+    });
+
+    test("nor does a won one", () => {
+        act(() => state().setGameWon(true));
+
+        const { toggleFlag } = actions();
+        act(() => toggleFlag(0, 0));
+
+        expect(flagged(0, 0)).toBe(false);
+    });
+
+    test("a race that has not started yet takes none either", () => {
+        act(() => {
+            state().setMode("pvp");
+            state().setPvpStarted(false);
+        });
+
+        const { toggleFlag } = actions();
+        act(() => toggleFlag(0, 0));
+
+        expect(flagged(0, 0)).toBe(false);
+    });
+
+    test("nor does a race someone has already won", () => {
+        act(() => {
+            state().setMode("pvp");
+            state().setPvpStarted(true);
+            state().setPvpWinner("Someone else");
+        });
+
+        const { toggleFlag } = actions();
+        act(() => toggleFlag(0, 0));
+
+        expect(flagged(0, 0)).toBe(false);
+    });
+
+    test("the emit still goes out — the server remains the authority", () => {
+        const socket = fakeSocket();
+
+        actions(socket).toggleFlag(0, 0);
+
+        expect(socket.emit).toHaveBeenCalledWith(
+            CLIENT_EVENTS.TOGGLE_FLAG,
+            expect.objectContaining({ row: 0, col: 0 }),
+        );
+    });
+
+    /*
+     * The server's own broadcast lands on the same cell moments later and must
+     * be able to overrule the guess — including back to unflagged, which is what
+     * a rejected toggle from a teammate's simultaneous flag looks like.
+     */
+    test("the server's answer overrules the guess", () => {
+        const { toggleFlag } = actions();
+        act(() => toggleFlag(0, 0));
+
+        act(() => state().setCells([{ ...closed, isFlagged: false, row: 0, col: 0 }]));
+
+        expect(flagged(0, 0)).toBe(false);
+    });
+});
+
+/**
  * The view-only gate: a settled daily attempt refuses moves CLIENT-side —
  * the server would refuse them anyway (terminal check), so an emit here is
  * wasted traffic and, with sound on, false feedback.
