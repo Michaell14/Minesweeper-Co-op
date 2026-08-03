@@ -576,6 +576,10 @@ const KNOWN_CONTRAST_FAILURES = {
     spectrum: ['error button'],
     contrast: [],
     synthwave: [],
+    tetris: [],
+    pacman: [],
+    minecraft: [],
+    mario: [],
 };
 
 async function themeContrast(page) {

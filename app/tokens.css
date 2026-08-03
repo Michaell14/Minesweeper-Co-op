@@ -876,3 +876,278 @@
     --ms-palette-num-7: #f2e9ff;
     --ms-palette-num-8: #a794c9;
 }
+
+/* ---------------------------------------------------------------------------
+ * Tetris. The seven tetromino colours, on a dark playfield.
+ * ------------------------------------------------------------------------- */
+:root[data-theme="tetris"] {
+    --ms-palette-ink: #ffffff;
+    --ms-palette-paper: #10101a;
+    --ms-palette-smoke: #1b1b2e;
+    --ms-palette-ash: #3a3a52;
+    --ms-palette-steel: #6b6b8a;
+    --ms-palette-gray: #a8a8c8;
+    --ms-palette-gray-dark: #d0d0e8;
+    --ms-palette-track: #2a2a44;
+    --ms-palette-mist: #16162a;
+    --ms-palette-mist-deep: #26264a;
+    --ms-palette-chrome: #26264a;
+
+    --ms-palette-blue: #0000f0;
+    --ms-palette-blue-deep: #0000b8;
+    --ms-palette-blue-shade: #000070;
+    --ms-palette-blue-ink: #ffffff;
+    --ms-palette-green: #00f000;
+    --ms-palette-green-deep: #5cff5c;
+    --ms-palette-green-shade: #009000;
+    --ms-palette-green-ink: #10101a;
+    --ms-palette-yellow: #f0f000;
+    --ms-palette-yellow-deep: #ffff5c;
+    --ms-palette-yellow-shade: #909000;
+    --ms-palette-yellow-ink: #10101a;
+    /* Pure black ink, not the paper: the Z red is too dark for #10101a. */
+    --ms-palette-red: #f00000;
+    --ms-palette-red-deep: #ff5c5c;
+    --ms-palette-red-shade: #900000;
+    --ms-palette-red-ink: #000000;
+
+    --ms-palette-blue-alt: #6a8cff;
+    --ms-palette-blue-text: #6a8cff;
+    --ms-palette-green-alt: #00f000;
+    --ms-palette-green-text: #5cff5c;
+    --ms-palette-red-alt: #f00000;
+    --ms-palette-red-text: #ff5c5c;
+    --ms-palette-orange-alt: #f0a000;
+    --ms-palette-amber: #f0f000;
+    --ms-palette-amber-ink: #10101a;
+
+    --ms-palette-cell-closed: #2a2a44;
+    --ms-palette-cell-light: #3d3d5e;
+    --ms-palette-cell-shade: #1a1a2e;
+    --ms-palette-cell-open: #10101a;
+    --ms-palette-gutter: #06060c;
+    --ms-palette-mine: #f00000;
+    --ms-palette-cursor-ink: #10101a;
+    --ms-palette-cursor-1: #00f0f0;
+    --ms-palette-cursor-2: #f0f000;
+    --ms-palette-cursor-3: #a000f0;
+    --ms-palette-cursor-4: #00f000;
+    --ms-palette-cursor-5: #f0a000;
+    --ms-palette-cursor-6: #f00000;
+
+    /* Blue, purple and red lift off the dark field; the rest are the pieces. */
+    --ms-palette-num-1: #6a8cff;
+    --ms-palette-num-2: #00f000;
+    --ms-palette-num-3: #ff5c5c;
+    --ms-palette-num-4: #c07dff;
+    --ms-palette-num-5: #f0a000;
+    --ms-palette-num-6: #00f0f0;
+    --ms-palette-num-7: #ffffff;
+    --ms-palette-num-8: #b8b8d8;
+}
+
+/* ---------------------------------------------------------------------------
+ * Pac-Man. Blue maze walls, four ghosts, pellets on black.
+ * ------------------------------------------------------------------------- */
+:root[data-theme="pacman"] {
+    --ms-palette-ink: #ffffff;
+    --ms-palette-paper: #000000;
+    --ms-palette-smoke: #10104a;
+    --ms-palette-ash: #3a3a6e;
+    --ms-palette-steel: #8080b0;
+    --ms-palette-gray: #b8b8e8;
+    --ms-palette-gray-dark: #ffffff;
+    --ms-palette-track: #10104a;
+    --ms-palette-mist: #08081f;
+    --ms-palette-mist-deep: #2121de;
+    --ms-palette-chrome: #2121de;
+
+    --ms-palette-blue: #2121de;
+    --ms-palette-blue-deep: #1717a0;
+    --ms-palette-blue-shade: #0d0d60;
+    --ms-palette-blue-ink: #ffffff;
+    --ms-palette-green: #00ffff;
+    --ms-palette-green-deep: #7dffff;
+    --ms-palette-green-shade: #00a0a0;
+    --ms-palette-green-ink: #000000;
+    --ms-palette-yellow: #ffff00;
+    --ms-palette-yellow-deep: #ffff7d;
+    --ms-palette-yellow-shade: #a0a000;
+    --ms-palette-yellow-ink: #000000;
+    --ms-palette-red: #ff0000;
+    --ms-palette-red-deep: #ff5c5c;
+    --ms-palette-red-shade: #a00000;
+    --ms-palette-red-ink: #000000;
+
+    --ms-palette-blue-alt: #00ffff;
+    --ms-palette-blue-text: #b8b8e8;
+    --ms-palette-green-alt: #4aff4a;
+    --ms-palette-green-text: #4aff4a;
+    --ms-palette-red-alt: #ff0000;
+    --ms-palette-red-text: #ff4a4a;
+    --ms-palette-orange-alt: #ffb852;
+    --ms-palette-amber: #ffff00;
+    --ms-palette-amber-ink: #000000;
+
+    /* Closed cells are maze wall; opening one clears it to corridor. */
+    --ms-palette-cell-closed: #2121de;
+    --ms-palette-cell-light: #4a4aff;
+    --ms-palette-cell-shade: #10108a;
+    --ms-palette-cell-open: #000000;
+    --ms-palette-gutter: #10104a;
+    --ms-palette-mine: #ff0000;
+    --ms-palette-cursor-ink: #000000;
+    --ms-palette-cursor-1: #ff0000;
+    --ms-palette-cursor-2: #ffb8ff;
+    --ms-palette-cursor-3: #00ffff;
+    --ms-palette-cursor-4: #ffb852;
+    --ms-palette-cursor-5: #ffff00;
+    --ms-palette-cursor-6: #ffffff;
+
+    /* Four ghosts, then Pac-Man, a pellet and the fruit. */
+    --ms-palette-num-1: #00ffff;
+    --ms-palette-num-2: #4aff4a;
+    --ms-palette-num-3: #ff4a4a;
+    --ms-palette-num-4: #ffb8ff;
+    --ms-palette-num-5: #ffb852;
+    --ms-palette-num-6: #ffff00;
+    --ms-palette-num-7: #ffffff;
+    --ms-palette-num-8: #b8b8d8;
+}
+
+/* ---------------------------------------------------------------------------
+ * Minecraft. Grass over stone, with the ores as the numbers.
+ * ------------------------------------------------------------------------- */
+:root[data-theme="minecraft"] {
+    --ms-palette-ink: #26201a;
+    --ms-palette-paper: #d9d4c8;
+    --ms-palette-smoke: #c9c3b3;
+    --ms-palette-ash: #a8a296;
+    --ms-palette-steel: #6e6658;
+    --ms-palette-gray: #4f4739;
+    --ms-palette-gray-dark: #26201a;
+    --ms-palette-track: #a8a296;
+    --ms-palette-mist: #cfc9bb;
+    --ms-palette-mist-deep: #b8b2a2;
+    --ms-palette-chrome: #c9c3b3;
+
+    --ms-palette-blue: #3a5bd9;
+    --ms-palette-blue-deep: #2b46ad;
+    --ms-palette-blue-shade: #1e3fae;
+    --ms-palette-blue-ink: #ffffff;
+    --ms-palette-green: #0d7a35;
+    --ms-palette-green-deep: #0a6b2d;
+    --ms-palette-green-shade: #0a5423;
+    --ms-palette-green-ink: #ffffff;
+    --ms-palette-yellow: #e0a800;
+    --ms-palette-yellow-deep: #f5c63a;
+    --ms-palette-yellow-shade: #8a6600;
+    --ms-palette-yellow-ink: #26201a;
+    --ms-palette-red: #b81414;
+    --ms-palette-red-deep: #8f0f0f;
+    --ms-palette-red-shade: #5c0a0a;
+    --ms-palette-red-ink: #ffffff;
+
+    --ms-palette-blue-alt: #3a5bd9;
+    --ms-palette-blue-text: #1e3fae;
+    --ms-palette-green-alt: #0d7a35;
+    --ms-palette-green-text: #0a6128;
+    --ms-palette-red-alt: #b81414;
+    --ms-palette-red-text: #b81414;
+    --ms-palette-orange-alt: #8a4a1e;
+    --ms-palette-amber: #f0c420;
+    --ms-palette-amber-ink: #26201a;
+
+    /* Closed cells are grass; opening one digs down to stone. */
+    --ms-palette-cell-closed: #5d9c3c;
+    --ms-palette-cell-light: #7ab84e;
+    --ms-palette-cell-shade: #3f6b28;
+    --ms-palette-cell-open: #d9d4c8;
+    --ms-palette-gutter: #3f3428;
+    --ms-palette-mine: #b81414;
+    --ms-palette-cursor-ink: #26201a;
+    --ms-palette-cursor-1: #4aedd9;
+    --ms-palette-cursor-2: #fcee4b;
+    --ms-palette-cursor-3: #17dd62;
+    --ms-palette-cursor-4: #7aa7ff;
+    --ms-palette-cursor-5: #ff8a8a;
+    --ms-palette-cursor-6: #d9b3ff;
+
+    /* Lapis, emerald, redstone, amethyst, copper, diamond, coal, iron. */
+    --ms-palette-num-1: #1e3fae;
+    --ms-palette-num-2: #0a6128;
+    --ms-palette-num-3: #b81414;
+    --ms-palette-num-4: #6b2fa0;
+    --ms-palette-num-5: #8a4a1e;
+    --ms-palette-num-6: #0a5c5c;
+    --ms-palette-num-7: #1a1a1a;
+    --ms-palette-num-8: #545454;
+}
+
+/* ---------------------------------------------------------------------------
+ * Mario. Sky above, question blocks below.
+ * ------------------------------------------------------------------------- */
+:root[data-theme="mario"] {
+    --ms-palette-ink: #2b1c0e;
+    --ms-palette-paper: #5c94fc;
+    --ms-palette-smoke: #f8f4e8;
+    --ms-palette-ash: #c8bca0;
+    --ms-palette-steel: #8b7355;
+    --ms-palette-gray: #5f5039;
+    --ms-palette-gray-dark: #2b1c0e;
+    --ms-palette-track: #c8bca0;
+    --ms-palette-mist: #fffaf0;
+    --ms-palette-mist-deep: #f0e4c8;
+    --ms-palette-chrome: #f0e4c8;
+
+    --ms-palette-blue: #2b4ec8;
+    --ms-palette-blue-deep: #1e3a9c;
+    --ms-palette-blue-shade: #142a70;
+    --ms-palette-blue-ink: #ffffff;
+    --ms-palette-green: #187226;
+    --ms-palette-green-deep: #166b23;
+    --ms-palette-green-shade: #0f4a18;
+    --ms-palette-green-ink: #ffffff;
+    --ms-palette-yellow: #fbd000;
+    --ms-palette-yellow-deep: #ffe45c;
+    --ms-palette-yellow-shade: #a08000;
+    --ms-palette-yellow-ink: #2b1c0e;
+    --ms-palette-red: #d02010;
+    --ms-palette-red-deep: #a3170b;
+    --ms-palette-red-shade: #701008;
+    --ms-palette-red-ink: #ffffff;
+
+    --ms-palette-blue-alt: #2b4ec8;
+    --ms-palette-blue-text: #2b4ec8;
+    --ms-palette-green-alt: #187226;
+    --ms-palette-green-text: #1a6828;
+    --ms-palette-red-alt: #d02010;
+    --ms-palette-red-text: #c01a0c;
+    --ms-palette-orange-alt: #e39d25;
+    --ms-palette-amber: #fbd000;
+    --ms-palette-amber-ink: #2b1c0e;
+
+    /* Closed cells are question blocks; opening one leaves the ground. */
+    --ms-palette-cell-closed: #e39d25;
+    --ms-palette-cell-light: #f5c268;
+    --ms-palette-cell-shade: #a86a10;
+    --ms-palette-cell-open: #f8e8c8;
+    --ms-palette-gutter: #6b3410;
+    --ms-palette-mine: #d02010;
+    --ms-palette-cursor-ink: #2b1c0e;
+    --ms-palette-cursor-1: #e52521;
+    --ms-palette-cursor-2: #fbd000;
+    --ms-palette-cursor-3: #43b047;
+    --ms-palette-cursor-4: #5c94fc;
+    --ms-palette-cursor-5: #ff9ec4;
+    --ms-palette-cursor-6: #ffffff;
+
+    --ms-palette-num-1: #2b4ec8;
+    --ms-palette-num-2: #1a6828;
+    --ms-palette-num-3: #c01a0c;
+    --ms-palette-num-4: #4a2b8c;
+    --ms-palette-num-5: #8b4513;
+    --ms-palette-num-6: #0d6666;
+    --ms-palette-num-7: #2b1c0e;
+    --ms-palette-num-8: #6e6252;
+}

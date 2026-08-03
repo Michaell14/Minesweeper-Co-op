@@ -64,6 +64,30 @@ export const THEMES: ThemeOption[] = [
         short: "Neon",
         note: "Drive the coastline at midnight with the neon turned all the way up.",
     },
+    {
+        id: "tetris",
+        label: "Tetris",
+        short: "Seven pieces",
+        note: "Seven shapes falling faster than you can think. Still hearing the music.",
+    },
+    {
+        id: "pacman",
+        label: "Pac-Man",
+        short: "Four ghosts",
+        note: "One more quarter, one more maze, four ghosts closing in behind you.",
+    },
+    {
+        id: "minecraft",
+        label: "Minecraft",
+        short: "Eight ores",
+        note: "Dig down through the grass and see which ore the torchlight catches.",
+    },
+    {
+        id: "mario",
+        label: "Mario",
+        short: "Coin gold",
+        note: "Blue sky, gold blocks, and the little jump you do when one pays out.",
+    },
 ];
 
 /**
