@@ -83,7 +83,7 @@ export default function Footer() {
                     <>
                         <div>
                             <p className="text-pixel-sm text-ink-muted">Suggestions for new features?</p>
-                            <p className="text-pixel-sm text-ink-muted -mt-3">
+                            <p className="text-pixel-sm text-ink-muted">
                                 <a
                                     href="https://forms.gle/ALpScH8K7K2QsA8M7"
                                     target="_blank"
