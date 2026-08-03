@@ -12,8 +12,9 @@ app.use((req, res, next) => {
     if (allowedOrigins.includes(origin)) {
         res.setHeader('Access-Control-Allow-Origin', origin);
     }
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    // Authorization carries the auth-bridge token on /api requests.
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     
     if (req.method === 'OPTIONS') {
@@ -74,4 +75,5 @@ const io = new Server(server, {
     }
 });
 
-module.exports = { server, io };
+// `app` too: controllers/profileController mounts the /api routes on it.
+module.exports = { app, server, io };

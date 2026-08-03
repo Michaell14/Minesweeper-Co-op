@@ -18,6 +18,7 @@
  */
 
 const { updatePlayerStatsInRoom } = require('../utils/playerUtils');
+const { recordForSockets, boardKeyOf } = require('../utils/statsRecorder');
 const { getAdjacentCells, revealFrom, projectBoard, projectCells } = require('../domain/board');
 const { pvpIndexOf } = require('../domain/pvpPlayer');
 const { io } = require('../utils/initializeClient');
@@ -178,6 +179,31 @@ const checkWin = async (board, room, socketId, playerIndex) => {
                 });
 
                 await revealToLoser(room, socketId);
+
+                // A decided race is a game for BOTH racers' stats: a win for
+                // this socket, a loss for the other slot. Forfeits (opponent
+                // disconnected) deliberately record nothing — that game was
+                // never played out. Fire-and-forget.
+                try {
+                    const winnerSlot = roomRepo.pvpSlotOf(roomState, socketId);
+                    const loserSocket =
+                        winnerSlot === undefined
+                            ? null
+                            : roomState[playerKeys(winnerSlot === 0 ? 1 : 0).socketKey];
+                    const endedAt = Date.now();
+                    const startedAt = readStamp(roomState.startedAt);
+                    const shared = {
+                        mode: 'pvp',
+                        boardKey: boardKeyOf(board),
+                        durationMs: startedAt === null ? null : endedAt - startedAt,
+                        players: 2,
+                        finishedAt: endedAt,
+                    };
+                    recordForSockets([socketId], { ...shared, won: true });
+                    if (loserSocket) recordForSockets([loserSocket], { ...shared, won: false });
+                } catch (error) {
+                    console.error('Stats write dropped:', error.message);
+                }
 
                 await roomRepo.releaseWinnerLock(room);
             }

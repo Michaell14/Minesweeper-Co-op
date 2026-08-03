@@ -1,5 +1,6 @@
 const { resetPlayerScores, updatePlayerStatsInRoom } = require('./playerUtils');
 const { io } = require('./initializeClient');
+const { recordForSockets, boardKeyOf } = require('./statsRecorder');
 const roomRepo = require('../data/roomRepo');
 const { stoppedAt } = require('../domain/clock');
 const { createEmptyBoard, projectBoard } = require('../domain/board');
@@ -42,6 +43,23 @@ const checkWin = async (roomState, board, room) => {
         io.to(room).emit(SERVER_EVENTS.BOARD_UPDATE, projectBoard(board, { revealMines: true }));
         io.to(room).emit(SERVER_EVENTS.GAME_CLOCK, stoppedAt(roomState, endedAt));
         io.to(room).emit(SERVER_EVENTS.GAME_WON);
+
+        // Server-authoritative stats, for every signed-in player in the room.
+        // Fire-and-forget: a stats hiccup must never delay the win.
+        try {
+            const players = JSON.parse(roomState.players || '[]');
+            const startedAt = parseInt(roomState.startedAt, 10);
+            recordForSockets(players, {
+                mode: 'co-op',
+                boardKey: boardKeyOf(board),
+                won: true,
+                durationMs: Number.isFinite(startedAt) ? endedAt - startedAt : null,
+                players: players.length,
+                finishedAt: endedAt,
+            });
+        } catch (error) {
+            console.error('Stats write dropped:', error.message);
+        }
     }
 };
 

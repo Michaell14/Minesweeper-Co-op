@@ -39,4 +39,16 @@ const PORT = process.env.PORT || 3001;
  */
 const PVP_RECONNECT_GRACE_MS = parseInt(process.env.PVP_RECONNECT_GRACE_MS, 10) || 12000;
 
-module.exports = { DEFAULT_ALLOWED_ORIGINS, parseOrigins, allowedOrigins, PORT, PVP_RECONNECT_GRACE_MS };
+/**
+ * Shared secret for the auth bridge: the Next app signs a short-lived HS256
+ * JWT with it (app/api/socket-token) and this server verifies it, which is how
+ * a Vercel-issued sign-in becomes an identity a Heroku socket can trust. The
+ * SAME value must be set on both deploys.
+ *
+ * Unset means sign-in is off and every player is anonymous — the working
+ * default, like everything else here. Deliberately no fallback secret: a
+ * default value would let anyone mint valid identities.
+ */
+const AUTH_BRIDGE_SECRET = process.env.AUTH_BRIDGE_SECRET || '';
+
+module.exports = { DEFAULT_ALLOWED_ORIGINS, parseOrigins, allowedOrigins, PORT, PVP_RECONNECT_GRACE_MS, AUTH_BRIDGE_SECRET };

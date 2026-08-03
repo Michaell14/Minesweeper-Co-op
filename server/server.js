@@ -1,9 +1,14 @@
-const { server, io } = require('./utils/initializeClient');
+const express = require('express');
+const { app, server, io } = require('./utils/initializeClient');
 const { removePlayer, addPlayerToRoom } = require('./utils/playerUtils');
 const { createRoom, resetGame } = require('./utils/gameUtils');
 const { openCell, chordCell, toggleFlag } = require('./game');
 const { startPvpGame, resetMyBoard, pvpRematch } = require('./controllers/pvpController');
 const { offerResume, forgetRoom } = require('./controllers/sessionController');
+const { resolveSocketUser, registerProfileRoutes } = require('./controllers/profileController');
+const { registerSettingsRoutes } = require('./controllers/settingsController');
+const { registerThemesRoutes } = require('./controllers/themesController');
+const { registerStatsRoutes } = require('./controllers/statsController');
 const { startDaily, submitDailyScore, getDailyLeaderboard } = require('./controllers/dailyController');
 const dailyGame = require('./game/daily');
 const { PORT } = require('./config');
@@ -23,6 +28,34 @@ const {
     isValidDailyToken,
     isValidDailyDate,
 } = require('./validation');
+
+// The account routes — the server's first HTTP surface beyond health checks.
+// The JSON body parser is mounted here, ONCE, ahead of every registration:
+// scoped to /api (nothing else on this server reads a body), and owned by no
+// particular controller so registration order stays order, not load-bearing.
+app.use('/api', express.json());
+registerProfileRoutes(app);
+registerSettingsRoutes(app);
+registerThemesRoutes(app);
+registerStatsRoutes(app);
+
+/**
+ * Who this socket belongs to, resolved once at connect. `null` is an anonymous
+ * player — fully supported, and the guaranteed outcome when the token is
+ * absent, invalid, or the database is missing; auth being down never blocks a
+ * connection. Skipped on connection-state recovery (`skipMiddlewares: true`),
+ * where the previous `socket.data` is restored instead.
+ *
+ * This is a CONNECT-TIME SNAPSHOT: a rename or deletion mid-session does not
+ * update it until the socket reconnects. Consumers that show the name
+ * somewhere durable re-read it (dailyController.submitDailyScore); stats
+ * writes for a deleted account fail the users FK and are dropped by
+ * statsRecorder, which is the intended outcome.
+ */
+io.use(async (socket, next) => {
+    socket.data.user = await resolveSocketUser(socket.handshake.auth);
+    next();
+});
 
 io.on('connection', async (socket) => {
     socket.on(CLIENT_EVENTS.CREATE_ROOM, async ({ room, numRows, numCols, numMines, name, mode }) => {

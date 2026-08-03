@@ -233,6 +233,13 @@
      * so players scrolled sideways to see the game they came for.
      */
     --ms-cell-size: 40px;
+    /*
+     * The cell-size setting picks a different CEILING; the viewport-fit clamp
+     * in board.module.css still applies, so "large" never overflows a phone —
+     * it just stops shrinking later. Selected via data-cell-size on the board.
+     */
+    --ms-cell-size-compact: 30px;
+    --ms-cell-size-large: 52px;
     --ms-cell-min: 18px;
     --ms-cell-gap: 3px;
     /*

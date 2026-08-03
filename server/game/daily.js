@@ -13,6 +13,7 @@ const { solveWithStats } = require('../domain/solverUtils');
 const { revealFrom, getAdjacentCells, projectBoard, projectCells } = require('../domain/board');
 const { hashStringToSeed, mulberry32 } = require('../domain/seededRandom');
 const { io } = require('../utils/initializeClient');
+const { recordForSockets, boardKeyOf } = require('../utils/statsRecorder');
 const dailyRepo = require('../data/dailyRepo');
 const { TERMINAL_STATUSES } = dailyRepo;
 const { SERVER_EVENTS } = require('../../shared/events');
@@ -143,6 +144,22 @@ const finishAttempt = async (date, token, socketId, board, { won }) => {
 
     io.to(socketId).emit(SERVER_EVENTS.DAILY_BOARD_UPDATE, { board: projectBoard(board, { revealMines: true }) });
     io.to(socketId).emit(won ? SERVER_EVENTS.DAILY_WON : SERVER_EVENTS.DAILY_GAME_OVER, { elapsedMs });
+
+    // Stats record at the FINISH, not at leaderboard submit: the private
+    // profile counts the game whether or not the player publishes a score.
+    // Fire-and-forget, guests skipped inside.
+    try {
+        recordForSockets([socketId], {
+            mode: 'daily',
+            boardKey: boardKeyOf(board),
+            won,
+            durationMs: elapsedMs,
+            players: 1,
+            finishedAt,
+        });
+    } catch (error) {
+        console.error('Stats write dropped:', error.message);
+    }
 };
 
 /** Win iff every non-mine cell is open. Ends the attempt via finishAttempt when true. */

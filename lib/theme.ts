@@ -42,57 +42,58 @@ export const THEMES: ThemeOption[] = [
     },
 ];
 
+/**
+ * The pre-settings storage key. The theme now lives in the settings blob
+ * (lib/settings.ts, which owns persistence and the no-flash script); this key
+ * survives only as the migration source a pre-blob browser is read from.
+ */
 export const THEME_STORAGE_KEY = "ms-theme";
 
-const VALID_IDS = THEMES.map((t) => t.id).filter((id): id is string => id !== null);
+/**
+ * Every non-default theme id, for validating stored values: the storage is
+ * user-writable, and a stale id from a removed palette would stamp an
+ * attribute matching no rules — rendering the default while claiming
+ * otherwise.
+ */
+export const VALID_THEME_IDS = THEMES.map((t) => t.id).filter(
+    (id): id is string => id !== null,
+);
 
-/** Applies a theme to the document, or clears it for the default palette. */
-export function applyTheme(id: string | null): void {
+/**
+ * Removes every inline `--ms-palette-*` override a custom theme stamped.
+ * Walked off the style object itself rather than a hardcoded key list, so a
+ * palette entry added later cannot be left behind as a stale override.
+ */
+function clearCustomPaletteOverrides(): void {
+    const style = document.documentElement.style;
+    for (let i = style.length - 1; i >= 0; i--) {
+        const name = style[i];
+        if (name.startsWith("--ms-palette-")) style.removeProperty(name);
+    }
+}
+
+/**
+ * Applies a theme to the document.
+ *
+ * Built-in themes are a `data-theme` attribute; custom ones are the palette
+ * stamped as inline custom properties (they do not exist in tokens.css, so
+ * there is no attribute to set). Either path first clears the other's
+ * residue — switching custom → built-in used to be the leak to worry about.
+ */
+export function applyTheme(id: string | null, customPalette?: Record<string, string>): void {
+    clearCustomPaletteOverrides();
+    if (customPalette) {
+        delete document.documentElement.dataset.theme;
+        for (const [name, value] of Object.entries(customPalette)) {
+            if (name.startsWith("--ms-palette-")) {
+                document.documentElement.style.setProperty(name, value);
+            }
+        }
+        return;
+    }
     if (id) document.documentElement.dataset.theme = id;
     else delete document.documentElement.dataset.theme;
 }
-
-/** Persists the choice, tolerating storage being unavailable or full. */
-export function storeTheme(id: string | null): void {
-    try {
-        if (id) window.localStorage.setItem(THEME_STORAGE_KEY, id);
-        else window.localStorage.removeItem(THEME_STORAGE_KEY);
-    } catch {
-        // Private browsing or a full quota — the theme just won't persist.
-    }
-}
-
-/**
- * The stored choice, or null for the default. Unknown values are discarded: the
- * key is user-writable, and a stale id from a removed palette would stamp an
- * attribute matching no rules, rendering the default while claiming otherwise.
- */
-export function readStoredTheme(): string | null {
-    try {
-        const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
-        return stored && VALID_IDS.includes(stored) ? stored : null;
-    } catch {
-        return null;
-    }
-}
-
-/**
- * The no-flash script, inlined into <head> and run before first paint.
- *
- * Without it a themed player gets a flash of the default palette on every load,
- * because React has not hydrated and nothing has set the attribute yet.
- * Deliberately dependency-free — it runs before any bundle.
- */
-export const NO_FLASH_SCRIPT = `
-(function () {
-  try {
-    var t = localStorage.getItem(${JSON.stringify(THEME_STORAGE_KEY)});
-    if (t && ${JSON.stringify(VALID_IDS)}.indexOf(t) !== -1) {
-      document.documentElement.setAttribute('data-theme', t);
-    }
-  } catch (e) {}
-})();
-`.trim();
 
 /** How many cursor colours the palette defines. Keep in step with tokens.css. */
 export const CURSOR_RAMP_SIZE = 6;

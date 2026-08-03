@@ -1,0 +1,58 @@
+/*
+ * A range input in the Switch's visual language: square thumb, square track,
+ * no rounding anywhere. The native input is restyled rather than replaced —
+ * keyboard, drag and screen-reader behaviour come free and cannot silently
+ * break the way a div-built slider's do.
+ *
+ * The two vendor pseudo-element blocks are deliberately NOT comma-joined:
+ * one unrecognised selector in a group invalidates the whole rule, so a
+ * shared block styles neither browser.
+ */
+
+.slider {
+    appearance: none;
+    -webkit-appearance: none;
+    display: block;
+    width: 100%;
+    max-width: 260px;
+    height: 32px;
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    cursor: pointer;
+}
+
+.slider:focus-visible {
+    outline: 2px solid var(--ms-intent-primary);
+    outline-offset: 3px;
+}
+
+.slider::-webkit-slider-runnable-track {
+    height: 12px;
+    background-color: var(--ms-surface-track);
+    border: var(--ms-border-width) solid var(--ms-border-color);
+}
+
+.slider::-moz-range-track {
+    height: 12px;
+    background-color: var(--ms-surface-track);
+    border: var(--ms-border-width) solid var(--ms-border-color);
+}
+
+.slider::-webkit-slider-thumb {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 20px;
+    height: 28px;
+    margin-top: -11px; /* centres the thumb on the 12px track */
+    background-color: var(--ms-intent-primary);
+    border: var(--ms-border-width) solid var(--ms-border-color);
+}
+
+.slider::-moz-range-thumb {
+    width: 20px;
+    height: 28px;
+    background-color: var(--ms-intent-primary);
+    border: var(--ms-border-width) solid var(--ms-border-color);
+    border-radius: 0;
+}

@@ -80,6 +80,7 @@ Backend deps install separately: `npm --prefix server install`.
 | Daily challenge UI | `components/DailyChallenge.tsx`, `components/dialogs/DailyDialogs.tsx`, `state/dailySlice.ts` |
 | The run clock | `server/domain/clock.js` (server), `lib/gameClock.ts` (the one reading), `components/game/Timer.tsx` |
 | Personal best times | `lib/bestTimes.ts` (localStorage, keyed by board dimensions), `hooks/useBestTime.ts` |
+| Account stats (server-recorded results, streak, profile page) | `server/data/statsRepo.js` (one transaction per result), `server/utils/statsRecorder.js` (socket→user bridge, best-effort), `server/domain/streak.js` (pure UTC day maths), `server/controllers/statsController.js`; client `lib/statsApi.ts`, `app/profile/` |
 | Cell interaction | `components/game/Cell.tsx` |
 | Room create/join UI | `components/landing/` (one file per form or dialog); `components/Landing.tsx` composes them |
 | Board sizes, difficulty densities, limits, validity rule | `shared/boardConfig.js` — imported by both halves |
@@ -88,7 +89,10 @@ Backend deps install separately: `npm --prefix server install`.
 | Post-deploy check | `scripts/verify-deploy/` — `npm run verify:deploy` |
 | Client test setup (jsdom, DOM cleanup) | `vitest.config.ts`, `test/setup.ts` |
 | Motion / reduced motion | `--ms-duration-*` in `app/tokens.css`; `lib/motion.ts` for the JS path |
-| Palette / theming | `lib/theme.ts` (list, persistence, no-flash script, cursor ramp); picker in `components/ThemePicker.tsx` |
+| Sound effects | `lib/sound.ts` — synthesised Web Audio blips, NO asset files; gates on `settings.sound` + background tabs; unlock installed by `SettingsSync` |
+| Palette / theming | `lib/theme.ts` (list, applyTheme, cursor ramp); cards in `components/ThemeCards.tsx`, dialog in `components/ThemePicker.tsx` |
+| Custom themes (9-colour core → derived palette, editor, sync) | `lib/customThemes.ts` (derivation + validation), `components/ThemeStudio.tsx` (editor), `lib/themesApi.ts`; server `server/data/themesRepo.js`, `server/controllers/themesController.js` |
+| Settings (schema, storage, no-flash script) | `lib/settings.ts`; slice in `state/settingsSlice.ts`; page at `app/settings/`; sync in `components/SettingsSync.tsx` + `lib/settingsApi.ts`; server side `server/data/settingsRepo.js`, `server/controllers/settingsController.js` |
 | Dialogs | `lib/dialogs.ts` for ids and `openDialog`/`closeDialog`; `components/ds/Dialog.tsx` for the shell; markup in `components/dialogs/` (`GameDialogs`, `DailyDialogs`), `Grid.tsx`, `Landing.tsx`, `Footer.tsx` |
 
 ## Traps

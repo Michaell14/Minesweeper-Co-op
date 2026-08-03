@@ -7,6 +7,7 @@ import { getOrCreateDailyAttemptToken, readDailyAttemptToken } from "@/lib/daily
 import { DEFAULT_DIFFICULTY, DEFAULT_SIZE } from "@/shared/boardConfig";
 import { CLIENT_EVENTS } from "@/shared/events";
 import type { AppSocket } from "@/lib/initSocket";
+import { playSound, type SoundName } from "@/lib/sound";
 import type { ClientToServerEvents } from "@/shared/socketPayloads";
 
 /** The emits that take a room code and a cell. */
@@ -29,6 +30,30 @@ type RoomActionEvent = Extract<
  * socket, which matters because `Cell` is memoized on cell state alone and would
  * otherwise hold on to whichever callbacks it first received.
  */
+
+/**
+ * The click sound for a cell action, decided CLIENT-side at emit time so
+ * feedback is immediate rather than a round-trip later — but gated on the
+ * local board, because the emits themselves are fire-and-forget and the
+ * server refuses plenty of them: opening an open or flagged cell, flagging an
+ * open cell, chording a closed one. A blip on a refused action is FALSE
+ * feedback, so those return null and stay silent.
+ */
+export const cellActionSound = (
+    isToggleFlag: boolean,
+    isChord: boolean,
+    row: number,
+    col: number,
+): SoundName | null => {
+    const cell = useMinesweeperStore.getState().board[row]?.[col];
+    if (isChord) return cell?.isOpen ? 'chord' : null;
+    if (isToggleFlag) {
+        if (cell?.isOpen) return null;
+        return cell?.isFlagged ? 'unflag' : 'flag';
+    }
+    return cell?.isOpen || cell?.isFlagged ? null : 'reveal';
+};
+
 export function useGameActions(socket: AppSocket | null) {
     /** Leave the room and reset local state back to the Landing defaults. */
     const leaveRoom = useCallback(() => {
@@ -78,6 +103,8 @@ export function useGameActions(socket: AppSocket | null) {
         (event: CellActionEvent, row: number, col: number) => {
             const { playerJoined, room } = useMinesweeperStore.getState();
             if (!playerJoined || !socket) return;
+            const sound = cellActionSound(event === CLIENT_EVENTS.TOGGLE_FLAG, event === CLIENT_EVENTS.CHORD_CELL, row, col);
+            if (sound) playSound(sound);
             socket.emit(event, { room, row, col });
         },
         [socket]
@@ -114,8 +141,12 @@ export function useGameActions(socket: AppSocket | null) {
 
     const emitCellHover = useCallback(
         (row: number, col: number) => {
-            const { room, playerJoined } = useMinesweeperStore.getState();
+            const { room, playerJoined, settings } = useMinesweeperStore.getState();
             if (!socket || !room || !playerJoined) return;
+            // The share-cursor opt-out (privacy setting). The (-1,-1) clear is
+            // still allowed through so toggling off mid-hover removes your
+            // cursor from teammates' boards instead of freezing it there.
+            if (!settings.shareCursor && !(row === -1 && col === -1)) return;
             socket.emit(CLIENT_EVENTS.CELL_HOVER, { room, row, col });
         },
         [socket]
@@ -156,6 +187,8 @@ export function useGameActions(socket: AppSocket | null) {
             // flight. See lib/dailyIdentity.ts for what minting here cost.
             const dailyAttemptToken = readDailyAttemptToken();
             if (!dailyAttemptToken) return;
+            const sound = cellActionSound(event === CLIENT_EVENTS.DAILY_TOGGLE_FLAG, event === CLIENT_EVENTS.DAILY_CHORD_CELL, row, col);
+            if (sound) playSound(sound);
             socket.emit(event, { dailyAttemptToken, date: dailyDate, row, col });
         },
         [socket]

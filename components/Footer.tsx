@@ -1,17 +1,32 @@
 'use client'
 import React from 'react';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { DIALOGS, openDialog } from '@/lib/dialogs';
-import { CoinIcon, Dialog, DialogClose, GithubIcon, PaletteIcon, pointerClass } from '@/components/ds';
+import { CoinIcon, Dialog, DialogClose, GearIcon, GithubIcon, PaletteIcon, UserIcon, pointerClass } from '@/components/ds';
 import ThemePicker from '@/components/ThemePicker';
+import AccountMenu from '@/components/AccountMenu';
 
 export default function Footer() {
 
     const openGuideDialog = () => openDialog(DIALOGS.guide);
     const openThemeDialog = () => openDialog(DIALOGS.theme);
+    const openAccountDialog = () => openDialog(DIALOGS.account);
+
+    /*
+     * The floating cluster belongs to the GAME page only: it is absolutely
+     * positioned over the content column, so on any long document page
+     * (/settings, /profile, whatever comes next) it overlaps the controls —
+     * which is exactly how it shipped overlapping /settings' switches, got
+     * fixed there, and then shipped overlapping /profile. Root-only is the
+     * rule that cannot repeat that. The DIALOGS below stay mounted on every
+     * route: other pages open the account dialog imperatively.
+     */
+    const showCluster = usePathname() === '/';
 
     return (
         <>
-            <div className="xl:absolute mr-8 mb-6 xl:ml-0 xl:mb-0 float-right right-8 bottom-8 flex items-center gap-3">
+            {showCluster && <div className="xl:absolute mr-8 mb-6 xl:ml-0 xl:mb-0 float-right right-8 bottom-8 flex items-center gap-3">
                 <a
                     href="https://github.com/Michaell14/Minesweeper-Co-op"
                     target="_blank"
@@ -39,7 +54,17 @@ export default function Footer() {
                     className={pointerClass}>
                     <PaletteIcon size={48} />
                 </button>
-            </div>
+                <button
+                    type="button"
+                    onClick={openAccountDialog}
+                    aria-label="Account"
+                    className={pointerClass}>
+                    <UserIcon size={48} />
+                </button>
+                <Link href="/settings" aria-label="Settings" className={pointerClass}>
+                    <GearIcon size={48} />
+                </Link>
+            </div>}
 
             <Dialog
                 id={DIALOGS.guide}
@@ -69,6 +94,7 @@ export default function Footer() {
             </Dialog>
 
             <ThemePicker />
+            <AccountMenu />
         </>
     )
 }

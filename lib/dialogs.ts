@@ -31,6 +31,11 @@ export const DIALOGS = {
     guide: 'dialog-guide',
     theme: 'dialog-theme',
 
+    // Owned by components/AccountMenu.tsx (mounted by Footer)
+    account: 'dialog-account',
+    accountDelete: 'dialog-account-delete',
+    privacy: 'dialog-privacy',
+
     // Owned by components/dialogs/DailyDialogs.tsx
     dailySubmit: 'dialog-daily-submit',
     dailyGameOver: 'dialog-daily-game-over',

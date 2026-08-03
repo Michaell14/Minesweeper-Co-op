@@ -52,6 +52,7 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
     const pvpOpponentName = useMinesweeperStore((state) => state.pvpOpponentName);
     const pvpOpponentStatus = useMinesweeperStore((state) => state.pvpOpponentStatus);
     const setIsChecked = useMinesweeperStore((state) => state.setIsChecked);
+    const showProgressBar = useMinesweeperStore((state) => state.settings.showProgressBar);
 
     const { remainingFlags, ownProgressPercent, opponentProgressPercent } = useGameStats();
 
@@ -189,7 +190,7 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
 
                     {/* MOBILE: everything else, below the board. */}
                     <div className="flex flex-col items-center gap-2 xl:hidden mt-6 w-full">
-                        {mode === 'pvp' && pvpStarted &&
+                        {mode === 'pvp' && pvpStarted && showProgressBar &&
                             <div className="w-full max-w-60 mb-4">
                                 <div className="mb-2">
                                     <ProgressBar label="You" percent={ownProgressPercent} colorClass="bg-progress-own" size="sm" />
@@ -220,7 +221,9 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
                                 Waiting for host to start rematch...
                             </div>
                         }
-                        {mode === 'pvp' && pvpStarted &&
+                        {/* The whole panel, not just the bars — a hidden bar must
+                            not leave an empty titled box behind. */}
+                        {mode === 'pvp' && pvpStarted && showProgressBar &&
                             <Panel
                                 title={<span className="text-pixel-sm">Progress</span>}
                                 className="max-w-60 mt-6"

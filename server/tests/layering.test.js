@@ -47,7 +47,7 @@ const SERVER_ROOT = path.join(__dirname, '..');
 const layerOf = (file) => {
     const rel = path.relative(SERVER_ROOT, file);
     if (rel === 'config.js' || rel === 'validation.js') return 0;
-    if (rel.includes('initializeClient') || rel.includes('initializeRedisClient')) return 1;
+    if (rel.includes('initializeClient') || rel.includes('initializeRedisClient') || rel.includes('initializePgClient')) return 1;
     if (rel.startsWith(`domain${path.sep}`)) return 2;
     if (rel.startsWith(`data${path.sep}`)) return 3;
     if (rel.startsWith(`utils${path.sep}`)) return 4;
@@ -57,12 +57,19 @@ const layerOf = (file) => {
     return null;
 };
 
-/** Every .js file we ship, excluding tests and dependencies. */
+/**
+ * Every .js file we ship, excluding tests and dependencies. `migrations/` is
+ * excluded too, as a decision rather than an oversight: migration files are
+ * executed by node-pg-migrate at release time (see /Procfile), are never
+ * required by the server, and each one is frozen once it has run in
+ * production — they are not part of the runtime module graph these rules
+ * exist to protect.
+ */
 const sourceFiles = (dir = SERVER_ROOT) =>
     fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
         const full = path.join(dir, entry.name);
         if (entry.isDirectory()) {
-            return ['tests', 'node_modules'].includes(entry.name) ? [] : sourceFiles(full);
+            return ['tests', 'node_modules', 'migrations'].includes(entry.name) ? [] : sourceFiles(full);
         }
         return entry.name.endsWith('.js') ? [full] : [];
     });

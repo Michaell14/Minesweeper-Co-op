@@ -158,7 +158,7 @@ socket. `page.tsx` itself subscribes only to `playerJoined` and `gameOverName`.
 
 ### State (`state/`, re-exported by `app/store.ts`)
 
-One store, assembled from seven slices:
+One store, assembled from eight slices:
 
 | Group | Fields |
 |---|---|
@@ -168,6 +168,7 @@ One store, assembled from seven slices:
 | PVP | `pvpStarted`, `pvpOpponentName`, `pvpOpponentStatus`, `pvpWinner`, `pvpRoomReady`, `pvpIsHost`, `pvpOpponentProgress`, `pvpTotalSafeCells` |
 | Daily | `dailyActive`, `dailyDate`, `dailyStatus`, `dailyElapsedMs`, `dailyRank`, `dailyLeaderboard`, … |
 | Mouse/UI | `isChecked` (mobile click-vs-flag), `r`, `c`, `leftClick`, `rightClick`, `bothPressed` |
+| Settings | `settings` (the lib/settings.ts blob: theme, and each later PRD phase's keys), `settingsHydrated` |
 
 Each row above is one slice file. Slices are plain creators sharing one `set`, so
 a slice can write another's fields where that is genuinely the behaviour —
@@ -593,6 +594,53 @@ Both mouse buttons pressed together, or the middle button. `Cell.tsx` writes `le
 ### Hover presence (co-op only)
 `Cell` `onMouseEnter` → throttled 100ms → `cellHover` → server broadcasts `playerHoverUpdate` to everyone else → each client colors the cell using a hash of the socket id. Suppressed in PVP (`server.js:251`).
 
+### Accounts and the auth bridge
+
+Sign-in is OAuth-only (Google, GitHub) via Auth.js v4 in the Next app — see
+`USER_PROFILES_PRD.md` for the feature plan. The parts worth knowing:
+
+**Two tokens, on purpose.** NextAuth's session cookie is an encrypted JWE bound
+to the Vercel deploy; the game server neither can nor should read it. When the
+client needs to prove itself to Heroku it asks `/api/socket-token` (with
+`/api/auth/*`, the app's first API routes — everything game-shaped still speaks
+the socket) for a **bridge token**: a 1-hour HS256 JWT carrying just the OAuth
+identity, signed with `AUTH_BRIDGE_SECRET`, which both deploys hold.
+`lib/authBridge.ts` caches it and `lib/initSocket.ts` presents it on the
+socket handshake — `auth` is a *function* so every reconnect re-reads it —
+plus `lib/profileApi.ts` sends it as a bearer on the REST calls.
+
+**The server's two transports have opposite failure policies.**
+`server/utils/authToken.js` verifies (never throws);
+`server/controllers/profileController.js` applies it twice: the socket path
+resolves any failure — bad token, no `DATABASE_URL`, Postgres down — to
+`socket.data.user = null`, an anonymous player, because auth being down must
+never block a game. The REST path (`GET/PUT/DELETE /api/me`) answers honestly
+with 401/503 instead, because account data is all it serves. OAuth sign-in and
+sign-out are full-page redirects, so the socket always reconnects fresh with
+the right token state; nothing reconciles mid-session.
+
+**Stats are written by the game server, never sent by a client.** The four
+terminal sites — co-op win (`gameUtils.checkWin`), co-op loss (`game/coop.js`),
+a decided PVP race (`game/pvp.js`, winner and loser both; forfeits record
+nothing), and a finished daily attempt (`game/daily.js`) — call
+`utils/statsRecorder`, which resolves each socket back to `socket.data.user`
+and fires `statsRepo.recordResult` best-effort: anonymous players are skipped
+silently and a Postgres failure is logged and dropped, never allowed to delay
+a game-over emit. Each result is ONE transaction (the result row, the
+recent-window prune, the aggregates under `FOR UPDATE`, and a keep-if-faster
+board best), so an aggregate can never disagree with its rows. The
+day-streak maths lives in `domain/streak.js`, pure. `/profile` reads it all
+via `GET /api/stats`; the only stats write endpoint is the guest best-times
+import, keep-if-faster by construction. A signed-in daily submit stores the
+ACCOUNT display name on the leaderboard.
+
+**Users live in Postgres** (`server/data/userRepo.js`, the first
+Postgres-backed repo) keyed by `(provider, provider_account_id)`, created on
+first sight with one upserting statement. Email refreshes each sign-in;
+`display_name` deliberately does not — renames made in the account menu must
+survive. Deletion is a hard `DELETE`; tables added by later phases must declare
+`ON DELETE CASCADE` against `users` so it stays the single deletion point.
+
 ### Mobile flag mode
 `isChecked` toggles tap-to-open vs tap-to-flag. `Grid` renders a separate mobile tree below the `xl` breakpoint; `Cell` renders both a `hideFrom="xl"` and a `hideBelow="xl"` hit area.
 
@@ -657,6 +705,15 @@ npm run lint
 
 Local Redis is expected on `127.0.0.1:6379`; `scripts/ensure-redis.js` will try to start it.
 
+**Postgres is optional.** It holds durable account data (users, settings, stats
+— see `USER_PROFILES_PRD.md`); without `DATABASE_URL` the server logs one line
+at boot and runs the whole game with account features off, so contributors not
+touching profiles need no database. To work on account features locally: run a
+Postgres, set `DATABASE_URL` in `server/.env`, and apply migrations with
+`npm --prefix server run migrate`. On Heroku, migrations run in the `release`
+phase (`scripts/run-migrations.js` via `/Procfile`) — after the build, before
+new dynos boot, skipping harmlessly when no database is provisioned.
+
 **Configuration.** Every variable has a working default, so an unset one keeps
 the previous hardcoded behaviour. See `.env.example` and `server/.env.example`.
 
@@ -666,6 +723,10 @@ the previous hardcoded behaviour. See `.env.example` and `server/.env.example`.
 | `ALLOWED_ORIGINS` | server | comma-separated; falls back to localhost:3000 plus the deployed frontends |
 | `PORT` | server | 3001 |
 | `HOST`, `REDIS_PORT`, `DB_PASS` | server | local Redis with no auth |
+| `DATABASE_URL` | server | unset — no Postgres, account features off |
+| `AUTH_BRIDGE_SECRET` | both | unset — sign-in off; must be the SAME value on both deploys |
+| `GOOGLE_CLIENT_ID/SECRET`, `GITHUB_CLIENT_ID/SECRET` | client | unset — that provider's sign-in button absent |
+| `NEXTAUTH_URL`, `NEXTAUTH_SECRET` | client | NextAuth's own session; required in production for sign-in |
 
 **Tests.** Three layers, each answering something the others cannot:
 
