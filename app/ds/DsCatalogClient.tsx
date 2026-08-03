@@ -174,6 +174,7 @@ export default function DsCatalogClient() {
                     ariaLabel="Preview palette"
                     value={theme ?? DEFAULT_THEME}
                     onChange={(v) => setTheme(v === DEFAULT_THEME ? null : v)}
+                    wrap
                 >
                     {THEMES.map((t) => (
                         <RadioCard

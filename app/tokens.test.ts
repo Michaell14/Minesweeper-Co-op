@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { VALID_THEME_IDS } from "@/lib/theme";
 
 /**
  * The token file, checked against itself.
@@ -58,11 +59,15 @@ export const blockBody = (selector: string, source = TOKENS) => {
     throw new Error(`unbalanced braces after ${selector}`);
 };
 
-const THEME_SELECTORS = [
-    ':root[data-theme="gameboy"]',
-    ':root[data-theme="c64"]',
-    ':root[data-theme="dark"]',
-];
+/*
+ * Read out of the file rather than listed. A hand-kept list silently stops
+ * covering the theme it was not updated for, which is the one failure mode
+ * these tests cannot afford: an unchecked theme is exactly where an orphaned
+ * override or a reach past the palette layer would sit.
+ */
+const THEME_SELECTORS = [...TOKENS.matchAll(/^:root\[data-theme="([\w-]+)"\]\s*\{/gm)].map(
+    (m) => `:root[data-theme="${m[1]}"]`,
+);
 
 const rootDeclarations = declarationsIn(blockBody(":root"));
 const rootNames = new Set(rootDeclarations.map((d) => d.name));
@@ -165,6 +170,29 @@ describe("a theme changes everything or nothing", () => {
         const themed = declarationsIn(blockBody(selector)).map((d) => d.name);
         const beyond = themed.filter((n) => !n.startsWith("--ms-palette-"));
         expect(beyond).toEqual([]);
+    });
+});
+
+/*
+ * The stylesheet and the picker are two halves of one palette, and each half
+ * fails quietly without the other. A block nobody can select is dead CSS; a card
+ * whose id matches no block stamps an attribute no rule answers, so it renders
+ * the DEFAULT palette while reporting itself as chosen — the failure
+ * VALID_THEME_IDS was written to keep out of storage, arriving from the app
+ * itself instead.
+ */
+describe("every palette is both defined and offered", () => {
+    const inCss = new Set(
+        THEME_SELECTORS.map((s) => /data-theme="([\w-]+)"/.exec(s)![1]),
+    );
+    const inPicker = new Set(VALID_THEME_IDS);
+
+    test("every theme block has a card", () => {
+        expect([...inCss].filter((id) => !inPicker.has(id))).toEqual([]);
+    });
+
+    test("every card has a theme block", () => {
+        expect([...inPicker].filter((id) => !inCss.has(id))).toEqual([]);
     });
 });
 

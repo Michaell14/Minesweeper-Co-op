@@ -571,6 +571,12 @@ const KNOWN_CONTRAST_FAILURES = {
         'cell number 8',
     ],
     dark: [],
+    amber: [],
+    // Two reds exist in the palette and no single ink clears AA on both; hover
+    // is the state that rises. See the theme block in app/tokens.css.
+    spectrum: ['error button'],
+    contrast: [],
+    synthwave: [],
 };
 
 async function themeContrast(page) {
