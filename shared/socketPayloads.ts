@@ -234,6 +234,15 @@ export interface ServerToClientEvents {
         rank?: number;
         /** Only present alongside `rank`, when status is 'completed'. */
         totalEntries?: number;
+        /**
+         * The attempt's FINAL board, mines revealed, for a view-only replay.
+         * A terminal state may show everything (ARCHITECTURE.md §3.1).
+         * Optional: attempts recorded before this field existed have none.
+         */
+        board?: Cell[][];
+        numRows?: number;
+        numCols?: number;
+        numMines?: number;
     }) => void;
     dailyUpdateCells: (updates: CellUpdate[]) => void;
     /** Terminal states only (loss or win) -- the full board, mines revealed. */

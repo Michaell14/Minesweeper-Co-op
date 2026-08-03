@@ -272,6 +272,41 @@ describe('startDaily', () => {
         expect(socket.emit).not.toHaveBeenCalledWith('dailyStarted', expect.anything());
     });
 
+    test('a resumed FAILED attempt carries its final board, mines revealed, for a view-only replay', async () => {
+        const socket = socketFor('sock-1');
+        await startDaily({ socket, dailyAttemptToken: 'tok-1' });
+        await dailyGame.openCell(DATE, 'tok-1', 'sock-1', 0, 1); // hits the mine -> failed
+
+        socket.emit.mockClear();
+        await startDaily({ socket, dailyAttemptToken: 'tok-1' });
+
+        const [, payload] = socket.emit.mock.calls.find(([event]) => event === 'dailyAlreadyAttempted');
+        expect(Array.isArray(payload.board)).toBe(true);
+        expect(payload.board).toHaveLength(payload.numRows);
+        expect(payload.board[0]).toHaveLength(payload.numCols);
+        // Terminal state: the mines are allowed to show, and must (a replay
+        // of a loss with invisible mines explains nothing).
+        const minesShown = payload.board.flat().filter((cell) => cell.isMine).length;
+        expect(minesShown).toBe(payload.numMines);
+    });
+
+    test("a resumed WON attempt's replay board is fully open or flagged", async () => {
+        const socket = socketFor('sock-1');
+        await startDaily({ socket, dailyAttemptToken: 'tok-1' });
+        await dailyGame.openCell(DATE, 'tok-1', 'sock-1', 1, 1); // safe
+        await dailyGame.openCell(DATE, 'tok-1', 'sock-1', 2, 0); // safe
+        await dailyGame.openCell(DATE, 'tok-1', 'sock-1', 2, 1); // last safe cell -> win
+
+        socket.emit.mockClear();
+        await startDaily({ socket, dailyAttemptToken: 'tok-1' });
+
+        const [, payload] = socket.emit.mock.calls.find(([event]) => event === 'dailyAlreadyAttempted');
+        expect(payload.status).toBe('won_pending_submit');
+        expect(
+            payload.board.flat().every((cell) => cell.isOpen || (cell.isMine && cell.isFlagged)),
+        ).toBe(true);
+    });
+
     test('resuming a FAILED attempt never reports rank or totalEntries -- there is no leaderboard entry', async () => {
         const socket = socketFor('sock-1');
         await startDaily({ socket, dailyAttemptToken: 'tok-1' });

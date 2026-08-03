@@ -16,6 +16,9 @@ type CellActionEvent = 'openCell' | 'chordCell' | 'toggleFlag' | 'cellHover';
 /** The daily-challenge emits that take an attempt token, date, and a cell. */
 type DailyCellActionEvent = 'dailyOpenCell' | 'dailyChordCell' | 'dailyToggleFlag';
 
+/** Statuses whose board is settled — mirrors TERMINAL_STATUSES in dailyRepo. */
+const TERMINAL_DAILY_STATUSES = ['failed', 'won_pending_submit', 'completed'];
+
 /** The emits whose whole payload is the room code. */
 type RoomActionEvent = Extract<
     keyof ClientToServerEvents,
@@ -181,8 +184,13 @@ export function useGameActions(socket: AppSocket | null) {
 
     const emitDailyCellAction = useCallback(
         (event: DailyCellActionEvent, row: number, col: number) => {
-            const { dailyActive, dailyDate } = useMinesweeperStore.getState();
+            const { dailyActive, dailyDate, dailyStatus } = useMinesweeperStore.getState();
             if (!dailyActive || !socket) return;
+            // A finished attempt's board is VIEW-ONLY — a fresh loss, a win
+            // awaiting submit, or a resumed replay alike. The server refuses
+            // moves on terminal attempts anyway; emitting (and blipping)
+            // here would be false feedback on a board that cannot change.
+            if (TERMINAL_DAILY_STATUSES.includes(dailyStatus)) return;
             // Read, never mint: the move belongs to the attempt already in
             // flight. See lib/dailyIdentity.ts for what minting here cost.
             const dailyAttemptToken = readDailyAttemptToken();
