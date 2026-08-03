@@ -152,7 +152,17 @@ export default function DailyDialogs({ submitDailyScore, getDailyLeaderboard }: 
                     </Button>
                 }>
                 <p className="text-pixel-sm">Your time: <strong>{elapsedLabel}</strong></p>
-                <Field className="mb-4" invalid={nameError !== ''} errorText={nameError}>
+                {/*
+                 * The label is not optional here the way it is on the room's
+                 * name dialog: that one's TITLE is "Enter your Name:", so the
+                 * lone input is self-explanatory. This dialog's title is "You
+                 * solved it!", which leaves an empty box explaining nothing.
+                 */}
+                <Field
+                    className="mt-3 mb-4"
+                    label="Enter a name for the leaderboard:"
+                    invalid={nameError !== ''}
+                    errorText={nameError}>
                     <Input
                         ref={nameInputRef}
                         type="text"
@@ -160,6 +170,7 @@ export default function DailyDialogs({ submitDailyScore, getDailyLeaderboard }: 
                         maxLength={16}
                         minLength={1}
                         required
+                        placeholder="Your name"
                         invalid={nameError !== ''}
                         aria-label="Your name for the leaderboard"
                         aria-required="true" />

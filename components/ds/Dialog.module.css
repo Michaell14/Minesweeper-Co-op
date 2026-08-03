@@ -5,6 +5,23 @@
  * conditional rendering would silently break both.
  */
 .dialog {
+    /*
+     * Centred in the viewport. This is what the UA already does for an open
+     * modal — `position: fixed; inset: 0; margin: auto` — stated outright for
+     * the same reason the border below is.
+     *
+     * It used to be `absolute left-1/2 top-60 -translate-x-1/2` from Dialog.tsx,
+     * which set only `left` and `top`: the UA's `right: 0` and `bottom: 0`
+     * survived, so `margin: auto` centred the box inside the region below-right
+     * of that point and the translate pulled it back by half its own width. The
+     * dialog landed down-and-right of centre by an offset that depended on its
+     * own size, and `position: absolute` meant it was placed against the
+     * document rather than the viewport — on a page taller than the window it
+     * could open entirely off-screen.
+     */
+    position: fixed;
+    inset: 0;
+    margin: auto;
     padding: 24px 32px;
     color: var(--ms-ink-strong);
     background-color: var(--ms-surface-dialog);
