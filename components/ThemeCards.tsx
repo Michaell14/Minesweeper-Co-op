@@ -9,10 +9,9 @@ import { useMinesweeperStore } from '@/app/store';
 const DEFAULT_THEME = '__default__';
 
 /**
- * The palette cards, mounted by the /settings Appearance section. They read the
- * settings slice rather than holding their own useState, so however many are
- * mounted they cannot disagree — which is what let the floating palette dialog
- * and this page coexist, and is still why `name` matters below.
+ * The palette cards, mounted by the /settings Appearance section. The selection
+ * lives in the settings slice rather than local state, so this stays in step
+ * with the theme however it was last changed.
  *
  * The store hydrates from storage after mount (see settingsSlice); until then
  * this briefly shows the default selected, while the PAINTED theme is already
