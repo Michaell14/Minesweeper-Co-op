@@ -20,6 +20,12 @@ vi.mock('next-auth/react', () => ({
     getProviders: () => mockGetProviders(),
 }));
 
+// The Profile button navigates; outside a real Next router the hook throws.
+const mockPush = vi.fn();
+vi.mock('next/navigation', () => ({
+    useRouter: () => ({ push: mockPush }),
+}));
+
 const mockFetchProfile = vi.fn();
 const mockUpdateDisplayName = vi.fn();
 const mockDeleteAccount = vi.fn();

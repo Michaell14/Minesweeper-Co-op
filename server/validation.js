@@ -125,6 +125,35 @@ const isValidThemeBlob = (blob) => {
     }
 };
 
+/** `rows x cols / mines` — lib/bestTimes.ts's boardKey shape, bounded sanely. */
+const isValidBoardKey = (key) =>
+    typeof key === 'string' && /^\d{1,3}x\d{1,3}\/\d{1,4}$/.test(key);
+
+/**
+ * The guest best-times import: an array of client-reported records. Bounded
+ * and shape-checked here; statsRepo's keep-if-faster upsert is what makes the
+ * numbers harmless — an import can only improve a PRIVATE profile.
+ */
+const MAX_BEST_IMPORT_ENTRIES = 100;
+const isValidBestImport = (bests) =>
+    Array.isArray(bests) &&
+    bests.length <= MAX_BEST_IMPORT_ENTRIES &&
+    bests.every(
+        (best) =>
+            typeof best === 'object' &&
+            best !== null &&
+            isValidBoardKey(best.boardKey) &&
+            typeof best.seconds === 'number' &&
+            Number.isFinite(best.seconds) &&
+            best.seconds >= 0 &&
+            best.seconds <= 86400 &&
+            Number.isInteger(best.players) &&
+            best.players >= 1 &&
+            best.players <= 100 &&
+            typeof best.achievedAt === 'number' &&
+            Number.isFinite(best.achievedAt),
+    );
+
 module.exports = {
     isValidRoomCode,
     isValidPlayerName,
@@ -139,4 +168,6 @@ module.exports = {
     isValidSettingsBlob,
     isValidThemeId,
     isValidThemeBlob,
+    isValidBoardKey,
+    isValidBestImport,
 };

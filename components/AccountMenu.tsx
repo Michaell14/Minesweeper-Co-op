@@ -1,5 +1,6 @@
 'use client'
 import React from 'react';
+import { useRouter } from 'next/navigation';
 import { getProviders, signIn, signOut, useSession } from 'next-auth/react';
 import { Button, Dialog, DialogClose, Field, Input } from '@/components/ds';
 import { DIALOGS, closeDialog, openDialog } from '@/lib/dialogs';
@@ -34,6 +35,7 @@ const providerLabel = (id: string) => PROVIDER_LABELS[id] ?? id;
 
 export default function AccountMenu() {
     const { status } = useSession();
+    const router = useRouter();
 
     // Which providers this deploy actually has, from NextAuth's own endpoint —
     // env vars are server-side, so the client asks rather than assumes.
@@ -219,6 +221,16 @@ export default function AccountMenu() {
                         </Field>
 
                         <div className="flex gap-3 mt-4">
+                            {/* The dialog outlives route changes (it lives in the
+                                layout), so close it before navigating. */}
+                            <Button
+                                size="sm"
+                                onClick={() => {
+                                    closeDialog(DIALOGS.account);
+                                    router.push('/profile');
+                                }}>
+                                Profile
+                            </Button>
                             <Button size="sm" onClick={handleSignOut}>Sign out</Button>
                             <Button
                                 size="sm"

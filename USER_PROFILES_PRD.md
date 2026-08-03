@@ -1,6 +1,10 @@
 # PRD: User Profiles & Customization
 
-**Status:** Not started · **Owner:** Michael · **Created:** 2026-08-02
+**Status:** All six phases code-complete (2026-08-02) · **Owner:** Michael · **Created:** 2026-08-02
+
+Outstanding manual steps, both flagged in their phases: provision Heroku
+Postgres (Phase 0) and create the OAuth apps + set the five secrets (Phase 1).
+Until then every account feature degrades gracefully and the game is unchanged.
 
 A living document. Each phase has a checklist; check items off as they land and
 update the phase status line. Keep the *Decisions* table current — if a decision
@@ -419,27 +423,50 @@ sixty is what keeps a hand-built theme coherent.
 colours + full derivation — fewer knobs, more coherent output, and the
 derived palette is the only thing that ever reaches a style attribute.
 
-### Phase 6 — Stats & profile page ░ Not started · est. 4–5 days
+### Phase 6 — Stats & profile page ✔ Done 2026-08-02
 
-- [ ] `server/data/statsRepo.js`: record result + update aggregates in one
-      transaction; prune `game_results` to the recent window on insert
-- [ ] Wire the three game-end sites: co-op win/loss, PVP finish, daily submit —
-      record for each **authenticated** participant; guests skipped silently
-- [ ] Co-op records `players` count (a 3-player clear ≠ solo, per
-      `lib/bestTimes.ts` reasoning)
-- [ ] Daily linkage: authenticated start writes userId onto the attempt;
-      leaderboard rows show account display name; anonymous path untouched
-- [ ] Server-side board bests (`user_board_bests`) alongside, not replacing,
-      the localStorage `bestTimes` (guests keep theirs)
-- [ ] One-time guest import: offer to fold the browser's `bestTimes` into the
-      account on first sign-in
-- [ ] `/profile` route (private, own-account only): aggregates, win rate,
-      streaks, per-board bests table, recent-games table, simple trend from
-      the window
-- [ ] Streak logic: UTC day boundaries, missed-day reset — unit-tested pure
-      module
-- [ ] Tests: transaction atomicity, prune behaviour, parity with the scoring
-      rule (`scoringParity.test.js` stays green), streak edge cases
+- [x] `server/data/statsRepo.js`: ONE transaction per result — the result row,
+      the recent-window prune (50), the aggregates read under `FOR UPDATE`
+      (two same-player results serialise; different players never wait), and
+      a keep-if-faster board best. Rollback on any failure, so an aggregate
+      can never disagree with its rows
+- [x] Four terminal sites wired via `utils/statsRecorder` (socket →
+      `socket.data.user`, best-effort, guests skipped silently, Postgres
+      failures logged and dropped — never on the game path): co-op win
+      (`checkWin`), co-op loss (`game/coop.js`), a DECIDED PVP race (winner
+      and loser both; disconnect forfeits deliberately record nothing — that
+      game was never played out), and a finished daily attempt — at the
+      finish, not the submit, so the private profile counts games whether or
+      not a score is published
+- [x] Co-op records the room's `players` count; board keys derived from the
+      board itself (dimensions + counted mines — trap #10, never labels)
+- [x] Daily tie-in: a signed-in submit stores the ACCOUNT display name on the
+      leaderboard (normalised through the same stored-name gate); the
+      anonymous path is untouched. Landed via `socket.data.user` at the
+      handlers rather than writing userId onto the Redis attempt — one less
+      piece of state, same outcome (deviation noted)
+- [x] `user_board_bests` server-side, alongside localStorage `bestTimes`
+      (guests keep theirs untouched)
+- [x] Guest import: a button on `/profile` when this browser holds records —
+      keep-if-faster upsert, so importing can only improve a profile and
+      re-importing is harmless; client-reported numbers accepted knowingly
+      for a PRIVATE profile
+- [x] `/profile` (noindex, own-account only): per-mode games/wins/win-rate,
+      the day-streak (current + best), best-times table, recent-games table
+      with a W/L strip as the trend; signed-out invite, unavailable + retry
+      states; reachable from the account dialog and /settings
+- [x] Streak: `server/domain/streak.js`, pure — UTC days as strings (pg's
+      `date`→local-Date parsing is the exact trap avoided), same-day
+      idempotent, gap resets keeping best, month/year/leap boundaries tested,
+      and an out-of-order older result can never destroy a live streak
+- [x] Tests: streak table-driven; transaction atomicity + rollback + prune +
+      keep-if-faster against a fake pool client; recorder gate matrix;
+      import validation; daily account-name override; profile page states.
+      `scoringParity.test.js` untouched and green. 705 server + 284 client +
+      ui-smoke green. Live: an AUTHENTICATED socket played a real co-op game
+      against a real Postgres — result row, aggregates and streak landed;
+      import + keep-if-faster + GET /api/stats + account-deletion cascade all
+      verified over REST
 
 ---
 
@@ -474,3 +501,4 @@ derived palette is the only thing that ever reaches a style attribute.
 | 2026-08-02 | Phase 3 complete: nine settings (swap buttons, mobile flag default, chording, confetti, share-cursor, timer/flag-counter/progress visibility, cell size) wired through Cell/useChording/confetti/emitCellHover/HUD components; Gameplay + HUD sections on /settings; cell size as token-variant ceilings. Resolved to zero server work: chording suppressed client-side, question marks deferred (recorded in §8). Verified live in the browser (compact cells measured 30px, timer hidden, settings persisted); server 663 + client 244 tests and ui-smoke green. |
 | 2026-08-02 | Phase 4 complete: sound synthesised with Web Audio (no asset files — nothing to license or load), off by default, gated in playSound with a first-gesture unlock; wired at the emit helpers (reveal/flag/unflag/chord, room + daily), cascade detection in applyCellUpdates (>8 newly-open cells), and all seven win/lose terminal sites. DS Slider built as its Phase-2-deferred consumer arrived; Sound panel with toggle + volume + Preview. UI clicks cut, music deferred (recorded in the phase). 663 server + 259 client + ui-smoke green; Preview verified through an unlocked context in a real browser. |
 | 2026-08-02 | Phase 5 complete: theme editor as nine core colours + full palette derivation (contrast-aware inks, cursor mixes, number fallback); custom themes applied as :root inline overrides with residue-free switching; `custom:` ids through the sanitiser and no-flash script (palette-layer names + hex only); ThemeStudio with live whole-page preview and legibility audit, save-anyway allowed; `user_themes` CRUD with cap-gates-new-only and a merge (not server-wins) at sign-in. 680 server + 279 client + ui-smoke green; the full editor loop verified live in the browser, server CRUD + cascade against real Postgres. |
+| 2026-08-02 | Phase 6 complete — and with it every phase: stats tables + one-transaction recordResult (prune, FOR UPDATE aggregates, keep-if-faster bests), pure UTC streak module, four game-end sites wired best-effort through statsRecorder (PVP forfeits excluded; daily records at finish, not submit), daily leaderboard shows account names, /profile dashboard with the guest best-times import. 705 server + 284 client + ui-smoke green. Live: an authenticated socket played a real game and the row, aggregates and streak landed in a real Postgres; import, GET /api/stats and the deletion cascade verified over REST. The PRD's two manual steps (Heroku Postgres, OAuth apps) are all that separate this branch from shippable. |

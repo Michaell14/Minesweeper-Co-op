@@ -165,7 +165,11 @@ export default function SettingsClient() {
                     {status === 'authenticated' ? (
                         <p className="text-pixel-sm">
                             Signed in — your settings sync to your account and follow you
-                            to any browser you sign in on.
+                            to any browser you sign in on.{' '}
+                            <Link href="/profile" className="underline">
+                                View your profile
+                            </Link>
+                            .
                         </p>
                     ) : (
                         <p className="text-pixel-sm">

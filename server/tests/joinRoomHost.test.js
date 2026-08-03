@@ -27,7 +27,7 @@ const mockTo = jest.fn((target) => ({
 const mockOn = jest.fn();
 
 jest.mock('../utils/initializeClient', () => ({
-    app: { use: jest.fn(), get: jest.fn(), put: jest.fn(), delete: jest.fn() },
+    app: { use: jest.fn(), get: jest.fn(), post: jest.fn(), put: jest.fn(), delete: jest.fn() },
     io: { on: mockOn, to: mockTo, use: jest.fn() },
     server: { listen: jest.fn() },
 }));

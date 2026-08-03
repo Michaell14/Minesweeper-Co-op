@@ -80,6 +80,7 @@ Backend deps install separately: `npm --prefix server install`.
 | Daily challenge UI | `components/DailyChallenge.tsx`, `components/dialogs/DailyDialogs.tsx`, `state/dailySlice.ts` |
 | The run clock | `server/domain/clock.js` (server), `lib/gameClock.ts` (the one reading), `components/game/Timer.tsx` |
 | Personal best times | `lib/bestTimes.ts` (localStorage, keyed by board dimensions), `hooks/useBestTime.ts` |
+| Account stats (server-recorded results, streak, profile page) | `server/data/statsRepo.js` (one transaction per result), `server/utils/statsRecorder.js` (socket→user bridge, best-effort), `server/domain/streak.js` (pure UTC day maths), `server/controllers/statsController.js`; client `lib/statsApi.ts`, `app/profile/` |
 | Cell interaction | `components/game/Cell.tsx` |
 | Room create/join UI | `components/landing/` (one file per form or dialog); `components/Landing.tsx` composes them |
 | Board sizes, difficulty densities, limits, validity rule | `shared/boardConfig.js` — imported by both halves |

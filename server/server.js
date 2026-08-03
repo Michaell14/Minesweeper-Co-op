@@ -7,6 +7,7 @@ const { offerResume, forgetRoom } = require('./controllers/sessionController');
 const { resolveSocketUser, registerProfileRoutes } = require('./controllers/profileController');
 const { registerSettingsRoutes } = require('./controllers/settingsController');
 const { registerThemesRoutes } = require('./controllers/themesController');
+const { registerStatsRoutes } = require('./controllers/statsController');
 const { startDaily, submitDailyScore, getDailyLeaderboard } = require('./controllers/dailyController');
 const dailyGame = require('./game/daily');
 const { PORT } = require('./config');
@@ -32,6 +33,7 @@ const {
 registerProfileRoutes(app);
 registerSettingsRoutes(app);
 registerThemesRoutes(app);
+registerStatsRoutes(app);
 
 /**
  * Who this socket belongs to, resolved once at connect. `null` is an anonymous

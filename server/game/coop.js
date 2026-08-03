@@ -18,6 +18,7 @@ const { clockOf, readStamp } = require('../domain/clock');
 const { io } = require('../utils/initializeClient');
 const roomRepo = require('../data/roomRepo');
 const playerRepo = require('../data/playerRepo');
+const { recordForSockets, boardKeyOf } = require('../utils/statsRecorder');
 const { SERVER_EVENTS } = require('../../shared/events');
 
 /**
@@ -51,6 +52,21 @@ const reveal = async (board, r, c, room, socketId, toUpdate) => {
     // Required: clients are not given mine positions up front, so without this
     // the board would show a single detonated mine and nothing else.
     io.to(room).emit(SERVER_EVENTS.BOARD_UPDATE, projectBoard(board, { revealMines: true }));
+
+    // The loss, for every signed-in player's stats. Fire-and-forget.
+    try {
+        const players = JSON.parse((await roomRepo.getField(room, 'players')) || '[]');
+        recordForSockets(players, {
+            mode: 'co-op',
+            boardKey: boardKeyOf(board),
+            won: false,
+            durationMs: Number.isFinite(startedAt) ? endedAt - startedAt : null,
+            players: players.length,
+            finishedAt: endedAt,
+        });
+    } catch (error) {
+        console.error('Stats write dropped:', error.message);
+    }
     return -1;
 };
 

@@ -619,6 +619,21 @@ with 401/503 instead, because account data is all it serves. OAuth sign-in and
 sign-out are full-page redirects, so the socket always reconnects fresh with
 the right token state; nothing reconciles mid-session.
 
+**Stats are written by the game server, never sent by a client.** The four
+terminal sites — co-op win (`gameUtils.checkWin`), co-op loss (`game/coop.js`),
+a decided PVP race (`game/pvp.js`, winner and loser both; forfeits record
+nothing), and a finished daily attempt (`game/daily.js`) — call
+`utils/statsRecorder`, which resolves each socket back to `socket.data.user`
+and fires `statsRepo.recordResult` best-effort: anonymous players are skipped
+silently and a Postgres failure is logged and dropped, never allowed to delay
+a game-over emit. Each result is ONE transaction (the result row, the
+recent-window prune, the aggregates under `FOR UPDATE`, and a keep-if-faster
+board best), so an aggregate can never disagree with its rows. The
+day-streak maths lives in `domain/streak.js`, pure. `/profile` reads it all
+via `GET /api/stats`; the only stats write endpoint is the guest best-times
+import, keep-if-faster by construction. A signed-in daily submit stores the
+ACCOUNT display name on the leaderboard.
+
 **Users live in Postgres** (`server/data/userRepo.js`, the first
 Postgres-backed repo) keyed by `(provider, provider_account_id)`, created on
 first sight with one upserting statement. Email refreshes each sign-in;

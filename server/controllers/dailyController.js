@@ -165,7 +165,11 @@ const submitDailyScore = async ({ socket, io, dailyAttemptToken, date, name }) =
     try {
         // Validate what gets STORED, not what arrived: the leaderboard is the one
         // durable public thing here, and today's entry is not rewritable.
-        const displayName = normalizePlayerName(name);
+        // A signed-in player's entry carries their ACCOUNT name (the PRD's
+        // daily tie-in) — normalised through the same gate as a typed one,
+        // since an OAuth-seeded name is still arbitrary input.
+        const accountName = socket.data?.user?.displayName;
+        const displayName = normalizePlayerName(accountName || name);
         if (!isValidDailyToken(dailyAttemptToken) || !isValidPlayerName(displayName)) return;
 
         const attempt = await dailyRepo.getAttempt(date, dailyAttemptToken);
