@@ -572,8 +572,7 @@ const KNOWN_CONTRAST_FAILURES = {
     ],
     dark: [],
     amber: [],
-    // Two reds exist in the palette and no single ink clears AA on both; hover
-    // is the state that rises. See the theme block in app/tokens.css.
+    // Two reds, and no ink clears AA on both. See the theme block in tokens.css.
     spectrum: ['error button'],
     contrast: [],
     synthwave: [],

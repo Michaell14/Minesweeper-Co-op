@@ -28,23 +28,13 @@
 }
 
 /*
- * For groups whose option count is not fixed by the design — the palette
- * picker, which grows with every built-in palette and every custom one a
- * player saves. `.scrollable` clips at this width rather than scrolling, so
- * options past the fold are not merely awkward, they are unreachable.
- *
- * Grid rather than flex-wrap: wrapped flex sizes each row to its own contents,
- * so eight cards of different label lengths came out ragged. auto-fit columns
- * are equal at every width, and the row count follows the space.
+ * For groups of unbounded length. `.scrollable` clips above 48em rather than
+ * scrolling, so options past the fold are unreachable, not just awkward.
+ * Grid, not flex-wrap: wrapped flex sizes each row to its own contents and came
+ * out ragged. The 172px floor fits the longest option name.
  */
 .wrap {
     display: grid;
-    /*
-     * The floor fits the longest option name plus the control's padding and
-     * indicator. Narrower tracks do not clip — they wrap the name onto a second
-     * line — but a two-line name next to one-line neighbours is what made the
-     * flex version look ragged in the first place.
-     */
     grid-template-columns: repeat(auto-fit, minmax(172px, 1fr));
     overflow: visible;
 }
@@ -98,11 +88,7 @@
     min-width: 0;
 }
 
-/*
- * `overflow-wrap: break-word` on body is there for room codes, which are typed
- * by players and have no spaces to break at. An option name is neither, and
- * inheriting it split "Synthwave" across two lines mid-word.
- */
+/* body sets break-word for room codes; it split "Synthwave" mid-word. */
 .label {
     font-size: var(--ms-text-md);
     overflow-wrap: normal;

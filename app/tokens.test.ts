@@ -59,12 +59,7 @@ export const blockBody = (selector: string, source = TOKENS) => {
     throw new Error(`unbalanced braces after ${selector}`);
 };
 
-/*
- * Read out of the file rather than listed. A hand-kept list silently stops
- * covering the theme it was not updated for, which is the one failure mode
- * these tests cannot afford: an unchecked theme is exactly where an orphaned
- * override or a reach past the palette layer would sit.
- */
+/* Read out of the file: a hand-kept list stops covering whatever it missed. */
 const THEME_SELECTORS = [...TOKENS.matchAll(/^:root\[data-theme="([\w-]+)"\]\s*\{/gm)].map(
     (m) => `:root[data-theme="${m[1]}"]`,
 );
@@ -173,14 +168,7 @@ describe("a theme changes everything or nothing", () => {
     });
 });
 
-/*
- * The stylesheet and the picker are two halves of one palette, and each half
- * fails quietly without the other. A block nobody can select is dead CSS; a card
- * whose id matches no block stamps an attribute no rule answers, so it renders
- * the DEFAULT palette while reporting itself as chosen — the failure
- * VALID_THEME_IDS was written to keep out of storage, arriving from the app
- * itself instead.
- */
+/* A card with no block paints the DEFAULT palette while claiming to be chosen. */
 describe("every palette is both defined and offered", () => {
     const inCss = new Set(
         THEME_SELECTORS.map((s) => /data-theme="([\w-]+)"/.exec(s)![1]),

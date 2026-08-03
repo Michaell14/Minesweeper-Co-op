@@ -702,12 +702,7 @@
     --ms-palette-yellow-deep: #ffff00;
     --ms-palette-yellow-shade: #000000;
     --ms-palette-yellow-ink: #000000;
-    /*
-     * Only two reds exist, and no single ink clears AA on both: black fails the
-     * darker one, white fails the brighter. Kept red rather than borrowing
-     * magenta, so the resting fill is a logged contrast failure and hover is the
-     * state that rises. See KNOWN_CONTRAST_FAILURES in scripts/ui-smoke.
-     */
+    /* Two reds, and no ink clears AA on both. The resting fill is logged. */
     --ms-palette-red: #d70000;
     --ms-palette-red-deep: #ff0000;
     --ms-palette-red-shade: #000000;
@@ -737,11 +732,7 @@
     --ms-palette-cursor-5: #ff00ff;
     --ms-palette-cursor-6: #ffffff;
 
-    /*
-     * Open cells are black, so the numbers invert to the bright half of the
-     * palette — the dark classics are unreadable on it. 1/6 and 4/5 are the
-     * close pairs, the way 3/5 always were.
-     */
+    /* Open cells are black, so the numbers take the bright half. */
     --ms-palette-num-1: #00ffff;
     --ms-palette-num-2: #00d700;
     --ms-palette-num-3: #ff0000;
@@ -753,8 +744,7 @@
 }
 
 /* ---------------------------------------------------------------------------
- * High contrast. Picked for the audit rather than for a machine: every pair in
- * app/ds clears AA, which no other palette here manages.
+ * High contrast. Picked for the audit rather than for a machine.
  * ------------------------------------------------------------------------- */
 :root[data-theme="contrast"] {
     --ms-palette-ink: #000000;
@@ -821,7 +811,7 @@
 }
 
 /* ---------------------------------------------------------------------------
- * Synthwave. Neon on deep indigo — the one palette here reproducing no hardware.
+ * Synthwave. Neon on deep indigo, reproducing no hardware.
  * ------------------------------------------------------------------------- */
 :root[data-theme="synthwave"] {
     --ms-palette-ink: #f2e9ff;
