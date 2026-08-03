@@ -116,6 +116,22 @@ describe("dailySubmit: won, name goes on the leaderboard", () => {
     });
 
     /*
+     * The room's name dialog gets away with a bare input because its TITLE is
+     * "Enter your Name:". This one's title is "You solved it!", so without a
+     * visible label the box states nothing about what belongs in it -- and the
+     * aria-label that carries the input's accessible name is invisible to
+     * everyone not using a screen reader, so no other assertion here notices
+     * the label going missing.
+     */
+    test("the name field says what to type -- the title cannot", () => {
+        const store = useMinesweeperStore.getState();
+        store.setDailyStatus("won_pending_submit");
+        const dialog = renderOpen(DIALOGS.dailySubmit);
+
+        expect(within(dialog).getByText("Enter a name for the leaderboard:")).toBeDefined();
+    });
+
+    /*
      * An emit shows nothing, so between the click and the server's answer the
      * button would sit there looking untouched — the "dead Submit button" the
      * empty-name error below exists to avoid, just with a slow connection

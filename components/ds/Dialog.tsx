@@ -52,11 +52,7 @@ export default function Dialog({
             id={id}
             role={alert ? "alertdialog" : undefined}
             aria-labelledby={titleId}
-            className={cx(
-                styles.dialog,
-                "absolute left-1/2 top-60 -translate-x-1/2",
-                className,
-            )}
+            className={cx(styles.dialog, className)}
         >
             <form method="dialog" onSubmit={onSubmit}>
                 <p id={titleId} className={styles.title}>{title}</p>
