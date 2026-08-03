@@ -78,12 +78,21 @@ const emitStartResult = async ({ socket, date, boardState, numRows, numCols, num
         const isCompleted = attempt.status === 'completed';
         const rank = isCompleted ? await dailyRepo.getRank(date, dailyAttemptToken) : null;
         const totalEntries = isCompleted ? await dailyRepo.getEntryCount(date) : null;
+        // The attempt's FINAL board rides along for a view-only replay --
+        // finishAttempt stored it, and a terminal state may reveal everything
+        // (ARCHITECTURE.md §3.1). Optional: attempts recorded before the
+        // board was stored this way simply have none to show.
+        const finalBoard = parseBoard(attempt.board);
         socket.emit(SERVER_EVENTS.DAILY_ALREADY_ATTEMPTED, {
             date,
             status: attempt.status,
             elapsedMs: parseIntOrUndefined(attempt.elapsedMs),
             rank: rank === null ? undefined : rank,
             totalEntries: totalEntries === null ? undefined : totalEntries,
+            board: finalBoard ? projectBoard(finalBoard, { revealMines: true }) : undefined,
+            numRows,
+            numCols,
+            numMines,
         });
         return;
     }

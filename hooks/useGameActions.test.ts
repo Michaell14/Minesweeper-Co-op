@@ -164,3 +164,42 @@ describe("cellActionSound", () => {
         expect(cellActionSound(true, false, 9, 9)).toBe("flag");
     });
 });
+
+/**
+ * The view-only gate: a settled daily attempt refuses moves CLIENT-side —
+ * the server would refuse them anyway (terminal check), so an emit here is
+ * wasted traffic and, with sound on, false feedback.
+ */
+describe("daily actions on a terminal attempt", () => {
+    beforeEach(() => {
+        act(() => {
+            state().setDailyActive(true);
+            state().setBoard([[{ isMine: false, isOpen: false, isFlagged: false, nearbyMines: 0 }]]);
+        });
+        localStorage.setItem(
+            "minesweeper_daily_identity",
+            JSON.stringify({ date: "2020-01-01", token: "tok-test" }),
+        );
+    });
+
+    test.each(["failed", "won_pending_submit", "completed"] as const)(
+        "status %s: opening a cell emits nothing",
+        (status) => {
+            act(() => state().setDailyStatus(status));
+            const socket = fakeSocket();
+            actions(socket).dailyOpenCell(0, 0);
+            expect((socket.emit as ReturnType<typeof vi.fn>).mock.calls).toEqual([]);
+        },
+    );
+
+    test("an in_progress attempt still emits — the gate is terminal-only", () => {
+        act(() => state().setDailyStatus("in_progress"));
+        const socket = fakeSocket();
+        actions(socket).dailyOpenCell(0, 0);
+        expect(
+            (socket.emit as ReturnType<typeof vi.fn>).mock.calls.some(
+                ([event]) => event === CLIENT_EVENTS.DAILY_OPEN_CELL,
+            ),
+        ).toBe(true);
+    });
+});

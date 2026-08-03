@@ -79,3 +79,49 @@ describe("the daily view", () => {
         expect(state().bothPressed).toBe(false);
     });
 });
+
+/**
+ * The view-only strip under a settled board — the replay's caption. It keeps
+ * submit/leaderboard reachable after their dialog is dismissed, and must NOT
+ * appear mid-game.
+ */
+describe("the replay strip", () => {
+    const CELL = { isMine: false, isOpen: true, isFlagged: false, nearbyMines: 0 };
+
+    beforeEach(() => {
+        // Board mounts CursorLayer, which measures with a ResizeObserver
+        // jsdom does not ship.
+        vi.stubGlobal("ResizeObserver", class {
+            observe() {}
+            unobserve() {}
+            disconnect() {}
+        });
+        act(() => state().setBoard([[CELL]]));
+    });
+
+    afterEach(() => vi.unstubAllGlobals());
+
+    test("a failed replay says view-only and offers the leaderboard", () => {
+        act(() => state().setDailyStatus("failed"));
+        const p = props(vi.fn());
+        const { getByText, getByRole } = render(<DailyChallenge {...p} />);
+
+        expect(getByText(/view-only/i)).toBeTruthy();
+        getByRole("button", { name: "View today's leaderboard" }).click();
+        expect(p.getDailyLeaderboard).toHaveBeenCalled();
+    });
+
+    test("an unsubmitted win offers the submit dialog instead", () => {
+        act(() => state().setDailyStatus("won_pending_submit"));
+        const { getByRole, queryByRole } = render(<DailyChallenge {...props(vi.fn())} />);
+
+        expect(getByRole("button", { name: "Submit your time to the leaderboard" })).toBeTruthy();
+        expect(queryByRole("button", { name: "View today's leaderboard" })).toBeNull();
+    });
+
+    test("mid-game there is no strip — the board is live, not a replay", () => {
+        act(() => state().setDailyStatus("in_progress"));
+        const { queryByText } = render(<DailyChallenge {...props(vi.fn())} />);
+        expect(queryByText(/view-only/i)).toBeNull();
+    });
+});

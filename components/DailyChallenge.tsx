@@ -55,9 +55,12 @@ export default function DailyChallenge({ leaveDaily, dailyOpenCell, dailyChordCe
         handleBoardLeave: noop,
     };
 
-    // A resumed terminal attempt never carries a board -- the server withholds
-    // one -- so an empty board means "none available", not "none opened yet".
+    // A resumed terminal attempt now carries its FINAL board for a view-only
+    // replay; an empty board means "none available" (an attempt recorded
+    // before replays existed), not "none opened yet".
     const hasBoard = board.length > 0;
+    const isTerminal =
+        dailyStatus === 'failed' || dailyStatus === 'won_pending_submit' || dailyStatus === 'completed';
 
     return (
         <div className="w-full max-w-[1350px] mx-auto px-4 min-h-[94vh] pt-10 pb-6 xl:pt-20 xl:pb-16 [container-type:inline-size]">
@@ -85,9 +88,53 @@ export default function DailyChallenge({ leaveDaily, dailyOpenCell, dailyChordCe
             </div>
 
             {hasBoard ? (
-                <div className="flex justify-center overflow-auto xl:overflow-visible max-w-full">
-                    <Board {...boardProps} />
-                </div>
+                <>
+                    <div className="flex justify-center overflow-auto xl:overflow-visible max-w-full">
+                        <Board {...boardProps} />
+                    </div>
+                    {/* Once the attempt is settled the board above is a
+                        view-only replay (moves are refused in
+                        emitDailyCellAction); this strip says so and keeps the
+                        submit/leaderboard actions reachable after their
+                        dialog has been dismissed. */}
+                    {isTerminal && (
+                        <div className="flex justify-center mt-6">
+                            <Panel centered className="max-w-md" role="status">
+                                {dailyStatus === 'failed' && (
+                                    <p className="text-pixel-sm">You hit a mine — this board is view-only. Come back tomorrow!</p>
+                                )}
+                                {dailyStatus === 'won_pending_submit' && (
+                                    <p className="text-pixel-sm">Solved! Add your time to today&apos;s leaderboard.</p>
+                                )}
+                                {dailyStatus === 'completed' && (
+                                    <p className="text-pixel-sm">
+                                        Completed{dailyRank ? <> — rank <strong>#{dailyRank}</strong></> : ''}. This board is view-only.
+                                    </p>
+                                )}
+                                {dailyStatus === 'won_pending_submit' ? (
+                                    <Button
+                                        size="sm"
+                                        className="mt-4"
+                                        onClick={() => openDialog(DIALOGS.dailySubmit)}
+                                        aria-label="Submit your time to the leaderboard">
+                                        Submit score
+                                    </Button>
+                                ) : (
+                                    <Button
+                                        size="sm"
+                                        className="mt-4"
+                                        onClick={() => {
+                                            getDailyLeaderboard();
+                                            openDialog(DIALOGS.dailyLeaderboard);
+                                        }}
+                                        aria-label="View today's leaderboard">
+                                        View Leaderboard
+                                    </Button>
+                                )}
+                            </Panel>
+                        </div>
+                    )}
+                </>
             ) : (
                 <div className="flex justify-center mt-10">
                     <Panel centered className="max-w-md" role="status">

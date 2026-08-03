@@ -390,6 +390,59 @@ async function mobileFit(page) {
     await page.send('Emulation.clearDeviceMetricsOverride');
 }
 
+
+/**
+ * The floating footer icons must never sit over the board.
+ *
+ * Absolutely positioned, the cluster anchors to the FIRST VIEWPORT of the
+ * document — which at ~1300px widths with a wide board is exactly where the
+ * bottom-right cells are, and an icon over a cell is a cell nobody can click.
+ * The fix keeps floating for the landing page only; with a game mounted the
+ * cluster joins normal flow below the board. Reproduced here at the worst
+ * case this repo can produce: a 1320px viewport with large cells, which
+ * pushes the board's right edge well under where the icons used to float.
+ */
+async function footerClearance(page) {
+    console.log('\n\x1b[1m--- FOOTER CLEARANCE ---\x1b[0m');
+    const room = 'smokeftr' + Date.now().toString().slice(-6);
+
+    await page.send('Emulation.setDeviceMetricsOverride', {
+        width: 1320, height: 900, deviceScaleFactor: 1, mobile: false,
+    });
+    await page.goto(CLIENT);
+    // Large cells widen a 16-wide board to ~900px — into the icons' corner.
+    // The session is cleared too: the previous section left its room joined,
+    // and the resume offer would put this page straight back into it instead
+    // of on the landing form.
+    await page.evaluate(`
+        sessionStorage.clear();
+        localStorage.setItem('minesweeper_settings', JSON.stringify({ version: 1, cellSize: 'large' }));
+    `);
+    await page.goto(CLIENT); // reload so hydration reads the blob
+    await page.waitFor(`!!document.querySelector('form[aria-label="Create new room form"] button[type=submit]')`,
+        { timeout: 60000, label: 'landing renders at 1320px' });
+    await enterRoom(page, { room, name: 'Clearance' });
+    await page.waitFor(`document.querySelectorAll('[role=gridcell]').length === 256`,
+        { label: 'board renders with large cells' });
+
+    const m = JSON.parse(await page.evaluate(`
+        const board = document.querySelector('[role=grid]').getBoundingClientRect();
+        const github = document.querySelector('a[aria-label="View this project on GitHub"]');
+        const cluster = github && github.parentElement.getBoundingClientRect();
+        const overlaps = cluster && !(
+            cluster.right <= board.left || cluster.left >= board.right ||
+            cluster.bottom <= board.top || cluster.top >= board.bottom
+        );
+        return JSON.stringify({ present: !!cluster, overlaps: !!overlaps });
+    `));
+    check(m.present, 'the footer icons still exist during a game');
+    check(!m.overlaps, 'the footer icons do not cover the board',
+        'the icon cluster intersects the board rect — cells behind it cannot be clicked');
+
+    await page.evaluate(`localStorage.removeItem('minesweeper_settings');`);
+    await page.send('Emulation.clearDeviceMetricsOverride');
+}
+
 /**
  * A reload must not cost you your game — and must not drag you back into one
  * you walked out of.
@@ -778,6 +831,7 @@ async function joinLink(host, guest) {
         await coop(page);
         await sizeAndDifficulty(page);
         await mobileFit(page);
+        await footerClearance(page);
         await rejoinOnReload(page);
         await themeContrast(page);
 

@@ -288,7 +288,7 @@ const dailyHandlers = (): SocketHandlers => ({
      * never submitted a name (closed the tab before the dialog) -- reopen it
      * rather than show a dead end.
      */
-    [SERVER_EVENTS.DAILY_ALREADY_ATTEMPTED]: ({ date, status, elapsedMs, rank, totalEntries }) => {
+    [SERVER_EVENTS.DAILY_ALREADY_ATTEMPTED]: ({ date, status, elapsedMs, rank, totalEntries, board, numRows, numCols, numMines }) => {
         const store = useMinesweeperStore.getState();
         store.setDailyActive(true);
         store.setDailyDate(date);
@@ -296,10 +296,32 @@ const dailyHandlers = (): SocketHandlers => ({
         store.setDailyElapsedMs(elapsedMs ?? null);
         store.setDailyRank(rank ?? null);
         store.setDailyTotalEntries(totalEntries ?? null);
-        // No board comes with this event -- clear any stale one (e.g. from a room
-        // played earlier this session) so DailyChallenge.tsx can tell "no board"
-        // apart from "board is just empty".
-        store.setBoard([]);
+
+        if (board && board.length > 0) {
+            // The attempt's final board, for a VIEW-ONLY replay. Mounting it
+            // recreates the state a live finish leaves behind: dimensions for
+            // the flag counter's maths, gameOver on a loss so Cell.tsx draws
+            // the revealed mines, and a clock frozen at the recorded time.
+            // Interaction is refused upstream (see emitDailyCellAction).
+            store.setBoard(board);
+            if (numRows && numCols && numMines !== undefined) {
+                store.setDimensions(numRows, numCols, numMines);
+            }
+            store.setGameOver(status === "failed");
+            store.setGameWon(status !== "failed");
+            if (elapsedMs !== undefined) {
+                const endedAt = Date.now();
+                store.setClock({ startedAt: endedAt - elapsedMs, endedAt });
+            } else {
+                store.setClock({ startedAt: null, endedAt: null });
+            }
+        } else {
+            // No stored board (an attempt from before replays existed) --
+            // clear any stale one (e.g. from a room played earlier this
+            // session) so DailyChallenge.tsx can tell "no board" apart from
+            // "board is just empty".
+            store.setBoard([]);
+        }
 
         if (status === "won_pending_submit") {
             openDialog(DIALOGS.dailySubmit);
