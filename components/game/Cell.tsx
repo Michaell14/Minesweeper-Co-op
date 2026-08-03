@@ -90,11 +90,39 @@ const Cell = ({ cell, row, col, cascadeOrigin, toggleFlag, openCell, chordCell, 
     const primaryAction = swapButtons ? toggleFlag : openCell;   // left button
     const secondaryAction = swapButtons ? openCell : toggleFlag; // right button
 
+    /*
+     * The button that OPENS. The press affordance follows the action rather than
+     * the physical button, so under the swap setting it is the right one — a
+     * cell that sinks like it is about to open, and then gets a flag, is telling
+     * the player the wrong thing about the button they are holding.
+     *
+     * This is why the press is not plain `:active`. CSS cannot ask which button
+     * is down, so `:active` covers all three: it depressed the cell for a flag
+     * and for a chord as readily as for an open.
+     */
+    const openButton = swapButtons ? 2 : 0;
+
+    /*
+     * Written straight to the DOM, not held in state. A press must not cost a
+     * render in the one component with 512 instances, and there is nothing for
+     * React to reconcile — the attribute exists only for the stylesheet.
+     */
+    const releasePress = (event: React.MouseEvent<HTMLElement>) => {
+        delete event.currentTarget.dataset.pressed;
+    };
+
     const handleMouseEnter = () => {
         emitCellHover(row, col);
     };
 
-    const handleMouseLeave = () => {
+    /*
+     * Every branch wires this, which is what bounds how long a stray press mark
+     * can outlive its press: the cell can change branch mid-press (it opens, or
+     * takes a flag) and lose the mouseup handler that would have cleared it, but
+     * the pointer has to leave sooner or later.
+     */
+    const handleMouseLeave = (event: React.MouseEvent<HTMLElement>) => {
+        releasePress(event);
         emitCellHover(-1, -1);
     };
 
@@ -234,10 +262,11 @@ const Cell = ({ cell, row, col, cascadeOrigin, toggleFlag, openCell, chordCell, 
             }}
             onMouseEnter={handleMouseEnter}
             onMouseLeave={handleMouseLeave}
-            // Suppress middle-click autoscroll.
             onMouseDown={(e) => {
-                if (e.button === 1) e.preventDefault();
-            }}>
+                if (e.button === 1) e.preventDefault(); // middle-click starts autoscroll
+                if (e.button === openButton && !isDisabled) e.currentTarget.dataset.pressed = '';
+            }}
+            onMouseUp={releasePress}>
             {/* Mobile taps follow the flag-mode toggle, never the swap setting. */}
             <div className="h-full w-full xl:hidden" onClick={() => { if (!isDisabled) { isChecked ? openCell(row, col) : toggleFlag(row, col) } }} />
             <div className="h-full w-full hidden xl:block" onClick={() => {

@@ -199,13 +199,22 @@
  * Not motion, so no duration token — a press that eases in is a press that is
  * late, which is the thing this exists to fix.
  *
- * `:active` matches ancestors of the pressed element, so it still fires from the
- * inner hit areas that carry the click handlers.
+ * `data-pressed` rather than `:active`, because the affordance is a promise
+ * about ONE action. CSS cannot ask which button is down, so `:active` depressed
+ * the cell for a flag and a chord as readily as for an open — Cell.tsx sets the
+ * attribute only for the button that opens, whichever way the swap setting has
+ * them mapped.
  *
- * FLAGGED cells are excluded on purpose. A flag is protection and the server
- * refuses the open, so depressing one would promise a reveal that never comes.
+ * FLAGGED cells have no rule of their own for the same reason: a flag is
+ * protection and the server refuses the open, so depressing one would promise a
+ * reveal that never comes.
+ *
+ * `:not([aria-disabled])` is redundant with the JS gate and kept anyway — it is
+ * what carries this to (0,4,0), clear of the (0,3,0) hover rule above. At equal
+ * weight the two would be decided by source order, which is the tie this file
+ * has already been bitten by twice.
  */
-.cell.closed:not([aria-disabled]):active {
+.cell.closed:not([aria-disabled])[data-pressed] {
     background-color: var(--ms-cell-open);
     box-shadow: none;
 }

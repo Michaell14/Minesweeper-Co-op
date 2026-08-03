@@ -103,6 +103,10 @@ export const createGameSlice: StateCreator<MinesweeperState, [], [], GameSlice> 
                 }
                 board[row][col] = { isMine, isOpen, isFlagged, nearbyMines };
             }
+            // Nothing landed — every coordinate was off-board. Returning the new
+            // array anyway would be a fresh reference over identical content,
+            // which notifies every `board` subscriber for no change at all.
+            if (copied.size === 0) return {};
             return { board };
         }),
 

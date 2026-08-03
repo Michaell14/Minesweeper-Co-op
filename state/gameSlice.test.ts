@@ -82,6 +82,31 @@ describe("setCells", () => {
         expect(() => state().setCells([{ ...closed(), isOpen: true, row: 9, col: 9 }])).not.toThrow();
     });
 
+    /*
+     * A new array over identical content still notifies every `board`
+     * subscriber, which reconciles all 480 cells for a batch that changed
+     * nothing. Same reason the empty batch returns early.
+     */
+    test("a batch that lands nowhere leaves the board identical", () => {
+        const before = state().board;
+
+        state().setCells([
+            { ...closed(), isOpen: true, row: 9, col: 9 },
+            { ...closed(), isOpen: true, row: 0, col: 7 },
+        ]);
+
+        expect(state().board).toBe(before);
+    });
+
+    test("a partly off-board batch still applies the cells that fit", () => {
+        state().setCells([
+            { ...closed(), isOpen: true, row: 9, col: 9 },
+            { ...closed(), isOpen: true, nearbyMines: 2, row: 1, col: 1 },
+        ]);
+
+        expect(state().board[1][1]).toMatchObject({ isOpen: true, nearbyMines: 2 });
+    });
+
     test("an empty batch leaves the board identical", () => {
         const before = state().board;
 

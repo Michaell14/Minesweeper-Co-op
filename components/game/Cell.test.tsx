@@ -144,3 +144,122 @@ describe("swapped mouse buttons", () => {
         expect(openCell).toHaveBeenCalledWith(0, 0);
     });
 });
+
+/**
+ * The press affordance — the cell sinking to the opened face under the button,
+ * which is what stands in for the reveal while the server round trip runs.
+ *
+ * Asserted on the attribute rather than the paint, because the paint is what
+ * jsdom cannot see. What the attribute encodes is the whole decision: the press
+ * is a promise that THIS button will open THIS cell, so it must not appear for
+ * the button that flags, for the one that chords, or on a board that is going to
+ * ignore the click. It started as `:active`, which cannot express any of that —
+ * CSS is not told which button is down.
+ */
+describe("the press affordance", () => {
+    const closed: CellType = { isMine: false, isOpen: false, isFlagged: false, nearbyMines: 0 };
+
+    const renderClosed = (swap = false) => {
+        useMinesweeperStore.setState((state) => ({
+            settings: { ...state.settings, swapMouseButtons: swap },
+        }));
+        render(
+            <Cell
+                cell={closed}
+                row={0}
+                col={0}
+                toggleFlag={vi.fn()}
+                openCell={vi.fn()}
+                chordCell={vi.fn()}
+                emitCellHover={vi.fn()}
+            />,
+        );
+        return screen.getByRole("gridcell", { name: /^Unrevealed/ });
+    };
+
+    const isPressed = (cell: HTMLElement) => cell.hasAttribute("data-pressed");
+
+    test("the left button presses it", () => {
+        const cell = renderClosed();
+
+        fireEvent.mouseDown(cell, { button: 0 });
+
+        expect(isPressed(cell)).toBe(true);
+    });
+
+    test("releasing lets it back up", () => {
+        const cell = renderClosed();
+
+        fireEvent.mouseDown(cell, { button: 0 });
+        fireEvent.mouseUp(cell, { button: 0 });
+
+        expect(isPressed(cell)).toBe(false);
+    });
+
+    /*
+     * The right button flags. Depressing the cell would show the opened face
+     * for as long as the button is held — and on Windows the flag does not even
+     * land until mouseup, so the wrong affordance is on screen the whole time.
+     */
+    test("the button that flags does not press it", () => {
+        const cell = renderClosed();
+
+        fireEvent.mouseDown(cell, { button: 2 });
+
+        expect(isPressed(cell)).toBe(false);
+    });
+
+    test("nor does the middle button, which chords", () => {
+        const cell = renderClosed();
+
+        fireEvent.mouseDown(cell, { button: 1 });
+
+        expect(isPressed(cell)).toBe(false);
+    });
+
+    /*
+     * Under the swap setting the mapping inverts, and so must the press —
+     * otherwise every left-click these players make depresses the cell and then
+     * plants a flag in it.
+     */
+    test("swapped: the right button presses it", () => {
+        const cell = renderClosed(true);
+
+        fireEvent.mouseDown(cell, { button: 2 });
+
+        expect(isPressed(cell)).toBe(true);
+    });
+
+    test("swapped: the left button does not", () => {
+        const cell = renderClosed(true);
+
+        fireEvent.mouseDown(cell, { button: 0 });
+
+        expect(isPressed(cell)).toBe(false);
+    });
+
+    test("a board waiting for the race to start takes no press", () => {
+        const store = useMinesweeperStore.getState();
+        store.setMode("pvp");
+        store.setPvpStarted(false);
+
+        const cell = renderClosed();
+        fireEvent.mouseDown(cell, { button: 0 });
+
+        expect(isPressed(cell)).toBe(false);
+    });
+
+    /*
+     * The cell can change branch mid-press — it opens, or takes a flag — and
+     * lose the mouseup handler that would have cleared this. Leaving is the
+     * backstop, and every branch wires it.
+     */
+    test("leaving the cell clears a press left behind", () => {
+        const cell = renderClosed();
+
+        fireEvent.mouseDown(cell, { button: 0 });
+        fireEvent.mouseLeave(cell);
+
+        expect(isPressed(cell)).toBe(false);
+    });
+});
