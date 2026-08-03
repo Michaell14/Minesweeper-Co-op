@@ -18,10 +18,10 @@ import {
 } from '@/lib/customThemes';
 
 /**
- * Settings in the store, so every consumer — the /settings page, the theme
- * dialog, later the game itself — reads ONE copy that cannot go stale. The
- * old ThemePicker held its own useState; mounting a second theme UI (the
- * settings page) would have let the two silently disagree.
+ * Settings in the store, so every consumer — the /settings page, the game
+ * itself — reads ONE copy that cannot go stale. The palette UI used to hold its
+ * own useState in a floating dialog; mounting a second theme UI (the settings
+ * page) would have let the two silently disagree.
  *
  * The store starts at defaults on the server and in the first client render,
  * then `hydrateSettings` reads storage after mount — reading localStorage

@@ -144,35 +144,6 @@ const TROPHY = {
     ],
 } as const;
 
-const PALETTE = {
-    palette: {
-        "#": "#212529",
-        "w": "#f4f4f5",
-        "r": "#e76e55",
-        "y": "#f7d51d",
-        "g": "#92cc41",
-        "b": "#209cee",
-    },
-    rows: [
-        "     ######     ",
-        "   ##wwwwww##   ",
-        "  #wwwwwwwwww#  ",
-        " #wwrrwwwwggww# ",
-        " #wwrrwwwwggww# ",
-        "#wwwwwwwwwwwwww#",
-        "#wyywwwwwwwwbbw#",
-        "#wyywwwwwwwwbbw#",
-        "#wwwwwwwwwwwwww#",
-        " #wwwwwwwwwwww# ",
-        " #wwwwww##wwww# ",
-        "  #wwww#  #ww#  ",
-        "   #ww#    #w#  ",
-        "    #w#####w#   ",
-        "     #wwwww#    ",
-        "      #####     ",
-    ],
-} as const;
-
 const GITHUB_RECTS = toRects(GITHUB);
 const COIN_RECTS = toRects(COIN);
 const TROPHY_RECTS = toRects(TROPHY);
@@ -180,9 +151,6 @@ const TROPHY_RECTS = toRects(TROPHY);
 export const GithubIcon = (props: PixelIconProps) => <PixelIcon sprite={GITHUB_RECTS} {...props} />;
 export const CoinIcon = (props: PixelIconProps) => <PixelIcon sprite={COIN_RECTS} {...props} />;
 export const TrophyIcon = (props: PixelIconProps) => <PixelIcon sprite={TROPHY_RECTS} {...props} />;
-
-const PALETTE_RECTS = toRects(PALETTE);
-export const PaletteIcon = (props: PixelIconProps) => <PixelIcon sprite={PALETTE_RECTS} {...props} />;
 
 /** Head and shoulders — the account menu. */
 const USER = {

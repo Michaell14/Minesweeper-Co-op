@@ -39,7 +39,7 @@ hooks/
 components/
   Grid.tsx                Layout only: one board, two control arrangements
   DailyChallenge.tsx      The daily view; reuses gameSlice's board (see §5)
-  ThemePicker.tsx         Palette switcher
+  ThemeCards.tsx          Palette switcher (mounted by /settings)
   dialogs/
     GameDialogs.tsx       End-of-game summary, room errors and PVP outcome dialogs
     DailyDialogs.tsx      Daily-challenge outcome, leaderboard and share dialogs
