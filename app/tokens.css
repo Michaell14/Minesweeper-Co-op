@@ -603,3 +603,276 @@
     --ms-palette-num-7: #e6e6e6;
     --ms-palette-num-8: #a1a8b3;
 }
+
+/* ---------------------------------------------------------------------------
+ * Amber terminal. Monochrome phosphor — one hue, separated by value.
+ * ------------------------------------------------------------------------- */
+:root[data-theme="amber"] {
+    --ms-palette-ink: #ffb000;
+    --ms-palette-paper: #1a0f00;
+    --ms-palette-smoke: #2a1a00;
+    --ms-palette-ash: #4a2f00;
+    --ms-palette-steel: #a06a00;
+    --ms-palette-gray: #e0a300;
+    --ms-palette-gray-dark: #ffc94d;
+    --ms-palette-track: #4a2f00;
+    --ms-palette-mist: #241500;
+    --ms-palette-mist-deep: #3a2400;
+    --ms-palette-chrome: #3a2400;
+
+    /* No hues to spare, so intents separate by value, as Game Boy does. */
+    --ms-palette-blue: #ffb000;
+    --ms-palette-blue-deep: #ffc94d;
+    --ms-palette-blue-shade: #7a5200;
+    --ms-palette-blue-ink: #1a0f00;
+    --ms-palette-green: #e0a300;
+    --ms-palette-green-deep: #ffb000;
+    --ms-palette-green-shade: #7a5200;
+    --ms-palette-green-ink: #1a0f00;
+    --ms-palette-yellow: #ffc94d;
+    --ms-palette-yellow-deep: #ffdd80;
+    --ms-palette-yellow-shade: #a06a00;
+    --ms-palette-yellow-ink: #1a0f00;
+    /* Error inverts instead: a dark plate with phosphor ink. */
+    --ms-palette-red: #5c3d00;
+    --ms-palette-red-deep: #3a2400;
+    --ms-palette-red-shade: #0d0700;
+    --ms-palette-red-ink: #ffb000;
+
+    --ms-palette-blue-alt: #ffb000;
+    --ms-palette-blue-text: #ffc94d;
+    --ms-palette-green-alt: #e0a300;
+    --ms-palette-green-text: #ffb000;
+    --ms-palette-red-alt: #c9a173;
+    --ms-palette-red-text: #ffdd80;
+    --ms-palette-orange-alt: #e0a300;
+    --ms-palette-amber: #ffb000;
+    --ms-palette-amber-ink: #1a0f00;
+
+    --ms-palette-cell-closed: #3a2400;
+    --ms-palette-cell-light: #5c3d00;
+    --ms-palette-cell-shade: #1a0f00;
+    --ms-palette-cell-open: #241500;
+    --ms-palette-gutter: #0d0700;
+    --ms-palette-mine: #ffb000;
+    --ms-palette-cursor-ink: #1a0f00;
+    --ms-palette-cursor-1: #ffdd80;
+    --ms-palette-cursor-2: #ffc94d;
+    --ms-palette-cursor-3: #ffb000;
+    --ms-palette-cursor-4: #e0a300;
+    --ms-palette-cursor-5: #c88600;
+    --ms-palette-cursor-6: #ffeec2;
+
+    /* Eight steps of one hue: brightness carries the number, not colour. */
+    --ms-palette-num-1: #ffdd80;
+    --ms-palette-num-2: #e0a300;
+    --ms-palette-num-3: #ff8c1a;
+    --ms-palette-num-4: #ffb000;
+    --ms-palette-num-5: #c88600;
+    --ms-palette-num-6: #ffc94d;
+    --ms-palette-num-7: #ffeec2;
+    --ms-palette-num-8: #c9a173;
+}
+
+/* ---------------------------------------------------------------------------
+ * ZX Spectrum. Fifteen colours: each channel is 00, D7 or FF, nothing between.
+ * ------------------------------------------------------------------------- */
+:root[data-theme="spectrum"] {
+    --ms-palette-ink: #ffffff;
+    --ms-palette-paper: #000000;
+    --ms-palette-smoke: #0000d7;
+    --ms-palette-ash: #d7d7d7;
+    --ms-palette-steel: #d7d7d7;
+    --ms-palette-gray: #00d7d7;
+    --ms-palette-gray-dark: #00ffff;
+    --ms-palette-track: #000000;
+    --ms-palette-mist: #000000;
+    --ms-palette-mist-deep: #0000d7;
+    --ms-palette-chrome: #0000d7;
+
+    --ms-palette-blue: #0000ff;
+    --ms-palette-blue-deep: #0000d7;
+    --ms-palette-blue-shade: #000000;
+    --ms-palette-blue-ink: #ffffff;
+    --ms-palette-green: #00d700;
+    --ms-palette-green-deep: #00ff00;
+    --ms-palette-green-shade: #000000;
+    --ms-palette-green-ink: #000000;
+    --ms-palette-yellow: #d7d700;
+    --ms-palette-yellow-deep: #ffff00;
+    --ms-palette-yellow-shade: #000000;
+    --ms-palette-yellow-ink: #000000;
+    /* Two reds, and no ink clears AA on both. The resting fill is logged. */
+    --ms-palette-red: #d70000;
+    --ms-palette-red-deep: #ff0000;
+    --ms-palette-red-shade: #000000;
+    --ms-palette-red-ink: #000000;
+
+    --ms-palette-blue-alt: #00ffff;
+    --ms-palette-blue-text: #00d7d7;
+    --ms-palette-green-alt: #00ff00;
+    --ms-palette-green-text: #00ff00;
+    --ms-palette-red-alt: #ff0000;
+    --ms-palette-red-text: #ff0000;
+    --ms-palette-orange-alt: #ffff00;
+    --ms-palette-amber: #ffff00;
+    --ms-palette-amber-ink: #000000;
+
+    --ms-palette-cell-closed: #d7d7d7;
+    --ms-palette-cell-light: #ffffff;
+    --ms-palette-cell-shade: #000000;
+    --ms-palette-cell-open: #000000;
+    --ms-palette-gutter: #0000d7;
+    --ms-palette-mine: #ff0000;
+    --ms-palette-cursor-ink: #000000;
+    --ms-palette-cursor-1: #ff0000;
+    --ms-palette-cursor-2: #ffff00;
+    --ms-palette-cursor-3: #00ff00;
+    --ms-palette-cursor-4: #00ffff;
+    --ms-palette-cursor-5: #ff00ff;
+    --ms-palette-cursor-6: #ffffff;
+
+    /* Open cells are black, so the numbers take the bright half. */
+    --ms-palette-num-1: #00ffff;
+    --ms-palette-num-2: #00d700;
+    --ms-palette-num-3: #ff0000;
+    --ms-palette-num-4: #d700d7;
+    --ms-palette-num-5: #d7d700;
+    --ms-palette-num-6: #00d7d7;
+    --ms-palette-num-7: #ffffff;
+    --ms-palette-num-8: #d7d7d7;
+}
+
+/* ---------------------------------------------------------------------------
+ * High contrast. Picked for the audit rather than for a machine.
+ * ------------------------------------------------------------------------- */
+:root[data-theme="contrast"] {
+    --ms-palette-ink: #000000;
+    --ms-palette-paper: #ffffff;
+    --ms-palette-smoke: #f2f2f2;
+    --ms-palette-ash: #d9d9d9;
+    --ms-palette-steel: #595959;
+    --ms-palette-gray: #595959;
+    --ms-palette-gray-dark: #000000;
+    --ms-palette-track: #d9d9d9;
+    --ms-palette-mist: #ffffff;
+    --ms-palette-mist-deep: #e0e0e0;
+    --ms-palette-chrome: #e6e6e6;
+
+    --ms-palette-blue: #003d99;
+    --ms-palette-blue-deep: #002b6b;
+    --ms-palette-blue-shade: #001a40;
+    --ms-palette-blue-ink: #ffffff;
+    --ms-palette-green: #006622;
+    --ms-palette-green-deep: #004d1a;
+    --ms-palette-green-shade: #003311;
+    --ms-palette-green-ink: #ffffff;
+    --ms-palette-yellow: #ffdd00;
+    --ms-palette-yellow-deep: #ffe95c;
+    --ms-palette-yellow-shade: #8a6100;
+    --ms-palette-yellow-ink: #000000;
+    --ms-palette-red: #b00000;
+    --ms-palette-red-deep: #8a0000;
+    --ms-palette-red-shade: #5c0000;
+    --ms-palette-red-ink: #ffffff;
+
+    --ms-palette-blue-alt: #003d99;
+    --ms-palette-blue-text: #003d99;
+    --ms-palette-green-alt: #006622;
+    --ms-palette-green-text: #006622;
+    --ms-palette-red-alt: #b00000;
+    --ms-palette-red-text: #b00000;
+    --ms-palette-orange-alt: #8a4b00;
+    --ms-palette-amber: #ffdd00;
+    --ms-palette-amber-ink: #000000;
+
+    --ms-palette-cell-closed: #c8c8c8;
+    --ms-palette-cell-light: #e8e8e8;
+    --ms-palette-cell-shade: #8a8a8a;
+    --ms-palette-cell-open: #ffffff;
+    --ms-palette-gutter: #000000;
+    --ms-palette-mine: #b00000;
+    --ms-palette-cursor-ink: #000000;
+    --ms-palette-cursor-1: #ffd400;
+    --ms-palette-cursor-2: #7ee0ff;
+    --ms-palette-cursor-3: #b6f542;
+    --ms-palette-cursor-4: #ff9ec4;
+    --ms-palette-cursor-5: #d4b3ff;
+    --ms-palette-cursor-6: #ffffff;
+
+    --ms-palette-num-1: #0000e6;
+    --ms-palette-num-2: #006600;
+    --ms-palette-num-3: #cc0000;
+    --ms-palette-num-4: #4b0082;
+    --ms-palette-num-5: #8a4b00;
+    --ms-palette-num-6: #006666;
+    --ms-palette-num-7: #000000;
+    --ms-palette-num-8: #4d4d4d;
+}
+
+/* ---------------------------------------------------------------------------
+ * Synthwave. Neon on deep indigo, reproducing no hardware.
+ * ------------------------------------------------------------------------- */
+:root[data-theme="synthwave"] {
+    --ms-palette-ink: #f2e9ff;
+    --ms-palette-paper: #1a1033;
+    --ms-palette-smoke: #241848;
+    --ms-palette-ash: #3a2a5e;
+    --ms-palette-steel: #7a5fb0;
+    --ms-palette-gray: #c3b0e8;
+    --ms-palette-gray-dark: #e2d6ff;
+    --ms-palette-track: #33215c;
+    --ms-palette-mist: #1f1440;
+    --ms-palette-mist-deep: #33215c;
+    --ms-palette-chrome: #2e1d52;
+
+    --ms-palette-blue: #b967ff;
+    --ms-palette-blue-deep: #cf95ff;
+    --ms-palette-blue-shade: #7b2fb8;
+    --ms-palette-blue-ink: #1a1033;
+    --ms-palette-green: #00e5ff;
+    --ms-palette-green-deep: #6ff0ff;
+    --ms-palette-green-shade: #0093a8;
+    --ms-palette-green-ink: #1a1033;
+    --ms-palette-yellow: #f9c80e;
+    --ms-palette-yellow-deep: #ffdc55;
+    --ms-palette-yellow-shade: #a37f00;
+    --ms-palette-yellow-ink: #1a1033;
+    --ms-palette-red: #ff2e97;
+    --ms-palette-red-deep: #ff74bb;
+    --ms-palette-red-shade: #b0005e;
+    --ms-palette-red-ink: #1a1033;
+
+    --ms-palette-blue-alt: #b967ff;
+    --ms-palette-blue-text: #cf95ff;
+    --ms-palette-green-alt: #00e5ff;
+    --ms-palette-green-text: #6ff0ff;
+    --ms-palette-red-alt: #ff2e97;
+    --ms-palette-red-text: #ff74bb;
+    --ms-palette-orange-alt: #f9c80e;
+    --ms-palette-amber: #f9c80e;
+    --ms-palette-amber-ink: #1a1033;
+
+    --ms-palette-cell-closed: #33215c;
+    --ms-palette-cell-light: #4a3080;
+    --ms-palette-cell-shade: #201242;
+    --ms-palette-cell-open: #12092b;
+    --ms-palette-gutter: #0d0620;
+    --ms-palette-mine: #ff2e97;
+    --ms-palette-cursor-ink: #1a1033;
+    --ms-palette-cursor-1: #ff2e97;
+    --ms-palette-cursor-2: #00e5ff;
+    --ms-palette-cursor-3: #b967ff;
+    --ms-palette-cursor-4: #f9c80e;
+    --ms-palette-cursor-5: #ff74bb;
+    --ms-palette-cursor-6: #6ff0ff;
+
+    --ms-palette-num-1: #4dc3ff;
+    --ms-palette-num-2: #4dff9e;
+    --ms-palette-num-3: #ff5c7a;
+    --ms-palette-num-4: #c98cff;
+    --ms-palette-num-5: #ffa14d;
+    --ms-palette-num-6: #00e5ff;
+    --ms-palette-num-7: #f2e9ff;
+    --ms-palette-num-8: #a794c9;
+}

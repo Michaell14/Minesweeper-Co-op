@@ -27,6 +27,18 @@
     }
 }
 
+/*
+ * For groups of unbounded length. `.scrollable` clips above 48em rather than
+ * scrolling, so options past the fold are unreachable, not just awkward.
+ * Grid, not flex-wrap: wrapped flex sizes each row to its own contents and came
+ * out ragged. The 172px floor fits the longest option name.
+ */
+.wrap {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(172px, 1fr));
+    overflow: visible;
+}
+
 .card {
     flex: 1 1 0%;
     border-radius: 4px;
@@ -76,8 +88,10 @@
     min-width: 0;
 }
 
+/* body sets break-word for room codes; it split "Synthwave" mid-word. */
 .label {
     font-size: var(--ms-text-md);
+    overflow-wrap: normal;
 }
 
 .description {

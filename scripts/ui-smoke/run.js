@@ -571,6 +571,11 @@ const KNOWN_CONTRAST_FAILURES = {
         'cell number 8',
     ],
     dark: [],
+    amber: [],
+    // Two reds, and no ink clears AA on both. See the theme block in tokens.css.
+    spectrum: ['error button'],
+    contrast: [],
+    synthwave: [],
 };
 
 async function themeContrast(page) {

@@ -40,6 +40,30 @@ export const THEMES: ThemeOption[] = [
         short: "Inverted",
         note: "Turn the lamp off, turn the brightness down, and keep playing anyway.",
     },
+    {
+        id: "amber",
+        label: "Amber",
+        short: "Phosphor",
+        note: "One warm hue glowing off a terminal that has been on since Tuesday.",
+    },
+    {
+        id: "spectrum",
+        label: "Spectrum",
+        short: "15 colours",
+        note: "Load the tape, wait four minutes, and let those bright pixels clash.",
+    },
+    {
+        id: "contrast",
+        label: "High Contrast",
+        short: "Max legibility",
+        note: "Every colour picked to be read, in sunlight or with tired eyes.",
+    },
+    {
+        id: "synthwave",
+        label: "Synthwave",
+        short: "Neon",
+        note: "Drive the coastline at midnight with the neon turned all the way up.",
+    },
 ];
 
 /**

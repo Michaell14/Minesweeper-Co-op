@@ -19,6 +19,8 @@ export interface RadioCardGroupProps {
     ariaLabel: string;
     children: React.ReactNode;
     className?: string;
+    /** Wrap onto more rows instead of scrolling. For groups of unbounded length. */
+    wrap?: boolean;
 }
 
 export function RadioCardGroup({
@@ -28,6 +30,7 @@ export function RadioCardGroup({
     ariaLabel,
     children,
     className,
+    wrap = false,
 }: RadioCardGroupProps) {
     const ctx = React.useMemo(() => ({ name, value, onChange }), [name, value, onChange]);
 
@@ -38,7 +41,7 @@ export function RadioCardGroup({
             <div
                 role="radiogroup"
                 aria-label={ariaLabel}
-                className={cx(styles.group, styles.scrollable, className)}
+                className={cx(styles.group, wrap ? styles.wrap : styles.scrollable, className)}
             >
                 {children}
             </div>

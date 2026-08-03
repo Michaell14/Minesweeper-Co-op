@@ -40,6 +40,7 @@ export default function ThemeCards({ name }: { name: string }) {
                 ariaLabel="Colour palette"
                 value={theme ?? DEFAULT_THEME}
                 onChange={choose}
+                wrap
             >
                 {THEMES.map((t) => (
                     <RadioCard
