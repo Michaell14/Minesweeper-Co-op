@@ -29,7 +29,6 @@ export const DIALOGS = {
 
     // Owned by components/Footer.tsx
     guide: 'dialog-guide',
-    theme: 'dialog-theme',
 
     // Owned by components/AccountMenu.tsx (mounted by Footer)
     account: 'dialog-account',

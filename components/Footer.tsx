@@ -3,14 +3,12 @@ import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { DIALOGS, openDialog } from '@/lib/dialogs';
-import { CoinIcon, Dialog, DialogClose, GearIcon, GithubIcon, PaletteIcon, UserIcon, pointerClass } from '@/components/ds';
-import ThemePicker from '@/components/ThemePicker';
+import { CoinIcon, Dialog, DialogClose, GearIcon, GithubIcon, UserIcon, pointerClass } from '@/components/ds';
 import AccountMenu from '@/components/AccountMenu';
 
 export default function Footer() {
 
     const openGuideDialog = () => openDialog(DIALOGS.guide);
-    const openThemeDialog = () => openDialog(DIALOGS.theme);
     const openAccountDialog = () => openDialog(DIALOGS.account);
 
     /*
@@ -46,13 +44,6 @@ export default function Footer() {
                     aria-label="How to play"
                     className={pointerClass}>
                     <CoinIcon size={48} />
-                </button>
-                <button
-                    type="button"
-                    onClick={openThemeDialog}
-                    aria-label="Choose colour palette"
-                    className={pointerClass}>
-                    <PaletteIcon size={48} />
                 </button>
                 <button
                     type="button"
@@ -93,7 +84,6 @@ export default function Footer() {
                 <hr />
             </Dialog>
 
-            <ThemePicker />
             <AccountMenu />
         </>
     )
