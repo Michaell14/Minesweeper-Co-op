@@ -16,6 +16,8 @@ export interface BoardProps {
 export default function Board({ toggleFlag, openCell, chordCell, emitCellHover, handleBoardLeave }: BoardProps) {
     const board = useMinesweeperStore((state) => state.board);
     const cellSize = useMinesweeperStore((state) => state.settings.cellSize);
+    // Costs no extra render: it only ever changes alongside the board itself.
+    const cascadeOrigin = useMinesweeperStore((state) => state.cascadeOrigin);
     const boardRef = useRef<HTMLDivElement>(null);
     const cols = board[0]?.length || 0;
 
@@ -38,6 +40,7 @@ export default function Board({ toggleFlag, openCell, chordCell, emitCellHover, 
                             cell={cell}
                             row={rowIndex}
                             col={colIndex}
+                            cascadeOrigin={cascadeOrigin}
                             toggleFlag={toggleFlag}
                             openCell={openCell}
                             chordCell={chordCell}

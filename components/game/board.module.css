@@ -187,6 +187,38 @@
         inset calc(-1 * var(--ms-cell-bevel)) calc(-1 * var(--ms-cell-bevel)) 0 0 var(--ms-cell-shade);
 }
 
+/*
+ * The press.
+ *
+ * Nothing about a click is local: the cell changes only when the server's
+ * updateCells lands a round trip later, so without this the board is visually
+ * frozen from mousedown until the reply arrives. Sinking the cell to the opened
+ * face is the original game's answer, and it is most of why a click feels
+ * immediate there even on slow hardware.
+ *
+ * Not motion, so no duration token — a press that eases in is a press that is
+ * late, which is the thing this exists to fix.
+ *
+ * `data-pressed` rather than `:active`, because the affordance is a promise
+ * about ONE action. CSS cannot ask which button is down, so `:active` depressed
+ * the cell for a flag and a chord as readily as for an open — Cell.tsx sets the
+ * attribute only for the button that opens, whichever way the swap setting has
+ * them mapped.
+ *
+ * FLAGGED cells have no rule of their own for the same reason: a flag is
+ * protection and the server refuses the open, so depressing one would promise a
+ * reveal that never comes.
+ *
+ * `:not([aria-disabled])` is redundant with the JS gate and kept anyway — it is
+ * what carries this to (0,4,0), clear of the (0,3,0) hover rule above. At equal
+ * weight the two would be decided by source order, which is the tie this file
+ * has already been bitten by twice.
+ */
+.cell.closed:not([aria-disabled])[data-pressed] {
+    background-color: var(--ms-cell-open);
+    box-shadow: none;
+}
+
 /* Opened cells are flat: nothing left to press. */
 .cell.open {
     background-color: var(--ms-cell-open);

@@ -5,19 +5,20 @@ import { useMinesweeperStore, Cell as CellType } from '@/app/store';
 // cell (256+ on a medium board) and has no business pulling in Dialog, Button
 // and the icon sprites to get one class name.
 import { pointerClass } from '@/components/ds/pointer';
-import { cascadeBand } from '@/lib/motion';
+import { cascadeBand, type CascadeOrigin } from '@/lib/motion';
 
 interface CellParams {
     cell: CellType,
     row: number,
     col: number,
+    cascadeOrigin?: CascadeOrigin,
     toggleFlag: (row: number, col: number) => void;
     openCell: (row: number, col: number) => void;
     chordCell: (row: number, col: number) => void;
     emitCellHover: (row: number, col: number) => void;
 }
 
-const Cell = ({ cell, row, col, toggleFlag, openCell, chordCell, emitCellHover }: CellParams) => {
+const Cell = ({ cell, row, col, cascadeOrigin, toggleFlag, openCell, chordCell, emitCellHover }: CellParams) => {
     // Subscribes to hovers on THIS cell only. for...in rather than Object.values
     // so a hot path with 512 instances allocates no array per render.
     const cellHover = useMinesweeperStore((state) => {
@@ -70,13 +71,14 @@ const Cell = ({ cell, row, col, toggleFlag, openCell, chordCell, emitCellHover }
      * Only revealed cells call this — building the delay for all 512 would be
      * wasted work in the one component with a real render budget.
      *
-     * The band needs nothing from the store: a teammate's cascade sweeps just as
-     * well as your own, and subscribing to the last-clicked coordinate would
-     * re-render every cell on each mousedown.
+     * The origin arrives as a PROP rather than through a selector: a subscription
+     * would re-run in all 512 cells on every reveal, and `arePropsEqual` ignores
+     * it, so only the cells that actually changed read the new one. Those are
+     * exactly the cells about to animate; the rest have already swept.
      */
     const revealStyle = (): React.CSSProperties => ({
         ...hoverStyle,
-        '--reveal-delay': `calc(var(--ms-cascade-step) * ${cascadeBand(row, col)})`,
+        '--reveal-delay': `calc(var(--ms-cascade-step) * ${cascadeBand(row, col, cascadeOrigin)})`,
     } as React.CSSProperties);
 
     /*
@@ -88,11 +90,39 @@ const Cell = ({ cell, row, col, toggleFlag, openCell, chordCell, emitCellHover }
     const primaryAction = swapButtons ? toggleFlag : openCell;   // left button
     const secondaryAction = swapButtons ? openCell : toggleFlag; // right button
 
+    /*
+     * The button that OPENS. The press affordance follows the action rather than
+     * the physical button, so under the swap setting it is the right one — a
+     * cell that sinks like it is about to open, and then gets a flag, is telling
+     * the player the wrong thing about the button they are holding.
+     *
+     * This is why the press is not plain `:active`. CSS cannot ask which button
+     * is down, so `:active` covers all three: it depressed the cell for a flag
+     * and for a chord as readily as for an open.
+     */
+    const openButton = swapButtons ? 2 : 0;
+
+    /*
+     * Written straight to the DOM, not held in state. A press must not cost a
+     * render in the one component with 512 instances, and there is nothing for
+     * React to reconcile — the attribute exists only for the stylesheet.
+     */
+    const releasePress = (event: React.MouseEvent<HTMLElement>) => {
+        delete event.currentTarget.dataset.pressed;
+    };
+
     const handleMouseEnter = () => {
         emitCellHover(row, col);
     };
 
-    const handleMouseLeave = () => {
+    /*
+     * Every branch wires this, which is what bounds how long a stray press mark
+     * can outlive its press: the cell can change branch mid-press (it opens, or
+     * takes a flag) and lose the mouseup handler that would have cleared it, but
+     * the pointer has to leave sooner or later.
+     */
+    const handleMouseLeave = (event: React.MouseEvent<HTMLElement>) => {
+        releasePress(event);
         emitCellHover(-1, -1);
     };
 
@@ -220,6 +250,10 @@ const Cell = ({ cell, row, col, toggleFlag, openCell, chordCell, emitCellHover }
             key={col}
             role="gridcell"
             aria-label={getAriaLabel()}
+            // Also what the press state in board.module.css keys off: a board
+            // waiting for the race to start must not depress under a click it
+            // is going to ignore.
+            aria-disabled={isDisabled || undefined}
             className={`${styles.cell} ${styles.closed} ${isHovered ? styles.hovered : ''} ${isDisabled ? 'opacity-50 cursor-not-allowed' : pointerClass}`}
             style={hoverStyle}
             onContextMenu={(e) => {
@@ -228,10 +262,11 @@ const Cell = ({ cell, row, col, toggleFlag, openCell, chordCell, emitCellHover }
             }}
             onMouseEnter={handleMouseEnter}
             onMouseLeave={handleMouseLeave}
-            // Suppress middle-click autoscroll.
             onMouseDown={(e) => {
-                if (e.button === 1) e.preventDefault();
-            }}>
+                if (e.button === 1) e.preventDefault(); // middle-click starts autoscroll
+                if (e.button === openButton && !isDisabled) e.currentTarget.dataset.pressed = '';
+            }}
+            onMouseUp={releasePress}>
             {/* Mobile taps follow the flag-mode toggle, never the swap setting. */}
             <div className="h-full w-full xl:hidden" onClick={() => { if (!isDisabled) { isChecked ? openCell(row, col) : toggleFlag(row, col) } }} />
             <div className="h-full w-full hidden xl:block" onClick={() => {
@@ -243,7 +278,12 @@ const Cell = ({ cell, row, col, toggleFlag, openCell, chordCell, emitCellHover }
 
 Cell.displayName = 'Cell';
 
-/** Re-render only on a real cell-state change. The action props are stable. */
+/**
+ * Re-render only on a real cell-state change. The action props are stable, and
+ * `cascadeOrigin` is deliberately not compared: a cell whose state did not
+ * change has already swept, and re-rendering it for a new origin would restart
+ * its reveal.
+ */
 const arePropsEqual = (prevProps: CellParams, nextProps: CellParams) => {
     return (
         prevProps.cell.isMine === nextProps.cell.isMine &&

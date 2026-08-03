@@ -57,6 +57,54 @@ export const cellActionSound = (
     return cell?.isOpen || cell?.isFlagged ? null : 'reveal';
 };
 
+/**
+ * Anchors the cascade sweep on the cell the player just acted on, before the
+ * server has said anything.
+ *
+ * `applyCellUpdates` derives the same thing from an incoming cell list and is
+ * the authority — including for a teammate's cascade, which this knows nothing
+ * about. What it cannot cover is the FIRST click of a game: the board is
+ * generated in response to it, so the server sends a whole board rather than a
+ * cell list, and there is no origin in the payload to read. That is also the
+ * biggest cascade in the game, and it was the one still sweeping off the board
+ * diagonal.
+ *
+ * Flags are excluded: nothing about a flag animates.
+ */
+const markCascadeOrigin = (event: CellActionEvent | DailyCellActionEvent, row: number, col: number) => {
+    if (event === CLIENT_EVENTS.TOGGLE_FLAG || event === CLIENT_EVENTS.DAILY_TOGGLE_FLAG) return;
+    useMinesweeperStore.getState().setCascadeOrigin({ row, col });
+};
+
+/**
+ * Whether the SERVER will accept a flag on this cell — the one action whose
+ * outcome the client can work out for itself, which is what lets the flag land
+ * on screen now instead of a round trip later.
+ *
+ * Opening cannot be done this way and never will be: the client is not told
+ * `isMine` or `nearbyMines` for a closed cell (the projection guarantee), so it
+ * has nothing to draw. A flag needs no hidden state at all.
+ *
+ * Mirrors the guards in `toggleFlag` across all three modes — co-op checks
+ * gameOver/gameWon, PVP adds the race being started and undecided, and the daily
+ * gate is `dailyStatus`, which `emitDailyCellAction` has already applied by the
+ * time this runs. The cell itself is re-checked inside `toggleCellFlag`.
+ */
+const flagWillBeAccepted = (row: number, col: number): boolean => {
+    const { gameOver, gameWon, mode, pvpStarted, pvpWinner, board } = useMinesweeperStore.getState();
+    if (gameOver || gameWon) return false;
+    if (mode === 'pvp' && (!pvpStarted || pvpWinner !== null)) return false;
+    const cell = board[row]?.[col];
+    return Boolean(cell) && !cell.isOpen;
+};
+
+/** Draws the flag before the server confirms it. See `flagWillBeAccepted`. */
+const applyOptimisticFlag = (event: CellActionEvent | DailyCellActionEvent, row: number, col: number) => {
+    if (event !== CLIENT_EVENTS.TOGGLE_FLAG && event !== CLIENT_EVENTS.DAILY_TOGGLE_FLAG) return;
+    if (!flagWillBeAccepted(row, col)) return;
+    useMinesweeperStore.getState().toggleCellFlag(row, col);
+};
+
 export function useGameActions(socket: AppSocket | null) {
     /** Leave the room and reset local state back to the Landing defaults. */
     const leaveRoom = useCallback(() => {
@@ -106,8 +154,12 @@ export function useGameActions(socket: AppSocket | null) {
         (event: CellActionEvent, row: number, col: number) => {
             const { playerJoined, room } = useMinesweeperStore.getState();
             if (!playerJoined || !socket) return;
+            // Sound first: it reads the cell as it was, so applying the flag
+            // ahead of it would swap the flag and unflag blips.
             const sound = cellActionSound(event === CLIENT_EVENTS.TOGGLE_FLAG, event === CLIENT_EVENTS.CHORD_CELL, row, col);
             if (sound) playSound(sound);
+            markCascadeOrigin(event, row, col);
+            applyOptimisticFlag(event, row, col);
             socket.emit(event, { room, row, col });
         },
         [socket]
@@ -197,6 +249,8 @@ export function useGameActions(socket: AppSocket | null) {
             if (!dailyAttemptToken) return;
             const sound = cellActionSound(event === CLIENT_EVENTS.DAILY_TOGGLE_FLAG, event === CLIENT_EVENTS.DAILY_CHORD_CELL, row, col);
             if (sound) playSound(sound);
+            markCascadeOrigin(event, row, col);
+            applyOptimisticFlag(event, row, col);
             socket.emit(event, { dailyAttemptToken, date: dailyDate, row, col });
         },
         [socket]

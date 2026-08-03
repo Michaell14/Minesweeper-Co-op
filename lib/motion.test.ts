@@ -77,3 +77,37 @@ describe("cascadeBand", () => {
         expect(cascadeBand(0, CASCADE_BANDS + 3)).toBe(3);
     });
 });
+
+describe("cascadeBand measured from the cell a reveal started at", () => {
+    it("puts no delay at all on the cell that was clicked", () => {
+        // The bug: the delay came off the board diagonal, so opening a single
+        // cell at (3, 4) sat invisible for seven bands before it appeared, and
+        // (3, 5) for eight. Which is to say the lag varied by where you clicked.
+        expect(cascadeBand(3, 4, { row: 3, col: 4 })).toBe(0);
+        expect(cascadeBand(9, 9, { row: 9, col: 9 })).toBe(0);
+    });
+
+    it("sweeps outward from there, a band per step", () => {
+        const origin = { row: 5, col: 5 };
+        expect(cascadeBand(5, 6, origin)).toBe(1);
+        expect(cascadeBand(4, 5, origin)).toBe(1);
+        expect(cascadeBand(4, 4, origin)).toBe(2);
+    });
+
+    it("does not care which side of the origin a cell is on", () => {
+        const origin = { row: 5, col: 5 };
+        expect(cascadeBand(5, 3, origin)).toBe(cascadeBand(5, 7, origin));
+        expect(cascadeBand(3, 5, origin)).toBe(cascadeBand(7, 5, origin));
+    });
+
+    it("still wraps, so a board-wide cascade never waits on its far corner", () => {
+        expect(cascadeBand(31, 15, { row: 0, col: 0 })).toBeLessThan(CASCADE_BANDS);
+        expect(cascadeBand(0, CASCADE_BANDS, { row: 0, col: 0 })).toBe(0);
+    });
+
+    it("falls back to the diagonal when nothing started it", () => {
+        // A whole board arriving at once — the game-over reveal.
+        expect(cascadeBand(4, 1, null)).toBe(cascadeBand(4, 1));
+        expect(cascadeBand(4, 1, undefined)).toBe(cascadeBand(4, 1));
+    });
+});
