@@ -4,6 +4,11 @@
  * and the anonymous path is untouched.
  */
 
+const mockGetUserById = jest.fn();
+jest.mock('../data/userRepo', () => ({
+    getUserById: (...args) => mockGetUserById(...args),
+}));
+
 jest.mock('../data/dailyRepo', () => ({
     getAttempt: jest.fn(),
     submitScore: jest.fn(),
@@ -28,6 +33,8 @@ const DATE = '2026-08-02';
 
 beforeEach(() => {
     jest.clearAllMocks();
+    // Default: the fresh read agrees with the socket snapshot.
+    mockGetUserById.mockImplementation(async () => ({ displayName: 'Miguel' }));
     dailyRepo.getAttempt.mockResolvedValue({ status: 'won_pending_submit' });
     dailyRepo.submitScore.mockResolvedValue(12345);
     dailyRepo.getRank.mockResolvedValue(3);
@@ -48,7 +55,29 @@ test('an anonymous submit stores the typed name, exactly as before', async () =>
 });
 
 test('an account name is still normalised through the stored-name gate', async () => {
+    mockGetUserById.mockResolvedValue({ displayName: '  Padded  ' });
     const socket = makeSocket({ id: 'uuid-1', displayName: '  Padded  ' });
     await submitDailyScore({ socket, io, dailyAttemptToken: TOKEN, date: DATE, name: 'x' });
     expect(dailyRepo.submitScore).toHaveBeenCalledWith(DATE, TOKEN, 'Padded');
+});
+
+test('the name is RE-READ at submit — a mid-session rename lands, not the snapshot', async () => {
+    mockGetUserById.mockResolvedValue({ displayName: 'Renamed' });
+    const socket = makeSocket({ id: 'uuid-1', displayName: 'StaleSnapshot' });
+    await submitDailyScore({ socket, io, dailyAttemptToken: TOKEN, date: DATE, name: 'typed' });
+    expect(dailyRepo.submitScore).toHaveBeenCalledWith(DATE, TOKEN, 'Renamed');
+});
+
+test('a deleted account falls through to the typed name, not a ghost', async () => {
+    mockGetUserById.mockResolvedValue(null);
+    const socket = makeSocket({ id: 'uuid-1', displayName: 'GhostName' });
+    await submitDailyScore({ socket, io, dailyAttemptToken: TOKEN, date: DATE, name: 'Typed' });
+    expect(dailyRepo.submitScore).toHaveBeenCalledWith(DATE, TOKEN, 'Typed');
+});
+
+test('Postgres down keeps the snapshot rather than blocking the submit', async () => {
+    mockGetUserById.mockRejectedValue(new Error('down'));
+    const socket = makeSocket({ id: 'uuid-1', displayName: 'Miguel' });
+    await submitDailyScore({ socket, io, dailyAttemptToken: TOKEN, date: DATE, name: 'typed' });
+    expect(dailyRepo.submitScore).toHaveBeenCalledWith(DATE, TOKEN, 'Miguel');
 });

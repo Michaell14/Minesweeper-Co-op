@@ -7,6 +7,13 @@
 import { serverURL } from "@/lib/initSocket";
 import { getBridgeToken } from "@/lib/authBridge";
 
+/**
+ * How many recent games a profile keeps. Kept in step BY HAND with
+ * `RECENT_WINDOW` in server/data/statsRepo.js — the server is CommonJS and
+ * cannot share the constant, the same trade the socket payloads make.
+ */
+export const RECENT_WINDOW = 50;
+
 export interface ProfileStats {
     coopGames: number;
     coopWins: number;

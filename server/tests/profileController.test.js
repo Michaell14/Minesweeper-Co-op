@@ -30,12 +30,14 @@ jest.mock('../utils/initializePgClient', () => ({
     query: jest.fn(),
 }));
 
-const { resolveSocketUser, requireUser, registerProfileRoutes } = require('../controllers/profileController');
+const { resolveSocketUser, requireUser, registerProfileRoutes, clearIdentityCache } = require('../controllers/profileController');
 
 const IDENTITY = { provider: 'github', providerAccountId: '42', email: 'm@example.com', name: 'Michael' };
 const USER = { id: 'uuid-1', provider: 'github', providerAccountId: '42', email: 'm@example.com', displayName: 'Michael', createdAt: 'now' };
 
 beforeEach(() => {
+    // The identity cache would otherwise serve one test's user to the next.
+    clearIdentityCache();
     mockVerify.mockReset();
     mockGetOrCreate.mockReset();
     mockUpdateName.mockReset();

@@ -14,13 +14,15 @@ export default function Footer() {
     const openAccountDialog = () => openDialog(DIALOGS.account);
 
     /*
-     * The floating cluster overlaps the settings page's own controls (it is
-     * absolutely positioned over the content column), and everything it opens
-     * is reachable from that page anyway — palette in Appearance, account in
-     * Account, settings is the page itself. The DIALOGS below stay mounted on
-     * every route: the settings page opens the account dialog imperatively.
+     * The floating cluster belongs to the GAME page only: it is absolutely
+     * positioned over the content column, so on any long document page
+     * (/settings, /profile, whatever comes next) it overlaps the controls —
+     * which is exactly how it shipped overlapping /settings' switches, got
+     * fixed there, and then shipped overlapping /profile. Root-only is the
+     * rule that cannot repeat that. The DIALOGS below stay mounted on every
+     * route: other pages open the account dialog imperatively.
      */
-    const showCluster = usePathname() !== '/settings';
+    const showCluster = usePathname() === '/';
 
     return (
         <>

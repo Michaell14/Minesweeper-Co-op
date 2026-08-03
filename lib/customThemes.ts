@@ -244,6 +244,47 @@ export function writeCustomThemes(themes: CustomTheme[]): void {
     }
 }
 
+// --- Pending deletions (tombstones) ------------------------------------------
+
+/**
+ * Ids deleted locally whose server delete has not been CONFIRMED. Without
+ * these, deleting a theme while offline (or signed out) leaves the server
+ * copy alive, and the next sign-in merge — where the server wins on id —
+ * resurrects it. The tombstone keeps the id out of merges and is replayed
+ * against the server until a delete lands; saving a theme under the id again
+ * clears it, so a deliberate re-creation is never eaten by an old tombstone.
+ */
+export const PENDING_THEME_DELETIONS_KEY = "minesweeper_theme_deletions";
+
+export function readPendingThemeDeletions(): string[] {
+    if (typeof window === "undefined") return [];
+    try {
+        const parsed = JSON.parse(window.localStorage.getItem(PENDING_THEME_DELETIONS_KEY) || "[]");
+        return Array.isArray(parsed) ? parsed.filter((id) => typeof id === "string" && ID_RE.test(id)) : [];
+    } catch {
+        return [];
+    }
+}
+
+const writePendingThemeDeletions = (ids: string[]): void => {
+    if (typeof window === "undefined") return;
+    try {
+        window.localStorage.setItem(PENDING_THEME_DELETIONS_KEY, JSON.stringify(ids));
+    } catch {
+        // Blocked storage: the delete still happened locally; only the replay
+        // guarantee is lost, matching every other storage failure here.
+    }
+};
+
+export function addPendingThemeDeletion(id: string): void {
+    const ids = readPendingThemeDeletions();
+    if (!ids.includes(id)) writePendingThemeDeletions([...ids, id]);
+}
+
+export function clearPendingThemeDeletion(id: string): void {
+    writePendingThemeDeletions(readPendingThemeDeletions().filter((x) => x !== id));
+}
+
 /** A fresh, collision-free id from a name. */
 export function mintThemeId(name: string, taken: Set<string>): string {
     const base =

@@ -33,16 +33,25 @@ type RoomActionEvent = Extract<
 
 /**
  * The click sound for a cell action, decided CLIENT-side at emit time so
- * feedback is immediate rather than a round-trip later. Flag vs unflag is
- * read off the local board — the same state the player is looking at.
+ * feedback is immediate rather than a round-trip later — but gated on the
+ * local board, because the emits themselves are fire-and-forget and the
+ * server refuses plenty of them: opening an open or flagged cell, flagging an
+ * open cell, chording a closed one. A blip on a refused action is FALSE
+ * feedback, so those return null and stay silent.
  */
-const cellActionSound = (isToggleFlag: boolean, isChord: boolean, row: number, col: number): SoundName => {
-    if (isChord) return 'chord';
+export const cellActionSound = (
+    isToggleFlag: boolean,
+    isChord: boolean,
+    row: number,
+    col: number,
+): SoundName | null => {
+    const cell = useMinesweeperStore.getState().board[row]?.[col];
+    if (isChord) return cell?.isOpen ? 'chord' : null;
     if (isToggleFlag) {
-        const cell = useMinesweeperStore.getState().board[row]?.[col];
+        if (cell?.isOpen) return null;
         return cell?.isFlagged ? 'unflag' : 'flag';
     }
-    return 'reveal';
+    return cell?.isOpen || cell?.isFlagged ? null : 'reveal';
 };
 
 export function useGameActions(socket: AppSocket | null) {
@@ -89,7 +98,8 @@ export function useGameActions(socket: AppSocket | null) {
         (event: CellActionEvent, row: number, col: number) => {
             const { playerJoined, room } = useMinesweeperStore.getState();
             if (!playerJoined || !socket) return;
-            playSound(cellActionSound(event === CLIENT_EVENTS.TOGGLE_FLAG, event === CLIENT_EVENTS.CHORD_CELL, row, col));
+            const sound = cellActionSound(event === CLIENT_EVENTS.TOGGLE_FLAG, event === CLIENT_EVENTS.CHORD_CELL, row, col);
+            if (sound) playSound(sound);
             socket.emit(event, { room, row, col });
         },
         [socket]
@@ -172,7 +182,8 @@ export function useGameActions(socket: AppSocket | null) {
             // flight. See lib/dailyIdentity.ts for what minting here cost.
             const dailyAttemptToken = readDailyAttemptToken();
             if (!dailyAttemptToken) return;
-            playSound(cellActionSound(event === CLIENT_EVENTS.DAILY_TOGGLE_FLAG, event === CLIENT_EVENTS.DAILY_CHORD_CELL, row, col));
+            const sound = cellActionSound(event === CLIENT_EVENTS.DAILY_TOGGLE_FLAG, event === CLIENT_EVENTS.DAILY_CHORD_CELL, row, col);
+            if (sound) playSound(sound);
             socket.emit(event, { dailyAttemptToken, date: dailyDate, row, col });
         },
         [socket]

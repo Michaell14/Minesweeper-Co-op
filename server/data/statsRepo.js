@@ -57,12 +57,23 @@ const recordResult = async (userId, { mode, boardKey, won, durationMs, players, 
             [userId, RECENT_WINDOW],
         );
 
+        // Seed the row first: FOR UPDATE on an ABSENT row locks nothing, so a
+        // player's first-ever two results landing simultaneously could both
+        // compute from zeros and lose an increment. With the row guaranteed,
+        // the lock below serialises them like every later pair.
+        await client.query(
+            'INSERT INTO user_stats (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING',
+            [userId],
+        );
+
         // Aggregates: read the row under lock, compute in JS (the streak is
         // domain logic, not SQL), write back whole.
         const existing = await client.query(
             'SELECT * FROM user_stats WHERE user_id = $1 FOR UPDATE',
             [userId],
         );
+        // The seed insert above guarantees a row; the fallback only protects
+        // against a fake client in tests that answers the SELECT with nothing.
         const row = existing.rows[0] ?? {
             coop_games: 0, coop_wins: 0,
             pvp_games: 0, pvp_wins: 0,

@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, test, vi } from "vitest";
 import { act, renderHook } from "@testing-library/react";
 import { useMinesweeperStore } from "@/app/store";
 import { CLIENT_EVENTS } from "@/shared/events";
-import { useGameActions } from "./useGameActions";
+import { cellActionSound, useGameActions } from "./useGameActions";
 import type { AppSocket } from "@/lib/initSocket";
 
 /**
@@ -105,5 +105,42 @@ describe("resetMyBoard", () => {
 
         expect(socket.emit).toHaveBeenCalledWith(CLIENT_EVENTS.RESET_MY_BOARD, expect.anything());
         expect(state().gameOver).toBe(false);
+    });
+});
+
+/**
+ * The sound gate: a blip must accompany only actions the SERVER will accept.
+ * A reveal chirp on an already-open cell, or a flag tick on one, is false
+ * feedback — the emit fires either way, but the server refuses it.
+ */
+describe("cellActionSound", () => {
+    const closed = { isMine: false, isOpen: false, isFlagged: false, nearbyMines: 0 };
+    const open = { ...closed, isOpen: true };
+    const flagged = { ...closed, isFlagged: true };
+
+    beforeEach(() => {
+        act(() => state().setBoard([[closed, open, flagged]]));
+    });
+
+    test("reveal only on a closed, unflagged cell", () => {
+        expect(cellActionSound(false, false, 0, 0)).toBe("reveal");
+        expect(cellActionSound(false, false, 0, 1)).toBeNull(); // open
+        expect(cellActionSound(false, false, 0, 2)).toBeNull(); // flag-protected
+    });
+
+    test("flag/unflag only on closed cells", () => {
+        expect(cellActionSound(true, false, 0, 0)).toBe("flag");
+        expect(cellActionSound(true, false, 0, 2)).toBe("unflag");
+        expect(cellActionSound(true, false, 0, 1)).toBeNull(); // open
+    });
+
+    test("chord only on an open cell — the only place it does anything", () => {
+        expect(cellActionSound(false, true, 0, 1)).toBe("chord");
+        expect(cellActionSound(false, true, 0, 0)).toBeNull();
+    });
+
+    test("off-board coordinates are silent, not a crash", () => {
+        expect(cellActionSound(false, false, 9, 9)).toBe("reveal"); // unknown cell: benign default
+        expect(cellActionSound(true, false, 9, 9)).toBe("flag");
     });
 });

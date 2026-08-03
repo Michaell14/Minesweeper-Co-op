@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 import { Button, Panel, Table } from '@/components/ds';
 import { DIALOGS, openDialog } from '@/lib/dialogs';
-import { fetchStats, importBests, type ProfilePayload } from '@/lib/statsApi';
+import { RECENT_WINDOW, fetchStats, importBests, type ProfilePayload } from '@/lib/statsApi';
 import { boardLabel, readBestTimes } from '@/lib/bestTimes';
 import { formatClock } from '@/lib/gameClock';
 
@@ -194,7 +194,7 @@ export default function ProfileClient() {
                             {profile.recentGames.length === 0 ? (
                                 <p className="text-pixel-sm text-ink-muted">
                                     Nothing yet — this fills with your last{' '}
-                                    {50} finished games.
+                                    {RECENT_WINDOW} finished games.
                                 </p>
                             ) : (
                                 <>

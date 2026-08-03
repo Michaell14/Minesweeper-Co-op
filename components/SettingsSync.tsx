@@ -3,7 +3,8 @@ import React from 'react';
 import { useSession } from 'next-auth/react';
 import { useMinesweeperStore } from '@/app/store';
 import { fetchSettings, saveSettings } from '@/lib/settingsApi';
-import { fetchThemes, saveThemeRemote } from '@/lib/themesApi';
+import { deleteThemeRemote, fetchThemes, saveThemeRemote } from '@/lib/themesApi';
+import { clearPendingThemeDeletion, readPendingThemeDeletions } from '@/lib/customThemes';
 import { installSoundUnlock } from '@/lib/sound';
 
 /**
@@ -67,13 +68,25 @@ export default function SettingsSync() {
         // COLLECTION, and a fresh browser having none must not erase the
         // account's shelf, nor sign-in discard what was drafted here. On an
         // id collision the server copy wins (it is the multi-device truth);
-        // local-only ones are pushed up.
-        fetchThemes().then((serverThemes) => {
+        // local-only ones are pushed up. Deletions replay FIRST: a theme
+        // deleted while offline holds a tombstone (lib/customThemes.ts), and
+        // without replaying it here the server copy would resurrect it.
+        fetchThemes().then(async (serverThemes) => {
             if (cancelled || serverThemes === null) return;
+
+            for (const id of readPendingThemeDeletions()) {
+                const ok = await deleteThemeRemote(id);
+                if (ok) clearPendingThemeDeletion(id);
+            }
+            // Still-pending ids (the replay itself failed) stay out of the
+            // merge, so they cannot resurrect locally either.
+            const tombstoned = new Set(readPendingThemeDeletions());
+            const survivors = serverThemes.filter((t) => !tombstoned.has(t.id));
+
             const state = useMinesweeperStore.getState();
-            const serverIds = new Set(serverThemes.map((t) => t.id));
+            const serverIds = new Set(survivors.map((t) => t.id));
             const localOnly = state.customThemes.filter((t) => !serverIds.has(t.id));
-            state.replaceCustomThemes([...serverThemes, ...localOnly]);
+            state.replaceCustomThemes([...survivors, ...localOnly]);
             for (const theme of localOnly) void saveThemeRemote(theme);
         });
 

@@ -13,9 +13,6 @@ const settingsRepo = require('../data/settingsRepo');
 const { isValidSettingsBlob } = require('../validation');
 
 const registerSettingsRoutes = (app) => {
-    // express.json() for /api is mounted by registerProfileRoutes, which
-    // server.js registers first.
-
     app.get('/api/settings', requireUser, async (req, res) => {
         try {
             const settings = await settingsRepo.getSettings(req.user.id);

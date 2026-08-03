@@ -9,7 +9,6 @@
  * instead of degrading.
  */
 
-const express = require('express');
 const { verifyBridgeToken } = require('../utils/authToken');
 const { isDbEnabled } = require('../utils/initializePgClient');
 const userRepo = require('../data/userRepo');
@@ -19,11 +18,36 @@ const { isValidPlayerName, normalizePlayerName } = require('../validation');
 const DEFAULT_DISPLAY_NAME = 'Player';
 
 /**
+ * Identity → user, cached briefly. Without this every authenticated request —
+ * including each debounced settings save — runs the get-or-create UPSERT, a
+ * row write per request for data that changes essentially never. The TTL
+ * bounds how stale a cached user can be (a token-refreshed email waits one
+ * minute); rename and delete update the cache themselves below, so the
+ * operations a player actually watches are never stale at all.
+ */
+const IDENTITY_CACHE_TTL_MS = 60_000;
+const identityCache = new Map();
+
+const cacheKey = ({ provider, providerAccountId }) => `${provider}\n${providerAccountId}`;
+
+const cacheUser = (user) => {
+    // Crude overflow guard: this is a per-dyno convenience cache, not a store.
+    if (identityCache.size >= 1000) identityCache.clear();
+    identityCache.set(cacheKey(user), { user, expiresAt: Date.now() + IDENTITY_CACHE_TTL_MS });
+};
+
+/** Test seam: cached identities would otherwise leak across test cases. */
+const clearIdentityCache = () => identityCache.clear();
+
+/**
  * The account behind a verified identity, created on first sight. The OAuth
  * profile name seeds display_name once; renames stick (see userRepo).
  */
-const userForIdentity = (identity) =>
-    userRepo.getOrCreateUser({
+const userForIdentity = async (identity) => {
+    const cached = identityCache.get(cacheKey(identity));
+    if (cached && cached.expiresAt > Date.now()) return cached.user;
+
+    const user = await userRepo.getOrCreateUser({
         provider: identity.provider,
         providerAccountId: identity.providerAccountId,
         email: identity.email,
@@ -35,6 +59,9 @@ const userForIdentity = (identity) =>
             return isValidPlayerName(name) ? name : DEFAULT_DISPLAY_NAME;
         })(),
     });
+    cacheUser(user);
+    return user;
+};
 
 /**
  * The user a connecting socket belongs to, or null for an anonymous player.
@@ -95,12 +122,10 @@ const publicUser = (user) => ({
 
 /**
  * Mounts the account routes. The server's first HTTP surface beyond health
- * checks — everything else speaks the socket protocol.
+ * checks — everything else speaks the socket protocol. The /api JSON body
+ * parser is mounted by server.js, ahead of every route registration.
  */
 const registerProfileRoutes = (app) => {
-    // Scoped to /api: nothing else on this server reads a body at all.
-    app.use('/api', express.json());
-
     app.get('/api/me', requireUser, (req, res) => {
         res.json({ user: publicUser(req.user) });
     });
@@ -117,9 +142,12 @@ const registerProfileRoutes = (app) => {
             const updated = await userRepo.updateDisplayName(req.user.id, displayName);
             if (!updated) {
                 // The row vanished between auth and update — deleted elsewhere.
+                identityCache.delete(cacheKey(req.user));
                 res.status(404).json({ error: 'Account no longer exists' });
                 return;
             }
+            // The rename the player is watching must not serve stale for a TTL.
+            cacheUser(updated);
             res.json({ user: publicUser(updated) });
         } catch (error) {
             console.error('Postgres error renaming user:', error.message);
@@ -130,6 +158,9 @@ const registerProfileRoutes = (app) => {
     app.delete('/api/me', requireUser, async (req, res) => {
         try {
             await userRepo.deleteUser(req.user.id);
+            // A cached identity for a deleted account would quietly recreate
+            // it on the next request within the TTL.
+            identityCache.delete(cacheKey(req.user));
             // Idempotent on purpose: deleting an already-deleted account is
             // the outcome the caller wanted, not an error worth surfacing.
             res.status(204).end();
@@ -140,4 +171,4 @@ const registerProfileRoutes = (app) => {
     });
 };
 
-module.exports = { resolveSocketUser, requireUser, registerProfileRoutes };
+module.exports = { resolveSocketUser, requireUser, registerProfileRoutes, clearIdentityCache };

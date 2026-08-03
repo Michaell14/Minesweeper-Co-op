@@ -7,6 +7,7 @@
 const { projectBoard } = require('../domain/board');
 const { generateDailyBoardForDate } = require('../game/daily');
 const dailyRepo = require('../data/dailyRepo');
+const userRepo = require('../data/userRepo');
 const { TERMINAL_STATUSES } = dailyRepo;
 const { isValidDailyToken, isValidPlayerName, normalizePlayerName } = require('../validation');
 const { SERVER_EVENTS } = require('../../shared/events');
@@ -166,9 +167,22 @@ const submitDailyScore = async ({ socket, io, dailyAttemptToken, date, name }) =
         // Validate what gets STORED, not what arrived: the leaderboard is the one
         // durable public thing here, and today's entry is not rewritable.
         // A signed-in player's entry carries their ACCOUNT name (the PRD's
-        // daily tie-in) — normalised through the same gate as a typed one,
-        // since an OAuth-seeded name is still arbitrary input.
-        const accountName = socket.data?.user?.displayName;
+        // daily tie-in) — RE-READ here rather than trusted from the socket,
+        // because socket.data.user is a connect-time snapshot and this is the
+        // one durable public place a stale rename (or a deleted account's
+        // ghost) would be carved into. Postgres down keeps the snapshot;
+        // account gone falls through to the typed name. Normalised through
+        // the same gate as a typed one either way — an OAuth-seeded name is
+        // still arbitrary input.
+        let accountName = socket.data?.user?.displayName;
+        if (socket.data?.user?.id) {
+            try {
+                const fresh = await userRepo.getUserById(socket.data.user.id);
+                accountName = fresh ? fresh.displayName : null;
+            } catch {
+                // Best-effort: the snapshot is better than blocking a submit.
+            }
+        }
         const displayName = normalizePlayerName(accountName || name);
         if (!isValidDailyToken(dailyAttemptToken) || !isValidPlayerName(displayName)) return;
 

@@ -56,7 +56,13 @@ describe('recordResult', () => {
         expect(sqls[sqls.length - 1]).toBe('COMMIT');
         expect(sqls.some((s) => s.includes('INSERT INTO game_results'))).toBe(true);
         expect(sqls.some((s) => s.includes('DELETE FROM game_results'))).toBe(true);
-        expect(sqls.some((s) => s.includes('INSERT INTO user_stats'))).toBe(true);
+        // The seed insert precedes the FOR UPDATE read — locking an absent row
+        // locks nothing, and first-ever concurrent results would race.
+        const seedIndex = sqls.findIndex((s) => s.includes('DO NOTHING'));
+        const lockIndex = sqls.findIndex((s) => s.includes('FOR UPDATE'));
+        expect(seedIndex).toBeGreaterThan(-1);
+        expect(seedIndex).toBeLessThan(lockIndex);
+        expect(sqls.some((s) => s.includes('INSERT INTO user_stats') && !s.includes('DO NOTHING'))).toBe(true);
         expect(sqls.some((s) => s.includes('INSERT INTO user_board_bests'))).toBe(true);
         expect(client.released).toBe(true);
 
@@ -65,7 +71,7 @@ describe('recordResult', () => {
         expect(prune.params).toEqual(['uuid-1', statsRepo.RECENT_WINDOW]);
 
         // A fresh player's first win: 1 game, 1 win, streak 1.
-        const stats = client.calls.find((c) => c.sql.includes('INSERT INTO user_stats'));
+        const stats = client.calls.find((c) => c.sql.includes('INSERT INTO user_stats') && !c.sql.includes('DO NOTHING'));
         expect(stats.sql).toContain('coop_games');
         expect(stats.params).toEqual(['uuid-1', 1, 1, 1, 1, '2026-08-02']);
 
@@ -81,7 +87,7 @@ describe('recordResult', () => {
         await statsRepo.recordResult('uuid-1', { ...RESULT, won: false });
         expect(client.calls.some((c) => c.sql.includes('user_board_bests'))).toBe(false);
         // …but the game still counts, with zero wins.
-        const stats = client.calls.find((c) => c.sql.includes('INSERT INTO user_stats'));
+        const stats = client.calls.find((c) => c.sql.includes('INSERT INTO user_stats') && !c.sql.includes('DO NOTHING'));
         expect(stats.params[1]).toBe(1); // games
         expect(stats.params[2]).toBe(0); // wins
     });
@@ -114,7 +120,7 @@ describe('recordResult', () => {
 
         await statsRepo.recordResult('uuid-1', RESULT);
 
-        const stats = client.calls.find((c) => c.sql.includes('INSERT INTO user_stats'));
+        const stats = client.calls.find((c) => c.sql.includes('INSERT INTO user_stats') && !c.sql.includes('DO NOTHING'));
         expect(stats.params).toEqual(['uuid-1', 5, 3, 4, 6, '2026-08-02']);
     });
 

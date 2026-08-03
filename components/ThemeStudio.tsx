@@ -5,6 +5,8 @@ import { useMinesweeperStore } from '@/app/store';
 import {
     CORE_FIELDS,
     CUSTOM_THEME_PREFIX,
+    addPendingThemeDeletion,
+    clearPendingThemeDeletion,
     derivePalette,
     hexContrast,
     mintThemeId,
@@ -134,6 +136,9 @@ export default function ThemeStudio() {
         const theme = sanitizeCustomTheme({ id, name: draft.name, core: draft.core });
         if (!theme) return; // the name field is the only way to get here
         saveCustomTheme(theme);
+        // A save under this id supersedes any pending deletion of it — a
+        // deliberate re-creation must not be eaten by an old tombstone.
+        clearPendingThemeDeletion(theme.id);
         // Saving also selects it — the palette being previewed is the one the
         // player just committed to.
         setSetting('theme', `${CUSTOM_THEME_PREFIX}${theme.id}`);
@@ -143,7 +148,12 @@ export default function ThemeStudio() {
 
     const remove = (id: string) => {
         deleteCustomTheme(id);
-        void deleteThemeRemote(id); // no-op signed out
+        // Tombstone until the SERVER confirms: an unconfirmed delete would
+        // otherwise resurrect at the next sign-in merge, where server wins.
+        addPendingThemeDeletion(id);
+        void deleteThemeRemote(id).then((ok) => {
+            if (ok) clearPendingThemeDeletion(id);
+        });
         if (draft?.id === id) {
             setDraft(null);
             reapplySaved();

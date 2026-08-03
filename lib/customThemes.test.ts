@@ -7,6 +7,10 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
     CORE_FIELDS,
+    PENDING_THEME_DELETIONS_KEY,
+    addPendingThemeDeletion,
+    clearPendingThemeDeletion,
+    readPendingThemeDeletions,
     derivePalette,
     hexContrast,
     mintThemeId,
@@ -157,5 +161,23 @@ describe("mintThemeId", () => {
     it("mints ids the core field list can rely on", () => {
         // Nine fields, all present in CORE_FIELDS — the editor renders these.
         expect(CORE_FIELDS).toHaveLength(9);
+    });
+});
+
+describe("pending deletions (tombstones)", () => {
+    it("round-trips add/read/clear", () => {
+        addPendingThemeDeletion("midnight");
+        addPendingThemeDeletion("midnight"); // idempotent
+        addPendingThemeDeletion("noon");
+        expect(readPendingThemeDeletions()).toEqual(["midnight", "noon"]);
+        clearPendingThemeDeletion("midnight");
+        expect(readPendingThemeDeletions()).toEqual(["noon"]);
+    });
+
+    it("drops junk from storage instead of trusting it", () => {
+        localStorage.setItem(PENDING_THEME_DELETIONS_KEY, JSON.stringify(["ok-id", "BAD ID!", 42]));
+        expect(readPendingThemeDeletions()).toEqual(["ok-id"]);
+        localStorage.setItem(PENDING_THEME_DELETIONS_KEY, "{corrupt");
+        expect(readPendingThemeDeletions()).toEqual([]);
     });
 });

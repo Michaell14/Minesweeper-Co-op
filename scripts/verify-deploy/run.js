@@ -204,10 +204,31 @@ async function verifyScoring() {
     }
 }
 
+/**
+ * The account API surface, without an account: an unauthenticated GET /api/me
+ * must answer 401 (auth configured and mounted) or 503 (mounted, database not
+ * provisioned). Anything else — 404 especially — means the routes never made
+ * it into the deploy.
+ */
+async function verifyAccountApi() {
+    console.log(bold('\n--- ACCOUNT API ---'));
+    try {
+        const res = await fetch(`${SERVER}/api/me`);
+        check(
+            res.status === 401 || res.status === 503,
+            `the account routes are mounted (got ${res.status})`,
+            '404 would mean the /api surface is missing from this deploy'
+        );
+    } catch (error) {
+        check(false, 'the account routes are reachable', error.message);
+    }
+}
+
 (async () => {
     console.log(`\nVerifying ${bold(SERVER)}`);
     await verifyPvp();
     await verifyScoring();
+    await verifyAccountApi();
 
     console.log(
         failures ? red(`\n${failures} CHECK(S) FAILED`) : green('\nALL DEPLOY CHECKS PASSED')

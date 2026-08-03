@@ -1,3 +1,4 @@
+const express = require('express');
 const { app, server, io } = require('./utils/initializeClient');
 const { removePlayer, addPlayerToRoom } = require('./utils/playerUtils');
 const { createRoom, resetGame } = require('./utils/gameUtils');
@@ -29,7 +30,10 @@ const {
 } = require('./validation');
 
 // The account routes — the server's first HTTP surface beyond health checks.
-// Profile first: it mounts the /api JSON body parser the others rely on.
+// The JSON body parser is mounted here, ONCE, ahead of every registration:
+// scoped to /api (nothing else on this server reads a body), and owned by no
+// particular controller so registration order stays order, not load-bearing.
+app.use('/api', express.json());
 registerProfileRoutes(app);
 registerSettingsRoutes(app);
 registerThemesRoutes(app);
@@ -41,6 +45,12 @@ registerStatsRoutes(app);
  * absent, invalid, or the database is missing; auth being down never blocks a
  * connection. Skipped on connection-state recovery (`skipMiddlewares: true`),
  * where the previous `socket.data` is restored instead.
+ *
+ * This is a CONNECT-TIME SNAPSHOT: a rename or deletion mid-session does not
+ * update it until the socket reconnects. Consumers that show the name
+ * somewhere durable re-read it (dailyController.submitDailyScore); stats
+ * writes for a deleted account fail the users FK and are dropped by
+ * statsRecorder, which is the intended outcome.
  */
 io.use(async (socket, next) => {
     socket.data.user = await resolveSocketUser(socket.handshake.auth);
