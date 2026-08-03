@@ -226,7 +226,8 @@ export interface ServerToClientEvents {
         /** null for a fresh start; populated when resuming an in-progress attempt. */
         startedAt: number | null;
     }) => void;
-    /** Today's attempt already reached a terminal state -- no fresh board given. */
+    /** Today's attempt already reached a terminal state. The final board is
+     * included when available, for a view-only replay -- never a fresh one. */
     dailyAlreadyAttempted: (payload: {
         date: string;
         status: DailyAttemptStatus;
