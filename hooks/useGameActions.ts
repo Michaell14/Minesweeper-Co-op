@@ -5,8 +5,7 @@ import { useMinesweeperStore } from "@/app/store";
 import { throttle } from "@/lib/throttle";
 import { getOrCreateDailyAttemptToken, readDailyAttemptToken } from "@/lib/dailyIdentity";
 import { DIALOGS, openDialog } from "@/lib/dialogs";
-import { DEFAULT_DIFFICULTY, DEFAULT_PRESET, DEFAULT_SIZE } from "@/shared/boardConfig";
-import { practiceTargetFor } from "@/lib/practice";
+import { DEFAULT_DIFFICULTY, DEFAULT_SIZE } from "@/shared/boardConfig";
 import { CLIENT_EVENTS } from "@/shared/events";
 import type { AppSocket } from "@/lib/initSocket";
 import { playSound, type SoundName } from "@/lib/sound";
@@ -137,9 +136,8 @@ export function useGameActions(socket: AppSocket | null) {
         // the server catches an arriving player up with `gameWon`, and the
         // handler had a stale clock to read.
         store.setClock({ startedAt: null, endedAt: null });
-        // The target belongs to the run being left. Left standing it would draw
-        // a second bar over the next ordinary room, pacing a time from a board
-        // that room may not even be playing.
+        // The target belongs to the run being left. Joining anywhere else
+        // resets it too, but leaving lands on Landing and joins nothing.
         store.setPracticeTarget(null);
     }, [socket]);
 
@@ -182,21 +180,17 @@ export function useGameActions(socket: AppSocket | null) {
     /**
      * Give up on finding an opponent and race a target time instead.
      *
-     * The target is resolved HERE, before the room exists, because it comes out
-     * of this browser's records and the server neither has it nor needs it — a
-     * practice race is a co-op room of one as far as the server is concerned.
-     * The board is always the quick-match board, so the target is read for that
-     * one rather than for whatever the landing page had selected.
+     * Sets no target: this is a REQUEST, and a request is not a room. It can be
+     * refused, and it can be overtaken by a real opponent arriving in the same
+     * round trip — in which case the room that turns up is a PVP race. The
+     * target is read from whichever room actually arrives, in the
+     * `joinRoomSuccess` handler.
      */
     const startPracticeRace = useCallback(() => {
         const { name } = useMinesweeperStore.getState();
         if (!name || !socket) return;
 
-        const store = useMinesweeperStore.getState();
-        store.setPracticeTarget(
-            practiceTargetFor(DEFAULT_PRESET.rows, DEFAULT_PRESET.cols, DEFAULT_PRESET.mines),
-        );
-        store.setMatchSearching(false);
+        useMinesweeperStore.getState().setMatchSearching(false);
         socket.emit(CLIENT_EVENTS.START_PRACTICE_RACE, { name });
     }, [socket]);
 

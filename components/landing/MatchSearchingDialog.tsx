@@ -6,7 +6,7 @@ import { Button, Dialog, DialogClose } from "@/components/ds";
 import { DIALOGS } from "@/lib/dialogs";
 import { DEFAULT_PRESET } from "@/shared/boardConfig";
 import { formatElapsed } from "@/lib/dailyShare";
-import { practiceTargetFor } from "@/lib/practice";
+import { practiceTargetFor, PRACTICE_PAR_MS, type PracticeTarget } from "@/lib/practice";
 
 /**
  * The quick-match wait.
@@ -60,11 +60,27 @@ export default function MatchSearchingDialog({ cancelMatch, startPracticeRace }:
     const seconds = useElapsedSeconds(matchSearching);
 
     /*
-     * Read on every render rather than once: the dialog outlives a run, so a
-     * player who practises, clears the board and searches again should see the
-     * time they just set, not the one they started the session with.
+     * Read AFTER mount, never during render.
+     *
+     * `practiceTargetFor` reads localStorage, which does not exist on the
+     * server — so a player who HAS a record rendered the offer while the server
+     * had rendered the par branch without it, and React tore the page down and
+     * rebuilt it. Invisible to anyone whose records were empty, which is why it
+     * survived a browser pass.
+     *
+     * Starting from the par is what makes the two agree: it is exactly what the
+     * server can render. Re-read per SEARCH rather than per render, so a player
+     * who practises, clears the board and searches again sees the time they just
+     * set without paying a storage read every second the counter ticks.
      */
-    const target = practiceTargetFor(DEFAULT_PRESET.rows, DEFAULT_PRESET.cols, DEFAULT_PRESET.mines);
+    const [target, setTarget] = React.useState<PracticeTarget>({
+        ms: PRACTICE_PAR_MS,
+        isPersonal: false,
+    });
+
+    React.useEffect(() => {
+        setTarget(practiceTargetFor(DEFAULT_PRESET.rows, DEFAULT_PRESET.cols, DEFAULT_PRESET.mines));
+    }, [matchSearching]);
 
     /*
      * The offer waits, but only for someone who has never played this board.

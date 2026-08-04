@@ -271,12 +271,19 @@ const startPracticeRace = async ({ socket, name }) => {
         socket.join(room);
         await addPlayerToRoom(room, socket.id, displayName, socket.handshake.auth?.sessionId);
 
+        // `practice` labels this ANSWER, and is the only thing that
+        // distinguishes it from any other co-op room -- nothing is stored. The
+        // client needs it because it cannot tell otherwise: a player who asks
+        // for practice just as a real opponent turns up is answered with the
+        // MATCH's room, and a target drawn over a live PVP race is exactly the
+        // fake opponent this feature exists to avoid.
         socket.emit(SERVER_EVENTS.JOIN_ROOM_SUCCESS, {
             room,
             mode: 'co-op',
             numRows: rows,
             numCols: cols,
             numMines: mines,
+            practice: true,
         });
     } catch (error) {
         console.error('Error in startPracticeRace:', error);

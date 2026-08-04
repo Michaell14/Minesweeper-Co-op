@@ -154,6 +154,18 @@ export interface ServerToClientEvents {
         numRows?: number;
         numCols?: number;
         numMines?: number;
+        /**
+         * This room was opened by `startPracticeRace`, so the client should
+         * race a target time in it.
+         *
+         * A label on the ANSWER, not state on the room — nothing about a target
+         * is stored server-side (see ARCHITECTURE.md §5). It exists because the
+         * client cannot otherwise tell which room a `joinRoomSuccess` describes:
+         * a player who asks for practice at the moment a real opponent is found
+         * gets the match's room instead, and deciding from the request alone
+         * would draw a target over a live PVP race.
+         */
+        practice?: boolean;
     }) => void;
     joinRoomError: () => void;
     createRoomError: () => void;

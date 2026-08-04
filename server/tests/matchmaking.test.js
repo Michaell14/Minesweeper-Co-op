@@ -141,6 +141,10 @@ describe('two searchers', () => {
 
         expect(aliceJoin.room).toBe(bobJoin.room);
         expect(aliceJoin.mode).toBe('pvp');
+        // A match is never a practice room. If this ever went true, a racer
+        // would get a target bar drawn over a live opponent.
+        expect(aliceJoin.practice).toBeUndefined();
+        expect(bobJoin.practice).toBeUndefined();
         // Alice waited, so Alice presses Start.
         expect(aliceJoin.isHost).toBe(true);
         expect(bobJoin.isHost).toBe(false);
@@ -318,6 +322,9 @@ describe('the practice race', () => {
         expect(joined.mode).toBe('co-op');
         expect(joined.numRows).toBe(DEFAULT_PRESET.rows);
         expect(joined.numMines).toBe(DEFAULT_PRESET.mines);
+        // The label the client reads to decide whether to draw a target. It is
+        // on the ANSWER, not the room -- see the state assertion below.
+        expect(joined.practice).toBe(true);
 
         // A co-op room of one, which the app has always supported -- that is
         // what makes board generation, the clock and the win check work here

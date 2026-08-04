@@ -54,6 +54,11 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
     const pvpOpponentStatus = useMinesweeperStore((state) => state.pvpOpponentStatus);
     const setIsChecked = useMinesweeperStore((state) => state.setIsChecked);
     const showProgressBar = useMinesweeperStore((state) => state.settings.showProgressBar);
+    /* Gates the MOUNT, not just the render. PracticeProgress calls useGameStats,
+       which walks the whole board twice — hooks run before its own early return,
+       so mounting it unconditionally made every co-op and PVP render pay for a
+       component that draws nothing. */
+    const isPracticeRace = useMinesweeperStore((state) => state.practiceTargetMs !== null);
 
     const { remainingFlags, ownProgressPercent, opponentProgressPercent } = useGameStats();
 
@@ -207,7 +212,7 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
                             </div>
                         }
 
-                        <PracticeProgress variant="mobile" />
+                        {isPracticeRace && <PracticeProgress variant="mobile" />}
 
                         <div className="flex items-center gap-8">
                             {leaveButton}
@@ -224,7 +229,7 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
                                 Waiting for host to start rematch...
                             </div>
                         }
-                        <PracticeProgress variant="panel" />
+                        {isPracticeRace && <PracticeProgress variant="panel" />}
 
                         {/* The whole panel, not just the bars — a hidden bar must
                             not leave an empty titled box behind. */}
