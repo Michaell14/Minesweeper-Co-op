@@ -5,6 +5,7 @@ const { createRoom, resetGame } = require('./utils/gameUtils');
 const { openCell, chordCell, toggleFlag } = require('./game');
 const { startPvpGame, resetMyBoard, pvpRematch } = require('./controllers/pvpController');
 const { offerResume, forgetRoom } = require('./controllers/sessionController');
+const { findMatch, cancelMatch, leaveQueue } = require('./controllers/matchmakingController');
 const { resolveSocketUser, registerProfileRoutes } = require('./controllers/profileController');
 const { registerSettingsRoutes } = require('./controllers/settingsController');
 const { registerThemesRoutes } = require('./controllers/themesController');
@@ -322,6 +323,16 @@ io.on('connection', async (socket) => {
         await pvpRematch({ socket, room, isValid, io });
     });
 
+    // --- Matchmaking: pre-room, so neither handler takes a room code ---
+
+    socket.on(CLIENT_EVENTS.FIND_MATCH, async ({ name }) => {
+        await findMatch({ socket, name });
+    });
+
+    socket.on(CLIENT_EVENTS.CANCEL_MATCH, async () => {
+        await cancelMatch({ socket });
+    });
+
     // --- Daily challenge: NOT room-scoped, see server/data/keys.js ---
 
     socket.on(CLIENT_EVENTS.START_DAILY, async ({ dailyAttemptToken }) => {
@@ -388,6 +399,13 @@ io.on('connection', async (socket) => {
     });
 
     socket.on('disconnect', async () => {
+        // Closing the tab while queued is the ordinary way to leave the queue,
+        // so this is the cleanup path that carries the weight. `playerLeave` is
+        // deliberately NOT hooked: being in a room and being in the queue are
+        // mutually exclusive (findMatch refuses a socket that already has a
+        // player record), so there is nothing there to remove.
+        await leaveQueue(socket);
+
         try {
             await removePlayer(socket, socket.id);
         } catch (error) {

@@ -321,13 +321,21 @@ id, so it survives a reconnect. Terminal statuses (`failed`,
 **`daily:<date>:leaderboard`** — TTL 48h
 Sorted set of completion times.
 
+**`matchmaking:queue`** — TTL 1h, refreshed on every enqueue
+Hash: field = socket id, value = JSON `{name, sessionId, queuedAt}`. **One
+queue, not one per board configuration** — see §5. An entry older than two
+minutes is treated as dead and pruned on the way past, so a socket that vanished
+without its cleanup running cannot sit at the head of the queue forever.
+
 **Locks** — `SET NX EX`
 `init_lock:<room>` (co-op first click, 10s) · `winner_lock:<room>` (PVP win
-claim, 10s) · `daily:<date>:gen_lock` (serialises board generation — an
-optimisation, not a correctness requirement, 10s) ·
-`daily:<date>:start_lock:<token>` (10s) · `action_lock:<room>` (one co-op move at
-a time, 5s) · `action_lock:<room>:p<N>` (one move at a time from PVP player N, 5s)
-· `daily:<date>:action_lock:<token>` (one move at a time on one attempt, 5s)
+claim, 10s) · `join_lock:<room>` (PVP capacity check + join, one decision) ·
+`matchmaking:lock` (one pairing decision at a time) · `daily:<date>:gen_lock`
+(serialises board generation — an optimisation, not a correctness requirement,
+10s) · `daily:<date>:start_lock:<token>` (10s) · `action_lock:<room>` (one co-op
+move at a time, 5s) · `action_lock:<room>:p<N>` (one move at a time from PVP
+player N, 5s) · `daily:<date>:action_lock:<token>` (one move at a time on one
+attempt, 5s)
 
 The action locks carry the shorter lease because *every* move takes one, so a
 process that dies holding one blocks that board for its lease. They are scoped as
@@ -360,6 +368,8 @@ token** (the daily challenge) instead.
 | `resetMyBoard` | `{room}` | `pvpController.js:87` |
 | `pvpRematch` | `{room}` | `pvpController.js:146` |
 | `playerLeave` | — | `server.js:293` |
+| `findMatch` | `{name}` — no room; there is not one yet | `matchmakingController.js` |
+| `cancelMatch` | — | `matchmakingController.js` |
 | `startDaily` | `{dailyAttemptToken}` — no date; the server uses its own UTC day | `dailyController.js` |
 | `dailyOpenCell` / `dailyChordCell` / `dailyToggleFlag` | `{dailyAttemptToken, date, row, col}` | `game/daily.js` |
 | `submitDailyScore` | `{dailyAttemptToken, date, name}` | `dailyController.js` |
@@ -406,6 +416,18 @@ Shapes are typed in `shared/socketPayloads.ts` (`ClientToServerEvents`).
 | `pvpOpponentProgress` | `{progress, totalSafeCells, percentage}` |
 | `pvpOpponentDisconnected` | `{winnerSocket, winnerName}` |
 | `pvpRematchStarted` | `{totalSafeCells, isHost}` |
+
+### Server → Client — matchmaking
+
+| Event | Payload |
+|---|---|
+| `matchSearching` | — (queued, nobody to pair with yet) |
+| `matchCancelled` | — |
+| `matchError` | — (ends the wait rather than spinning forever) |
+
+There is deliberately **no `matchFound`**. A pairing arrives as the ordinary
+`joinRoomSuccess` + `pvpRoomReady` a hand-made PVP room sends, so the client has
+one code path for both — see §5.
 
 ### Server → Client — daily challenge
 
@@ -496,6 +518,40 @@ grace period (`utils/pvpForfeit.js`); the forfeit only lands if the player
 does not come back before it expires, which is what makes a reload survivable
 rather than fatal. Rejoining cancels it implicitly, by making the room whole
 again.
+
+### Quick match
+
+One button pairs two strangers into a PVP room with no shared room code.
+
+**It builds a room and nothing else.** Once both players are in it they are in
+an ordinary PVP room — the lobby, `startPvpGame`, the shared board, the forfeit
+grace period, rematch and reconnect all run untouched, and none of them can tell
+a matched room from a hand-made one. That is why a pairing is announced as the
+same `joinRoomSuccess` + `pvpRoomReady` a hand-made room sends, and why there is
+no `matchFound` event to keep in step. The room code is minted as `QM-XXXXXX`
+from an unambiguous alphabet and collision-checked against live rooms — room
+codes are arbitrary user text, so nothing stops a player creating `QM-ABC123` by
+hand.
+
+**One queue, on one fixed board** (`DEFAULT_PRESET`, 16x16/40). Queueing per
+size and difficulty would be twelve queues, and twelve queues at this traffic
+level are twelve empty ones; liquidity is what makes the button work at all.
+Whoever waited longer is host, because PVP's host is whoever presses Start.
+
+**"Is anyone waiting, and if so take them" is one decision**, held under
+`matchmaking:lock` exactly like the PVP capacity check. Unlocked, two players
+arriving together both read an empty queue and both sit down in it, each waiting
+for the other — a deadlock that resolves only when a third player shows up. Only
+the decision is locked; building the room happens outside it, since the partner
+is already out of the queue by then and unreachable by anyone else.
+
+Three ways a queue entry goes bad, and all three look identical in the hash: the
+socket dropped without its cleanup running, the player joined a room some other
+way while queued, or the entry is old enough that neither answer can be trusted.
+All three are pruned on the way past — a player record existing *is* being in a
+room. `server/tests/matchmaking.test.js` drives overlapping searches through a
+Redis fake that resolves on the event loop, for the same reason
+`coopConcurrency.test.js` does.
 
 ### Daily challenge
 

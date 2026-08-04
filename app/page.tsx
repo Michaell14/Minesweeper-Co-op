@@ -40,7 +40,13 @@ export default function Home() {
                     getDailyLeaderboard={actions.getDailyLeaderboard}
                 />
             ) : !playerJoined ? (
-                <Landing createRoom={actions.createRoom} joinRoom={actions.joinRoom} startDaily={actions.startDaily} />
+                <Landing
+                    createRoom={actions.createRoom}
+                    joinRoom={actions.joinRoom}
+                    startDaily={actions.startDaily}
+                    findMatch={actions.findMatch}
+                    cancelMatch={actions.cancelMatch}
+                />
             ) : (
                 <Grid
                     leaveRoom={actions.leaveRoom}

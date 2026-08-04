@@ -4,6 +4,7 @@ import { useCallback, useMemo } from "react";
 import { useMinesweeperStore } from "@/app/store";
 import { throttle } from "@/lib/throttle";
 import { getOrCreateDailyAttemptToken, readDailyAttemptToken } from "@/lib/dailyIdentity";
+import { DIALOGS, openDialog } from "@/lib/dialogs";
 import { DEFAULT_DIFFICULTY, DEFAULT_SIZE } from "@/shared/boardConfig";
 import { CLIENT_EVENTS } from "@/shared/events";
 import type { AppSocket } from "@/lib/initSocket";
@@ -147,6 +148,30 @@ export function useGameActions(socket: AppSocket | null) {
         const { room, name } = useMinesweeperStore.getState();
         if (!room || !socket) return;
         socket.emit(CLIENT_EVENTS.JOIN_ROOM, { room, name });
+    }, [socket]);
+
+    /**
+     * Join the quick-match queue.
+     *
+     * The dialog opens NOW rather than on `matchSearching`: an instant pairing
+     * never sends that event at all (the room arrives instead), so waiting for
+     * it would mean the button did nothing visible on the fastest path and
+     * something on the slowest. Every exit — paired, cancelled, failed — closes
+     * it, so opening optimistically cannot strand anyone.
+     */
+    const findMatch = useCallback(() => {
+        const { name } = useMinesweeperStore.getState();
+        if (!name || !socket) return;
+        useMinesweeperStore.getState().setMatchSearching(true);
+        openDialog(DIALOGS.matchSearching);
+        socket.emit(CLIENT_EVENTS.FIND_MATCH, { name });
+    }, [socket]);
+
+    /** Leave the queue. The dialog's own Cancel button closes it natively. */
+    const cancelMatch = useCallback(() => {
+        if (!socket) return;
+        useMinesweeperStore.getState().setMatchSearching(false);
+        socket.emit(CLIENT_EVENTS.CANCEL_MATCH);
     }, [socket]);
 
     /** No room, no action. */
@@ -316,6 +341,8 @@ export function useGameActions(socket: AppSocket | null) {
         leaveRoom,
         createRoom,
         joinRoom,
+        findMatch,
+        cancelMatch,
         openCell,
         chordCell,
         toggleFlag,
