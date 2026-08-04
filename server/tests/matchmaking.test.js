@@ -39,6 +39,18 @@ jest.mock('../utils/initializeClient', () => ({
     server: { listen: jest.fn() },
 }));
 
+const mockFailAddFor = { socketId: null };
+jest.mock('../utils/playerUtils', () => {
+    const actual = jest.requireActual('../utils/playerUtils');
+    return {
+        ...actual,
+        addPlayerToRoom: (room, socketId, ...rest) => {
+            if (socketId === mockFailAddFor.socketId) throw new Error('add failed');
+            return actual.addPlayerToRoom(room, socketId, ...rest);
+        },
+    };
+});
+
 const { findMatch, cancelMatch, leaveQueue } = require('../controllers/matchmakingController');
 const matchRepo = require('../data/matchRepo');
 const roomRepo = require('../data/roomRepo');
@@ -67,6 +79,7 @@ beforeEach(() => {
     mockRedis.flush();
     mockConnected.clear();
     mockEmitted = {};
+    mockFailAddFor.socketId = null;
 });
 
 describe('a single searcher', () => {
@@ -296,5 +309,28 @@ describe('leaving the queue', () => {
         expect(await matchRepo.listWaiting()).toEqual([]);
         // Nobody left to tell — a stray emit here would be a write to a dead socket.
         expect(eventsFor('alice')).toEqual([]);
+    });
+});
+
+describe('a match that fails half-built', () => {
+    test('leaves no player records, so the re-enqueued host is pairable again', async () => {
+        const alice = makeSocket('sock-alice');
+        await findMatch({ socket: alice, name: 'Alice' });
+
+        // Host (Alice) is added first and succeeds; the guest's add throws.
+        mockFailAddFor.socketId = 'sock-bob';
+        const bob = makeSocket('sock-bob');
+        await findMatch({ socket: bob, name: 'Bob' });
+
+        expect(eventsFor('sock-bob')).toContain(SERVER_EVENTS.MATCH_ERROR);
+        expect(await playerRepo.exists('sock-alice')).toBeFalsy();
+        expect(await playerRepo.exists('sock-bob')).toBeFalsy();
+
+        mockFailAddFor.socketId = null;
+        const carol = makeSocket('sock-carol');
+        await findMatch({ socket: carol, name: 'Carol' });
+
+        expect(eventsFor('sock-carol')).toContain(SERVER_EVENTS.JOIN_ROOM_SUCCESS);
+        expect(eventsFor('sock-alice')).toContain(SERVER_EVENTS.JOIN_ROOM_SUCCESS);
     });
 });

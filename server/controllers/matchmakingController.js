@@ -114,25 +114,35 @@ const startMatch = async ({ host, hostSocket, guestSocket, guestName, guestSessi
     const room = await mintRoomCode();
     const { rows, cols, mines } = DEFAULT_PRESET;
 
-    await createRoom(room, rows, cols, mines, 'pvp');
-    await roomRepo.setFields(room, { hostSocket: hostSocket.id });
+    try {
+        await createRoom(room, rows, cols, mines, 'pvp');
+        await roomRepo.setFields(room, { hostSocket: hostSocket.id });
 
-    hostSocket.join(room);
-    guestSocket.join(room);
+        hostSocket.join(room);
+        guestSocket.join(room);
 
-    await addPlayerToRoom(room, hostSocket.id, host.name, host.sessionId);
-    await addPlayerToRoom(room, guestSocket.id, guestName, guestSessionId);
+        await addPlayerToRoom(room, hostSocket.id, host.name, host.sessionId);
+        await addPlayerToRoom(room, guestSocket.id, guestName, guestSessionId);
 
-    // The dimensions travel for the same reason a manual join carries them: the
-    // flag counter is client-side and has nothing else to size itself from.
-    const joined = { room, mode: 'pvp', numRows: rows, numCols: cols, numMines: mines };
-    io.to(hostSocket.id).emit(SERVER_EVENTS.JOIN_ROOM_SUCCESS, { ...joined, isHost: true });
-    io.to(guestSocket.id).emit(SERVER_EVENTS.JOIN_ROOM_SUCCESS, { ...joined, isHost: false });
+        // The dimensions travel for the same reason a manual join carries them: the
+        // flag counter is client-side and has nothing else to size itself from.
+        const joined = { room, mode: 'pvp', numRows: rows, numCols: cols, numMines: mines };
+        io.to(hostSocket.id).emit(SERVER_EVENTS.JOIN_ROOM_SUCCESS, { ...joined, isHost: true });
+        io.to(guestSocket.id).emit(SERVER_EVENTS.JOIN_ROOM_SUCCESS, { ...joined, isHost: false });
 
-    io.to(hostSocket.id).emit(SERVER_EVENTS.PVP_ROOM_READY, { opponentName: guestName, isHost: true });
-    io.to(guestSocket.id).emit(SERVER_EVENTS.PVP_ROOM_READY, { opponentName: host.name, isHost: false });
+        io.to(hostSocket.id).emit(SERVER_EVENTS.PVP_ROOM_READY, { opponentName: guestName, isHost: true });
+        io.to(guestSocket.id).emit(SERVER_EVENTS.PVP_ROOM_READY, { opponentName: host.name, isHost: false });
 
-    return room;
+        return room;
+    } catch (error) {
+        // A leftover player record reads as "in a room": it blocks the player's
+        // own retry and makes the re-enqueued host unpairable.
+        hostSocket.leave(room);
+        guestSocket.leave(room);
+        await playerRepo.remove(hostSocket.id).catch(() => {});
+        await playerRepo.remove(guestSocket.id).catch(() => {});
+        throw error;
+    }
 };
 
 /** Handles 'findMatch'. */
