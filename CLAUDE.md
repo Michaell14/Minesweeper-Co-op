@@ -62,6 +62,7 @@ Backend deps install separately: `npm --prefix server install`.
 | Deciding which mode handles an action | `server/game/index.js` — the only dispatch point |
 | PVP lifecycle (start/reset/rematch) | `server/controllers/pvpController.js` |
 | Quick match (the pairing queue) | `server/controllers/matchmakingController.js`, `server/data/matchRepo.js`; client `components/landing/MatchSearchingDialog.tsx` |
+| Practice race (the target time, not a bot) | `lib/practice.ts`, `components/game/PracticeProgress.tsx`; server side is just a co-op room of one |
 | Which PVP board a socket owns | `server/domain/pvpPlayer.js` — `pvpIndexOf`; **never** default a missing index to 0 |
 | PVP disconnect grace period | `server/utils/pvpForfeit.js` — a reload must not forfeit |
 | Daily challenge (cell actions, seeded board) | `server/game/daily.js` |

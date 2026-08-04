@@ -121,6 +121,14 @@ export interface ClientToServerEvents {
     findMatch: (payload: { name: string }) => void;
     /** Leave the queue. Like `playerLeave`, the socket id is the whole payload. */
     cancelMatch: () => void;
+    /**
+     * Leave the queue and open a solo board to race a target time instead.
+     *
+     * Answered with an ordinary `joinRoomSuccess` for a **co-op room of one** —
+     * the target is drawn by the client and never reaches the server, so there
+     * is no practice mode for the server to know about. See ARCHITECTURE.md §5.
+     */
+    startPracticeRace: (payload: { name: string }) => void;
 
     // --- Daily challenge ---
     startDaily: (payload: { dailyAttemptToken: string }) => void;
@@ -226,8 +234,15 @@ export interface ServerToClientEvents {
      * Queued, nobody to pair with yet. There is deliberately no `matchFound`:
      * a pairing arrives as the ordinary `joinRoomSuccess` + `pvpRoomReady` a
      * hand-made PVP room sends, so the client has one code path for both.
+     *
+     * `othersOnline` is connected sockets minus this one — NOT a queue depth.
+     * The queue can never hold two waiting players: reaching this event means
+     * nobody pairable was found, and anyone arriving afterwards pairs with you
+     * instantly rather than queueing beside you. So "how many are waiting" is
+     * always zero and says nothing; "is anyone here at all" is the number that
+     * changes what the player should do next.
      */
-    matchSearching: () => void;
+    matchSearching: (payload: { othersOnline: number }) => void;
     /** Removed from the queue — the player's own cancel, or a leave/disconnect. */
     matchCancelled: () => void;
     /** The search could not proceed. Ends the wait rather than spinning forever. */

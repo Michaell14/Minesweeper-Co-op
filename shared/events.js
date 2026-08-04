@@ -35,9 +35,10 @@ const CLIENT_EVENTS = Object.freeze({
     PVP_REMATCH: 'pvpRematch',
     PLAYER_LEAVE: 'playerLeave',
 
-    // Matchmaking -- pre-room, so neither of these carries a room code.
+    // Matchmaking -- pre-room, so none of these carries a room code.
     FIND_MATCH: 'findMatch',
     CANCEL_MATCH: 'cancelMatch',
+    START_PRACTICE_RACE: 'startPracticeRace',
 
     // Daily challenge -- NOT room-scoped, addressed by date + attempt token.
     // See server/data/keys.js for why this is a separate system from rooms.

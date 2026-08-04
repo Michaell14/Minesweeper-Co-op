@@ -18,6 +18,7 @@ import { Button, Dialog, DialogClose, Panel, Switch, TrophyIcon } from '@/compon
 import Board from '@/components/game/Board';
 import StatusBanner from '@/components/game/StatusBanner';
 import ProgressBar, { opponentBarColor } from '@/components/game/ProgressBar';
+import PracticeProgress from '@/components/game/PracticeProgress';
 import ScoreTable from '@/components/game/ScoreTable';
 import FlagCounter from '@/components/game/FlagCounter';
 import Timer from '@/components/game/Timer';
@@ -206,6 +207,8 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
                             </div>
                         }
 
+                        <PracticeProgress variant="mobile" />
+
                         <div className="flex items-center gap-8">
                             {leaveButton}
                             {actionButtons}
@@ -221,6 +224,8 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
                                 Waiting for host to start rematch...
                             </div>
                         }
+                        <PracticeProgress variant="panel" />
+
                         {/* The whole panel, not just the bars — a hidden bar must
                             not leave an empty titled box behind. */}
                         {mode === 'pvp' && pvpStarted && showProgressBar &&

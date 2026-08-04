@@ -5,7 +5,7 @@ const { createRoom, resetGame } = require('./utils/gameUtils');
 const { openCell, chordCell, toggleFlag } = require('./game');
 const { startPvpGame, resetMyBoard, pvpRematch } = require('./controllers/pvpController');
 const { offerResume, forgetRoom } = require('./controllers/sessionController');
-const { findMatch, cancelMatch, leaveQueue } = require('./controllers/matchmakingController');
+const { findMatch, cancelMatch, startPracticeRace, leaveQueue } = require('./controllers/matchmakingController');
 const { resolveSocketUser, registerProfileRoutes } = require('./controllers/profileController');
 const { registerSettingsRoutes } = require('./controllers/settingsController');
 const { registerThemesRoutes } = require('./controllers/themesController');
@@ -331,6 +331,10 @@ io.on('connection', async (socket) => {
 
     socket.on(CLIENT_EVENTS.CANCEL_MATCH, async () => {
         await cancelMatch({ socket });
+    });
+
+    socket.on(CLIENT_EVENTS.START_PRACTICE_RACE, async ({ name }) => {
+        await startPracticeRace({ socket, name });
     });
 
     // --- Daily challenge: NOT room-scoped, see server/data/keys.js ---

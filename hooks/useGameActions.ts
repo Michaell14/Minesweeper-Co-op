@@ -5,7 +5,8 @@ import { useMinesweeperStore } from "@/app/store";
 import { throttle } from "@/lib/throttle";
 import { getOrCreateDailyAttemptToken, readDailyAttemptToken } from "@/lib/dailyIdentity";
 import { DIALOGS, openDialog } from "@/lib/dialogs";
-import { DEFAULT_DIFFICULTY, DEFAULT_SIZE } from "@/shared/boardConfig";
+import { DEFAULT_DIFFICULTY, DEFAULT_PRESET, DEFAULT_SIZE } from "@/shared/boardConfig";
+import { practiceTargetFor } from "@/lib/practice";
 import { CLIENT_EVENTS } from "@/shared/events";
 import type { AppSocket } from "@/lib/initSocket";
 import { playSound, type SoundName } from "@/lib/sound";
@@ -136,6 +137,10 @@ export function useGameActions(socket: AppSocket | null) {
         // the server catches an arriving player up with `gameWon`, and the
         // handler had a stale clock to read.
         store.setClock({ startedAt: null, endedAt: null });
+        // The target belongs to the run being left. Left standing it would draw
+        // a second bar over the next ordinary room, pacing a time from a board
+        // that room may not even be playing.
+        store.setPracticeTarget(null);
     }, [socket]);
 
     const createRoom = useCallback(() => {
@@ -172,6 +177,27 @@ export function useGameActions(socket: AppSocket | null) {
         if (!socket) return;
         useMinesweeperStore.getState().setMatchSearching(false);
         socket.emit(CLIENT_EVENTS.CANCEL_MATCH);
+    }, [socket]);
+
+    /**
+     * Give up on finding an opponent and race a target time instead.
+     *
+     * The target is resolved HERE, before the room exists, because it comes out
+     * of this browser's records and the server neither has it nor needs it — a
+     * practice race is a co-op room of one as far as the server is concerned.
+     * The board is always the quick-match board, so the target is read for that
+     * one rather than for whatever the landing page had selected.
+     */
+    const startPracticeRace = useCallback(() => {
+        const { name } = useMinesweeperStore.getState();
+        if (!name || !socket) return;
+
+        const store = useMinesweeperStore.getState();
+        store.setPracticeTarget(
+            practiceTargetFor(DEFAULT_PRESET.rows, DEFAULT_PRESET.cols, DEFAULT_PRESET.mines),
+        );
+        store.setMatchSearching(false);
+        socket.emit(CLIENT_EVENTS.START_PRACTICE_RACE, { name });
     }, [socket]);
 
     /** No room, no action. */
@@ -343,6 +369,7 @@ export function useGameActions(socket: AppSocket | null) {
         joinRoom,
         findMatch,
         cancelMatch,
+        startPracticeRace,
         openCell,
         chordCell,
         toggleFlag,

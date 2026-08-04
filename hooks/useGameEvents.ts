@@ -274,7 +274,11 @@ const pvpHandlers = (socket: AppSocket): SocketHandlers => ({
 const matchHandlers = (): SocketHandlers => ({
     // Queued, nobody to pair with yet. The dialog is already open (see
     // `findMatch`); this only confirms the server agrees a search is running.
-    [SERVER_EVENTS.MATCH_SEARCHING]: () => useMinesweeperStore.getState().setMatchSearching(true),
+    [SERVER_EVENTS.MATCH_SEARCHING]: ({ othersOnline }) => {
+        const store = useMinesweeperStore.getState();
+        store.setMatchSearching(true);
+        store.setMatchOthersOnline(othersOnline);
+    },
 
     [SERVER_EVENTS.MATCH_CANCELLED]: () => {
         useMinesweeperStore.getState().setMatchSearching(false);

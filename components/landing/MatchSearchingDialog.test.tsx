@@ -7,19 +7,27 @@
  * search, `<Button>` defaults to `type="button"`, and a close button that is
  * not `type="submit"` stops closing its dialog with nothing wrong in the
  * markup — so a player who cannot find an opponent would be stuck behind a
- * modal. `getByRole` fails both when the role goes and when the name stops
- * resolving, which is how the rest of this breaks too.
+ * modal. The practice button has exactly the same failure mode. `getByRole`
+ * fails both when the role goes and when the name stops resolving, which is how
+ * the rest of this breaks too.
+ *
+ * The copy is tested as well, unusually — "no one else is searching" is a
+ * factual claim the server's behaviour makes true (a queue cannot hold two
+ * waiting players), and a change that made it a guess should have to edit a
+ * test that says so.
  *
  * jsdom has no layout engine and does not implement the form-closes-dialog
  * behaviour, so "does it actually close" belongs in the smoke suite; what is
- * checkable here is that the button is reachable, wired, and submitting.
+ * checkable here is that the buttons are reachable, wired, and submitting.
  */
 
 import { describe, expect, test, vi, beforeEach } from 'vitest';
 import { act, render, screen } from '@testing-library/react';
-import MatchSearchingDialog from './MatchSearchingDialog';
+import MatchSearchingDialog, { PRACTICE_OFFER_AFTER_SECONDS } from './MatchSearchingDialog';
 import { useMinesweeperStore } from '@/app/store';
 import { DEFAULT_PRESET } from '@/shared/boardConfig';
+import { boardKey, clearBestTimes, recordBestTime } from '@/lib/bestTimes';
+import { PRACTICE_PAR_MS } from '@/lib/practice';
 
 /**
  * A closed <dialog> is hidden from the accessibility tree, so `getByRole` finds
@@ -34,13 +42,26 @@ const reveal = (container: HTMLElement) => {
     dialog.open = true;
 };
 
+const props = (overrides: Partial<React.ComponentProps<typeof MatchSearchingDialog>> = {}) => ({
+    cancelMatch: vi.fn(),
+    startPracticeRace: vi.fn(),
+    ...overrides,
+});
+
+const practiceButton = () =>
+    screen.queryByRole('button', { name: /^Play solo against a target time of/ });
+
 beforeEach(() => {
-    act(() => useMinesweeperStore.getState().setMatchSearching(false));
+    clearBestTimes();
+    act(() => {
+        useMinesweeperStore.getState().setMatchSearching(false);
+        useMinesweeperStore.getState().setMatchOthersOnline(0);
+    });
 });
 
 describe('MatchSearchingDialog', () => {
     test('names the board a quick match will be played on', () => {
-        render(<MatchSearchingDialog cancelMatch={() => {}} />);
+        render(<MatchSearchingDialog {...props()} />);
 
         expect(
             screen.getByText(
@@ -50,8 +71,8 @@ describe('MatchSearchingDialog', () => {
     });
 
     test('the cancel button leaves the queue and submits, so the dialog closes', () => {
-        const cancelMatch = vi.fn();
-        const { container } = render(<MatchSearchingDialog cancelMatch={cancelMatch} />);
+        const p = props();
+        const { container } = render(<MatchSearchingDialog {...p} />);
         reveal(container);
 
         const cancel = screen.getByRole('button', {
@@ -63,14 +84,14 @@ describe('MatchSearchingDialog', () => {
         expect(cancel.getAttribute('type')).toBe('submit');
 
         cancel.click();
-        expect(cancelMatch).toHaveBeenCalledTimes(1);
+        expect(p.cancelMatch).toHaveBeenCalledTimes(1);
     });
 
     test('the wait is counted, so a slow search does not read as a hang', () => {
         vi.useFakeTimers();
         try {
             act(() => useMinesweeperStore.getState().setMatchSearching(true));
-            render(<MatchSearchingDialog cancelMatch={() => {}} />);
+            render(<MatchSearchingDialog {...props()} />);
 
             expect(screen.getByText('Waiting 0s')).toBeTruthy();
 
@@ -82,5 +103,111 @@ describe('MatchSearchingDialog', () => {
         } finally {
             vi.useRealTimers();
         }
+    });
+});
+
+describe('what it says about who is around', () => {
+    test('states plainly that nobody else is searching', () => {
+        render(<MatchSearchingDialog {...props()} />);
+        // Not a guess: reaching this dialog MEANS the queue held nobody
+        // pairable, and a later arrival pairs rather than queueing alongside.
+        expect(screen.getByText(/No one else is searching right now/)).toBeTruthy();
+    });
+
+    test('alone on the server reads as alone, not as an empty queue', () => {
+        render(<MatchSearchingDialog {...props()} />);
+        expect(screen.getByText(/You're the only one here/)).toBeTruthy();
+    });
+
+    test('other players online are reported, since that is what waiting depends on', () => {
+        act(() => useMinesweeperStore.getState().setMatchOthersOnline(7));
+        render(<MatchSearchingDialog {...props()} />);
+        expect(screen.getByText(/7 other players are online/)).toBeTruthy();
+    });
+
+    test('one other player is singular', () => {
+        act(() => useMinesweeperStore.getState().setMatchOthersOnline(1));
+        render(<MatchSearchingDialog {...props()} />);
+        expect(screen.getByText(/1 other player is online/)).toBeTruthy();
+    });
+});
+
+describe('the practice offer', () => {
+    test('is withheld at first, so it does not undercut a real match', () => {
+        act(() => useMinesweeperStore.getState().setMatchSearching(true));
+        const { container } = render(<MatchSearchingDialog {...props()} />);
+        reveal(container);
+
+        expect(practiceButton()).toBeNull();
+    });
+
+    test('appears once the wait has gone on', () => {
+        vi.useFakeTimers();
+        try {
+            act(() => useMinesweeperStore.getState().setMatchSearching(true));
+            const { container } = render(<MatchSearchingDialog {...props()} />);
+            reveal(container);
+
+            act(() => {
+                vi.advanceTimersByTime(PRACTICE_OFFER_AFTER_SECONDS * 1000);
+            });
+
+            expect(practiceButton()).not.toBeNull();
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    test('is immediate for a player who already has a time on this board', () => {
+        // They know what practice is and have something to beat; making them
+        // sit out the countdown is a worse version of the same offer.
+        recordBestTime(boardKey(DEFAULT_PRESET.rows, DEFAULT_PRESET.cols, DEFAULT_PRESET.mines), {
+            seconds: 125,
+            players: 1,
+            at: 1,
+        });
+
+        act(() => useMinesweeperStore.getState().setMatchSearching(true));
+        const { container } = render(<MatchSearchingDialog {...props()} />);
+        reveal(container);
+
+        expect(practiceButton()).not.toBeNull();
+        // 125s, as their own record rather than a par dressed up as one.
+        expect(screen.getByText(/your best time of 2:05/)).toBeTruthy();
+    });
+
+    test('a player with no record races a par, and is told it is a par', () => {
+        vi.useFakeTimers();
+        try {
+            act(() => useMinesweeperStore.getState().setMatchSearching(true));
+            const { container } = render(<MatchSearchingDialog {...props()} />);
+            reveal(container);
+            act(() => {
+                vi.advanceTimersByTime(PRACTICE_OFFER_AFTER_SECONDS * 1000);
+            });
+
+            const minutes = PRACTICE_PAR_MS / 60000;
+            expect(screen.getByText(new RegExp(`par time of ${minutes}:00`))).toBeTruthy();
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    test('starting a practice race submits, so the dialog closes behind it', () => {
+        recordBestTime(boardKey(DEFAULT_PRESET.rows, DEFAULT_PRESET.cols, DEFAULT_PRESET.mines), {
+            seconds: 90,
+            players: 1,
+            at: 1,
+        });
+        const p = props();
+        const { container } = render(<MatchSearchingDialog {...p} />);
+        reveal(container);
+
+        const button = practiceButton();
+        expect(button).not.toBeNull();
+        expect(button!.getAttribute('type')).toBe('submit');
+
+        button!.click();
+        expect(p.startPracticeRace).toHaveBeenCalledTimes(1);
     });
 });

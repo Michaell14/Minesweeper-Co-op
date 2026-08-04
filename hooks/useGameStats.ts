@@ -46,5 +46,12 @@ export function useGameStats() {
         safeCells,
         ownProgressPercent: toPercent(ownProgress),
         opponentProgressPercent: toPercent(pvpOpponentProgress),
+        /**
+         * The same progress over the BOARD's own safe-cell count rather than
+         * `pvpTotalSafeCells`, which only the server's PVP path ever sets. Used
+         * by a practice race, which is a co-op room and so has no such field —
+         * reading the PVP one there divides by zero and pins the bar at 0%.
+         */
+        boardProgressPercent: safeCells <= 0 ? 0 : Math.round((ownProgress / safeCells) * 100),
     };
 }

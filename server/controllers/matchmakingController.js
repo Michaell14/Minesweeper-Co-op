@@ -37,11 +37,11 @@ const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const CODE_LENGTH = 6;
 const CODE_ATTEMPTS = 5;
 
-const randomCode = () => {
+const randomCode = (prefix) => {
     const bytes = crypto.randomBytes(CODE_LENGTH);
     let code = '';
     for (let i = 0; i < CODE_LENGTH; i++) code += CODE_ALPHABET[bytes[i] % CODE_ALPHABET.length];
-    return `QM-${code}`;
+    return `${prefix}-${code}`;
 };
 
 /**
@@ -52,13 +52,23 @@ const randomCode = () => {
  * room would be a real failure rather than a cosmetic one. Throws instead of
  * returning a duplicate — the caller answers with `matchError`.
  */
-const mintRoomCode = async () => {
+const mintRoomCode = async (prefix) => {
     for (let attempt = 0; attempt < CODE_ATTEMPTS; attempt++) {
-        const code = randomCode();
+        const code = randomCode(prefix);
         if (!(await roomRepo.exists(code))) return code;
     }
-    throw new Error('Could not mint a free quick-match room code');
+    throw new Error(`Could not mint a free ${prefix} room code`);
 };
+
+/**
+ * Connected sockets other than this one.
+ *
+ * NOT a queue depth — the queue can never hold two waiting players, since
+ * anyone arriving pairs with whoever is already there. "Is anyone here at all"
+ * is the only honest signal, and it is what decides whether waiting is worth
+ * it. Local to this process, like every other socket count here.
+ */
+const othersOnline = () => Math.max(0, (io.engine?.clientsCount ?? 1) - 1);
 
 /** Whether this socket is still connected to THIS process. */
 const isConnected = (socketId) => Boolean(io.sockets?.sockets?.get(socketId));
@@ -111,7 +121,7 @@ const takePartner = async (socketId) => {
  * `addPlayerToRoom`, because the latter broadcasts to the room.
  */
 const startMatch = async ({ host, hostSocket, guestSocket, guestName, guestSessionId }) => {
-    const room = await mintRoomCode();
+    const room = await mintRoomCode('QM');
     const { rows, cols, mines } = DEFAULT_PRESET;
 
     try {
@@ -187,7 +197,7 @@ const findMatch = async ({ socket, name }) => {
         });
 
         if (!partner) {
-            socket.emit(SERVER_EVENTS.MATCH_SEARCHING);
+            socket.emit(SERVER_EVENTS.MATCH_SEARCHING, { othersOnline: othersOnline() });
             return;
         }
 
@@ -196,7 +206,7 @@ const findMatch = async ({ socket, name }) => {
             // They dropped in the window between the liveness check and here.
             // Rare enough to just retry as a fresh search rather than loop.
             await matchRepo.enqueue(socket.id, { name: displayName, sessionId, queuedAt: Date.now() });
-            socket.emit(SERVER_EVENTS.MATCH_SEARCHING);
+            socket.emit(SERVER_EVENTS.MATCH_SEARCHING, { othersOnline: othersOnline() });
             return;
         }
 
@@ -218,6 +228,58 @@ const findMatch = async ({ socket, name }) => {
         }
     } catch (error) {
         console.error('Error in findMatch:', error);
+        socket.emit(SERVER_EVENTS.MATCH_ERROR);
+    }
+};
+
+/**
+ * Handles 'startPracticeRace' — "nobody is around, give me a board anyway".
+ *
+ * **A practice race is a co-op room with one player**, which is a thing the app
+ * has always supported. Board generation, cell actions, the clock, the win
+ * check and best-time recording therefore all work untouched, and there is no
+ * practice mode for the server to know about.
+ *
+ * The opponent is drawn entirely by the CLIENT, from a target time it reads out
+ * of its own records. That is not a shortcut: in PVP the opponent is only ever
+ * a percentage on a bar (`pvpOpponentProgress` carries nothing else), so a
+ * target time renders identically to a live racer without anything having to
+ * pretend a second player exists. Nothing here writes a fake result — the clear
+ * is a real solo clear of a real no-guess board, and counts as exactly that.
+ */
+const startPracticeRace = async ({ socket, name }) => {
+    try {
+        const displayName = normalizePlayerName(name);
+        if (!isValidPlayerName(displayName)) {
+            socket.emit(SERVER_EVENTS.MATCH_ERROR);
+            return;
+        }
+
+        if (await playerRepo.exists(socket.id)) {
+            socket.emit(SERVER_EVENTS.MATCH_ERROR);
+            return;
+        }
+
+        // Taking the practice board IS leaving the queue. Done before the room
+        // is built, so a slow creation cannot leave them pairable meanwhile.
+        await matchRepo.remove(socket.id);
+
+        const room = await mintRoomCode('SOLO');
+        const { rows, cols, mines } = DEFAULT_PRESET;
+
+        await createRoom(room, rows, cols, mines, 'co-op');
+        socket.join(room);
+        await addPlayerToRoom(room, socket.id, displayName, socket.handshake.auth?.sessionId);
+
+        socket.emit(SERVER_EVENTS.JOIN_ROOM_SUCCESS, {
+            room,
+            mode: 'co-op',
+            numRows: rows,
+            numCols: cols,
+            numMines: mines,
+        });
+    } catch (error) {
+        console.error('Error in startPracticeRace:', error);
         socket.emit(SERVER_EVENTS.MATCH_ERROR);
     }
 };
@@ -248,4 +310,4 @@ const leaveQueue = async (socket) => {
     }
 };
 
-module.exports = { findMatch, cancelMatch, leaveQueue };
+module.exports = { findMatch, cancelMatch, startPracticeRace, leaveQueue };

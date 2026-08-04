@@ -16,6 +16,7 @@ interface LandingParams {
     startDaily: () => void;
     findMatch: () => void;
     cancelMatch: () => void;
+    startPracticeRace: () => void;
 }
 
 /**
@@ -31,7 +32,7 @@ interface LandingParams {
  * The dialogs are mounted here but opened from anywhere via `openDialog`, so the
  * board-size card needs no handle on the custom dialog.
  */
-export default function Landing({ createRoom, joinRoom, startDaily, findMatch, cancelMatch }: LandingParams) {
+export default function Landing({ createRoom, joinRoom, startDaily, findMatch, cancelMatch, startPracticeRace }: LandingParams) {
     const setName = useMinesweeperStore((state) => state.setName);
 
     return (
@@ -93,7 +94,7 @@ export default function Landing({ createRoom, joinRoom, startDaily, findMatch, c
                 onConfirm={findMatch}
                 setName={setName}
             />
-            <MatchSearchingDialog cancelMatch={cancelMatch} />
+            <MatchSearchingDialog cancelMatch={cancelMatch} startPracticeRace={startPracticeRace} />
 
             <Dialog
                 id={DIALOGS.matchError}
