@@ -589,7 +589,7 @@ rebuilt **from the room**, since the old player record is already gone.
 > nobody can lose on move one, and neither starts from a blank grid.
 
 ### Chording
-Both mouse buttons pressed together, or the middle button. `Cell.tsx` writes `leftClick`/`rightClick`/`r`/`c` into the store; the chording `useEffect` in `Grid.tsx` watches for both being true and calls `chordCell(r, c)`; `bothPressed` suppresses the open/flag that would otherwise fire on mouse-up. The server opens all unflagged neighbors when the flag count matches the cell's number.
+Three gestures, all on an opened number. Both mouse buttons pressed together: `Cell.tsx` writes `leftClick`/`rightClick`/`r`/`c` into the store, `useChording` (mounted by `Grid.tsx`) watches for both being true and calls `chordCell(r, c)`, and `bothPressed` suppresses the open/flag that would otherwise fire on mouse-up. The middle button, straight from `Cell`'s mousedown. And the **secondary click** — right button, or the two-finger tap and ctrl-click a trackpad maps to it — fired from `Cell`'s mouse-**up**, since macOS raises `contextmenu` on mousedown and a right-then-left chord would otherwise fire twice. That third one exists because a trackpad has neither a second button nor a middle one, so the other two gestures are unreachable on one; it costs nothing because flagging an already-open cell is a no-op the server drops anyway. The server opens all unflagged neighbors when the flag count matches the cell's number.
 
 ### Hover presence (co-op only)
 `Cell` `onMouseEnter` → throttled 100ms → `cellHover` → server broadcasts `playerHoverUpdate` to everyone else → each client colors the cell using a hash of the socket id. Suppressed in PVP (`server.js:251`).

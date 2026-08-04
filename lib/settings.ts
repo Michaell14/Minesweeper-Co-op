@@ -32,7 +32,7 @@ export interface Settings {
     swapMouseButtons: boolean;
     /** Mobile taps start in flag mode instead of open mode. */
     mobileDefaultFlag: boolean;
-    /** Both-buttons / middle-click chording. */
+    /** Both-buttons / middle-click / right-click-a-number chording. */
     chording: boolean;
     /** Win celebration bursts (composed with prefers-reduced-motion). */
     confetti: boolean;

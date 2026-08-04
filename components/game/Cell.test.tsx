@@ -39,12 +39,17 @@ const renderCell = (cell: CellType) =>
 
 const isShownAsAMine = () => screen.queryByRole("gridcell", { name: /^Mine at/ }) !== null;
 
+// The store is a module singleton: what one test writes, the next one inherits.
 beforeEach(() => {
     const store = useMinesweeperStore.getState();
     store.setGameOver(false);
     store.setPvpWinner(null);
     store.setMode("co-op");
     store.setPvpStarted(false);
+    store.setBothPressed(false);
+    useMinesweeperStore.setState((state) => ({
+        settings: { ...state.settings, swapMouseButtons: false, chording: true },
+    }));
 });
 
 describe("a closed cell the server says is a mine", () => {
@@ -142,6 +147,99 @@ describe("swapped mouse buttons", () => {
         expect(openCell).not.toHaveBeenCalled();
         fireEvent.contextMenu(screen.getByRole("gridcell", { name: /^Unrevealed/ }));
         expect(openCell).toHaveBeenCalledWith(0, 0);
+    });
+});
+
+/**
+ * Chording on the secondary click — the only one of the three gestures a
+ * trackpad can make, having neither a second button nor a middle one.
+ *
+ * On mouse-UP, since macOS raises `contextmenu` on mousedown and binding it
+ * there would chord twice for a right-then-left chord.
+ */
+describe("chording with the secondary click", () => {
+    const openNumber: CellType = { isMine: false, isOpen: true, isFlagged: false, nearbyMines: 2 };
+
+    const renderOpenWith = (chording: boolean) => {
+        useMinesweeperStore.setState((state) => ({
+            settings: { ...state.settings, chording },
+        }));
+        const chordCell = vi.fn();
+        const toggleFlag = vi.fn();
+        render(
+            <Cell
+                cell={openNumber}
+                row={1}
+                col={2}
+                toggleFlag={toggleFlag}
+                openCell={vi.fn()}
+                chordCell={chordCell}
+                emitCellHover={vi.fn()}
+            />,
+        );
+        return { cell: screen.getByRole("gridcell", { name: /^Revealed/ }), chordCell, toggleFlag };
+    };
+
+    test("a secondary click on an opened number chords it", () => {
+        const { cell, chordCell } = renderOpenWith(true);
+
+        fireEvent.mouseDown(cell, { button: 2 });
+        fireEvent.mouseUp(cell, { button: 2 });
+
+        expect(chordCell).toHaveBeenCalledWith(1, 2);
+    });
+
+    test("and does not also fire the flag that click used to mean", () => {
+        const { cell, chordCell, toggleFlag } = renderOpenWith(true);
+
+        fireEvent.mouseDown(cell, { button: 2 });
+        fireEvent.mouseUp(cell, { button: 2 });
+
+        expect(chordCell).toHaveBeenCalledTimes(1);
+        expect(toggleFlag).not.toHaveBeenCalled();
+    });
+
+    test("a release that finishes a both-buttons chord does not chord again", () => {
+        // Before the render: a mid-test store write does not reach a mounted
+        // component outside act().
+        useMinesweeperStore.getState().setBothPressed(true);
+        const { cell, chordCell } = renderOpenWith(true);
+
+        fireEvent.mouseUp(cell, { button: 2 });
+
+        expect(chordCell).not.toHaveBeenCalled();
+    });
+
+    test("with chording off it stays the no-op flag it always was", () => {
+        const { cell, chordCell, toggleFlag } = renderOpenWith(false);
+
+        fireEvent.mouseDown(cell, { button: 2 });
+        fireEvent.mouseUp(cell, { button: 2 });
+
+        expect(chordCell).not.toHaveBeenCalled();
+        expect(toggleFlag).toHaveBeenCalledWith(1, 2);
+    });
+
+    // Only opened cells spend it; on a closed one it is the only way to flag.
+    test("a secondary click on a closed cell still flags", () => {
+        const chordCell = vi.fn();
+        const toggleFlag = vi.fn();
+        render(
+            <Cell
+                cell={{ isMine: false, isOpen: false, isFlagged: false, nearbyMines: 0 }}
+                row={1}
+                col={2}
+                toggleFlag={toggleFlag}
+                openCell={vi.fn()}
+                chordCell={chordCell}
+                emitCellHover={vi.fn()}
+            />,
+        );
+
+        fireEvent.contextMenu(screen.getByRole("gridcell", { name: /^Unrevealed/ }));
+
+        expect(toggleFlag).toHaveBeenCalledWith(1, 2);
+        expect(chordCell).not.toHaveBeenCalled();
     });
 });
 

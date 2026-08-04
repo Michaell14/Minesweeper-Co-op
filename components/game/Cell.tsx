@@ -140,6 +140,8 @@ const Cell = ({ cell, row, col, cascadeOrigin, toggleFlag, openCell, chordCell, 
         }
     };
 
+    // Wired only on the opened-cell branch, where both mapped actions are
+    // no-ops the server ignores — which is what frees the secondary click below.
     const handleMouseUp = (event: React.MouseEvent) => {
         if (isDisabled) return;
 
@@ -151,7 +153,17 @@ const Cell = ({ cell, row, col, cascadeOrigin, toggleFlag, openCell, chordCell, 
 
         } else if (event.button === 2) {
             if (!bothPressed) {
-                secondaryAction(row, col);
+                /*
+                 * The only chord gesture a trackpad can make — it has neither a
+                 * second button nor a middle one. On release, not `contextmenu`:
+                 * macOS raises that on mousedown, so a right-then-left chord
+                 * would fire here and again off the bothPressed latch.
+                 */
+                if (chordingEnabled) {
+                    chordCell(row, col);
+                } else {
+                    secondaryAction(row, col);
+                }
             }
             setRightClick(false);
         }
