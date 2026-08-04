@@ -58,7 +58,7 @@ export default function SettingsClient() {
                     <SettingRow
                         settingKey="chording"
                         name="Chording"
-                        description="Both buttons (or middle click) on a number opens its unflagged neighbours."
+                        description="Both buttons, middle click, or a right click on a number opens its unflagged neighbours."
                     />
                     <SettingRow
                         settingKey="mobileDefaultFlag"
