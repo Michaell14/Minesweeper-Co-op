@@ -106,6 +106,11 @@ const coopHandlers = (socket: AppSocket, leaveRoom: () => void): SocketHandlers 
     // --- Room management ---
     [SERVER_EVENTS.JOIN_ROOM_SUCCESS]: (data) => {
         const store = useMinesweeperStore.getState();
+        // A quick match arrives here and nowhere else — there is no separate
+        // "match found" event, so being in a room IS the end of the search.
+        // Both calls are no-ops for an ordinary join.
+        store.setMatchSearching(false);
+        closeDialog(DIALOGS.matchSearching);
         store.setRoom(data.room);
         if (data.mode) store.setMode(data.mode);
         if (data.isHost !== undefined) store.setPvpIsHost(data.isHost);
@@ -262,6 +267,28 @@ const pvpHandlers = (socket: AppSocket): SocketHandlers => ({
 });
 
 /**
+ * Matchmaking events — every one of which ENDS a search. The start is the
+ * client's own `findMatch`, and a successful pairing lands as an ordinary
+ * `joinRoomSuccess`, so nothing here opens the searching dialog.
+ */
+const matchHandlers = (): SocketHandlers => ({
+    // Queued, nobody to pair with yet. The dialog is already open (see
+    // `findMatch`); this only confirms the server agrees a search is running.
+    [SERVER_EVENTS.MATCH_SEARCHING]: () => useMinesweeperStore.getState().setMatchSearching(true),
+
+    [SERVER_EVENTS.MATCH_CANCELLED]: () => {
+        useMinesweeperStore.getState().setMatchSearching(false);
+        closeDialog(DIALOGS.matchSearching);
+    },
+
+    [SERVER_EVENTS.MATCH_ERROR]: () => {
+        useMinesweeperStore.getState().setMatchSearching(false);
+        closeDialog(DIALOGS.matchSearching);
+        openDialog(DIALOGS.matchError);
+    },
+});
+
+/**
  * Daily challenge events. Not room-scoped, and mutually exclusive with the
  * coop/pvp views, so this reuses gameSlice's board/gameOver/gameWon rather than
  * a parallel daily board field.
@@ -386,5 +413,5 @@ const dailyHandlers = (): SocketHandlers => ({
  */
 export function useGameEvents(socket: AppSocket | null, leaveRoom: () => void): SocketHandlers {
     if (!socket) return {};
-    return { ...coopHandlers(socket, leaveRoom), ...pvpHandlers(socket), ...dailyHandlers() };
+    return { ...coopHandlers(socket, leaveRoom), ...pvpHandlers(socket), ...matchHandlers(), ...dailyHandlers() };
 }

@@ -34,6 +34,20 @@ const DAILY_TTL_SECONDS = 172800;
  */
 const ROOM_GRACE_PERIOD_SECONDS = 600;
 
+/**
+ * How long the quick-match queue key survives with nothing touching it. Every
+ * enqueue refreshes it, and entries go stale long before this, so it only ever
+ * fires on a queue nobody has joined for an hour.
+ */
+const MATCH_QUEUE_TTL_SECONDS = 3600;
+
+/**
+ * How long a queue entry stays eligible. A socket that died without its
+ * disconnect handler running (a dyno restart, a lost cleanup) would otherwise
+ * sit at the head of the queue forever, matched and re-matched against nobody.
+ */
+const MATCH_ENTRY_STALE_MS = 120000;
+
 /** Hash: the room's whole game state. See ARCHITECTURE.md for the field list. */
 const roomKey = (room) => `room:${room}`;
 
@@ -72,6 +86,27 @@ const actionLockKey = (room) => `action_lock:${room}`;
  * against each other would be a bug of its own.
  */
 const pvpActionLockKey = (room, playerIndex) => `action_lock:${room}:p${playerIndex}`;
+
+/**
+ * Hash: everyone waiting for a quick match. Field = socket id, value = JSON
+ * {name, sessionId, queuedAt}.
+ *
+ * ONE queue rather than one per board configuration: a queue split twelve ways
+ * by size and difficulty is twelve empty queues at this traffic level, so quick
+ * match plays a fixed board (shared/boardConfig's DEFAULT_PRESET). Keyed by
+ * socket id so a second click is an overwrite rather than a second place in
+ * line.
+ */
+const matchQueueKey = () => 'matchmaking:queue';
+
+/**
+ * Lock: one pairing decision at a time.
+ *
+ * "Is anyone waiting, and if so take them" is one decision, exactly like the
+ * PVP capacity check. Unlocked, two players arriving together both read an
+ * empty queue and both sit down in it — each waiting for the other.
+ */
+const matchLockKey = () => 'matchmaking:lock';
 
 /*
  * The daily challenge is NOT modeled as a room: co-op rooms share one mutable
@@ -126,6 +161,8 @@ module.exports = {
     LOCK_TTL_SECONDS,
     ACTION_LOCK_TTL_SECONDS,
     DAILY_TTL_SECONDS,
+    MATCH_QUEUE_TTL_SECONDS,
+    MATCH_ENTRY_STALE_MS,
     roomKey,
     playerKey,
     sessionKey,
@@ -134,6 +171,8 @@ module.exports = {
     actionLockKey,
     pvpActionLockKey,
     joinLockKey,
+    matchQueueKey,
+    matchLockKey,
     pvpPlayerFields,
     dailyBoardKey,
     dailyLeaderboardKey,

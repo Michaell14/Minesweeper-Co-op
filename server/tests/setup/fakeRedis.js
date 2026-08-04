@@ -66,6 +66,14 @@ const createFakeRedis = () => {
             return Object.keys(fields).length;
         },
 
+        hDel: async (key, field) => {
+            await tick();
+            const hash = store.get(key);
+            if (!hash || hash[field] === undefined) return 0;
+            delete hash[field];
+            return 1;
+        },
+
         exists: async (key) => {
             await tick();
             return store.has(key) ? 1 : 0;

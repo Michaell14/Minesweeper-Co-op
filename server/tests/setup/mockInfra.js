@@ -16,6 +16,7 @@ jest.mock('../../utils/initializeRedisClient', () => ({
         hGet: jest.fn(),
         hGetAll: jest.fn(),
         hSet: jest.fn(),
+        hDel: jest.fn(),
         exists: jest.fn(),
         del: jest.fn(),
         // Locks are taken with SET NX, and a bare jest.fn() reports every one as
@@ -39,7 +40,11 @@ jest.mock('../../utils/initializeRedisClient', () => ({
 
 jest.mock('../../utils/initializeClient', () => ({
     app: { use: jest.fn(), get: jest.fn(), post: jest.fn(), put: jest.fn(), delete: jest.fn() },
-    io: { to: jest.fn(() => ({ emit: jest.fn() })), use: jest.fn() },
+    // `sockets.sockets` is socket.io's live connection map. Matchmaking reads it
+    // to tell a queued player who is still here from one who dropped without
+    // their cleanup running, so an empty map is the honest default: no test
+    // reaches a real connection by accident.
+    io: { to: jest.fn(() => ({ emit: jest.fn() })), use: jest.fn(), sockets: { sockets: new Map() } },
     server: { listen: jest.fn() },
 }));
 

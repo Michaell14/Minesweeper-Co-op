@@ -5,16 +5,16 @@ import { Button, Dialog, DialogClose, Input } from "@/components/ds";
 import { DIALOGS, closeDialog } from "@/lib/dialogs";
 
 export interface NameDialogProps {
-    id: typeof DIALOGS.nameCreate | typeof DIALOGS.nameJoin;
+    id: typeof DIALOGS.nameCreate | typeof DIALOGS.nameJoin | typeof DIALOGS.nameMatch;
     confirmLabel: string;
     onConfirm: () => void;
     setName: (name: string) => void;
 }
 
 /**
- * "Enter your Name", shown before both creating and joining — the two differ
- * only in which action they call. The ref reads the input without the dialog
- * needing to know its own id.
+ * "Enter your Name", shown before creating, joining and quick match — the three
+ * differ only in which action they call. The ref reads the input without the
+ * dialog needing to know its own id.
  */
 export default function NameDialog({ id, confirmLabel, onConfirm, setName }: NameDialogProps) {
     const inputRef = React.useRef<HTMLInputElement>(null);

@@ -116,6 +116,12 @@ export interface ClientToServerEvents {
     /** The only emit with no payload — the server uses the socket id. */
     playerLeave: () => void;
 
+    // --- Matchmaking ---
+    /** Join the quick-match queue. No room code: there is no room yet. */
+    findMatch: (payload: { name: string }) => void;
+    /** Leave the queue. Like `playerLeave`, the socket id is the whole payload. */
+    cancelMatch: () => void;
+
     // --- Daily challenge ---
     startDaily: (payload: { dailyAttemptToken: string }) => void;
     dailyOpenCell: (payload: DailyCellPayload) => void;
@@ -214,6 +220,18 @@ export interface ServerToClientEvents {
     pvpOpponentLeftBeforeStart: () => void;
     pvpHostTransferred: () => void;
     pvpRematchStarted: (payload: { totalSafeCells: number; isHost: boolean }) => void;
+
+    // --- Matchmaking ---
+    /**
+     * Queued, nobody to pair with yet. There is deliberately no `matchFound`:
+     * a pairing arrives as the ordinary `joinRoomSuccess` + `pvpRoomReady` a
+     * hand-made PVP room sends, so the client has one code path for both.
+     */
+    matchSearching: () => void;
+    /** Removed from the queue — the player's own cancel, or a leave/disconnect. */
+    matchCancelled: () => void;
+    /** The search could not proceed. Ends the wait rather than spinning forever. */
+    matchError: () => void;
 
     // --- Daily challenge ---
     dailyStarted: (payload: {

@@ -10,12 +10,17 @@ export interface RoomSlice {
     playerStatsInRoom: PlayerStats[];           // everyone's scores
     gameOverName: string;                       // who hit the mine
     playerHovers: Record<string, PlayerHover>;  // live hover state, by socket id
+    /** In the quick-match queue: waiting to be paired, not yet in a room.
+     *  Lives here rather than in its own slice because the only thing it
+     *  produces is a room, and it ends the moment `playerJoined` begins. */
+    matchSearching: boolean;
 
     setRoom: (newRoom: string) => void;
     setPlayerJoined: (isPlayerJoined: boolean) => void;
     setName: (newName: string) => void;
     setPlayerStatsInRoom: (newStats: PlayerStats[]) => void;
     setGameOverName: (gameOverName: string) => void;
+    setMatchSearching: (searching: boolean) => void;
     updatePlayerHover: (id: string, row: number, col: number, name: string, color: string) => void;
     removePlayerHover: (id: string) => void;
     clearAllHovers: () => void;
@@ -28,12 +33,14 @@ export const createRoomSlice: StateCreator<MinesweeperState, [], [], RoomSlice> 
     playerStatsInRoom: [],
     gameOverName: '',
     playerHovers: {},
+    matchSearching: false,
 
     setRoom: (newRoom) => set({ room: newRoom }),
     setPlayerJoined: (isPlayerJoined) => set({ playerJoined: isPlayerJoined }),
     setName: (newName) => set({ name: newName }),
     setPlayerStatsInRoom: (newStats) => set({ playerStatsInRoom: newStats }),
     setGameOverName: (gameOverName) => set({ gameOverName }),
+    setMatchSearching: (searching) => set({ matchSearching: searching }),
 
     updatePlayerHover: (id, row, col, name, color) =>
         set((state) => ({

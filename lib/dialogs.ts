@@ -24,6 +24,9 @@ export const DIALOGS = {
     // Owned by components/Landing.tsx
     nameCreate: 'dialog-name-create',
     nameJoin: 'dialog-name-join',
+    nameMatch: 'dialog-name-match',
+    matchSearching: 'dialog-match-searching',
+    matchError: 'dialog-match-error',
     custom: 'dialog-custom',
     customError: 'dialog-custom-error',
 
