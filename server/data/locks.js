@@ -80,8 +80,27 @@ const ACTION_LOCK_MAX_WAIT_MS = (ACTION_LOCK_TTL_SECONDS + 2) * 1000;
  * lock was held is exactly the stale snapshot the lock exists to guard against.
  *
  * A contender waits rather than being dropped — the player made that move and it
- * has to land. If the wait is exhausted, Redis itself is unhealthy; `fn` then
- * runs unlocked, which is better than discarding the move.
+ * has to land.
+ *
+ * **If the wait is exhausted the action is REFUSED, not run anyway.** It used to
+ * run unlocked, on the reasoning that an exhausted wait meant Redis was
+ * unhealthy and losing the move was the worse outcome. Both halves were wrong.
+ * The wait is exhausted by CONTENTION — the retry is a backoff spin, so an
+ * unlucky contender can starve while others keep winning the key — and running
+ * unlocked is exactly the overlapping read-modify-write this lock exists to
+ * prevent, so it does not lose one move, it loses whichever moves the racing
+ * writes happen to erase.
+ *
+ * Measured before this change: 203 daily cell opens fired together left 62 of
+ * them missing from the stored board, with no error anywhere, and the attempt
+ * could then never be completed — on the one attempt that player gets that day.
+ * A refused move leaves the board consistent and can simply be made again.
+ *
+ * Throwing rather than returning a sentinel because every caller already sits
+ * inside a try/catch that degrades correctly — a move is dropped and logged, a
+ * join answers joinRoomError, a quick match answers matchError. A sentinel
+ * would be read as a legitimate result: `withJoinLock` would report the room
+ * full, and `withMatchLock` would report a player queued who never was.
  *
  * NOT reentrant. `fn` must not call anything that takes the same key. Holding
  * two different action locks at once is fine and `pvpRematch` does it, but they
@@ -101,7 +120,7 @@ const withLock = async (key, owner, fn) => {
     } while (Date.now() < deadline);
 
     if (!held) {
-        console.error(`Lock ${key} never came free; running unlocked`);
+        throw new Error(`Lock ${key} never came free; action refused rather than run unlocked`);
     }
 
     try {
@@ -109,7 +128,7 @@ const withLock = async (key, owner, fn) => {
     } finally {
         // Ownership-checked: `fn` can outlive the lease, and a bare DEL would
         // then delete whichever move acquired the key next.
-        if (held) await releaseLockIfOwned(key, token);
+        await releaseLockIfOwned(key, token);
     }
 };
 
