@@ -333,10 +333,13 @@ describe('the practice race', () => {
         expect(await roomRepo.getField(joined.room, 'mode')).toBe('co-op');
         expect(alice.rooms.has(joined.room)).toBe(true);
 
-        // Nothing about a target reaches the server. If this ever starts being
-        // stored, the client stopped being the only thing that knows.
+        // The room records only HOW it was opened, the same way it records
+        // `mode`. The target itself never reaches the server -- if a time ever
+        // starts being stored, the client has stopped being the only thing that
+        // knows, and something server-side has started simulating an opponent.
         const state = await roomRepo.getState(joined.room);
-        expect(Object.keys(state).some((k) => /practice|target/i.test(k))).toBe(false);
+        expect(state.practice).toBe('true');
+        expect(Object.keys(state).some((k) => /target|opponent/i.test(k))).toBe(false);
     });
 
     test('leaves the queue, so a partner cannot arrive into an abandoned search', async () => {

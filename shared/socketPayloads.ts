@@ -158,12 +158,15 @@ export interface ServerToClientEvents {
          * This room was opened by `startPracticeRace`, so the client should
          * race a target time in it.
          *
-         * A label on the ANSWER, not state on the room — nothing about a target
-         * is stored server-side (see ARCHITECTURE.md §5). It exists because the
-         * client cannot otherwise tell which room a `joinRoomSuccess` describes:
-         * a player who asks for practice at the moment a real opponent is found
-         * gets the match's room instead, and deciding from the request alone
-         * would draw a target over a live PVP race.
+         * Room configuration, like `mode` — it records how the room was opened.
+         * The TARGET itself is never server-side and could not be: it comes out
+         * of the player's own browser records. See ARCHITECTURE.md §5.
+         *
+         * Sent on a fresh practice start and again on every later join of that
+         * room, which is what a reload rides back in on. The client cannot infer
+         * it: a player who asks for practice at the moment a real opponent is
+         * found gets the MATCH's room instead, and deciding from the request
+         * alone would draw a target over a live PVP race.
          */
         practice?: boolean;
     }) => void;

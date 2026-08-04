@@ -268,15 +268,21 @@ const startPracticeRace = async ({ socket, name }) => {
         const { rows, cols, mines } = DEFAULT_PRESET;
 
         await createRoom(room, rows, cols, mines, 'co-op');
+        /*
+         * Room CONFIGURATION, the same shape of thing as `mode` and `noGuess`:
+         * it records how the room was opened and nothing else. The server still
+         * has no target — no time, no opponent, no bar — and could not have one,
+         * since the target comes out of the player's own browser records.
+         *
+         * Stored rather than merely announced because a reload has to find its
+         * way back. A resume re-joins through the ordinary `joinRoom` handler,
+         * which knows only what the room says; without this the board, clock and
+         * score all came back and the opponent silently did not.
+         */
+        await roomRepo.setFields(room, { practice: 'true' });
         socket.join(room);
         await addPlayerToRoom(room, socket.id, displayName, socket.handshake.auth?.sessionId);
 
-        // `practice` labels this ANSWER, and is the only thing that
-        // distinguishes it from any other co-op room -- nothing is stored. The
-        // client needs it because it cannot tell otherwise: a player who asks
-        // for practice just as a real opponent turns up is answered with the
-        // MATCH's room, and a target drawn over a live PVP race is exactly the
-        // fake opponent this feature exists to avoid.
         socket.emit(SERVER_EVENTS.JOIN_ROOM_SUCCESS, {
             room,
             mode: 'co-op',

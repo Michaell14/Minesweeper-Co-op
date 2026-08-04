@@ -295,6 +295,9 @@ Redis client directly.
 `startedAt`/`endedAt` are the run clock, as epoch milliseconds. They are
 timestamps rather than an elapsed count on purpose — see §5.
 
+A practice race adds `practice` — how the room was opened, never the target it
+races. See §5.
+
 PVP adds: `pvpStarted` `hostSocket` `player1Socket` `player2Socket` `player{1,2}Board` `player{1,2}Initialized` `player{1,2}GameOver` `player{1,2}GameWon` `player{1,2}Progress` `totalSafeCells` `winnerSocket` `sharedBoardSeed` *(written, never read)*
 
 PVP additionally stores `sharedBoard` and `sharedOpenedCells`: the pristine
@@ -572,12 +575,26 @@ need no explanation — the wait offers a solo board paced against a target time
 The target is that player's own best on those dimensions, or a fixed par when
 they have none, labelled as par rather than dressed up as theirs.
 
-None of this reaches the server. `startPracticeRace` mints a `SOLO-` room,
-creates an ordinary **co-op** room at `DEFAULT_PRESET` and answers with a plain
-`joinRoomSuccess`; board generation, cell actions, the clock, the win check and
-best-time recording then all work untouched, and no room field records that a
-target exists. The target bar is drawn client-side by
+`startPracticeRace` mints a `SOLO-` room, creates an ordinary **co-op** room at
+`DEFAULT_PRESET` and answers with a plain `joinRoomSuccess`; board generation,
+cell actions, the clock, the win check and best-time recording then all work
+untouched. The target bar is drawn client-side by
 `components/game/PracticeProgress.tsx` from the run clock and `lib/practice.ts`.
+
+**The room records how it was opened; it never records the target.** One
+boolean, `practice`, alongside `mode` and `noGuess` — the server has no time, no
+opponent and no bar, and could not have the target at all, since it comes out of
+the player's own browser records. It is stored rather than merely announced
+because a reload has to find its way back: a resume re-joins through the
+ordinary `joinRoom` handler, which knows only what the room says, so without it
+the board, clock and score all returned while the opponent silently did not.
+
+**The target belongs to the room, not to the click.** It is resolved in the
+`joinRoomSuccess` handler from whichever room arrives, and an unlabelled room
+clears it. Set optimistically when the player *asked*, it outlived every way the
+request could fail to produce a room — a refused start left it standing over the
+next ordinary room, and a player pulled into a real match got a target drawn on
+top of a live PVP race.
 
 That works because **a PVP opponent was never more than a percentage** —
 `pvpOpponentProgress` carries nothing else, and no client ever sees an
