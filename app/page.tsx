@@ -46,6 +46,7 @@ export default function Home() {
                     startDaily={actions.startDaily}
                     findMatch={actions.findMatch}
                     cancelMatch={actions.cancelMatch}
+                    startPracticeRace={actions.startPracticeRace}
                 />
             ) : (
                 <Grid

@@ -34,6 +34,9 @@ jest.mock('../utils/initializeClient', () => ({
     io: {
         use: jest.fn(),
         sockets: { sockets: mockConnected },
+        // socket.io's own connected count, which is what "is anyone around"
+        // reads. Derived from the same map so the two cannot disagree.
+        engine: { get clientsCount() { return mockConnected.size; } },
         to: (target) => ({ emit: (event, payload) => record(target, event, payload) }),
     },
     server: { listen: jest.fn() },
@@ -51,7 +54,7 @@ jest.mock('../utils/playerUtils', () => {
     };
 });
 
-const { findMatch, cancelMatch, leaveQueue } = require('../controllers/matchmakingController');
+const { findMatch, cancelMatch, startPracticeRace, leaveQueue } = require('../controllers/matchmakingController');
 const matchRepo = require('../data/matchRepo');
 const roomRepo = require('../data/roomRepo');
 const playerRepo = require('../data/playerRepo');
@@ -138,6 +141,10 @@ describe('two searchers', () => {
 
         expect(aliceJoin.room).toBe(bobJoin.room);
         expect(aliceJoin.mode).toBe('pvp');
+        // A match is never a practice room. If this ever went true, a racer
+        // would get a target bar drawn over a live opponent.
+        expect(aliceJoin.practice).toBeUndefined();
+        expect(bobJoin.practice).toBeUndefined();
         // Alice waited, so Alice presses Start.
         expect(aliceJoin.isHost).toBe(true);
         expect(bobJoin.isHost).toBe(false);
@@ -277,6 +284,103 @@ describe('entries that have gone bad', () => {
         await findMatch({ socket: alice, name: 'Alice' });
 
         expect((await matchRepo.listWaiting()).map((w) => w.socketId)).toEqual(['alice']);
+    });
+});
+
+describe('what a waiting player is told', () => {
+    test('the count is who is ONLINE, not who is queued', async () => {
+        // A queue depth would be useless here and always zero: reaching
+        // matchSearching means nobody pairable was found, and anyone arriving
+        // later pairs instantly rather than queueing alongside. Two other
+        // sockets are connected and neither is searching -- exactly the state
+        // the number exists to describe.
+        makeSocket('idle-one');
+        makeSocket('idle-two');
+        const alice = makeSocket('alice');
+
+        await findMatch({ socket: alice, name: 'Alice' });
+
+        expect(payloadOf('alice', SERVER_EVENTS.MATCH_SEARCHING)).toEqual({ othersOnline: 2 });
+    });
+
+    test('a lone player is told they are alone', async () => {
+        const alice = makeSocket('alice');
+
+        await findMatch({ socket: alice, name: 'Alice' });
+
+        expect(payloadOf('alice', SERVER_EVENTS.MATCH_SEARCHING)).toEqual({ othersOnline: 0 });
+    });
+});
+
+describe('the practice race', () => {
+    test('opens a CO-OP room holding just the one player', async () => {
+        const alice = makeSocket('alice');
+
+        await startPracticeRace({ socket: alice, name: 'Alice' });
+
+        const joined = payloadOf('alice', SERVER_EVENTS.JOIN_ROOM_SUCCESS);
+        expect(joined.mode).toBe('co-op');
+        expect(joined.numRows).toBe(DEFAULT_PRESET.rows);
+        expect(joined.numMines).toBe(DEFAULT_PRESET.mines);
+        // The label the client reads to decide whether to draw a target. It is
+        // on the ANSWER, not the room -- see the state assertion below.
+        expect(joined.practice).toBe(true);
+
+        // A co-op room of one, which the app has always supported -- that is
+        // what makes board generation, the clock and the win check work here
+        // with no practice-specific server code at all.
+        expect(await roomRepo.getPlayers(joined.room)).toEqual(['alice']);
+        expect(await roomRepo.getField(joined.room, 'mode')).toBe('co-op');
+        expect(alice.rooms.has(joined.room)).toBe(true);
+
+        // The room records only HOW it was opened, the same way it records
+        // `mode`. The target itself never reaches the server -- if a time ever
+        // starts being stored, the client has stopped being the only thing that
+        // knows, and something server-side has started simulating an opponent.
+        const state = await roomRepo.getState(joined.room);
+        expect(state.practice).toBe('true');
+        expect(Object.keys(state).some((k) => /target|opponent/i.test(k))).toBe(false);
+    });
+
+    test('leaves the queue, so a partner cannot arrive into an abandoned search', async () => {
+        const alice = makeSocket('alice');
+        await findMatch({ socket: alice, name: 'Alice' });
+        expect((await matchRepo.listWaiting()).map((w) => w.socketId)).toEqual(['alice']);
+
+        await startPracticeRace({ socket: alice, name: 'Alice' });
+
+        expect(await matchRepo.listWaiting()).toEqual([]);
+    });
+
+    test('does not collide with a quick-match room', async () => {
+        const alice = makeSocket('alice');
+        const bob = makeSocket('bob');
+        await findMatch({ socket: alice, name: 'Alice' });
+        await findMatch({ socket: bob, name: 'Bob' });
+        const matchRoom = payloadOf('alice', SERVER_EVENTS.JOIN_ROOM_SUCCESS).room;
+
+        const carol = makeSocket('carol');
+        await startPracticeRace({ socket: carol, name: 'Carol' });
+        const soloRoom = payloadOf('carol', SERVER_EVENTS.JOIN_ROOM_SUCCESS).room;
+
+        expect(soloRoom).not.toBe(matchRoom);
+    });
+
+    test('is refused while already in a room', async () => {
+        const alice = makeSocket('alice');
+        await playerRepo.create('alice', { room: 'SOMEWHERE', name: 'Alice', sessionId: 's' });
+
+        await startPracticeRace({ socket: alice, name: 'Alice' });
+
+        expect(eventsFor('alice')).toEqual([SERVER_EVENTS.MATCH_ERROR]);
+    });
+
+    test('a name of nothing but spaces is refused, like every other name', async () => {
+        const alice = makeSocket('alice');
+
+        await startPracticeRace({ socket: alice, name: '   ' });
+
+        expect(eventsFor('alice')).toEqual([SERVER_EVENTS.MATCH_ERROR]);
     });
 });
 

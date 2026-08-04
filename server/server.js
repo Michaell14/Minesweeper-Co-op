@@ -5,7 +5,7 @@ const { createRoom, resetGame } = require('./utils/gameUtils');
 const { openCell, chordCell, toggleFlag } = require('./game');
 const { startPvpGame, resetMyBoard, pvpRematch } = require('./controllers/pvpController');
 const { offerResume, forgetRoom } = require('./controllers/sessionController');
-const { findMatch, cancelMatch, leaveQueue } = require('./controllers/matchmakingController');
+const { findMatch, cancelMatch, startPracticeRace, leaveQueue } = require('./controllers/matchmakingController');
 const { resolveSocketUser, registerProfileRoutes } = require('./controllers/profileController');
 const { registerSettingsRoutes } = require('./controllers/settingsController');
 const { registerThemesRoutes } = require('./controllers/themesController');
@@ -171,13 +171,17 @@ io.on('connection', async (socket) => {
             const joinedState = await roomRepo.getState(room);
             const isHost = mode === 'pvp' && joinedState.hostSocket === socket.id;
             // The dimensions come along so the joiner's flag counter is right.
+            // `practice` likewise: a reload resumes through THIS handler, and
+            // without it the board, clock and score all came back while the
+            // target the player was racing silently did not.
             socket.emit(SERVER_EVENTS.JOIN_ROOM_SUCCESS, {
                 room,
                 mode,
                 isHost,
                 numRows: parseInt(joinedState.numRows),
                 numCols: parseInt(joinedState.numCols),
-                numMines: parseInt(joinedState.numMines)
+                numMines: parseInt(joinedState.numMines),
+                ...(joinedState.practice === 'true' && { practice: true })
             });
 
             if (mode === 'pvp') {
@@ -331,6 +335,10 @@ io.on('connection', async (socket) => {
 
     socket.on(CLIENT_EVENTS.CANCEL_MATCH, async () => {
         await cancelMatch({ socket });
+    });
+
+    socket.on(CLIENT_EVENTS.START_PRACTICE_RACE, async ({ name }) => {
+        await startPracticeRace({ socket, name });
     });
 
     // --- Daily challenge: NOT room-scoped, see server/data/keys.js ---

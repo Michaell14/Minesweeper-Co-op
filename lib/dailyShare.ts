@@ -1,4 +1,5 @@
 import type { DailyAttemptStatus } from "@/shared/socketPayloads";
+import { formatElapsed } from "@/lib/gameClock";
 
 export interface ShareableDailyResult {
     date: string;
@@ -7,14 +8,6 @@ export interface ShareableDailyResult {
     rank: number | null;
     totalEntries: number | null;
 }
-
-/** mm:ss for an elapsed-time value. Also used by the daily timer and leaderboard. */
-export const formatElapsed = (ms: number) => {
-    const totalSeconds = Math.floor(Math.max(ms, 0) / 1000);
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = totalSeconds % 60;
-    return `${minutes}:${seconds.toString().padStart(2, "0")}`;
-};
 
 /**
  * Wordle-style share text: outcome and time only, never the board. Everyone

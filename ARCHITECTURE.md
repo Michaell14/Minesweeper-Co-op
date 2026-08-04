@@ -295,6 +295,9 @@ Redis client directly.
 `startedAt`/`endedAt` are the run clock, as epoch milliseconds. They are
 timestamps rather than an elapsed count on purpose — see §5.
 
+A practice race adds `practice` — how the room was opened, never the target it
+races. See §5.
+
 PVP adds: `pvpStarted` `hostSocket` `player1Socket` `player2Socket` `player{1,2}Board` `player{1,2}Initialized` `player{1,2}GameOver` `player{1,2}GameWon` `player{1,2}Progress` `totalSafeCells` `winnerSocket` `sharedBoardSeed` *(written, never read)*
 
 PVP additionally stores `sharedBoard` and `sharedOpenedCells`: the pristine
@@ -370,6 +373,7 @@ token** (the daily challenge) instead.
 | `playerLeave` | — | `server.js:293` |
 | `findMatch` | `{name}` — no room; there is not one yet | `matchmakingController.js` |
 | `cancelMatch` | — | `matchmakingController.js` |
+| `startPracticeRace` | `{name}` — answered with a plain `joinRoomSuccess` | `matchmakingController.js` |
 | `startDaily` | `{dailyAttemptToken}` — no date; the server uses its own UTC day | `dailyController.js` |
 | `dailyOpenCell` / `dailyChordCell` / `dailyToggleFlag` | `{dailyAttemptToken, date, row, col}` | `game/daily.js` |
 | `submitDailyScore` | `{dailyAttemptToken, date, name}` | `dailyController.js` |
@@ -421,7 +425,7 @@ Shapes are typed in `shared/socketPayloads.ts` (`ClientToServerEvents`).
 
 | Event | Payload |
 |---|---|
-| `matchSearching` | — (queued, nobody to pair with yet) |
+| `matchSearching` | `{othersOnline}` — queued, nobody to pair with yet |
 | `matchCancelled` | — |
 | `matchError` | — (ends the wait rather than spinning forever) |
 
@@ -552,6 +556,53 @@ All three are pruned on the way past — a player record existing *is* being in 
 room. `server/tests/matchmaking.test.js` drives overlapping searches through a
 Redis fake that resolves on the event loop, for the same reason
 `coopConcurrency.test.js` does.
+
+### When nobody is there to match
+
+At low traffic the common quick-match outcome is nobody, so two things soften it.
+
+**The wait says what is knowably true.** "No one else is searching right now"
+is not a guess — reaching `matchSearching` *means* the queue held nobody
+pairable, and anyone arriving later pairs immediately rather than queueing
+alongside. **A queue depth would therefore always be zero and say nothing**; the
+number that changes what a player should do is whether anyone is around at all,
+so the payload carries `othersOnline` (connected sockets minus this one) rather
+than a queue size.
+
+**The practice race is a co-op room with one player.** After 20 seconds — or
+immediately, for a player who already holds a record on the board, since they
+need no explanation — the wait offers a solo board paced against a target time.
+The target is that player's own best on those dimensions, or a fixed par when
+they have none, labelled as par rather than dressed up as theirs.
+
+`startPracticeRace` mints a `SOLO-` room, creates an ordinary **co-op** room at
+`DEFAULT_PRESET` and answers with a plain `joinRoomSuccess`; board generation,
+cell actions, the clock, the win check and best-time recording then all work
+untouched. The target bar is drawn client-side by
+`components/game/PracticeProgress.tsx` from the run clock and `lib/practice.ts`.
+
+**The room records how it was opened; it never records the target.** One
+boolean, `practice`, alongside `mode` and `noGuess` — the server has no time, no
+opponent and no bar, and could not have the target at all, since it comes out of
+the player's own browser records. It is stored rather than merely announced
+because a reload has to find its way back: a resume re-joins through the
+ordinary `joinRoom` handler, which knows only what the room says, so without it
+the board, clock and score all returned while the opponent silently did not.
+
+**The target belongs to the room, not to the click.** It is resolved in the
+`joinRoomSuccess` handler from whichever room arrives, and an unlabelled room
+clears it. Set optimistically when the player *asked*, it outlived every way the
+request could fail to produce a room — a refused start left it standing over the
+next ordinary room, and a player pulled into a real match got a target drawn on
+top of a live PVP race.
+
+That works because **a PVP opponent was never more than a percentage** —
+`pvpOpponentProgress` carries nothing else, and no client ever sees an
+opponent's board. So a time renders identically to a live racer without
+anything pretending a second player exists. The corollary is the design rule:
+it is a *target*, never a bot with a name. A practice clear does record a
+personal best and account stats, because it is a genuine solo clear of a real
+no-guess board — what is deliberately never written is a fake opponent result.
 
 ### Daily challenge
 

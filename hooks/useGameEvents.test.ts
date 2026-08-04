@@ -2,7 +2,7 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { useMinesweeperStore } from "@/app/store";
 import { CLIENT_EVENTS, SERVER_EVENTS } from "@/shared/events";
-import { boardKey, clearBestTimes, readBestTime } from "@/lib/bestTimes";
+import { boardKey, clearBestTimes, readBestTime, recordBestTime } from "@/lib/bestTimes";
 import { useGameEvents } from "./useGameEvents";
 import type { AppSocket } from "@/lib/initSocket";
 
@@ -190,5 +190,82 @@ describe("filing a clear as a personal best", () => {
         expect(useMinesweeperStore.getState().bestTimeResult?.improved).toBe(true);
         expect(readBestTime(boardKey(BOARD.rows, BOARD.cols, BOARD.mines))?.seconds).toBe(300);
         expect(readBestTime(boardKey(BOARD.rows, BOARD.cols, BOARD.mines, 2))?.seconds).toBe(60);
+    });
+});
+
+/**
+ * Which room a practice target belongs to.
+ *
+ * The target used to be set when the player ASKED for practice, which is a
+ * request rather than a room — and a request can be refused, or overtaken by a
+ * real opponent arriving in the same round trip. Either way the target outlived
+ * the thing it was for: the next ordinary room drew a "Par" bar nobody had
+ * asked for, and a player pulled into a live PVP race got one over the top of
+ * it. Nothing errored; there was simply a second bar pacing a time that meant
+ * nothing.
+ *
+ * So it is read from the room that actually arrives, and `practice` on the
+ * answer is the only thing that puts one there.
+ */
+describe("the practice target follows the room, not the request", () => {
+    const PRACTICE_BOARD = { rows: 16, cols: 16, mines: 40 };
+
+    const join = (extra: Record<string, unknown>) => {
+        const handlers = useGameEvents(fakeSocket(), vi.fn());
+        handlers[SERVER_EVENTS.JOIN_ROOM_SUCCESS]!({
+            room: "r",
+            mode: "co-op",
+            numRows: PRACTICE_BOARD.rows,
+            numCols: PRACTICE_BOARD.cols,
+            numMines: PRACTICE_BOARD.mines,
+            ...extra,
+        });
+    };
+
+    beforeEach(() => {
+        clearBestTimes();
+        useMinesweeperStore.getState().setPracticeTarget(null);
+    });
+
+    test("a labelled room gets one", () => {
+        join({ practice: true });
+
+        expect(useMinesweeperStore.getState().practiceTargetMs).toBeGreaterThan(0);
+    });
+
+    test("it is the player's own record when they have one", () => {
+        recordBestTime(boardKey(PRACTICE_BOARD.rows, PRACTICE_BOARD.cols, PRACTICE_BOARD.mines), {
+            seconds: 111,
+            players: 1,
+            at: 1,
+        });
+
+        join({ practice: true });
+
+        expect(useMinesweeperStore.getState().practiceTargetMs).toBe(111_000);
+        expect(useMinesweeperStore.getState().practiceTargetIsPersonal).toBe(true);
+    });
+
+    test("an ordinary room CLEARS one left over from a refused request", () => {
+        join({ practice: true });
+        expect(useMinesweeperStore.getState().practiceTargetMs).not.toBeNull();
+
+        // The player's practice start failed, they went back to Landing and
+        // made a normal room. It must not inherit the target.
+        join({});
+
+        expect(useMinesweeperStore.getState().practiceTargetMs).toBeNull();
+    });
+
+    test("being pulled into a PVP race instead never draws a target", () => {
+        // Stands in for the target the client used to set the moment practice
+        // was CLICKED. The player asked for practice just as a real opponent
+        // turned up, so the room that arrives is the match's -- and a bar here
+        // would be the fake opponent this whole feature is built to avoid.
+        useMinesweeperStore.getState().setPracticeTarget({ ms: 480_000, isPersonal: false });
+
+        join({ mode: "pvp", isHost: false });
+
+        expect(useMinesweeperStore.getState().practiceTargetMs).toBeNull();
     });
 });

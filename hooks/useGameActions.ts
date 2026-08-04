@@ -136,6 +136,9 @@ export function useGameActions(socket: AppSocket | null) {
         // the server catches an arriving player up with `gameWon`, and the
         // handler had a stale clock to read.
         store.setClock({ startedAt: null, endedAt: null });
+        // The target belongs to the run being left. Joining anywhere else
+        // resets it too, but leaving lands on Landing and joins nothing.
+        store.setPracticeTarget(null);
     }, [socket]);
 
     const createRoom = useCallback(() => {
@@ -172,6 +175,23 @@ export function useGameActions(socket: AppSocket | null) {
         if (!socket) return;
         useMinesweeperStore.getState().setMatchSearching(false);
         socket.emit(CLIENT_EVENTS.CANCEL_MATCH);
+    }, [socket]);
+
+    /**
+     * Give up on finding an opponent and race a target time instead.
+     *
+     * Sets no target: this is a REQUEST, and a request is not a room. It can be
+     * refused, and it can be overtaken by a real opponent arriving in the same
+     * round trip — in which case the room that turns up is a PVP race. The
+     * target is read from whichever room actually arrives, in the
+     * `joinRoomSuccess` handler.
+     */
+    const startPracticeRace = useCallback(() => {
+        const { name } = useMinesweeperStore.getState();
+        if (!name || !socket) return;
+
+        useMinesweeperStore.getState().setMatchSearching(false);
+        socket.emit(CLIENT_EVENTS.START_PRACTICE_RACE, { name });
     }, [socket]);
 
     /** No room, no action. */
@@ -343,6 +363,7 @@ export function useGameActions(socket: AppSocket | null) {
         joinRoom,
         findMatch,
         cancelMatch,
+        startPracticeRace,
         openCell,
         chordCell,
         toggleFlag,

@@ -2,7 +2,8 @@ import React from 'react';
 import { useMinesweeperStore } from '@/app/store';
 import { Button, DialogClose, Dialog, Field, Input, Table } from '@/components/ds';
 import { DIALOGS, openDialog, closeDialog } from '@/lib/dialogs';
-import { buildDailyShareText, shareDailyResult, formatElapsed } from '@/lib/dailyShare';
+import { buildDailyShareText, shareDailyResult } from '@/lib/dailyShare';
+import { formatElapsed } from '@/lib/gameClock';
 
 interface DailyDialogsParams {
     submitDailyScore: (name: string) => void;

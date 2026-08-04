@@ -7,6 +7,7 @@ import { cursorColorForId } from "@/lib/theme";
 import { DIALOGS, openDialog, closeDialog } from "@/lib/dialogs";
 import { boardKey, playersForClear, recordBestTime } from "@/lib/bestTimes";
 import { elapsedSeconds } from "@/lib/gameClock";
+import { practiceTargetFor } from "@/lib/practice";
 import { CLIENT_EVENTS, SERVER_EVENTS } from "@/shared/events";
 import type { AppSocket } from "@/lib/initSocket";
 import type { CellUpdate } from "@/shared/socketPayloads";
@@ -118,6 +119,19 @@ const coopHandlers = (socket: AppSocket, leaveRoom: () => void): SocketHandlers 
         if (data.numRows && data.numCols && data.numMines) {
             store.setDimensions(data.numRows, data.numCols, data.numMines);
         }
+        /*
+         * The target is resolved HERE, on arrival, rather than when the player
+         * asks for one — a request is not a room. Set at click time it outlived
+         * every way the request could fail to produce the room it wanted: a
+         * refused practice start left it standing, and the next ordinary room
+         * drew a target nobody had asked for. Reading it from the room actually
+         * joined means an unlabelled room always clears it.
+         */
+        store.setPracticeTarget(
+            data.practice && data.numRows && data.numCols && data.numMines !== undefined
+                ? practiceTargetFor(data.numRows, data.numCols, data.numMines)
+                : null,
+        );
         store.setPlayerJoined(true);
     },
 
@@ -274,7 +288,11 @@ const pvpHandlers = (socket: AppSocket): SocketHandlers => ({
 const matchHandlers = (): SocketHandlers => ({
     // Queued, nobody to pair with yet. The dialog is already open (see
     // `findMatch`); this only confirms the server agrees a search is running.
-    [SERVER_EVENTS.MATCH_SEARCHING]: () => useMinesweeperStore.getState().setMatchSearching(true),
+    [SERVER_EVENTS.MATCH_SEARCHING]: ({ othersOnline }) => {
+        const store = useMinesweeperStore.getState();
+        store.setMatchSearching(true);
+        store.setMatchOthersOnline(othersOnline);
+    },
 
     [SERVER_EVENTS.MATCH_CANCELLED]: () => {
         useMinesweeperStore.getState().setMatchSearching(false);

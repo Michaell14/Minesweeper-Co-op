@@ -34,7 +34,6 @@ export default function GameSummary() {
 
     const { ownProgress, safeCells, ownProgressPercent, opponentProgressPercent } = useGameStats();
 
-    const percent = safeCells === 0 ? 0 : Math.round((ownProgress / safeCells) * 100);
     const duration =
         startedAt !== null && endedAt !== null ? formatClock(elapsedSeconds(startedAt, endedAt)) : null;
 
@@ -51,7 +50,7 @@ export default function GameSummary() {
                     </>
                 ) : (
                     <>
-                        <Stat label="Cleared" value={`${percent}%`} />
+                        <Stat label="Cleared" value={`${ownProgressPercent}%`} />
                         <Stat label="Cells" value={`${ownProgress}/${safeCells}`} />
                     </>
                 )}

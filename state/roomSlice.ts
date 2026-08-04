@@ -14,6 +14,16 @@ export interface RoomSlice {
      *  Lives here rather than in its own slice because the only thing it
      *  produces is a room, and it ends the moment `playerJoined` begins. */
     matchSearching: boolean;
+    /** Connected players other than you, as of the last `matchSearching`. */
+    matchOthersOnline: number;
+    /**
+     * The time this run is racing, in ms, or null when it is not a practice
+     * race. Non-null is what makes the room a practice race — the SERVER has no
+     * such concept, it just built a co-op room of one.
+     */
+    practiceTargetMs: number | null;
+    /** Whether `practiceTargetMs` is the player's own record or the fixed par. */
+    practiceTargetIsPersonal: boolean;
 
     setRoom: (newRoom: string) => void;
     setPlayerJoined: (isPlayerJoined: boolean) => void;
@@ -21,6 +31,8 @@ export interface RoomSlice {
     setPlayerStatsInRoom: (newStats: PlayerStats[]) => void;
     setGameOverName: (gameOverName: string) => void;
     setMatchSearching: (searching: boolean) => void;
+    setMatchOthersOnline: (others: number) => void;
+    setPracticeTarget: (target: { ms: number; isPersonal: boolean } | null) => void;
     updatePlayerHover: (id: string, row: number, col: number, name: string, color: string) => void;
     removePlayerHover: (id: string) => void;
     clearAllHovers: () => void;
@@ -34,6 +46,9 @@ export const createRoomSlice: StateCreator<MinesweeperState, [], [], RoomSlice> 
     gameOverName: '',
     playerHovers: {},
     matchSearching: false,
+    matchOthersOnline: 0,
+    practiceTargetMs: null,
+    practiceTargetIsPersonal: false,
 
     setRoom: (newRoom) => set({ room: newRoom }),
     setPlayerJoined: (isPlayerJoined) => set({ playerJoined: isPlayerJoined }),
@@ -41,6 +56,13 @@ export const createRoomSlice: StateCreator<MinesweeperState, [], [], RoomSlice> 
     setPlayerStatsInRoom: (newStats) => set({ playerStatsInRoom: newStats }),
     setGameOverName: (gameOverName) => set({ gameOverName }),
     setMatchSearching: (searching) => set({ matchSearching: searching }),
+    setMatchOthersOnline: (others) => set({ matchOthersOnline: others }),
+
+    setPracticeTarget: (target) =>
+        set({
+            practiceTargetMs: target?.ms ?? null,
+            practiceTargetIsPersonal: target?.isPersonal ?? false,
+        }),
 
     updatePlayerHover: (id, row, col, name, color) =>
         set((state) => ({

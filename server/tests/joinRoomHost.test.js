@@ -12,7 +12,8 @@
  * player — the host — as the guest, and sent the host's pvpRoomReady to a dead
  * socket. Neither player could start the game.
  *
- * This is the only test that drives server.js's own socket handlers. They are
+ * One of two tests that drive server.js's own socket handlers (the other is
+ * practiceResume.test.js). They are
  * registered inside `io.on('connection')`, so the connection callback is
  * captured from the mocked io and invoked with a fake socket; the Redis fake
  * gives it a real store, which is what makes a stale read observable at all.
