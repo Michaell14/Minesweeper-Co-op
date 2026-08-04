@@ -75,10 +75,22 @@ const reveal = async (board, r, c, room, socketId, toUpdate, playerIndex) => {
     await stopFor(room, socketId);
     io.to(socketId).emit(SERVER_EVENTS.PVP_GAME_OVER);
 
-    // This player's game is over, so reveal their mines -- to them only. The
-    // opponent is still playing on their own board and learns nothing.
+    /*
+     * Deliberately NOT revealMines, unlike co-op and the daily.
+     *
+     * A PVP loss is not terminal: `resetMyBoard` puts this player back on the
+     * SAME shared layout to carry on racing. Revealing here therefore handed
+     * them the answer key mid-race -- die on the second click, read all ten
+     * mines, reset, clear the board with perfect knowledge, take the win off an
+     * opponent who was playing it straight. Reproduced end to end.
+     *
+     * They still see where they died: `revealFrom` opens the mine it hits, and
+     * projection tells the truth about open cells, so that one is visible and
+     * the rest are not. The whole board arrives at the moment the race is
+     * actually decided -- see `revealToLoser`.
+     */
     io.to(socketId).emit(SERVER_EVENTS.PVP_BOARD_UPDATE, {
-        board: projectBoard(board, { revealMines: true }),
+        board: projectBoard(board),
         playerIndex,
     });
 
@@ -114,10 +126,10 @@ const raceIsOver = (roomState) => Boolean(roomState.winnerSocket);
 /**
  * Shows the loser the board they were racing on.
  *
- * Every other way a game ends here reveals it: co-op broadcasts a revealed board
- * on a loss, and a racer who detonates gets theirs back with the mines in it.
- * Losing the race was the one terminal state that left the player staring at a
- * half-played grid they could no longer do anything with.
+ * This is the ONLY place a PVP board is revealed, and the reason is that this
+ * is the only moment a PVP game is genuinely over. Detonating is not: that
+ * player can `resetMyBoard` and keep racing the same layout, which is why the
+ * reveal there was an exploit rather than a courtesy.
  *
  * Their own board, not the winner's — the two have diverged through play, and
  * projection is allowed to reveal it only because the race is now over for them

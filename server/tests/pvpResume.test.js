@@ -158,14 +158,41 @@ describe('a racer returning on a new socket', () => {
         expect(closedMine.isMine).toBe(false);
     });
 
-    test('a board they already lost on comes back revealed', async () => {
+    /*
+     * This asserted the opposite until a bug bash played it out: a racer who
+     * has detonated can `resetMyBoard` and carry on racing the SAME layout, so
+     * handing them the mines is handing them the answer key. Die on purpose,
+     * reload, read the board, reset, win — demonstrated against a real server.
+     * A PVP loss is not terminal; only a decided race is.
+     */
+    test('a board they lost on stays hidden while the race is still live', async () => {
         arrange({ player1GameOver: 'true' });
 
         await addPlayerToRoom(ROOM, NEW_SOCKET, 'Racer', SESSION);
 
         const [payload] = emitted('pvpBoardUpdate');
-        expect(payload.board[0][0].isMine).toBe(true);
+        expect(payload.board[0][0].isMine).toBe(false);
+        // They are still told they are out — only the layout is withheld.
         expect(emitted('pvpGameOver')).toHaveLength(1);
+    });
+
+    test('once the race is decided it comes back revealed', async () => {
+        arrange({ player1GameOver: 'true', winnerSocket: RIVAL });
+
+        await addPlayerToRoom(ROOM, NEW_SOCKET, 'Racer', SESSION);
+
+        const [payload] = emitted('pvpBoardUpdate');
+        expect(payload.board[0][0].isMine).toBe(true);
+    });
+
+    test('a board they WON on comes back revealed', async () => {
+        // Nothing to exploit: they cleared it, and cannot reset into an edge.
+        arrange({ player1GameWon: 'true' });
+
+        await addPlayerToRoom(ROOM, NEW_SOCKET, 'Racer', SESSION);
+
+        const [payload] = emitted('pvpBoardUpdate');
+        expect(payload.board[0][0].isMine).toBe(true);
     });
 
     test('a race decided while they were away is replayed to them', async () => {

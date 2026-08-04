@@ -266,7 +266,7 @@ through `projectBoard` / `projectCells` in `domain/board.js` first:
 |---|---|---|---|
 | open | real | real | real |
 | closed | always `false` | always `0` | real (flags are shared state) |
-| any, once that player's game is over or won | real | real | real |
+| any, once that player's game is genuinely OVER | real | real | real |
 
 Closed cells hide `nearbyMines` as well as `isMine` — the neighbour count of an
 unopened cell is nearly as good as the answer, since it lets you solve the board
@@ -275,9 +275,22 @@ offline.
 **Consequence for terminal states:** because clients are no longer told the
 layout up front, the server must actively push a revealed board when a game
 ends, or the UI would show a single detonated mine and nothing else. That is why
-`coop.reveal` emits a revealed `boardUpdate` to the room on a loss, `pvp.reveal`
-emits a revealed `pvpBoardUpdate` to the losing player only, and `checkWin` emits
-a revealed board on a win.
+`coop.reveal` emits a revealed `boardUpdate` to the room on a loss, and
+`checkWin` emits a revealed board on a win.
+
+> **"Over" is per mode, and PVP is the odd one out.** A co-op loss ends the
+> room's game and a daily attempt is one per day, so in both a detonation really
+> is the end. A PVP detonation is not: `resetMyBoard` puts that racer back on
+> the SAME shared layout to carry on racing. Revealing to them there was an
+> answer key — die on the second click, read every mine, reset, clear it with
+> perfect knowledge, take the win off an opponent playing it straight. Found by
+> playing it out against a real server.
+>
+> So a PVP board is revealed only once the RACE is decided — `revealToLoser`
+> when someone wins, and `restorePvpRacer` gated on the same condition rather
+> than on that player's own game-over. A racer who detonates still sees the mine
+> that killed them, because `revealFrom` opens it and projection tells the truth
+> about open cells; they simply do not see the other nine.
 
 Anything added here that emits a board or cell list **must** project it. The
 `server/tests/board.test.js` projection suite and the mid-game-joiner case are
