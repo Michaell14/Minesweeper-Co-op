@@ -5,7 +5,7 @@ import { useMinesweeperStore } from '@/app/store';
 import { Button, Dialog, DialogClose } from "@/components/ds";
 import { DIALOGS } from "@/lib/dialogs";
 import { DEFAULT_PRESET } from "@/shared/boardConfig";
-import { formatElapsed } from "@/lib/dailyShare";
+import { formatElapsed } from "@/lib/gameClock";
 import { practiceTargetFor, PRACTICE_PAR_MS, type PracticeTarget } from "@/lib/practice";
 
 /**

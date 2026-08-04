@@ -6,7 +6,7 @@ import { Panel } from '@/components/ds';
 import ProgressBar from '@/components/game/ProgressBar';
 import { useGameStats } from '@/hooks/useGameStats';
 import { targetPercent } from '@/lib/practice';
-import { formatElapsed } from '@/lib/dailyShare';
+import { formatElapsed } from '@/lib/gameClock';
 
 /**
  * The practice race's two bars: your progress, and the target's.
@@ -54,7 +54,7 @@ export default function PracticeProgress({ variant }: PracticeProgressProps) {
     const startedAt = useMinesweeperStore((state) => state.startedAt);
     const endedAt = useMinesweeperStore((state) => state.endedAt);
     const showProgressBar = useMinesweeperStore((state) => state.settings.showProgressBar);
-    const { boardProgressPercent } = useGameStats();
+    const { ownProgressPercent } = useGameStats();
 
     const target = useTargetPercent(startedAt, endedAt, practiceTargetMs ?? 0);
 
@@ -72,10 +72,10 @@ export default function PracticeProgress({ variant }: PracticeProgressProps) {
             <div className={size === 'md' ? 'mb-4' : 'mb-2'}>
                 <ProgressBar
                     label="You"
-                    percent={boardProgressPercent}
+                    percent={ownProgressPercent}
                     colorClass="bg-progress-own"
                     size={size}
-                    ariaLabel={size === 'md' ? `Your progress: ${boardProgressPercent}%` : undefined}
+                    ariaLabel={size === 'md' ? `Your progress: ${ownProgressPercent}%` : undefined}
                     boldPercent={size === 'md'}
                 />
             </div>

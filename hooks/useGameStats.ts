@@ -37,8 +37,20 @@ export function useGameStats() {
         return { ownProgress: revealed, safeCells: Math.max(0, cells - numMines) };
     }, [board, numMines]);
 
-    const toPercent = (value: number) =>
-        pvpTotalSafeCells <= 0 ? 0 : Math.round((value / pvpTotalSafeCells) * 100);
+    /**
+     * Progress as a percentage of the safe cells there are to open.
+     *
+     * `pvpTotalSafeCells` is server-set and PVP-only, so it falls back to the
+     * count derived from the board — which is the same number, and the only one
+     * available in co-op, in the daily and in a practice race. Without the
+     * fallback this divided by zero everywhere except a started PVP race, and
+     * every caller outside one had to compute the percentage again by hand.
+     * Three of them did.
+     */
+    const toPercent = (value: number) => {
+        const total = pvpTotalSafeCells > 0 ? pvpTotalSafeCells : safeCells;
+        return total <= 0 ? 0 : Math.round((value / total) * 100);
+    };
 
     return {
         remainingFlags,
@@ -46,12 +58,5 @@ export function useGameStats() {
         safeCells,
         ownProgressPercent: toPercent(ownProgress),
         opponentProgressPercent: toPercent(pvpOpponentProgress),
-        /**
-         * The same progress over the BOARD's own safe-cell count rather than
-         * `pvpTotalSafeCells`, which only the server's PVP path ever sets. Used
-         * by a practice race, which is a co-op room and so has no such field —
-         * reading the PVP one there divides by zero and pins the bar at 0%.
-         */
-        boardProgressPercent: safeCells <= 0 ? 0 : Math.round((ownProgress / safeCells) * 100),
     };
 }

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { elapsedSeconds, formatClock } from './gameClock';
+import { elapsedSeconds, formatClock, formatElapsed } from './gameClock';
 
 /**
  * The clock is the one number on screen a player can check against their own
@@ -49,5 +49,42 @@ describe('formatClock', () => {
 
     test('under an hour stays mm:ss', () => {
         expect(formatClock(3599)).toBe('59:59');
+    });
+});
+
+/**
+ * The second rendering, and why there are two.
+ *
+ * `formatClock` pads the minute so the ticking timer keeps a fixed width;
+ * `formatElapsed` does not, because it goes in prose and table cells where
+ * "02:05" reads like a typo. They lived in different modules — this one in
+ * lib/dailyShare, a module about SHARING daily results — which is how a third
+ * caller ended up importing a time formatter from the daily feature. Same
+ * module now, so the difference has to be chosen rather than stumbled into.
+ */
+describe('formatElapsed', () => {
+    test('takes milliseconds, not seconds', () => {
+        expect(formatElapsed(125_000)).toBe('2:05');
+    });
+
+    test('does not pad the minute, which is the whole difference', () => {
+        expect(formatElapsed(125_000)).toBe('2:05');
+        expect(formatClock(125)).toBe('02:05');
+    });
+
+    test('still pads the seconds', () => {
+        expect(formatElapsed(65_000)).toBe('1:05');
+        expect(formatElapsed(60_000)).toBe('1:00');
+    });
+
+    test('a negative duration is empty, not a minus sign', () => {
+        expect(formatElapsed(-1)).toBe('0:00');
+    });
+
+    test('keeps counting minutes past an hour rather than widening', () => {
+        // Unlike formatClock, which would say 1:00:00 here. Nothing this
+        // renders is expected to run that long, but silently dropping an hour
+        // would be worse than an odd-looking number.
+        expect(formatElapsed(3_600_000)).toBe('60:00');
     });
 });
