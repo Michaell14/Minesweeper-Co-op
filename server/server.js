@@ -315,7 +315,11 @@ io.on('connection', async (socket) => {
              * drop the socket.
              */
             socket.data.hoverBucket ??= createBucket(HOVER_BURST, HOVER_PER_SECOND);
-            if (!takeToken(socket.data.hoverBucket, Date.now())) return;
+            // `performance.now()`, not `Date.now()`: a limiter must not be
+            // steerable by the wall clock, which NTP can step backwards. This
+            // one is monotonic and measures only elapsed time, which is the
+            // only thing a refill rate means.
+            if (!takeToken(socket.data.hoverBucket, performance.now())) return;
 
             // row/col of -1 means "no hover".
             if (!isValidRoomCode(room) || !isValidHoverCoordinate(row, col)) return;

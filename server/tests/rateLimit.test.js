@@ -112,3 +112,21 @@ describe('the hover limit as configured', () => {
         expect(allowed).toBeGreaterThan(0);
     });
 });
+
+/**
+ * Greptile flagged this on review, and it was right: clamping the elapsed
+ * interval stops a backward clock from crediting tokens on THAT call, but
+ * rewinding `updatedAt` to the earlier time means the interval between there
+ * and the recovered time gets credited a second time.
+ */
+describe('a clock that goes backwards and then recovers', () => {
+    test('does not credit the same interval twice', () => {
+        const bucket = createBucket(20, 20);
+        for (let i = 0; i < 20; i++) takeToken(bucket, 11_000);   // spend it all
+        expect(takeToken(bucket, 11_000)).toBe(false);
+
+        takeToken(bucket, 10_500);   // clock steps back half a second
+        // ...and immediately recovers. No real time has passed, so no tokens.
+        expect(takeToken(bucket, 11_000)).toBe(false);
+    });
+});

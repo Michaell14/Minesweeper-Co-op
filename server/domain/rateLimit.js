@@ -40,6 +40,17 @@ const createBucket = (capacity, refillPerSecond) => ({
  * Refills continuously rather than in windows: a fixed window lets a client
  * send a full bucket at the end of one and another at the start of the next,
  * which is twice the rate it was meant to allow.
+ *
+ * `updatedAt` only ever moves FORWARD, which is not the same guard as clamping
+ * the elapsed interval and is the one that matters. Clamping alone stops a
+ * backward clock crediting tokens on that call, but rewinding the mark means
+ * the stretch between there and the recovered time is credited a second time —
+ * so a clock that steps back and returns refills the bucket for time that had
+ * already been paid out. Caught in review rather than by the test above it,
+ * which only looked at the backward call itself.
+ *
+ * The caller should pass a MONOTONIC reading (see server.js) so this cannot
+ * arise at all; this keeps the arithmetic honest for any clock it is handed.
  */
 const takeToken = (bucket, now) => {
     if (bucket.updatedAt === null) bucket.updatedAt = now;
@@ -49,7 +60,7 @@ const takeToken = (bucket, now) => {
         bucket.capacity,
         bucket.tokens + (elapsedMs / 1000) * bucket.refillPerSecond,
     );
-    bucket.updatedAt = now;
+    bucket.updatedAt = Math.max(bucket.updatedAt, now);
 
     if (bucket.tokens < 1) return false;
     bucket.tokens -= 1;
