@@ -16,6 +16,7 @@ const { PORT } = require('./config');
 const roomRepo = require('./data/roomRepo');
 const playerRepo = require('./data/playerRepo');
 const sessionRepo = require('./data/sessionRepo');
+const { createBucket, takeToken, HOVER_PER_SECOND, HOVER_BURST } = require('./domain/rateLimit');
 const { CLIENT_EVENTS, SERVER_EVENTS } = require('../shared/events');
 const {
     isValidRoomCode,
@@ -297,6 +298,29 @@ io.on('connection', async (socket) => {
 
     socket.on(CLIENT_EVENTS.CELL_HOVER, safe(async ({ room, row, col }) => {
         try {
+            /*
+             * Rate limited FIRST, before anything touches Redis.
+             *
+             * Hover is the one message a client sends continuously rather than
+             * on purpose, and the only one that fans out to every other player
+             * in the room. Unlimited, each costs four Redis reads and N-1
+             * broadcasts, and one socket ignoring the client's 100ms throttle
+             * took the whole server down with it: measured, a flood in one room
+             * pushed an UNINVOLVED two-player room from 6ms to 2785ms per
+             * request, dropping three of seven, while receiving none of the
+             * flood itself.
+             *
+             * Dropping silently is what this handler already does with every
+             * other refusal — it must never answer a hover with an error or
+             * drop the socket.
+             */
+            socket.data.hoverBucket ??= createBucket(HOVER_BURST, HOVER_PER_SECOND);
+            // `performance.now()`, not `Date.now()`: a limiter must not be
+            // steerable by the wall clock, which NTP can step backwards. This
+            // one is monotonic and measures only elapsed time, which is the
+            // only thing a refill rate means.
+            if (!takeToken(socket.data.hoverBucket, performance.now())) return;
+
             // row/col of -1 means "no hover".
             if (!isValidRoomCode(room) || !isValidHoverCoordinate(row, col)) return;
 

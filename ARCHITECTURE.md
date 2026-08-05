@@ -694,6 +694,19 @@ network reach the same `removePlayer` and are otherwise indistinguishable. Only
 the deliberate exit calls `sessionController.forgetRoom`, so only the accident
 is ever resumed.
 
+**The session id is a bearer credential, so a resume is refused while its socket
+is still connected.** Whoever presents an id is offered that session's room code
+and display name, and on the join that follows inherits its seat — the previous
+player record is deleted and the room slot repointed. Nothing binds the id to a
+socket, an account or an address, so a leaked one was the whole identity: a
+client knowing only the id, and having never seen the room code, was handed
+both. Every case a resume exists for — reload, dropped network, closed tab —
+leaves the previous socket DISCONNECTED, so `utils/sessionGuard.js` treats a
+still-connected holder as a takeover and refuses both the offer and the
+handover. The second client still joins, as itself. A socket this process has
+never heard of counts as not live, or a restart would refuse every genuine
+reconnect.
+
 PVP needs more than co-op does, because the room addresses each racer's board by
 socket id: the slot is repointed at the new socket and `pvpPlayerIndex` is
 rebuilt **from the room**, since the old player record is already gone.
@@ -713,6 +726,18 @@ Three gestures, all on an opened number. Both mouse buttons pressed together: `C
 
 ### Hover presence (co-op only)
 `Cell` `onMouseEnter` → throttled 100ms → `cellHover` → server broadcasts `playerHoverUpdate` to everyone else → each client colors the cell using a hash of the socket id. Suppressed in PVP (`server.js:251`).
+
+**Rate limited on the server too, and that is not belt-and-braces.** This is the
+only message a client sends continuously rather than on purpose, and the only
+one that fans out to every other player in the room — four Redis reads and N-1
+broadcasts each, with no cap on N since co-op rooms have no size limit. A single
+socket ignoring the 100ms client throttle therefore took the whole server with
+it: measured, a flood in one room pushed an *uninvolved* two-player room from
+6ms to 2785ms per request and dropped three of seven, while receiving none of
+the flood itself. The bucket (`domain/rateLimit.js`, 20/s with a burst of 20 —
+double what the client can send) is checked before anything touches Redis, and
+excess is dropped silently, which is what this handler already does with every
+other refusal.
 
 ### Accounts and the auth bridge
 

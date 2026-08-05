@@ -10,15 +10,37 @@
  */
 const STORAGE_KEY = "minesweeper_session_id";
 
+/**
+ * The id has to be unguessable, because it is the only thing identifying a
+ * returning player: whoever presents one is offered that session's room and
+ * name, and takes its seat.
+ *
+ * `crypto.randomUUID` is gated on a SECURE CONTEXT, so it is simply absent over
+ * plain HTTP — a LAN address during development, say. The fallback there used to
+ * be `Math.random()` plus the clock, which is neither cryptographic nor
+ * unpredictable: `Date.now()` is public and `Math.random()` is not a CSPRNG, so
+ * ids minted on that path were guessable from roughly when the tab opened.
+ *
+ * `getRandomValues` carries no such gate, so the genuinely weak branch is now
+ * only reachable where there is no Web Crypto at all.
+ */
+const randomId = (): string => {
+    if (typeof crypto !== "undefined") {
+        if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
+        if (typeof crypto.getRandomValues === "function") {
+            const bytes = crypto.getRandomValues(new Uint8Array(16));
+            return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+        }
+    }
+    return Math.random().toString(36).substring(2) + Date.now().toString(36);
+};
+
 export function getOrCreateSessionId(): string {
     if (typeof window === "undefined") return "";
 
     let sessionId = sessionStorage.getItem(STORAGE_KEY) || "";
     if (!sessionId) {
-        sessionId =
-            typeof crypto !== "undefined" && crypto.randomUUID
-                ? crypto.randomUUID()
-                : Math.random().toString(36).substring(2) + Date.now().toString(36);
+        sessionId = randomId();
         sessionStorage.setItem(STORAGE_KEY, sessionId);
     }
     return sessionId;
