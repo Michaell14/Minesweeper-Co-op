@@ -12,9 +12,15 @@
 
 const roomRepo = require('../data/roomRepo');
 const sessionRepo = require('../data/sessionRepo');
+const { isTakeoverOfLiveSession } = require('../utils/sessionGuard');
+const { isValidSessionId } = require('../validation');
 const { SERVER_EVENTS } = require('../../shared/events');
 
-const sessionIdOf = (socket) => socket.handshake?.auth?.sessionId || '';
+/** The handshake's session id, or '' for anything that is not a usable one. */
+const sessionIdOf = (socket) => {
+    const id = socket.handshake?.auth?.sessionId;
+    return isValidSessionId(id) ? id : '';
+};
 
 /**
  * Tells a reconnecting socket which room it can rejoin, if any.
@@ -30,6 +36,17 @@ const sessionIdOf = (socket) => socket.handshake?.auth?.sessionId || '';
 const offerResume = async (socket) => {
     const sessionId = sessionIdOf(socket);
     if (!sessionId) return false;
+
+    /*
+     * Not while someone is still holding it. The offer names a room code and a
+     * display name, so making it to whoever presents the id turns a leaked
+     * session into "here is the room they are in, and who to appear as".
+     *
+     * A reload, a dropped network and a closed tab all leave the previous socket
+     * disconnected, which is every case this exists for; a socket that is still
+     * connected is a player sitting in that room right now.
+     */
+    if (await isTakeoverOfLiveSession(sessionId, socket.id)) return false;
 
     const { room, name } = await sessionRepo.getState(sessionId);
     // Both are required: `joinRoom` is rejected without a name, so offering a

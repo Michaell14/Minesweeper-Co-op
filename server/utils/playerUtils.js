@@ -6,6 +6,8 @@ const roomRepo = require('../data/roomRepo');
 const { clockOf } = require('../domain/clock');
 const playerRepo = require('../data/playerRepo');
 const sessionRepo = require('../data/sessionRepo');
+const { sessionHolder } = require('./sessionGuard');
+const { isValidSessionId } = require('../validation');
 const { SERVER_EVENTS } = require('../../shared/events');
 
 /** Rebroadcasts the score table. Called on join, leave and every score change. */
@@ -132,13 +134,27 @@ const addPlayerToRoom = async (room, socketId, name, sessionId) => {
 
     // Was this browser previously here under a different socket?
     let reconnectedFrom = null;
-    if (sessionId) {
-        const previousSocketId = await sessionRepo.getSocketId(sessionId);
-        if (previousSocketId && previousSocketId !== socketId) {
-            reconnectedFrom = previousSocketId;
-            await playerRepo.remove(previousSocketId);
+    if (isValidSessionId(sessionId)) {
+        const { socketId: holder, live } = await sessionHolder(sessionId);
+
+        /*
+         * A session whose socket is STILL CONNECTED is not being returned to,
+         * it is being taken. The id is the only credential a resume presents,
+         * so anyone who has one could otherwise evict the player using it and
+         * inherit their room, name and seat mid-game.
+         *
+         * Every case this feature exists for — reload, dropped network, closed
+         * tab — leaves that socket disconnected, so refusing here costs a
+         * genuine return nothing. The second client still joins; it just joins
+         * as itself, and the session stays bound to whoever is holding it.
+         */
+        if (!(live && holder !== socketId)) {
+            if (holder && holder !== socketId) {
+                reconnectedFrom = holder;
+                await playerRepo.remove(holder);
+            }
+            await sessionRepo.save(sessionId, { room, name, socketId });
         }
-        await sessionRepo.save(sessionId, { room, name, socketId });
     }
 
     const playerExists = await playerRepo.exists(socketId);

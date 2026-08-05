@@ -694,6 +694,19 @@ network reach the same `removePlayer` and are otherwise indistinguishable. Only
 the deliberate exit calls `sessionController.forgetRoom`, so only the accident
 is ever resumed.
 
+**The session id is a bearer credential, so a resume is refused while its socket
+is still connected.** Whoever presents an id is offered that session's room code
+and display name, and on the join that follows inherits its seat — the previous
+player record is deleted and the room slot repointed. Nothing binds the id to a
+socket, an account or an address, so a leaked one was the whole identity: a
+client knowing only the id, and having never seen the room code, was handed
+both. Every case a resume exists for — reload, dropped network, closed tab —
+leaves the previous socket DISCONNECTED, so `utils/sessionGuard.js` treats a
+still-connected holder as a takeover and refuses both the offer and the
+handover. The second client still joins, as itself. A socket this process has
+never heard of counts as not live, or a restart would refuse every genuine
+reconnect.
+
 PVP needs more than co-op does, because the room addresses each racer's board by
 socket id: the slot is repointed at the new socket and `pvpPlayerIndex` is
 rebuilt **from the room**, since the old player record is already gone.

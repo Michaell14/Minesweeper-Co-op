@@ -13,6 +13,7 @@ const { isValidBoardConfig } = require('../shared/boardConfig');
 const MAX_ROOM_CODE_LENGTH = 100;
 const MAX_PLAYER_NAME_LENGTH = 50;
 const MAX_DAILY_TOKEN_LENGTH = 100;
+const MAX_SESSION_ID_LENGTH = 100;
 
 /** Upper bound on a cell coordinate, independent of the room's real dimensions. */
 const MAX_COORDINATE = 100;
@@ -41,6 +42,17 @@ const isValidMode = (mode) => mode === 'co-op' || mode === 'pvp';
 /** Opaque client-generated id for a daily attempt -- same shape as a room code. */
 const isValidDailyToken = (token) =>
     typeof token === 'string' && token.length > 0 && token.length <= MAX_DAILY_TOKEN_LENGTH;
+
+/**
+ * The browser's own session id, from the socket handshake.
+ *
+ * Client-minted and opaque, like a daily token, and checked for the same reason:
+ * it is used to build a Redis key, and every other client-supplied key input
+ * here is bounded. Anything that fails this is treated as no session at all,
+ * which is already a supported state — a first-time visitor has none.
+ */
+const isValidSessionId = (id) =>
+    typeof id === 'string' && id.length > 0 && id.length <= MAX_SESSION_ID_LENGTH;
 
 /** The server's own YYYY-MM-DD (UTC) -- never trusted to gate state, only to
  * address it; a malformed date just fails to find any matching attempt. */
@@ -164,6 +176,7 @@ module.exports = {
     isValidHoverCoordinate,
     isPlayerInRoom,
     isValidDailyToken,
+    isValidSessionId,
     isValidDailyDate,
     isValidSettingsBlob,
     isValidThemeId,
