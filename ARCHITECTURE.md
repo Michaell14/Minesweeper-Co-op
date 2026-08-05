@@ -714,6 +714,18 @@ Three gestures, all on an opened number. Both mouse buttons pressed together: `C
 ### Hover presence (co-op only)
 `Cell` `onMouseEnter` → throttled 100ms → `cellHover` → server broadcasts `playerHoverUpdate` to everyone else → each client colors the cell using a hash of the socket id. Suppressed in PVP (`server.js:251`).
 
+**Rate limited on the server too, and that is not belt-and-braces.** This is the
+only message a client sends continuously rather than on purpose, and the only
+one that fans out to every other player in the room — four Redis reads and N-1
+broadcasts each, with no cap on N since co-op rooms have no size limit. A single
+socket ignoring the 100ms client throttle therefore took the whole server with
+it: measured, a flood in one room pushed an *uninvolved* two-player room from
+6ms to 2785ms per request and dropped three of seven, while receiving none of
+the flood itself. The bucket (`domain/rateLimit.js`, 20/s with a burst of 20 —
+double what the client can send) is checked before anything touches Redis, and
+excess is dropped silently, which is what this handler already does with every
+other refusal.
+
 ### Accounts and the auth bridge
 
 Sign-in is OAuth-only (Google, GitHub) via Auth.js v4 in the Next app — see
