@@ -4,6 +4,7 @@ import React from "react";
 import {
     Badge,
     Button,
+    CalendarIcon,
     CoinIcon,
     Field,
     GithubIcon,
@@ -12,6 +13,7 @@ import {
     RadioCard,
     RadioCardGroup,
     Slider,
+    SwordsIcon,
     Switch,
     Table,
     TrophyIcon,
@@ -337,12 +339,14 @@ export default function DsCatalogClient() {
 
             <Section
                 title="Icons"
-                note="Stored as 16x16 character grids plus a palette, so the sprite is editable in place. Flattened to SVG rects once at module load. Any size, still crisp."
+                note="Stored as 16x16 character grids plus a palette, so the sprite is editable in place. Flattened to SVG rects once at module load. Any size, still crisp. A palette entry can be currentColor — those two sit on a themed button and take its ink."
             >
                 <div className="flex items-end gap-8">
                     <GithubIcon size={32} />
                     <CoinIcon size={48} />
                     <TrophyIcon size={64} />
+                    <CalendarIcon size={48} />
+                    <SwordsIcon size={48} />
                 </div>
             </Section>
 

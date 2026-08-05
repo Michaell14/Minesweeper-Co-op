@@ -1,6 +1,6 @@
 import React from 'react';
 import { useMinesweeperStore } from '@/app/store';
-import { Button, Dialog, DialogClose } from "@/components/ds";
+import { Button, CalendarIcon, Dialog, DialogClose, SwordsIcon } from "@/components/ds";
 import { DIALOGS, openDialog } from "@/lib/dialogs";
 import AnnouncementBanner from '@/components/landing/AnnouncementBanner';
 import JoinRoomForm from '@/components/landing/JoinRoomForm';
@@ -53,14 +53,20 @@ export default function Landing({ createRoom, joinRoom, startDaily, findMatch, c
                         size="sm"
                         onClick={startDaily}
                         aria-label="Play today's daily challenge — same board for everyone, ranked by time, one attempt">
-                        🗓️ Play Today&apos;s Puzzle
+                        <span className="flex items-center gap-2">
+                            <CalendarIcon size={16} />
+                            Play Today&apos;s Puzzle
+                        </span>
                     </Button>
                     <Button
                         intent="primary"
                         size="sm"
                         onClick={() => openDialog(DIALOGS.nameMatch)}
                         aria-label="Quick match — race a random opponent, no room code needed">
-                        ⚔️ Quick Match
+                        <span className="flex items-center gap-2">
+                            <SwordsIcon size={16} />
+                            Quick Match
+                        </span>
                     </Button>
                 </div>
             </div>
