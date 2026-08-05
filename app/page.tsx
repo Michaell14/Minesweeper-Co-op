@@ -10,6 +10,7 @@ import { useSocket } from "@/hooks/useSocket";
 import { useSocketEvents } from "@/hooks/useSocketEvents";
 import { useGameActions } from "@/hooks/useGameActions";
 import { useGameEvents } from "@/hooks/useGameEvents";
+import { useMatchReconnect } from "@/hooks/useMatchReconnect";
 
 /**
  * Chooses between the Landing page, the daily challenge, and the game Grid.
@@ -23,6 +24,7 @@ export default function Home() {
     const socket = useSocket();
     const actions = useGameActions(socket);
     useSocketEvents(socket, useGameEvents(socket, actions.leaveRoom));
+    useMatchReconnect(socket, actions.findMatch);
 
     // Subscribed narrowly on purpose: this component re-renders only when the
     // view switches, not on every board or hover update.

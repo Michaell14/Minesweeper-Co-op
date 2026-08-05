@@ -211,3 +211,68 @@ describe('the practice offer', () => {
         expect(p.startPracticeRace).toHaveBeenCalledTimes(1);
     });
 });
+
+/**
+ * Dismissing the dialog without pressing Cancel.
+ *
+ * A modal <dialog> closes on Escape, and that path submits no form — so the
+ * Cancel button's handler never ran and the search outlived the dialog. The
+ * player was back on the landing page looking idle while still queued, and the
+ * next person to search dragged them into a PVP lobby they had not asked for.
+ * Reproduced end to end against a real server before this was fixed.
+ *
+ * jsdom does not implement Escape closing a dialog, so these drive the `close`
+ * event the platform emits — which is the seam the fix listens on, and the one
+ * thing about this that is checkable without a browser.
+ */
+describe('dismissing the search without the Cancel button', () => {
+    /**
+     * Both events, because neither covers every dismissal: a close request
+     * (Escape) fires `cancel` and, in Chrome, no `close` at all — measured, and
+     * the reason listening on `close` alone did not fix this.
+     */
+    const dismiss = (container: HTMLElement, event: 'cancel' | 'close') => {
+        const dialog = container.querySelector('dialog');
+        if (!dialog) throw new Error('no dialog rendered');
+        act(() => {
+            dialog.dispatchEvent(new Event(event));
+        });
+    };
+
+    test.each(['cancel', 'close'] as const)(
+        'a %s leaves the queue, so nobody is matched with a ghost',
+        (event) => {
+            act(() => useMinesweeperStore.getState().setMatchSearching(true));
+            const p = props();
+            const { container } = render(<MatchSearchingDialog {...p} />);
+
+            dismiss(container, event);
+
+            expect(p.cancelMatch).toHaveBeenCalledTimes(1);
+        },
+    );
+
+    test('does not cancel twice when Cancel was the thing that closed it', () => {
+        // Cancel's own click clears the flag before the close event lands, so
+        // the guard is what keeps this to one emit rather than two.
+        act(() => useMinesweeperStore.getState().setMatchSearching(false));
+        const p = props();
+        const { container } = render(<MatchSearchingDialog {...p} />);
+
+        dismiss(container, 'close');
+
+        expect(p.cancelMatch).not.toHaveBeenCalled();
+    });
+
+    test('a found match closes it without cancelling the search it just won', () => {
+        // joinRoomSuccess clears the flag and then closes the dialog. Cancelling
+        // here would post a pointless leave-the-queue the instant you are paired.
+        act(() => useMinesweeperStore.getState().setMatchSearching(false));
+        const p = props();
+        const { container } = render(<MatchSearchingDialog {...p} />);
+
+        dismiss(container, 'close');
+
+        expect(p.cancelMatch).not.toHaveBeenCalled();
+    });
+});

@@ -94,6 +94,20 @@ export default function MatchSearchingDialog({ cancelMatch, startPracticeRace }:
         <Dialog
             id={DIALOGS.matchSearching}
             title="Looking for an opponent..."
+            /*
+             * Escape closes a modal dialog without submitting its form, so the
+             * Cancel button never ran and the search outlived the thing that
+             * showed it: the player was back on the landing page looking idle
+             * while still queued, and the next person to search dragged them
+             * into a PVP lobby they had not asked for.
+             *
+             * Guarded because every close arrives here, including Cancel's own
+             * and the one a found match triggers — both of which have already
+             * cleared the flag.
+             */
+            onClose={() => {
+                if (useMinesweeperStore.getState().matchSearching) cancelMatch();
+            }}
             actionsAlign={offerPractice ? "between" : "end"}
             actions={
                 <>

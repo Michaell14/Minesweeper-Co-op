@@ -88,9 +88,17 @@ const restorePvpRacer = async (room, socketId, roomState, previousSocketId) => {
     io.to(socketId).emit(SERVER_EVENTS.PVP_GAME_STARTED, { totalSafeCells });
 
     io.to(socketId).emit(SERVER_EVENTS.PVP_BOARD_UPDATE, {
-        // Their own run is over, so their own mines are no longer a secret. The
-        // opponent's board is a separate record and is not touched here.
-        board: projectBoard(JSON.parse(boardData), { revealMines: ownGameOver || ownGameWon }),
+        /*
+         * Revealed only once the RACE is over, not merely once this player's
+         * run is — the same rule game/pvp.js applies when they detonate, and
+         * for the same reason. A racer who has hit a mine can `resetMyBoard`
+         * and carry on racing the identical layout, so revealing to them here
+         * would just be the die-and-read exploit again with a reload in place
+         * of the reset.
+         */
+        board: projectBoard(JSON.parse(boardData), {
+            revealMines: ownGameWon || Boolean(roomState.winnerSocket),
+        }),
         playerIndex: slot,
         opponentName,
         opponentProgress,

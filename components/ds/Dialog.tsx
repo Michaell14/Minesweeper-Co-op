@@ -30,6 +30,22 @@ export interface DialogProps {
     actionsAlign?: "between" | "end";
     /** Set for dialogs that validate before closing (the custom board form). */
     onSubmit?: React.FormEventHandler<HTMLFormElement>;
+    /**
+     * Fired when the dialog goes away, INCLUDING ways the buttons never see.
+     *
+     * A modal `<dialog>` also closes on a platform close request — Escape — and
+     * that path submits no form, so an action wired only to a button silently
+     * does not run. Anything a dismissal must undo belongs here rather than on
+     * the Cancel button.
+     *
+     * **Make the handler idempotent.** This can fire more than once for a
+     * single dismissal: it listens for both `cancel` and `close` because
+     * neither alone covers every path — a close request fires `cancel` and, in
+     * Chrome, no `close` at all, while a form submit or `.close()` fires only
+     * `close`. The button's own close arrives here too. Guard on whatever the
+     * work has already changed.
+     */
+    onClose?: () => void;
     className?: string;
     children?: React.ReactNode;
 }
@@ -42,13 +58,38 @@ export default function Dialog({
     actions,
     actionsAlign = "end",
     onSubmit,
+    onClose,
     className,
     children,
 }: DialogProps) {
     const titleId = `${id}-title`;
+    const dialogRef = React.useRef<HTMLDialogElement>(null);
+
+    /*
+     * A native listener rather than React's `onClose`, which React 18 does not
+     * wire up for `<dialog>`. Read through a ref so the listener is attached
+     * once and still calls the current handler.
+     */
+    const onCloseRef = React.useRef(onClose);
+    onCloseRef.current = onClose;
+
+    React.useEffect(() => {
+        const element = dialogRef.current;
+        if (!element) return;
+        const handle = () => onCloseRef.current?.();
+        // Both, because neither covers every dismissal on its own — measured in
+        // Chrome, where a close request fires `cancel` and never `close`.
+        element.addEventListener("cancel", handle);
+        element.addEventListener("close", handle);
+        return () => {
+            element.removeEventListener("cancel", handle);
+            element.removeEventListener("close", handle);
+        };
+    }, []);
 
     return (
         <dialog
+            ref={dialogRef}
             id={id}
             role={alert ? "alertdialog" : undefined}
             aria-labelledby={titleId}

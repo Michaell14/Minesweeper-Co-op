@@ -211,19 +211,18 @@ describe('withActionLock', () => {
     });
 
     test('does not release a lock it never held', async () => {
-        // Otherwise a caller that timed out waiting would delete the key out
+        // Otherwise a caller that gave up waiting would delete the key out
         // from under the player who actually holds it.
-        jest.spyOn(console, 'error').mockImplementation(() => {});
         jest.spyOn(Date, 'now')
             .mockReturnValueOnce(0)              // deadline is computed from this
             .mockReturnValue(Number.MAX_SAFE_INTEGER);
         client.set.mockResolvedValue(null);      // never free
 
-        await roomRepo.withActionLock('r1', 'sock-2', async () => 'ran anyway');
+        await expect(roomRepo.withActionLock('r1', 'sock-2', async () => 'ran anyway'))
+            .rejects.toThrow(/never came free/);
 
         expect(client.eval).not.toHaveBeenCalled();
         Date.now.mockRestore();
-        console.error.mockRestore();
     });
 
     /*
@@ -267,20 +266,30 @@ describe('withActionLock', () => {
         expect(releasedLock(client, 'action_lock:r1:p1')).toBe(true);
     });
 
-    test('an exhausted wait still runs the move rather than silently dropping it', async () => {
-        jest.spyOn(console, 'error').mockImplementation(() => {});
+    /*
+     * This test used to assert the OPPOSITE — that an exhausted wait ran the
+     * move anyway rather than dropping it. That was the wrong trade, and it was
+     * measured: 203 daily cell opens fired together left 62 of them missing
+     * from the stored board, because "run it anyway" means running exactly the
+     * overlapping read-modify-write the lock exists to prevent. The lost writes
+     * are not the refused move, they are whichever moves the racing writes
+     * erase, and the attempt could then never be completed.
+     *
+     * A refused move leaves the board consistent and can be made again.
+     */
+    test('an exhausted wait refuses the move rather than running it unlocked', async () => {
         jest.spyOn(Date, 'now')
             .mockReturnValueOnce(0)
             .mockReturnValue(Number.MAX_SAFE_INTEGER);
         client.set.mockResolvedValue(null);
         const move = jest.fn(async () => 'ran');
 
-        expect(await roomRepo.withActionLock('r1', 'sock-2', move)).toBe('ran');
+        await expect(roomRepo.withActionLock('r1', 'sock-2', move))
+            .rejects.toThrow(/never came free/);
 
-        expect(move).toHaveBeenCalled();
-        expect(console.error).toHaveBeenCalled();
+        // The whole point: the board is never touched without the lock.
+        expect(move).not.toHaveBeenCalled();
         Date.now.mockRestore();
-        console.error.mockRestore();
     });
 });
 

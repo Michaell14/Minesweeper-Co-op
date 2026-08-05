@@ -58,8 +58,30 @@ io.use(async (socket, next) => {
     next();
 });
 
+/**
+ * Wraps a socket handler so a malformed payload cannot take the process down.
+ *
+ * Every handler below destructures its payload in the PARAMETER LIST, which
+ * runs before the handler's own try/catch — so the catches inside them, however
+ * careful, could never see it. Emitting `joinRoom` with no payload at all threw
+ * a TypeError nothing in this file could catch, and in an `async` listener that
+ * becomes an unhandled rejection, which Node treats as fatal. One malformed
+ * message from any client ended every game on the server. Measured: `joinRoom`,
+ * `findMatch` and `startPracticeRace` each killed it on their own.
+ *
+ * `?? {}` is what the handlers actually need — they already validate every
+ * field, so an empty object is refused the same way a wrong one is. `null` is
+ * covered too, which a default parameter would not be. The `catch` is the
+ * second half: several handlers delegate straight to a controller and have no
+ * try/catch of their own.
+ */
+const safe = (handler) => (payload) =>
+    Promise.resolve()
+        .then(() => handler(payload ?? {}))
+        .catch((error) => console.error('Unhandled error in a socket handler:', error));
+
 io.on('connection', async (socket) => {
-    socket.on(CLIENT_EVENTS.CREATE_ROOM, async ({ room, numRows, numCols, numMines, name, mode }) => {
+    socket.on(CLIENT_EVENTS.CREATE_ROOM, safe(async ({ room, numRows, numCols, numMines, name, mode }) => {
         try {
             // Validate the name as it will be STORED — see joinRoom below.
             const displayName = normalizePlayerName(name);
@@ -93,9 +115,9 @@ io.on('connection', async (socket) => {
             console.error('Error in createRoom:', error);
             socket.emit(SERVER_EVENTS.CREATE_ROOM_ERROR);
         }
-    })
+    }))
 
-    socket.on(CLIENT_EVENTS.JOIN_ROOM, async ({ room, name }) => {
+    socket.on(CLIENT_EVENTS.JOIN_ROOM, safe(async ({ room, name }) => {
         try {
             // Whitespace is not part of a name. The browser sends what was
             // typed, and anything speaking the protocol directly sends whatever
@@ -207,7 +229,7 @@ io.on('connection', async (socket) => {
             socket.emit(SERVER_EVENTS.JOIN_ROOM_ERROR);
             socket.leave(room);
         }
-    });
+    }));
 
     const isValid = async (room) => {
         const roomExists = await roomRepo.exists(room);
@@ -228,7 +250,7 @@ io.on('connection', async (socket) => {
         return true;
     }
 
-    socket.on(CLIENT_EVENTS.OPEN_CELL, async ({ room, row, col }) => {
+    socket.on(CLIENT_EVENTS.OPEN_CELL, safe(async ({ room, row, col }) => {
         try {
             if (!isValidRoomCode(room) || !isValidCoordinate(row, col)) return;
 
@@ -238,9 +260,9 @@ io.on('connection', async (socket) => {
         } catch (error) {
             console.error('Error in openCell:', error);
         }
-    });
+    }));
 
-    socket.on(CLIENT_EVENTS.CHORD_CELL, async ({ room, row, col }) => {
+    socket.on(CLIENT_EVENTS.CHORD_CELL, safe(async ({ room, row, col }) => {
         try {
             if (!isValidRoomCode(room) || !isValidCoordinate(row, col)) return;
 
@@ -249,9 +271,9 @@ io.on('connection', async (socket) => {
         } catch (error) {
             console.error('Error in chordCell:', error);
         }
-    });
+    }));
 
-    socket.on(CLIENT_EVENTS.TOGGLE_FLAG, async ({ room, row, col }) => {
+    socket.on(CLIENT_EVENTS.TOGGLE_FLAG, safe(async ({ room, row, col }) => {
         try {
             if (!isValidRoomCode(room) || !isValidCoordinate(row, col)) return;
 
@@ -260,9 +282,9 @@ io.on('connection', async (socket) => {
         } catch (error) {
             console.error('Error in toggleFlag:', error);
         }
-    });
+    }));
 
-    socket.on(CLIENT_EVENTS.EMIT_CONFETTI, async ({ room }) => {
+    socket.on(CLIENT_EVENTS.EMIT_CONFETTI, safe(async ({ room }) => {
         try {
             if (!isValidRoomCode(room)) return;
 
@@ -271,9 +293,9 @@ io.on('connection', async (socket) => {
         } catch (error) {
             console.error('Error in emitConfetti:', error);
         }
-    })
+    }))
 
-    socket.on(CLIENT_EVENTS.CELL_HOVER, async ({ room, row, col }) => {
+    socket.on(CLIENT_EVENTS.CELL_HOVER, safe(async ({ room, row, col }) => {
         try {
             // row/col of -1 means "no hover".
             if (!isValidRoomCode(room) || !isValidHoverCoordinate(row, col)) return;
@@ -302,9 +324,9 @@ io.on('connection', async (socket) => {
         } catch (error) {
             console.error('Error in cellHover:', error);
         }
-    });
+    }));
 
-    socket.on(CLIENT_EVENTS.RESET_GAME, async ({ room }) => {
+    socket.on(CLIENT_EVENTS.RESET_GAME, safe(async ({ room }) => {
         try {
             if (!isValidRoomCode(room)) return;
 
@@ -313,78 +335,78 @@ io.on('connection', async (socket) => {
         } catch (error) {
             console.error('Error in resetGame:', error);
         }
-    });
+    }));
 
-    socket.on(CLIENT_EVENTS.START_PVP_GAME, async ({ room }) => {
+    socket.on(CLIENT_EVENTS.START_PVP_GAME, safe(async ({ room }) => {
         await startPvpGame({ socket, room, isValid, io });
-    });
+    }));
 
-    socket.on(CLIENT_EVENTS.RESET_MY_BOARD, async ({ room }) => {
+    socket.on(CLIENT_EVENTS.RESET_MY_BOARD, safe(async ({ room }) => {
         await resetMyBoard({ socket, room, isValid, io });
-    });
+    }));
 
-    socket.on(CLIENT_EVENTS.PVP_REMATCH, async ({ room }) => {
+    socket.on(CLIENT_EVENTS.PVP_REMATCH, safe(async ({ room }) => {
         await pvpRematch({ socket, room, isValid, io });
-    });
+    }));
 
     // --- Matchmaking: pre-room, so neither handler takes a room code ---
 
-    socket.on(CLIENT_EVENTS.FIND_MATCH, async ({ name }) => {
+    socket.on(CLIENT_EVENTS.FIND_MATCH, safe(async ({ name }) => {
         await findMatch({ socket, name });
-    });
+    }));
 
-    socket.on(CLIENT_EVENTS.CANCEL_MATCH, async () => {
+    socket.on(CLIENT_EVENTS.CANCEL_MATCH, safe(async () => {
         await cancelMatch({ socket });
-    });
+    }));
 
-    socket.on(CLIENT_EVENTS.START_PRACTICE_RACE, async ({ name }) => {
+    socket.on(CLIENT_EVENTS.START_PRACTICE_RACE, safe(async ({ name }) => {
         await startPracticeRace({ socket, name });
-    });
+    }));
 
     // --- Daily challenge: NOT room-scoped, see server/data/keys.js ---
 
-    socket.on(CLIENT_EVENTS.START_DAILY, async ({ dailyAttemptToken }) => {
+    socket.on(CLIENT_EVENTS.START_DAILY, safe(async ({ dailyAttemptToken }) => {
         await startDaily({ socket, dailyAttemptToken });
-    });
+    }));
 
-    socket.on(CLIENT_EVENTS.DAILY_OPEN_CELL, async ({ dailyAttemptToken, date, row, col }) => {
+    socket.on(CLIENT_EVENTS.DAILY_OPEN_CELL, safe(async ({ dailyAttemptToken, date, row, col }) => {
         try {
             if (!isValidDailyToken(dailyAttemptToken) || !isValidDailyDate(date) || !isValidCoordinate(row, col)) return;
             await dailyGame.openCell(date, dailyAttemptToken, socket.id, row, col);
         } catch (error) {
             console.error('Error in dailyOpenCell:', error);
         }
-    });
+    }));
 
-    socket.on(CLIENT_EVENTS.DAILY_CHORD_CELL, async ({ dailyAttemptToken, date, row, col }) => {
+    socket.on(CLIENT_EVENTS.DAILY_CHORD_CELL, safe(async ({ dailyAttemptToken, date, row, col }) => {
         try {
             if (!isValidDailyToken(dailyAttemptToken) || !isValidDailyDate(date) || !isValidCoordinate(row, col)) return;
             await dailyGame.chordCell(date, dailyAttemptToken, socket.id, row, col);
         } catch (error) {
             console.error('Error in dailyChordCell:', error);
         }
-    });
+    }));
 
-    socket.on(CLIENT_EVENTS.DAILY_TOGGLE_FLAG, async ({ dailyAttemptToken, date, row, col }) => {
+    socket.on(CLIENT_EVENTS.DAILY_TOGGLE_FLAG, safe(async ({ dailyAttemptToken, date, row, col }) => {
         try {
             if (!isValidDailyToken(dailyAttemptToken) || !isValidDailyDate(date) || !isValidCoordinate(row, col)) return;
             await dailyGame.toggleFlag(date, dailyAttemptToken, socket.id, row, col);
         } catch (error) {
             console.error('Error in dailyToggleFlag:', error);
         }
-    });
+    }));
 
-    socket.on(CLIENT_EVENTS.SUBMIT_DAILY_SCORE, async ({ dailyAttemptToken, date, name }) => {
+    socket.on(CLIENT_EVENTS.SUBMIT_DAILY_SCORE, safe(async ({ dailyAttemptToken, date, name }) => {
         if (!isValidDailyToken(dailyAttemptToken) || !isValidDailyDate(date)) return;
         await submitDailyScore({ socket, io, dailyAttemptToken, date, name });
-    });
+    }));
 
-    socket.on(CLIENT_EVENTS.GET_DAILY_LEADERBOARD, async ({ date }) => {
+    socket.on(CLIENT_EVENTS.GET_DAILY_LEADERBOARD, safe(async ({ date }) => {
         if (!isValidDailyDate(date)) return;
         await getDailyLeaderboard({ socket, date });
-    });
+    }));
 
-    socket.on(CLIENT_EVENTS.PLAYER_LEAVE, async () => {
+    socket.on(CLIENT_EVENTS.PLAYER_LEAVE, safe(async () => {
         // Two independent jobs, so two independent try/catch blocks. Sharing one
         // meant a Redis blip in forgetRoom skipped removePlayer entirely — and
         // leaving does NOT disconnect the socket, so the leaver stayed in the
@@ -404,7 +426,7 @@ io.on('connection', async (socket) => {
         } catch (error) {
             console.error('Error removing player on playerLeave:', error);
         }
-    });
+    }));
 
     socket.on('disconnect', async () => {
         // Closing the tab while queued is the ordinary way to leave the queue,
@@ -428,6 +450,22 @@ io.on('connection', async (socket) => {
     } catch (error) {
         console.error('Error offering session resume:', error);
     }
+});
+
+/**
+ * The backstop under `safe`, for the rejection nobody wrapped.
+ *
+ * Node's default for an unhandled rejection is to exit, which on a game server
+ * means one unguarded path in one handler ends every game in progress for
+ * everyone. Staying up with a logged error is the lesser failure: the room
+ * states live in Redis, so the blast radius of continuing is one player's one
+ * action, and the blast radius of exiting is the whole server.
+ *
+ * Deliberately does NOT swallow quietly — anything reaching here is a bug that
+ * `safe` should have caught, and the log is how it gets found.
+ */
+process.on('unhandledRejection', (reason) => {
+    console.error('Unhandled promise rejection (server kept running):', reason);
 });
 
 server.listen(PORT, () => {
