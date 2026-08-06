@@ -209,3 +209,57 @@ const GEAR = {
 
 const GEAR_RECTS = toRects(GEAR);
 export const GearIcon = (props: PixelIconProps) => <PixelIcon sprite={GEAR_RECTS} {...props} />;
+
+const CALENDAR = {
+    palette: {
+        "#": "currentColor",
+    },
+    rows: [
+        "                ",
+        "    ##    ##    ",
+        "    ##    ##    ",
+        " ############## ",
+        " ############## ",
+        " ############## ",
+        " #            # ",
+        " # ##  ##  ## # ",
+        " # ##  ##  ## # ",
+        " #            # ",
+        " # ##  ##  ## # ",
+        " # ##  ##  ## # ",
+        " #            # ",
+        " #            # ",
+        " ############## ",
+        "                ",
+    ],
+} as const;
+
+const SWORDS = {
+    palette: {
+        "#": "currentColor",
+    },
+    rows: [
+        "                ",
+        "  ##        ##  ",
+        "   ##      ##   ",
+        "    ##    ##    ",
+        "     ##  ##     ",
+        "      ####      ",
+        "       ##       ",
+        "      ####      ",
+        "     ##  ##     ",
+        "  #####  #####  ",
+        "    ##    ##    ",
+        "   ##      ##   ",
+        "  ##        ##  ",
+        " ####      #### ",
+        "                ",
+        "                ",
+    ],
+} as const;
+
+const CALENDAR_RECTS = toRects(CALENDAR);
+const SWORDS_RECTS = toRects(SWORDS);
+
+export const CalendarIcon = (props: PixelIconProps) => <PixelIcon sprite={CALENDAR_RECTS} {...props} />;
+export const SwordsIcon = (props: PixelIconProps) => <PixelIcon sprite={SWORDS_RECTS} {...props} />;
