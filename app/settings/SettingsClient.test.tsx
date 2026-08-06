@@ -16,17 +16,23 @@ vi.mock('next-auth/react', () => ({
 
 import SettingsClient from './SettingsClient';
 import { useMinesweeperStore } from '@/app/store';
-import { THEMES } from '@/lib/theme';
+import { THEMES, isSeasonal } from '@/lib/theme';
 import { DEFAULT_SETTINGS } from '@/lib/settings';
 
 beforeEach(() => {
     localStorage.clear();
     useMinesweeperStore.setState({ settings: { ...DEFAULT_SETTINGS }, settingsHydrated: true });
     mockUseSession.mockReturnValue({ data: null, status: 'unauthenticated' });
+    // An ordinary day. The palette UI consults the calendar now (lib/holidays),
+    // so without this the cases below would quietly mean something different
+    // for the nine days of Halloween and the twelve of Christmas.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date('2026-06-15T12:00:00'));
 });
 
 afterEach(() => {
     cleanup();
+    vi.useRealTimers();
     delete document.documentElement.dataset.theme;
 });
 
@@ -40,10 +46,17 @@ describe('structure', () => {
         expect(back.getAttribute('href')).toBe('/');
     });
 
-    it('offers every palette as a radio, reflecting the store', () => {
+    it('offers every year-round palette as a radio, reflecting the store', () => {
         render(<SettingsClient />);
-        for (const theme of THEMES) {
+        for (const theme of THEMES.filter((t) => !isSeasonal(t.id))) {
             expect(screen.getByRole('radio', { name: new RegExp(theme.label) })).toBeTruthy();
+        }
+    });
+
+    it('keeps the seasonal palettes out of the picker out of season', () => {
+        render(<SettingsClient />);
+        for (const theme of THEMES.filter((t) => isSeasonal(t.id))) {
+            expect(screen.queryByRole('radio', { name: new RegExp(theme.label) })).toBeNull();
         }
     });
 });
@@ -56,6 +69,88 @@ describe('choosing a palette', () => {
         expect(useMinesweeperStore.getState().settings.theme).toBe('gameboy');
         expect(document.documentElement.dataset.theme).toBe('gameboy');
         expect(localStorage.getItem('minesweeper_settings')).toContain('gameboy');
+    });
+});
+
+/*
+ * The seasonal override, from the picker's side. The rule these all circle is
+ * that the holiday is PAINT and the saved palette is DATA: they must be able to
+ * disagree, and the saved one has to survive the window intact.
+ */
+describe('a holiday in season', () => {
+    const halloween = () => vi.setSystemTime(new Date('2026-10-31T12:00:00'));
+
+    it('offers its card, and only its card', () => {
+        halloween();
+        render(<SettingsClient />);
+        expect(screen.getByRole('radio', { name: /Halloween/ })).toBeTruthy();
+        expect(screen.queryByRole('radio', { name: /Christmas/ })).toBeNull();
+    });
+
+    it('shows as selected over the saved palette, without overwriting it', () => {
+        halloween();
+        useMinesweeperStore.setState({
+            settings: { ...DEFAULT_SETTINGS, theme: 'gameboy' },
+            settingsHydrated: true,
+        });
+        render(<SettingsClient />);
+
+        expect((screen.getByRole('radio', { name: /Halloween/ }) as HTMLInputElement).checked).toBe(true);
+        expect((screen.getByRole('radio', { name: /Game Boy/ }) as HTMLInputElement).checked).toBe(false);
+        expect(useMinesweeperStore.getState().settings.theme).toBe('gameboy');
+    });
+
+    it('switching away records the dismissal and restores the chosen palette', () => {
+        halloween();
+        render(<SettingsClient />);
+        fireEvent.click(screen.getByRole('radio', { name: /Game Boy/ }));
+
+        const { settings } = useMinesweeperStore.getState();
+        expect(settings.theme).toBe('gameboy');
+        expect(settings.seasonalDismissed).toBe('halloween-2026');
+        expect(document.documentElement.dataset.theme).toBe('gameboy');
+    });
+
+    /* Clicking the card that is already lit must not outlive the window. */
+    it('re-picking the holiday itself writes nothing', () => {
+        halloween();
+        render(<SettingsClient />);
+        fireEvent.click(screen.getByRole('radio', { name: /Halloween/ }));
+
+        const { settings } = useMinesweeperStore.getState();
+        expect(settings.theme).toBeNull();
+        expect(settings.seasonalDismissed).toBeNull();
+    });
+
+    it('turning the switch off gives the saved palette straight back', () => {
+        halloween();
+        useMinesweeperStore.setState({
+            settings: { ...DEFAULT_SETTINGS, theme: 'c64' },
+            settingsHydrated: true,
+        });
+        render(<SettingsClient />);
+        fireEvent.click(screen.getByRole('switch', { name: 'Seasonal palettes' }));
+
+        expect(useMinesweeperStore.getState().settings.seasonalThemes).toBe(false);
+        expect(document.documentElement.dataset.theme).toBe('c64');
+    });
+
+    /* A stale dismissal would otherwise make the toggle look broken. */
+    it('turning the switch back on brings this occurrence back', () => {
+        halloween();
+        useMinesweeperStore.setState({
+            settings: {
+                ...DEFAULT_SETTINGS,
+                seasonalThemes: false,
+                seasonalDismissed: 'halloween-2026',
+            },
+            settingsHydrated: true,
+        });
+        render(<SettingsClient />);
+        fireEvent.click(screen.getByRole('switch', { name: 'Seasonal palettes' }));
+
+        expect(useMinesweeperStore.getState().settings.seasonalDismissed).toBeNull();
+        expect(document.documentElement.dataset.theme).toBe('halloween');
     });
 });
 

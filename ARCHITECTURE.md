@@ -82,6 +82,7 @@ lib/
   confetti.ts             canvas-confetti wrapper
   motion.ts               prefersReducedMotion() and the cascade banding
   theme.ts                Palettes, persistence, the no-flash script, cursor ramp
+  holidays.ts             The seasonal schedule: which palette the DATE picks, if any
   gameClock.ts            elapsedSeconds/formatClock — the one reading of the run clock
   bestTimes.ts            Personal bests in localStorage, keyed by board dimensions
   roomLink.ts             Builds a shareable join URL

@@ -580,6 +580,14 @@ const KNOWN_CONTRAST_FAILURES = {
     pacman: [],
     minecraft: [],
     mario: [],
+    // Seasonal. Audited here year-round on purpose: /ds offers every palette
+    // regardless of the date, so a Christmas regression is caught in June
+    // rather than by whoever opens the site on the 15th of December.
+    halloween: [],
+    christmas: [],
+    'lunar-new-year': [],
+    valentines: [],
+    thanksgiving: [],
 };
 
 async function themeContrast(page) {

@@ -5,7 +5,7 @@
  * guarantees — all things that fail silently as a palette quietly reset or a
  * flash of the default on load.
  */
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
     DEFAULT_SETTINGS,
     NO_FLASH_SCRIPT,
@@ -15,6 +15,7 @@ import {
     writeStoredSettings,
 } from "./settings";
 import { THEMES, THEME_STORAGE_KEY } from "./theme";
+import { activeHoliday } from "./holidays";
 
 beforeEach(() => localStorage.clear());
 
@@ -46,6 +47,34 @@ describe("sanitizeSettings", () => {
         for (const { id } of THEMES) {
             expect(sanitizeSettings({ theme: id }).theme).toBe(id);
         }
+    });
+
+    /*
+     * seasonalDismissed suppresses a holiday, so a value that slips through
+     * malformed is a palette that never arrives — silent, and only for the
+     * player whose storage holds it. Same untrusted-input stance as `theme`.
+     */
+    it.each(["halloween-2026", "lunar-new-year-2031", null])(
+        "accepts the occurrence key %p",
+        (value) => {
+            expect(sanitizeSettings({ seasonalDismissed: value }).seasonalDismissed).toBe(value);
+        },
+    );
+
+    it.each([["-2026"], ["halloween"], ["halloween-20261"], ["halloween-26"], [2026], [{}], [true]])(
+        "rejects the malformed occurrence key %p",
+        (value) => {
+            expect(sanitizeSettings({ seasonalDismissed: value }).seasonalDismissed).toBeNull();
+        },
+    );
+
+    it("defaults seasonal palettes on, dismissing nothing", () => {
+        expect(sanitizeSettings({})).toMatchObject({
+            seasonalThemes: true,
+            seasonalDismissed: null,
+        });
+        expect(sanitizeSettings({ seasonalThemes: "yes" }).seasonalThemes).toBe(true);
+        expect(sanitizeSettings({ seasonalThemes: false }).seasonalThemes).toBe(false);
     });
 });
 
@@ -91,6 +120,18 @@ describe("writeStoredSettings", () => {
 });
 
 describe("NO_FLASH_SCRIPT", () => {
+    /*
+     * The script now consults the calendar, so every case below has to state
+     * which day it is running on. Without this the two "applies the stored
+     * theme" tests below pass for most of the year and fail for the nine days
+     * of Halloween — a suite that goes red on a date rather than on a change.
+     */
+    beforeEach(() => {
+        vi.useFakeTimers({ shouldAdvanceTime: true });
+        vi.setSystemTime(new Date("2026-06-15T12:00:00"));
+    });
+    afterEach(() => vi.useRealTimers());
+
     it("reads the settings blob and falls back to the legacy key", () => {
         expect(NO_FLASH_SCRIPT).toContain(SETTINGS_STORAGE_KEY);
         expect(NO_FLASH_SCRIPT).toContain(THEME_STORAGE_KEY);
@@ -133,6 +174,79 @@ describe("NO_FLASH_SCRIPT", () => {
         eval(NO_FLASH_SCRIPT);
         expect(document.documentElement.dataset.theme).toBe("c64");
         delete document.documentElement.dataset.theme;
+    });
+});
+
+/*
+ * The script carries its own copy of the schedule, because it runs before any
+ * bundle and cannot import one. That copy is the thing to distrust: nothing
+ * about a wrong window is visible until the day it is wrong, by which point
+ * the page has already painted. So rather than assert a handful of dates, this
+ * runs the emitted script against `activeHoliday` for every day of a decade —
+ * the only check that makes the duplication safe to keep.
+ */
+describe("the no-flash script agrees with the schedule", () => {
+    const run = (day: string, blob?: Record<string, unknown>) => {
+        localStorage.clear();
+        if (blob) localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(blob));
+        delete document.documentElement.dataset.theme;
+        vi.setSystemTime(new Date(`${day}T12:00:00`));
+        // eslint-disable-next-line no-eval
+        eval(NO_FLASH_SCRIPT);
+        return document.documentElement.dataset.theme ?? null;
+    };
+
+    beforeEach(() => {
+        vi.useFakeTimers({ shouldAdvanceTime: true });
+    });
+    afterEach(() => {
+        vi.useRealTimers();
+        delete document.documentElement.dataset.theme;
+    });
+
+    it("paints exactly what activeHoliday says, every day for ten years", () => {
+        const cursor = new Date("2026-01-01T00:00:00Z");
+        const end = new Date("2035-12-31T00:00:00Z");
+        const disagreements: string[] = [];
+
+        while (cursor <= end) {
+            const day = cursor.toISOString().slice(0, 10);
+            const painted = run(day);
+            const expected = activeHoliday(new Date(`${day}T12:00:00`))?.themeId ?? null;
+            if (painted !== expected) {
+                disagreements.push(`${day}: script ${painted}, schedule ${expected}`);
+            }
+            cursor.setUTCDate(cursor.getUTCDate() + 1);
+        }
+
+        expect(disagreements).toEqual([]);
+    });
+
+    it("overrides a saved palette rather than replacing it", () => {
+        expect(run("2026-10-31", { version: 1, theme: "gameboy" })).toBe("halloween");
+        // The blob is untouched — the store reads the same value back after.
+        expect(readStoredSettings().theme).toBe("gameboy");
+    });
+
+    it("leaves the saved palette alone outside the window", () => {
+        expect(run("2026-11-02", { version: 1, theme: "gameboy" })).toBe("gameboy");
+    });
+
+    it("respects the seasonal switch", () => {
+        expect(
+            run("2026-10-31", { version: 1, theme: "gameboy", seasonalThemes: false }),
+        ).toBe("gameboy");
+    });
+
+    it("respects a dismissal of this occurrence only", () => {
+        const dismissed = { version: 1, seasonalDismissed: "halloween-2026" };
+        expect(run("2026-10-31", dismissed)).toBeNull();
+        expect(run("2027-10-31", dismissed)).toBe("halloween");
+        expect(run("2026-12-25", dismissed)).toBe("christmas");
+    });
+
+    it("still paints a holiday for a browser with no blob at all", () => {
+        expect(run("2026-12-25")).toBe("christmas");
     });
 });
 

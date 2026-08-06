@@ -9,6 +9,7 @@ import {
     type Settings,
 } from '@/lib/settings';
 import { applyTheme } from '@/lib/theme';
+import { activeOverride } from '@/lib/holidays';
 import {
     CUSTOM_THEME_PREFIX,
     isCustomThemeSetting,
@@ -53,9 +54,18 @@ export interface SettingsSlice {
  * The one place a settings change touches the world outside the store.
  * A `custom:` theme resolves against the saved list; pointing at a theme that
  * no longer exists renders the default rather than half a palette.
+ *
+ * A holiday in season wins over all of it, and `settings.theme` is left
+ * untouched underneath — which is the whole reason the override is resolved
+ * here, at paint, rather than written into the blob.
  */
 const applySideEffects = (settings: Settings, customThemes: CustomTheme[]) => {
     if (typeof document === 'undefined') return;
+    const holiday = activeOverride(settings);
+    if (holiday) {
+        applyTheme(holiday.themeId);
+        return;
+    }
     if (isCustomThemeSetting(settings.theme)) {
         const id = settings.theme.slice(CUSTOM_THEME_PREFIX.length);
         const theme = customThemes.find((t) => t.id === id);
@@ -84,7 +94,24 @@ export const createSettingsSlice: StateCreator<MinesweeperState, [], [], Setting
 
     setSetting: (key, value) =>
         set((state) => {
+            const holiday = activeOverride(state.settings);
+
+            // Picking the palette that is already painting is a no-op click on
+            // the highlighted card. Writing it would outlive the window and
+            // strand the player on Halloween in December.
+            if (key === 'theme' && holiday && value === holiday.themeId) return {};
+
             const settings = { ...state.settings, [key]: value };
+
+            // Choosing any other palette during a holiday IS the switch-away,
+            // recorded against this occurrence so next year still surprises them.
+            if (key === 'theme' && holiday) settings.seasonalDismissed = holiday.key;
+
+            // Turning the switch back on means "yes, I want the holiday" — a
+            // dismissal left over from earlier in the same window would
+            // otherwise make the toggle look broken.
+            if (key === 'seasonalThemes' && value === true) settings.seasonalDismissed = null;
+
             writeStoredSettings(settings);
             applySideEffects(settings, state.customThemes);
             return { settings };

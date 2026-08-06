@@ -6,6 +6,8 @@
  * no re-render: the attribute changes and CSS does the rest.
  */
 
+import { HOLIDAY_THEME_IDS } from "@/lib/holidays";
+
 export interface ThemeOption {
     /** The `data-theme` value. `null` is the default palette, which sets none. */
     id: string | null;
@@ -88,6 +90,38 @@ export const THEMES: ThemeOption[] = [
         short: "Coin gold",
         note: "Blue sky, gold blocks, and the little jump you do when one pays out.",
     },
+
+    // Seasonal — see lib/holidays.ts for the windows that offer these.
+    {
+        id: "halloween",
+        label: "Halloween",
+        short: "Pumpkin",
+        note: "Midnight purple, one lit pumpkin, and something green in the dark.",
+    },
+    {
+        id: "christmas",
+        label: "Christmas",
+        short: "Fir & gold",
+        note: "Snow on the window, fir on the door, and the good tin of biscuits open.",
+    },
+    {
+        id: "lunar-new-year",
+        label: "Lunar New Year",
+        short: "Red & gold",
+        note: "Red envelopes, gold lacquer, and the whole street awake at midnight.",
+    },
+    {
+        id: "valentines",
+        label: "Valentine's",
+        short: "Blush",
+        note: "Blush pink and rose gold, for a game about not stepping on anything.",
+    },
+    {
+        id: "thanksgiving",
+        label: "Thanksgiving",
+        short: "Harvest",
+        note: "Wheat, ochre and rust — the whole year's colours falling off the trees.",
+    },
 ];
 
 /**
@@ -106,6 +140,20 @@ export const THEME_STORAGE_KEY = "ms-theme";
 export const VALID_THEME_IDS = THEMES.map((t) => t.id).filter(
     (id): id is string => id !== null,
 );
+
+/**
+ * Whether a palette is offered only inside a date window. Derived from the
+ * schedule rather than flagged on the entry: the schedule is what actually
+ * decides, and a flag beside it would be a second copy of the same fact for
+ * someone to forget.
+ *
+ * Seasonal palettes stay in THEMES year-round regardless — the list is what
+ * `VALID_THEME_IDS` and the /ds contrast audit are built from, so dropping one
+ * out of season would invalidate a stored id and hide the palette from the
+ * audit. Only the picker filters (components/ThemeCards.tsx).
+ */
+export const isSeasonal = (id: string | null): boolean =>
+    id !== null && HOLIDAY_THEME_IDS.includes(id);
 
 /**
  * Removes every inline `--ms-palette-*` override a custom theme stamped.

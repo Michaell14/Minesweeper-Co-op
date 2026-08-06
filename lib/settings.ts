@@ -15,6 +15,7 @@
  */
 
 import { VALID_THEME_IDS, THEME_STORAGE_KEY as LEGACY_THEME_KEY } from "@/lib/theme";
+import { SCHEDULE_SNIPPET } from "@/lib/holidays";
 
 /** The board's cell-size ceiling — token variants in app/tokens.css. */
 export const CELL_SIZES = ["compact", "standard", "large"] as const;
@@ -24,8 +25,21 @@ export interface Settings {
     /** Bumped only when a stored shape needs rewriting, not for new keys —
      * unknown keys are dropped and missing ones defaulted regardless. */
     version: 1;
-    /** data-theme id, or null for the default palette. */
+    /**
+     * data-theme id, or null for the default palette. This is the player's
+     * OWN choice and is never written by the seasonal schedule — a holiday
+     * paints over it for the length of its window and leaves it intact
+     * (lib/holidays.ts, state/settingsSlice.ts).
+     */
     theme: string | null;
+    /** Let a holiday palette take over while its window is open. */
+    seasonalThemes: boolean;
+    /**
+     * The one holiday occurrence already switched away from — 'halloween-2026'.
+     * Per occurrence rather than a flag, so dismissing Halloween still lets
+     * Christmas arrive and brings Halloween back next year.
+     */
+    seasonalDismissed: string | null;
 
     // --- Gameplay ---
     /** Left click flags, right click opens. */
@@ -60,6 +74,8 @@ export const SETTINGS_STORAGE_KEY = "minesweeper_settings";
 export const DEFAULT_SETTINGS: Settings = {
     version: 1,
     theme: null,
+    seasonalThemes: true,
+    seasonalDismissed: null,
     swapMouseButtons: false,
     mobileDefaultFlag: false,
     chording: true,
@@ -83,11 +99,19 @@ const boolean = (value: unknown): boolean | undefined =>
 /** `custom:<slug>` — a saved custom theme. The slug rules match lib/customThemes.ts. */
 const CUSTOM_THEME_SETTING_RE = /^custom:[a-z0-9][a-z0-9-]{0,39}$/;
 
+/** `<holiday-id>-<year>`. Shape only — an id retired later just never matches. */
+const OCCURRENCE_RE = /^[a-z][a-z-]{0,39}-\d{4}$/;
+
 const SANITISERS: { [K in SettingKey]: (value: unknown) => Settings[K] | undefined } = {
     theme: (value) =>
         value === null ||
         (typeof value === "string" &&
             (VALID_THEME_IDS.includes(value) || CUSTOM_THEME_SETTING_RE.test(value)))
+            ? (value as string | null)
+            : undefined,
+    seasonalThemes: boolean,
+    seasonalDismissed: (value) =>
+        value === null || (typeof value === "string" && OCCURRENCE_RE.test(value))
             ? (value as string | null)
             : undefined,
     swapMouseButtons: boolean,
@@ -169,18 +193,33 @@ export function writeStoredSettings(settings: Settings): void {
  * `ms-theme` key, mirroring readStoredSettings — a themed player whose
  * storage predates the blob still gets no flash on the upgrade visit.
  * Deliberately dependency-free; it runs before any bundle.
+ *
+ * The seasonal check happens FIRST and wins, mirroring `activeOverride`: a
+ * holiday overrides the saved theme rather than replacing it, so a player on
+ * Game Boy in October must paint Halloween here too, or the palette would flip
+ * once the store hydrates — the exact flash this script exists to prevent.
  */
 export const NO_FLASH_SCRIPT = `
 (function () {
+  ${SCHEDULE_SNIPPET}
   try {
     var t = null;
+    var s = null;
     try {
       var raw = localStorage.getItem(${JSON.stringify(SETTINGS_STORAGE_KEY)});
       if (raw) {
-        var s = JSON.parse(raw);
+        s = JSON.parse(raw);
         if (s && typeof s.theme === 'string') t = s.theme;
       }
     } catch (e) {}
+    if (s === null || typeof s !== 'object') s = {};
+    if (s.seasonalThemes !== false) {
+      var h = holidayOn(new Date());
+      if (h && h[1] !== s.seasonalDismissed) {
+        document.documentElement.setAttribute('data-theme', h[0]);
+        return;
+      }
+    }
     if (!t) t = localStorage.getItem(${JSON.stringify(LEGACY_THEME_KEY)});
     if (!t) return;
     if (t.indexOf('custom:') === 0) {
