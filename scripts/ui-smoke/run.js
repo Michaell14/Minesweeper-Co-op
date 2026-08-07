@@ -11,8 +11,8 @@
  *
  * Covers: creating a room, the first-click cascade, flagging, the flag counter,
  * reset, leaving, the board-size/difficulty selectors, a two-client PVP round
- * (lobby, start, per-player boards, opponent progress), and joining via a
- * shareable room link.
+ * (lobby, start, per-player boards, opponent progress), joining via a shareable
+ * room link, and keyboard play (arrow cursor, Space reveal, F flag, Escape).
  *
  * NOT covered: chording. Making a chord do something visible requires knowing
  * where the mines are, which a browser client deliberately cannot see since
@@ -998,6 +998,66 @@ async function joinLink(host, guest) {
     pass('the host sees the guest join via the link');
 }
 
+/**
+ * Keyboard play: arrows show and move the selection cursor, Space reveals, F
+ * flags, Escape dismisses. Drives the same emits as the mouse, so this only
+ * needs to prove the keys reach them — scoring etc. is covered elsewhere.
+ */
+async function keyboardPlay(page) {
+    console.log('\n\x1b[1m--- KEYBOARD PLAY ---\x1b[0m');
+    const room = 'smokekeys' + Date.now().toString().slice(-6);
+
+    await page.goto(CLIENT);
+    await page.waitFor(`!!document.querySelector('form[aria-label="Create new room form"] button[type=submit]')`,
+        { timeout: 60000, label: 'landing ready for keyboard scenario' });
+    await enterRoom(page, { room, name: 'Keys' });
+    await page.waitFor(`${cellCount} >= 256`, { label: 'board renders' });
+
+    // The cursor's live region announces the selected cell — it doubles as the
+    // scenario's way of knowing what is under the cursor.
+    const cursorLabel = () => page.evaluate(
+        `return document.querySelector('[role=grid] [role=status]')?.textContent || '';`);
+
+    await page.key('ArrowRight', { code: 'ArrowRight', keyCode: 39 });
+    await page.waitFor(`!!document.querySelector('[data-kb-cursor]')`, { label: 'arrow key shows the cursor' });
+    pass('an arrow key shows the keyboard cursor');
+    check((await cursorLabel()).startsWith('Unrevealed'), 'the live region announces the selected cell',
+        `got "${await cursorLabel()}"`);
+
+    await page.key(' ', { code: 'Space', keyCode: 32 });
+    await page.waitFor(`${revealedCount} > 0`, { label: 'Space reveals' });
+    pass('Space reveals the selected cell');
+
+    // Walk to a still-covered cell for the flag check: to the corner (clamping
+    // proves the cursor cannot leave the board), then scan until the live
+    // region says Unrevealed.
+    for (let i = 0; i < 16; i++) await page.key('ArrowUp', { code: 'ArrowUp', keyCode: 38 });
+    for (let i = 0; i < 16; i++) await page.key('ArrowLeft', { code: 'ArrowLeft', keyCode: 37 });
+    let found = (await cursorLabel()).startsWith('Unrevealed');
+    for (let row = 0; row < 3 && !found; row++) {
+        for (let i = 0; i < 15 && !found; i++) {
+            await page.key(row % 2 ? 'ArrowLeft' : 'ArrowRight', row % 2
+                ? { code: 'ArrowLeft', keyCode: 37 } : { code: 'ArrowRight', keyCode: 39 });
+            found = (await cursorLabel()).startsWith('Unrevealed');
+        }
+        if (!found) {
+            await page.key('ArrowDown', { code: 'ArrowDown', keyCode: 40 });
+            found = (await cursorLabel()).startsWith('Unrevealed');
+        }
+    }
+    check(found, 'the cursor reached a covered cell', 'no Unrevealed cell in the top rows — cascade cannot have opened them all');
+
+    await page.key('f', { keyCode: 70 });
+    await page.waitFor(
+        `[...document.querySelectorAll('[role=gridcell]')].some(c => (c.getAttribute('aria-label') || '').startsWith('Flagged'))`,
+        { label: 'F flags the selected cell' });
+    pass('F flags the selected cell');
+
+    await page.key('Escape', { code: 'Escape', keyCode: 27 });
+    await page.waitFor(`!document.querySelector('[data-kb-cursor]')`, { label: 'Escape hides the cursor' });
+    pass('Escape hides the cursor');
+}
+
 (async () => {
     await preflight();
     const chrome = await launchChrome();
@@ -1009,6 +1069,7 @@ async function joinLink(host, guest) {
         await mobileFit(page);
         await footerClearance(page);
         await rejoinOnReload(page);
+        await keyboardPlay(page);
         await themeContrast(page);
         await themeSprites(page);
         await themeSwatches(page);

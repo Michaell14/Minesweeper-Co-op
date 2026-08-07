@@ -25,6 +25,7 @@ import Timer from '@/components/game/Timer';
 import RoomPanel from '@/components/game/RoomPanel';
 import { useGameStats } from '@/hooks/useGameStats';
 import { useChording } from '@/hooks/useChording';
+import { useKeyboardControls } from '@/hooks/useKeyboardControls';
 import { DIALOGS, openDialog } from '@/lib/dialogs';
 
 /** Actions passed down from Home. */
@@ -65,6 +66,9 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
     // Both-buttons chording, and clearing the button state on a release that
     // never reaches a cell. See hooks/useChording.ts.
     useChording(chordCell);
+
+    // Arrow-key cursor + reveal/flag keys. See hooks/useKeyboardControls.ts.
+    useKeyboardControls({ openCell, toggleFlag, chordCell, emitCellHover });
 
     const boardProps = { toggleFlag, openCell, chordCell, emitCellHover, handleBoardLeave };
 

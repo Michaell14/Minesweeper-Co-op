@@ -331,6 +331,7 @@ describe("the gameplay and HUD settings", () => {
             chording: true,
             confetti: true,
             shareCursor: true,
+            keyboardControls: true,
             showTimer: true,
             showFlagCounter: true,
             showProgressBar: true,
@@ -354,6 +355,12 @@ describe("the gameplay and HUD settings", () => {
         const corrupt = sanitizeSettings({ swapMouseButtons: "true", chording: 1 });
         expect(corrupt.swapMouseButtons).toBe(false);
         expect(corrupt.chording).toBe(true);
+    });
+
+    it("keyboard controls: off survives, junk defaults on", () => {
+        expect(sanitizeSettings({ keyboardControls: false }).keyboardControls).toBe(false);
+        expect(sanitizeSettings({ keyboardControls: "yes" }).keyboardControls).toBe(true);
+        expect(sanitizeSettings({ keyboardControls: 1 }).keyboardControls).toBe(true);
     });
 
     it("accepts each cell size and defaults an unknown one", () => {

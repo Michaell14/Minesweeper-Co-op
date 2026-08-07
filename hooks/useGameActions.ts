@@ -139,6 +139,8 @@ export function useGameActions(socket: AppSocket | null) {
         // The target belongs to the run being left. Joining anywhere else
         // resets it too, but leaving lands on Landing and joins nothing.
         store.setPracticeTarget(null);
+        // A stale keyboard cursor must not reappear on the next room's board.
+        store.setKbCursor(null);
     }, [socket]);
 
     const createRoom = useCallback(() => {
@@ -277,6 +279,7 @@ export function useGameActions(socket: AppSocket | null) {
         // Same reason as leaveRoom: a clock left running is read as a run this
         // browser played, and the next room to announce a win would record it.
         store.setClock({ startedAt: null, endedAt: null });
+        store.setKbCursor(null);
     }, []);
 
     const emitDailyCellAction = useCallback(

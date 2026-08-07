@@ -61,6 +61,8 @@ export interface Settings {
     confetti: boolean;
     /** Broadcast your cursor position to the co-op room. Privacy setting. */
     shareCursor: boolean;
+    /** Arrow-key cursor + reveal/flag keys on the board. */
+    keyboardControls: boolean;
 
     // --- Sound ---
     /** Off by default — nobody gets surprise audio. */
@@ -91,6 +93,7 @@ export const DEFAULT_SETTINGS: Settings = {
     chording: true,
     confetti: true,
     shareCursor: true,
+    keyboardControls: true,
     sound: false,
     soundVolume: 0.5,
     showTimer: true,
@@ -133,6 +136,7 @@ const SANITISERS: { [K in SettingKey]: (value: unknown) => Settings[K] | undefin
     chording: boolean,
     confetti: boolean,
     shareCursor: boolean,
+    keyboardControls: boolean,
     sound: boolean,
     soundVolume: (value) =>
         typeof value === "number" && Number.isFinite(value)

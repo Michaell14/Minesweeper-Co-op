@@ -86,6 +86,11 @@ export default function SettingsClient() {
                         name="Share your cursor"
                         description="Teammates in a co-op room see which cell you are hovering."
                     />
+                    <SettingRow
+                        settingKey="keyboardControls"
+                        name="Keyboard controls"
+                        description="Arrow keys or WASD move a cursor on the board. Space or Enter reveals, F flags, Escape hides it."
+                    />
                 </Panel>
             </section>
 
