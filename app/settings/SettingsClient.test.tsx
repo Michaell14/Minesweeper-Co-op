@@ -23,18 +23,25 @@ beforeEach(() => {
     localStorage.clear();
     useMinesweeperStore.setState({ settings: { ...DEFAULT_SETTINGS }, settingsHydrated: true });
     mockUseSession.mockReturnValue({ data: null, status: 'unauthenticated' });
-    // An ordinary day. The palette UI consults the calendar now (lib/holidays),
-    // so without this the cases below would quietly mean something different
-    // for the nine days of Halloween and the twelve of Christmas.
-    vi.useFakeTimers({ shouldAdvanceTime: true });
-    vi.setSystemTime(new Date('2026-06-15T12:00:00'));
 });
 
 afterEach(() => {
     cleanup();
-    vi.useRealTimers();
     delete document.documentElement.dataset.theme;
 });
+
+/**
+ * Pins the clock for a describe that reads the calendar. Only the palette
+ * picker does — the sound, HUD and account cases have no business running
+ * under fake timers, which are a standing source of async flake.
+ */
+const pinTo = (day: string) => {
+    beforeEach(() => {
+        vi.useFakeTimers({ shouldAdvanceTime: true });
+        vi.setSystemTime(new Date(`${day}T12:00:00`));
+    });
+    afterEach(() => vi.useRealTimers());
+};
 
 describe('structure', () => {
     it('has the heading, both sections, and a back link', () => {
@@ -45,6 +52,10 @@ describe('structure', () => {
         const back = screen.getByRole('link', { name: 'Back to the game' }) as HTMLAnchorElement;
         expect(back.getAttribute('href')).toBe('/');
     });
+});
+
+describe('the palette picker out of season', () => {
+    pinTo('2026-06-15');
 
     it('offers every year-round palette as a radio, reflecting the store', () => {
         render(<SettingsClient />);
@@ -53,7 +64,7 @@ describe('structure', () => {
         }
     });
 
-    it('keeps the seasonal palettes out of the picker out of season', () => {
+    it('keeps the seasonal palettes out of the picker', () => {
         render(<SettingsClient />);
         for (const theme of THEMES.filter((t) => isSeasonal(t.id))) {
             expect(screen.queryByRole('radio', { name: new RegExp(theme.label) })).toBeNull();
@@ -62,6 +73,11 @@ describe('structure', () => {
 });
 
 describe('choosing a palette', () => {
+    // Pinned even though the assertions happen to hold either way: in season
+    // this click takes the switch-away branch instead, and a case that changes
+    // which path it exercises depending on the date is not one case.
+    pinTo('2026-06-15');
+
     it('writes the store, the document and storage', () => {
         render(<SettingsClient />);
         fireEvent.click(screen.getByRole('radio', { name: /Game Boy/ }));
@@ -78,17 +94,15 @@ describe('choosing a palette', () => {
  * disagree, and the saved one has to survive the window intact.
  */
 describe('a holiday in season', () => {
-    const halloween = () => vi.setSystemTime(new Date('2026-10-31T12:00:00'));
+    pinTo('2026-10-31');
 
     it('offers its card, and only its card', () => {
-        halloween();
         render(<SettingsClient />);
         expect(screen.getByRole('radio', { name: /Halloween/ })).toBeTruthy();
         expect(screen.queryByRole('radio', { name: /Christmas/ })).toBeNull();
     });
 
     it('shows as selected over the saved palette, without overwriting it', () => {
-        halloween();
         useMinesweeperStore.setState({
             settings: { ...DEFAULT_SETTINGS, theme: 'gameboy' },
             settingsHydrated: true,
@@ -101,7 +115,6 @@ describe('a holiday in season', () => {
     });
 
     it('switching away records the dismissal and restores the chosen palette', () => {
-        halloween();
         render(<SettingsClient />);
         fireEvent.click(screen.getByRole('radio', { name: /Game Boy/ }));
 
@@ -113,7 +126,6 @@ describe('a holiday in season', () => {
 
     /* Clicking the card that is already lit must not outlive the window. */
     it('re-picking the holiday itself writes nothing', () => {
-        halloween();
         render(<SettingsClient />);
         fireEvent.click(screen.getByRole('radio', { name: /Halloween/ }));
 
@@ -123,7 +135,6 @@ describe('a holiday in season', () => {
     });
 
     it('turning the switch off gives the saved palette straight back', () => {
-        halloween();
         useMinesweeperStore.setState({
             settings: { ...DEFAULT_SETTINGS, theme: 'c64' },
             settingsHydrated: true,
@@ -137,7 +148,6 @@ describe('a holiday in season', () => {
 
     /* A stale dismissal would otherwise make the toggle look broken. */
     it('turning the switch back on brings this occurrence back', () => {
-        halloween();
         useMinesweeperStore.setState({
             settings: {
                 ...DEFAULT_SETTINGS,

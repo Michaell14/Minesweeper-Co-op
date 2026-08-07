@@ -15,6 +15,12 @@
  * Christmas in Auckland at the same time it does in Auckland. That makes the
  * schedule client-trusted (a changed system clock summons Halloween early),
  * which is the correct trade for a palette.
+ *
+ * Resolution is per PAINT, not live: nothing here watches the clock, so a tab
+ * left open across midnight on 1 November keeps Halloween until it reloads or
+ * some other setting repaints. Deliberate — a timer running all year to catch
+ * ten boundaries would cost more than the boundary is worth. If a window ever
+ * needs to open under an open tab, that is a new mechanism, not a bug here.
  */
 
 /** A schedule entry. `id` is both the `data-theme` value and the key prefix. */
