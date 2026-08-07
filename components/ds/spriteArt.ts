@@ -508,6 +508,166 @@ const NEWYEAR_FLAG: PixelArt = {
     ],
 };
 
+/*
+ * GENERAL sets — pinnable from Settings any day of the year, so unlike the
+ * seasonal pairs they paint in TOKENS: a pinned pair sits on whichever palette
+ * the player runs, and a literal colour would vanish on one of them the same
+ * way a black bomb does on Game Boy.
+ */
+
+/* Naval — a contact mine with horns, an anchor as the marker. */
+const NAVAL_MINE: PixelArt = {
+    palette: {
+        "#": "var(--ms-ink-strong)",
+        o: "var(--ms-cell-open)",
+    },
+    rows: [
+        "                ",
+        "       oo       ",
+        "       oo       ",
+        "     oooooo     ",
+        "    o######o    ",
+        "   o###oo###o   ",
+        "   o##o#####o   ",
+        " ooo########ooo ",
+        " ooo########ooo ",
+        "   o########o   ",
+        "   o########o   ",
+        "    o######o    ",
+        "     oooooo     ",
+        "       oo       ",
+        "       oo       ",
+        "                ",
+    ],
+};
+
+const NAVAL_FLAG: PixelArt = {
+    palette: {
+        "#": "var(--ms-ink-strong)",
+    },
+    rows: [
+        "                ",
+        "      ####      ",
+        "     ##  ##     ",
+        "     ##  ##     ",
+        "      ####      ",
+        "       ##       ",
+        "    ########    ",
+        "       ##       ",
+        "       ##       ",
+        "  ##   ##   ##  ",
+        "  ##   ##   ##  ",
+        "  ##   ##   ##  ",
+        "  ###  ##  ###  ",
+        "   ##########   ",
+        "    ########    ",
+        "                ",
+    ],
+};
+
+/* Space — a saucer keeping its distance, a rocket as the marker. */
+const SPACE_MINE: PixelArt = {
+    palette: {
+        "#": "var(--ms-ink-strong)",
+        o: "var(--ms-cell-open)",
+    },
+    rows: [
+        "                ",
+        "                ",
+        "      oooo      ",
+        "     o####o     ",
+        "     o####o     ",
+        "   oooooooooo   ",
+        "  o##########o  ",
+        " o#o##o##o##o#o ",
+        "  o##########o  ",
+        "   oooooooooo   ",
+        "    o      o    ",
+        "   o        o   ",
+        "                ",
+        "                ",
+        "                ",
+        "                ",
+    ],
+};
+
+const SPACE_FLAG: PixelArt = {
+    palette: {
+        "#": "var(--ms-ink-strong)",
+        o: "var(--ms-cell-open)",
+        R: "var(--ms-cell-mine)",
+    },
+    rows: [
+        "                ",
+        "       ##       ",
+        "      ####      ",
+        "     ######     ",
+        "     ######     ",
+        "     ##oo##     ",
+        "     ##oo##     ",
+        "     ######     ",
+        "     ######     ",
+        "    ########    ",
+        "   ##########   ",
+        "   ##  ##  ##   ",
+        "       RR       ",
+        "      RRRR      ",
+        "       RR       ",
+        "                ",
+    ],
+};
+
+/* Kitty — the cat that found the mine, a fish as the marker. */
+const KITTY_MINE: PixelArt = {
+    palette: {
+        "#": "var(--ms-ink-strong)",
+        o: "var(--ms-cell-open)",
+    },
+    rows: [
+        "                ",
+        "                ",
+        "   oo      oo   ",
+        "   ooo    ooo   ",
+        "   oooooooooo   ",
+        "  oooooooooooo  ",
+        "  oo##oooo##oo  ",
+        "  oo##oooo##oo  ",
+        "  oooooooooooo  ",
+        " #ooooo##ooooo# ",
+        "  ooo##oo##ooo  ",
+        "  oooooooooooo  ",
+        "   oooooooooo   ",
+        "                ",
+        "                ",
+        "                ",
+    ],
+};
+
+const KITTY_FLAG: PixelArt = {
+    palette: {
+        R: "var(--ms-cell-mine)",
+        o: "var(--ms-cell-open)",
+    },
+    rows: [
+        "                ",
+        "                ",
+        "                ",
+        "                ",
+        "    RRRRRR      ",
+        "  RRRRRRRRRR RR ",
+        " RRoRRRRRRRRRRR ",
+        " RRRRRRRRRRRRR  ",
+        "  RRRRRRRRRR RR ",
+        "    RRRRRR      ",
+        "                ",
+        "                ",
+        "                ",
+        "                ",
+        "                ",
+        "                ",
+    ],
+};
+
 /** Keyed by `data-theme`; DEFAULT covers every palette without a pair. */
 export const DEFAULT_SET: SpriteSet = { mine: DEFAULT_MINE, flag: DEFAULT_FLAG };
 
@@ -528,3 +688,24 @@ export type SpriteKind = "mine" | "flag";
 /** The pair a palette paints. */
 export const spriteSetFor = (theme: string | null): SpriteSet =>
     (theme && SPRITE_SETS[theme]) || DEFAULT_SET;
+
+/**
+ * The general sets, with their picker labels. Deliberately separate from
+ * SPRITE_SETS: only these are pinnable — the seasonal pairs arrive with their
+ * holiday and are not offered, which is why spriteSetById below never looks
+ * in the seasonal table.
+ */
+export const GENERAL_SPRITE_SETS: ReadonlyArray<{ id: string; label: string; set: SpriteSet }> = [
+    { id: "naval", label: "Naval", set: { mine: NAVAL_MINE, flag: NAVAL_FLAG } },
+    { id: "space", label: "Space", set: { mine: SPACE_MINE, flag: SPACE_FLAG } },
+    { id: "kitty", label: "Kitty", set: { mine: KITTY_MINE, flag: KITTY_FLAG } },
+];
+
+/** Every pinnable set id — "classic" names the default pair. No seasonal ids. */
+export const SPRITE_SET_IDS: string[] = ["classic", ...GENERAL_SPRITE_SETS.map((s) => s.id)];
+
+/** A pinned set by id, or null for anything unknown — the caller falls back. */
+export const spriteSetById = (id: string | null | undefined): SpriteSet | null =>
+    id === "classic"
+        ? DEFAULT_SET
+        : GENERAL_SPRITE_SETS.find((s) => s.id === id)?.set ?? null;

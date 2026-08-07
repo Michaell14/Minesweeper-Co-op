@@ -1,7 +1,15 @@
 import { describe, expect, test } from "vitest";
 import { HOLIDAY_THEME_IDS } from "@/lib/holidays";
 import { VALID_THEME_IDS } from "@/lib/theme";
-import { DEFAULT_SET, SPRITE_SETS, spriteSetFor, type SpriteSet } from "./sprites";
+import {
+    DEFAULT_SET,
+    GENERAL_SPRITE_SETS,
+    SPRITE_SET_IDS,
+    SPRITE_SETS,
+    spriteSetById,
+    spriteSetFor,
+    type SpriteSet,
+} from "./sprites";
 import { toRects, type PixelArt } from "./pixelArt";
 
 /**
@@ -12,7 +20,11 @@ import { toRects, type PixelArt } from "./pixelArt";
  * shows up anywhere but on the board, in one palette, for a few days a year.
  */
 
-const ALL: [string, SpriteSet][] = [["default", DEFAULT_SET], ...Object.entries(SPRITE_SETS)];
+const ALL: [string, SpriteSet][] = [
+    ["default", DEFAULT_SET],
+    ...GENERAL_SPRITE_SETS.map(({ id, set }) => [id, set] as [string, SpriteSet]),
+    ...Object.entries(SPRITE_SETS),
+];
 const EVERY_ART: [string, PixelArt][] = ALL.flatMap(([name, set]) => [
     [`${name} mine`, set.mine],
     [`${name} flag`, set.flag],
@@ -53,11 +65,16 @@ describe("colours are a hex or a token, never a bare name", () => {
     });
 
     /*
-     * The default pair paints on twelve palettes, so it cannot hold a literal:
-     * a black bomb vanishes on Game Boy, whose mine cell is its darkest green.
+     * The default pair and every GENERAL set paint on twelve palettes, so they
+     * cannot hold a literal: a black bomb vanishes on Game Boy, whose mine
+     * cell is its darkest green. Only the seasonal pairs may use literals —
+     * each appears on its own palette alone.
      */
-    test("the default pair is drawn entirely in tokens", () => {
-        const literals = [DEFAULT_SET.mine, DEFAULT_SET.flag]
+    test.each([
+        ["default", DEFAULT_SET] as [string, SpriteSet],
+        ...GENERAL_SPRITE_SETS.map(({ id, set }) => [id, set] as [string, SpriteSet]),
+    ])("the %s pair is drawn entirely in tokens", (_name, set) => {
+        const literals = [set.mine, set.flag]
             .flatMap((art) => Object.values(art.palette))
             .filter((value) => !value.startsWith("var("));
         expect(literals).toEqual([]);
@@ -94,5 +111,28 @@ describe("resolving a palette to its pair", () => {
     /* The default palette, an ordinary theme, and a custom one (null) alike. */
     test.each([null, "gameboy", "unknown-theme"])("%s falls back to the default", (theme) => {
         expect(spriteSetFor(theme)).toBe(DEFAULT_SET);
+    });
+});
+
+describe("the pinnable ids", () => {
+    test("cover classic and every general set, and nothing seasonal", () => {
+        expect(SPRITE_SET_IDS).toEqual(["classic", ...GENERAL_SPRITE_SETS.map((s) => s.id)]);
+        expect(SPRITE_SET_IDS.filter((id) => SPRITE_SETS[id])).toEqual([]);
+    });
+
+    /* A general id that matched a palette id would let spriteSetFor shadow it. */
+    test("no general id collides with a palette id", () => {
+        expect(SPRITE_SET_IDS.filter((id) => VALID_THEME_IDS.includes(id))).toEqual([]);
+    });
+
+    test("spriteSetById resolves a pin and refuses everything else", () => {
+        expect(spriteSetById("classic")).toBe(DEFAULT_SET);
+        for (const { id, set } of GENERAL_SPRITE_SETS) {
+            expect(spriteSetById(id)).toBe(set);
+        }
+        // Seasonal ids are not pins — a stale blob falls back to following.
+        expect(spriteSetById("halloween")).toBeNull();
+        expect(spriteSetById("pirate")).toBeNull();
+        expect(spriteSetById(null)).toBeNull();
     });
 });
