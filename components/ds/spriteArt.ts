@@ -1,6 +1,6 @@
-/* The art itself, in a PURE module: no React, no CSS import — which is what
- * lets lib/settings validate pinned set ids without dragging either into its
- * graph. The React side (PixelRects, SpriteDefs, Sprite) is sprites.tsx.
+/* The art itself, in a PURE module: no React, no CSS import — importable from
+ * lib/ without dragging either into its graph. The React side (PixelRects,
+ * SpriteDefs, Sprite) is sprites.tsx.
  */
 import { type PixelArt } from "./pixelArt";
 
@@ -528,10 +528,3 @@ export type SpriteKind = "mine" | "flag";
 /** The pair a palette paints. */
 export const spriteSetFor = (theme: string | null): SpriteSet =>
     (theme && SPRITE_SETS[theme]) || DEFAULT_SET;
-
-/** Every pinnable set id — "classic" names the default pair. */
-export const SPRITE_SET_IDS: string[] = ["classic", ...Object.keys(SPRITE_SETS)];
-
-/** A pinned set by id, or null for anything unknown — the caller falls back. */
-export const spriteSetById = (id: string | null | undefined): SpriteSet | null =>
-    id === "classic" ? DEFAULT_SET : (id && SPRITE_SETS[id]) || null;

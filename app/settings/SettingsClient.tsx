@@ -5,7 +5,6 @@ import { useSession } from 'next-auth/react';
 import { Button, Panel, RadioCard, RadioCardGroup } from '@/components/ds';
 import { DIALOGS, openDialog } from '@/lib/dialogs';
 import ThemeCards from '@/components/ThemeCards';
-import SpriteSetCards from '@/components/SpriteSetCards';
 import ThemeStudio from '@/components/ThemeStudio';
 import SettingRow from './SettingRow';
 import { useMinesweeperStore } from '@/app/store';
@@ -45,15 +44,10 @@ export default function SettingsClient() {
             <section aria-labelledby="settings-appearance" className="mb-8">
                 <Panel title={<span id="settings-appearance">Appearance</span>}>
                     <ThemeCards name="app-theme-settings" />
-                    {/* Styled label, not a heading: this page's section titles are
-                        spans on purpose, and an h3 here would skip a level. The
-                        group's accessible name comes from its own aria-label. */}
-                    <p className="text-pixel-sm mt-6 mb-2">Mine &amp; flag art</p>
-                    <SpriteSetCards name="app-sprite-set-settings" />
                     <SettingRow
                         settingKey="seasonalThemes"
                         name="Seasonal palettes"
-                        description="Let a holiday palette take over around Halloween, Christmas and a few others. Your own choice comes back afterwards."
+                        description="Let a holiday palette and its mine &amp; flag art take over around Halloween, Christmas and a few others. Your own choice comes back afterwards."
                     />
                     <ThemeStudio />
                 </Panel>

@@ -5,7 +5,7 @@ import { rectsOf, type PixelArt } from "./pixelArt";
 import { cx } from "./cx";
 import { subscribeAppliedTheme, getAppliedTheme } from "@/lib/theme";
 import styles from "./sprites.module.css";
-import { spriteSetById, spriteSetFor, type SpriteKind } from "./spriteArt";
+import { spriteSetFor, type SpriteKind } from "./spriteArt";
 
 // The art lives in spriteArt.ts, re-exported here so callers need one path.
 export * from "./spriteArt";
@@ -44,15 +44,12 @@ function useAppliedTheme(): string | null {
  * <use> is a live reference, so swapping the palette redraws every flag on the
  * board without React re-rendering a single cell.
  *
- * `pinned` is a set id the player chose (settings.spriteSet, wired up by
- * components/SpriteDefsHost.tsx) and beats the palette, holidays included — a
- * pin is the player's own data, where the holiday is only paint. An unknown id
- * falls back to following, never to blank art.
+ * The art always follows the palette — a seasonal pair appears only while its
+ * holiday paints, and leaves with it.
  */
-export function SpriteDefs({ pinned }: { pinned?: string | null } = {}) {
-    // The hook runs unconditionally (rules of hooks); the pin wins afterwards.
+export function SpriteDefs() {
     const applied = useAppliedTheme();
-    const set = spriteSetById(pinned) ?? spriteSetFor(applied);
+    const set = spriteSetFor(applied);
     return (
         <svg className={styles.defs} aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">
             <symbol id={SYMBOL_ID.mine} viewBox="0 0 16 16">

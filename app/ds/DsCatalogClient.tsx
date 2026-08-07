@@ -251,7 +251,7 @@ export default function DsCatalogClient() {
 
             <Section
                 title="Board"
-                note="The eight number colours, an unopened cell, a flag and a mine — rendered with the board's own stylesheet. This is where a small palette fails first. Seasonal palettes swap the two sprites (components/ds/sprites.tsx); pick one above to see them — unless a set is pinned in Settings, which wins here too."
+                note="The eight number colours, an unopened cell, a flag and a mine — rendered with the board's own stylesheet. This is where a small palette fails first. Seasonal palettes swap the two sprites (components/ds/sprites.tsx); pick one above to see them."
             >
                 <BoardPreview />
             </Section>

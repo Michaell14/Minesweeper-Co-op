@@ -9,7 +9,7 @@ import { NO_FLASH_SCRIPT } from "@/lib/settings";
 import Footer from "@/components/Footer";
 import AuthProvider from "@/components/AuthProvider";
 import SettingsSync from "@/components/SettingsSync";
-import SpriteDefsHost from "@/components/SpriteDefsHost";
+import { SpriteDefs } from "@/components/ds/sprites";
 
 const inter = Inter({ subsets: ["latin"] });
 const pressStart2P = Press_Start_2P({
@@ -162,9 +162,9 @@ export default function RootLayout({
       </head>
 
       <body className={inter.className}>
-        {/* The mine and flag art every <Sprite> points at; follows the palette
-            unless the player pinned a set. */}
-        <SpriteDefsHost />
+        {/* The mine and flag art every <Sprite> points at; follows the palette,
+            so seasonal art appears only while its holiday window is open. */}
+        <SpriteDefs />
         <AuthProvider>
           <SettingsSync />
           {children}

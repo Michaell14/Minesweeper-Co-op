@@ -25,11 +25,8 @@ import { activeHoliday, localDay } from '@/lib/holidays';
  * shrinks the set of ordinary days, and twice now a pin here has quietly become
  * a holiday and changed what these cases were testing.
  */
-/**
- * The palette group only. The sprite-set picker shares this page and offers
- * the seasonal NAMES year-round ("Halloween" the art, not the palette), so a
- * page-wide radio query is ambiguous for exactly the cases below.
- */
+/** Scoped to the palette group, so a second radio group on the page can never
+ * make these queries ambiguous. */
 const paletteGroup = () => within(screen.getByRole('radiogroup', { name: 'Colour palette' }));
 
 const ORDINARY_DAY = (() => {
