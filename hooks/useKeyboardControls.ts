@@ -21,8 +21,17 @@ const MOVES: Record<string, [number, number]> = {
     d: [0, 1],
 };
 
-/** Anything whose own keyboard semantics must win over the board's. */
-const INTERACTIVE = 'input, textarea, select, [contenteditable="true"], button, a[href], [tabindex]';
+/** Controls that consume keystrokes wholesale: typing, or arrow-driven. */
+const EDITABLE = 'input, textarea, select, [contenteditable="true"]';
+
+/**
+ * Controls that only own Enter/Space (activation). Arrows, F and Escape mean
+ * nothing to them, so those keys stay with the board — and a movement key
+ * BLURS them, because closing a dialog (or clicking Reset) parks focus on a
+ * button, and with no focusable cell to Tab to, a wholesale guard would strand
+ * a keyboard-only player there with every board key dead.
+ */
+const ACTIVATABLE = 'button, a[href], [tabindex]';
 
 /**
  * Keyboard play: arrows/WASD move a selection cursor, Space/Enter reveals (or
@@ -44,7 +53,8 @@ export function useKeyboardControls({ openCell, toggleFlag, chordCell, emitCellH
             // Shift is deliberately ignored — it changes no binding here.
             if (event.ctrlKey || event.metaKey || event.altKey) return;
             if (document.querySelector("dialog[open]")) return;
-            if (document.activeElement?.closest(INTERACTIVE)) return;
+            if (document.activeElement?.closest(EDITABLE)) return;
+            const activatableFocus = document.activeElement?.closest(ACTIVATABLE);
 
             const key = event.key.toLowerCase();
             const { board, kbCursor } = state;
@@ -54,6 +64,9 @@ export function useKeyboardControls({ openCell, toggleFlag, chordCell, emitCellH
                 const rows = board.length;
                 const cols = board[0]?.length || 0;
                 if (rows === 0 || cols === 0) return;
+                // Take the keyboard back from a focused button, so the NEXT
+                // Space/Enter reveals instead of re-clicking it.
+                if (activatableFocus instanceof HTMLElement) activatableFocus.blur();
                 event.preventDefault();
                 let next: { r: number; c: number };
                 if (kbCursor === null) {
@@ -81,6 +94,8 @@ export function useKeyboardControls({ openCell, toggleFlag, chordCell, emitCellH
             }
 
             if (key === " " || key === "enter" || key === "f") {
+                // A focused button or link keeps its Enter/Space activation.
+                if (activatableFocus && key !== "f") return;
                 // Auto-repeat would spam flags, blips and sockets.
                 if (event.repeat) return;
                 if (kbCursor === null) return;

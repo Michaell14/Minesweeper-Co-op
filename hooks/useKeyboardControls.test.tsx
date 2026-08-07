@@ -313,6 +313,44 @@ describe("guards", () => {
         expect(a.openCell).not.toHaveBeenCalled();
     });
 
+    /*
+     * Closing a dialog (or clicking Reset) parks focus on a button, and no
+     * cell is focusable, so a wholesale interactive-focus guard stranded a
+     * keyboard-only player with every board key dead. A button only owns
+     * Enter/Space; movement takes the keyboard back by blurring it.
+     */
+    test("a focused button keeps Enter/Space but yields the movement keys", () => {
+        const a = actions();
+        render(<Probe {...a} />);
+        const button = document.createElement("button");
+        document.body.appendChild(button);
+        button.focus();
+        act(() => state().setKbCursor({ r: 1, c: 1 }));
+
+        key(" ");
+        expect(a.openCell).not.toHaveBeenCalled(); // Space still means the button
+
+        key("ArrowRight");
+        expect(state().kbCursor).toEqual({ r: 1, c: 2 }); // movement got through...
+        expect(document.activeElement).not.toBe(button);  // ...and took the keyboard back
+
+        key(" ");
+        expect(a.openCell).toHaveBeenCalledWith(1, 2); // so reveal works again
+    });
+
+    test("F flags even while a button holds focus", () => {
+        const a = actions();
+        render(<Probe {...a} />);
+        const button = document.createElement("button");
+        document.body.appendChild(button);
+        button.focus();
+        act(() => state().setKbCursor({ r: 0, c: 0 }));
+
+        key("f");
+
+        expect(a.toggleFlag).toHaveBeenCalledWith(0, 0);
+    });
+
     test("an open dialog swallows every key", () => {
         const a = actions();
         render(<Probe {...a} />);
