@@ -1,12 +1,41 @@
 'use client'
 import React from 'react';
 import { RadioCard, RadioCardGroup } from '@/components/ds';
-import { THEMES, isSeasonal } from '@/lib/theme';
+import { THEMES, isSeasonal, readSwatches, swatchesFromPalette } from '@/lib/theme';
 import { CUSTOM_THEME_PREFIX } from '@/lib/customThemes';
 import { useMinesweeperStore } from '@/app/store';
 
 /** RadioCard values are strings; the default palette has no data-theme value. */
 const DEFAULT_THEME = '__default__';
+
+/**
+ * The five-colour strip under a palette's name.
+ *
+ * `aria-hidden`: the card's label already names the palette, and five unlabelled
+ * colours read aloud would be noise. `title` gives a pointer user the hex.
+ *
+ * Fills are inline because they ARE data — read from tokens.css at runtime, not
+ * a colour decision taken here. The outline is what keeps a white or near-black
+ * swatch from vanishing into the card, and is deliberately a 1px hairline
+ * rather than `border-pixel`: --ms-border-width is 4px, which on a 12px swatch
+ * would leave more edge than colour.
+ */
+function Swatches({ colors, label }: { colors: string[]; label: string }) {
+    if (colors.length === 0) return null;
+    return (
+        <span className="flex gap-1 mb-1" aria-hidden="true">
+            {colors.map((color, i) => (
+                <span
+                    key={i}
+                    data-swatch={label}
+                    title={color}
+                    className="h-3 w-3 border border-muted"
+                    style={{ backgroundColor: color }}
+                />
+            ))}
+        </span>
+    );
+}
 
 /**
  * The palette cards, mounted by the /settings Appearance section. The selection
@@ -31,6 +60,15 @@ export default function ThemeCards({ name }: { name: string }) {
     const holiday = useMinesweeperStore((s) => s.seasonalOverride);
     const customThemes = useMinesweeperStore((s) => s.customThemes);
     const setSetting = useMinesweeperStore((s) => s.setSetting);
+
+    /*
+     * After mount, not during render: the values come out of the CSSOM, which
+     * does not exist on the server. Once only — tokens.css is static, so
+     * re-reading on every theme change would be seventeen sheet walks to
+     * produce the same map.
+     */
+    const [swatches, setSwatches] = React.useState<Map<string | null, string[]>>(new Map());
+    React.useEffect(() => setSwatches(readSwatches()), []);
 
     const choose = (value: string) =>
         setSetting('theme', value === DEFAULT_THEME ? null : value);
@@ -64,7 +102,10 @@ export default function ThemeCards({ name }: { name: string }) {
                         value={t.id ?? DEFAULT_THEME}
                         label={t.label}
                         description={
-                            <span className="whitespace-nowrap text-pixel-xs">{t.short}</span>
+                            <>
+                                <Swatches colors={swatches.get(t.id) ?? []} label={t.label} />
+                                <span className="whitespace-nowrap text-pixel-xs">{t.short}</span>
+                            </>
                         }
                     />
                 ))}
@@ -74,7 +115,10 @@ export default function ThemeCards({ name }: { name: string }) {
                         value={`${CUSTOM_THEME_PREFIX}${t.id}`}
                         label={t.name}
                         description={
-                            <span className="whitespace-nowrap text-pixel-xs">Custom</span>
+                            <>
+                                <Swatches colors={swatchesFromPalette(t.palette)} label={t.name} />
+                                <span className="whitespace-nowrap text-pixel-xs">Custom</span>
+                            </>
                         }
                     />
                 ))}
