@@ -262,6 +262,45 @@ describe("the no-flash script agrees with the schedule", () => {
     it("still paints a holiday for a browser with no blob at all", () => {
         expect(run("2026-12-25")).toBe("christmas");
     });
+
+    /*
+     * The script carries its OWN region check, and the decade sweep above
+     * cannot see it: jsdom reports en-US, so both sides agree by accident.
+     * This is the only place the inlined gating is exercised at all.
+     */
+    describe("region gating, in the script's own copy", () => {
+        const asBrowserIn = (language: string, fn: () => void) => {
+            const original = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+            Object.defineProperty(globalThis, "navigator", {
+                value: { language, languages: [language] },
+                configurable: true,
+            });
+            try {
+                fn();
+            } finally {
+                if (original) Object.defineProperty(globalThis, "navigator", original);
+            }
+        };
+
+        const THANKSGIVING = "2026-11-26";
+
+        it("paints Thanksgiving for a US browser", () => {
+            asBrowserIn("en-US", () => expect(run(THANKSGIVING)).toBe("thanksgiving"));
+        });
+
+        it("leaves it alone everywhere else", () => {
+            asBrowserIn("en-GB", () => expect(run(THANKSGIVING)).toBeNull());
+            asBrowserIn("ja-JP", () => expect(run(THANKSGIVING)).toBeNull());
+        });
+
+        it("fails open when the tag carries no region", () => {
+            asBrowserIn("en", () => expect(run(THANKSGIVING)).toBe("thanksgiving"));
+        });
+
+        it("does not gate the holidays that are not gated", () => {
+            asBrowserIn("en-GB", () => expect(run("2026-12-25")).toBe("christmas"));
+        });
+    });
 });
 
 describe("the gameplay and HUD settings", () => {

@@ -1290,7 +1290,7 @@
     --ms-palette-gutter: #16261e;
     --ms-palette-mine: #a41623;
     --ms-palette-cursor-ink: #16261e;
-    --ms-palette-cursor-1: #e05263;
+    --ms-palette-cursor-1: #ed8290;
     --ms-palette-cursor-2: #4c9a70;
     --ms-palette-cursor-3: #e3b23c;
     --ms-palette-cursor-4: #7fb3d5;
@@ -1429,7 +1429,7 @@
     --ms-palette-gutter: #3d1029;
     --ms-palette-mine: #c2185b;
     --ms-palette-cursor-ink: #3d1029;
-    --ms-palette-cursor-1: #e0517f;
+    --ms-palette-cursor-1: #ef85a5;
     --ms-palette-cursor-2: #ff9ec4;
     --ms-palette-cursor-3: #e8a33d;
     --ms-palette-cursor-4: #b98fd6;
@@ -1496,10 +1496,10 @@
     --ms-palette-gutter: #2e1c0d;
     --ms-palette-mine: #8c1c2b;
     --ms-palette-cursor-ink: #2e1c0d;
-    --ms-palette-cursor-1: #c1592a;
+    --ms-palette-cursor-1: #dd8757;
     --ms-palette-cursor-2: #e0a33c;
     --ms-palette-cursor-3: #6b9a4a;
-    --ms-palette-cursor-4: #b8455a;
+    --ms-palette-cursor-4: #d47f90;
     --ms-palette-cursor-5: #9a7ab5;
     --ms-palette-cursor-6: #fdf3e3;
 
@@ -1639,11 +1639,11 @@
     --ms-palette-mine: #c21818;
     --ms-palette-cursor-ink: #1a1523;
     /* Flag order, top stripe first. */
-    --ms-palette-cursor-1: #e40303;
+    --ms-palette-cursor-1: #ff5a4d;
     --ms-palette-cursor-2: #ff8c00;
     --ms-palette-cursor-3: #ffed00;
     --ms-palette-cursor-4: #35c449;
-    --ms-palette-cursor-5: #5b73d8;
+    --ms-palette-cursor-5: #8fa1ec;
     --ms-palette-cursor-6: #b45cc9;
 
     --ms-palette-num-1: #1f4fc4;

@@ -27,7 +27,41 @@ interface Holiday {
     id: string;
     /** The window for a given year, inclusive, or null if unknown (see LUNAR_NEW_YEAR). */
     window: (year: number) => { start: string; end: string } | null;
+    /**
+     * Regions this holiday is offered in, as ISO 3166-1 alpha-2. Omitted means
+     * everywhere, which is the right default for almost all of them — most of
+     * these are celebrated far outside where they began, and hiding one from
+     * someone who does celebrate it is the worse mistake.
+     */
+    regions?: string[];
 }
+
+/**
+ * The regions the browser claims, from its language tags.
+ *
+ * A regex over `navigator.languages` rather than `Intl.Locale`, because the
+ * no-flash script needs exactly this and cannot import anything — one
+ * implementation is worth more than the nicer API.
+ *
+ * Deliberately NOT `maximize()`d: a bare "en" would resolve to "US" and hand
+ * American Thanksgiving to every English speaker on earth, which is the
+ * specific thing this exists to stop. An unknown region means the holiday
+ * shows — see `inRegion`.
+ */
+export function browserRegions(): string[] {
+    if (typeof navigator === "undefined") return [];
+    const tags = [navigator.language, ...(navigator.languages ?? [])];
+    const regions = new Set<string>();
+    for (const tag of tags) {
+        const match = /^[A-Za-z]{2,3}[-_]([A-Za-z]{2})\b/.exec(tag ?? "");
+        if (match) regions.add(match[1].toUpperCase());
+    }
+    return [...regions];
+}
+
+/** Fails OPEN: no region claimed means no basis to hide anything. */
+const inRegion = (holiday: Holiday, regions: string[]): boolean =>
+    !holiday.regions || regions.length === 0 || holiday.regions.some((r) => regions.includes(r));
 
 /** What is in season: the palette to paint, and the key that dismisses it. */
 export interface HolidayOccurrence {
@@ -125,8 +159,23 @@ const HOLIDAYS: Holiday[] = [
     // Día de Muertos — the two are adjacent, not overlapping, in the calendar.
     { id: "halloween", window: fixed("10-24", "10-31") },
     { id: "day-of-the-dead", window: fixed("11-01", "11-02") },
-    // The fourth Thursday of November, from the Friday before to the Sunday after.
-    { id: "thanksgiving", window: around((year) => nthWeekday(year, 11, 4, 4), 6, 3) },
+    /*
+     * The fourth Thursday of November, from the Friday before to the Sunday
+     * after — and the ONE holiday here that is genuinely wrong to show
+     * worldwide. It is a national holiday with no date in common elsewhere
+     * (Canada's is in October), and the palette is a northern autumn, which in
+     * November is the opposite of what is out of the window in Sydney.
+     *
+     * Everything else on this list stays global on purpose. Día de Muertos,
+     * St Patrick's and Lunar New Year are all widely celebrated well beyond
+     * where they began, and deciding on someone's behalf which holidays are
+     * "theirs" is a worse failure than showing one they do not keep.
+     */
+    {
+        id: "thanksgiving",
+        window: around((year) => nthWeekday(year, 11, 4, 4), 6, 3),
+        regions: ["US"],
+    },
     { id: "christmas", window: fixed("12-15", "12-26") },
     /*
      * The only window that crosses New Year, which is why `activeHoliday` scans
@@ -150,11 +199,15 @@ export const HOLIDAY_THEME_IDS: string[] = HOLIDAYS.map((h) => h.id);
  * otherwise disagree about a window that overlaps one from an adjacent year,
  * which is the kind of divergence that shows up once and in December.
  */
-export function activeHoliday(now: Date = new Date()): HolidayOccurrence | null {
+export function activeHoliday(
+    now: Date = new Date(),
+    regions: string[] = browserRegions(),
+): HolidayOccurrence | null {
     const today = localDay(now);
     const year = now.getFullYear();
     for (const y of [year - 1, year, year + 1]) {
         for (const holiday of HOLIDAYS) {
+            if (!inRegion(holiday, regions)) continue;
             const window = holiday.window(y);
             if (window && today >= window.start && today <= window.end) {
                 return { themeId: holiday.id, key: `${holiday.id}-${y}` };
@@ -214,8 +267,24 @@ export const SCHEDULE_SNIPPET = `
     d.setUTCDate(d.getUTCDate() + n);
     return d.toISOString().slice(0, 10);
   }
+  // \\b is doubled because this is a template literal — a single one is the
+  // BACKSPACE escape, which silently turns the regex into one that never
+  // matches, and fails the gate open everywhere.
+  function regionsOf() {
+    if (typeof navigator === 'undefined') return [];
+    var tags = [navigator.language].concat(navigator.languages || []);
+    var out = [];
+    for (var i = 0; i < tags.length; i++) {
+      var m = /^[A-Za-z]{2,3}[-_]([A-Za-z]{2})\\b/.exec(tags[i] || '');
+      if (m && out.indexOf(m[1].toUpperCase()) === -1) out.push(m[1].toUpperCase());
+    }
+    return out;
+  }
   function holidayOn(now) {
     var today = now.getFullYear() + '-' + pad(now.getMonth() + 1) + '-' + pad(now.getDate());
+    var here = regionsOf();
+    // Fails open, exactly as inRegion does.
+    var us = here.length === 0 || here.indexOf('US') !== -1;
     var lny = ${JSON.stringify(LUNAR_NEW_YEAR_DAYS)};
     for (var i = -1; i <= 1; i++) {
       var y = now.getFullYear() + i;
@@ -228,7 +297,7 @@ export const SCHEDULE_SNIPPET = `
       spans.push(['day-of-the-dead', y + '-11-01', y + '-11-02']);
       var nov = new Date(Date.UTC(y, 10, 1));
       var thu = shift(y + '-11-01', ((4 - nov.getUTCDay() + 7) % 7) + 21);
-      spans.push(['thanksgiving', shift(thu, -6), shift(thu, 3)]);
+      if (us) spans.push(['thanksgiving', shift(thu, -6), shift(thu, 3)]);
       spans.push(['christmas', y + '-12-15', y + '-12-26']);
       spans.push(['newyear', y + '-12-30', (y + 1) + '-01-02']);
       for (var j = 0; j < spans.length; j++) {

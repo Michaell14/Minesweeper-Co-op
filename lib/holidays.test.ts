@@ -3,6 +3,7 @@ import {
     HOLIDAY_THEME_IDS,
     activeHoliday,
     activeOverride,
+    browserRegions,
     localDay,
     msUntilLocalMidnight,
 } from "@/lib/holidays";
@@ -125,7 +126,7 @@ describe("no holiday quietly eats another", () => {
     const daysWonIn = (year: number) => {
         const won: Record<string, number> = {};
         for (const day of everyDay(`${year}-01-01`, `${year}-12-31`)) {
-            const id = activeHoliday(day)?.themeId;
+            const id = activeHoliday(day, ["US"])?.themeId;
             if (id) won[id] = (won[id] ?? 0) + 1;
         }
         return won;
@@ -147,6 +148,74 @@ describe("no holiday quietly eats another", () => {
             if (id === "valentines") continue;
             expect({ [id]: won[id] }).toEqual({ [id]: SPANS[id] });
         }
+    });
+});
+
+/*
+ * Region gating. Thanksgiving is the only holiday it applies to, and the rule
+ * that matters is which way it fails: a browser claiming no region at all must
+ * still see everything, because "we could not tell" is not a reason to hide a
+ * holiday from someone who keeps it.
+ */
+describe("region gating", () => {
+    const thanksgiving2026 = on("2026-11-26");
+
+    test("Thanksgiving shows in the US", () => {
+        expect(activeHoliday(thanksgiving2026, ["US"])?.themeId).toBe("thanksgiving");
+    });
+
+    test.each([[["GB"]], [["AU"]], [["DE", "FR"]]])(
+        "Thanksgiving stays away in %p",
+        (regions) => {
+            expect(activeHoliday(thanksgiving2026, regions)).toBeNull();
+        },
+    );
+
+    test("an unknown region sees it — gating fails open", () => {
+        expect(activeHoliday(thanksgiving2026, [])?.themeId).toBe("thanksgiving");
+    });
+
+    test("a US browser with several languages still counts as US", () => {
+        expect(activeHoliday(thanksgiving2026, ["GB", "US"])?.themeId).toBe("thanksgiving");
+    });
+
+    /* Everything else is deliberately global; a regression here is a palette
+     * quietly disappearing for most of the world. */
+    test.each([
+        ["2026-12-25", "christmas"],
+        ["2026-10-31", "halloween"],
+        ["2026-11-01", "day-of-the-dead"],
+        ["2026-03-17", "stpatricks"],
+        ["2026-02-17", "lunar-new-year"],
+    ])("%s is %s everywhere", (day, id) => {
+        for (const regions of [["US"], ["GB"], ["JP"], []]) {
+            expect(activeHoliday(on(day), regions)?.themeId).toBe(id);
+        }
+    });
+});
+
+describe("browserRegions", () => {
+    /* A bare "en" must NOT resolve to US — that is the whole point of not
+     * maximising the tag, and it is what would hand Thanksgiving to Britain. */
+    test("reads regions from language tags, and only when present", () => {
+        const original = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+        const set = (language: string, languages: string[]) =>
+            Object.defineProperty(globalThis, "navigator", {
+                value: { language, languages },
+                configurable: true,
+            });
+
+        set("en-GB", ["en-GB", "fr-FR"]);
+        expect(browserRegions()).toEqual(["GB", "FR"]);
+
+        set("en", ["en"]);
+        expect(browserRegions()).toEqual([]);
+
+        set("en_US", ["en_US"]);
+        expect(browserRegions()).toEqual(["US"]);
+
+        if (original) Object.defineProperty(globalThis, "navigator", original);
+        else delete (globalThis as { navigator?: unknown }).navigator;
     });
 });
 
