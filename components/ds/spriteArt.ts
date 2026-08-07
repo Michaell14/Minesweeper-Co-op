@@ -871,6 +871,109 @@ const ROBOT_FLAG: PixelArt = {
     ],
 };
 
+/* Garden — a bumblebee on patrol, a tulip as the marker. */
+const GARDEN_MINE: PixelArt = {
+    palette: {
+        "#": "var(--ms-ink-strong)",
+        o: "var(--ms-cell-open)",
+    },
+    rows: [
+        "                ",
+        "                ",
+        "    oo    oo    ",
+        "   oooo  oooo   ",
+        "   oooo  oooo   ",
+        "    oo    oo    ",
+        "   oo##oo##oo   ",
+        "  ooo##oo##ooo  ",
+        "  ooo##oo##ooo  ",
+        "  ooo##oo##ooo  ",
+        "   oo##oo##oo   ",
+        "    o##oo##o    ",
+        "       oo       ",
+        "                ",
+        "                ",
+        "                ",
+    ],
+};
+
+const GARDEN_FLAG: PixelArt = {
+    palette: {
+        R: "var(--ms-cell-mine)",
+        "#": "var(--ms-ink-strong)",
+    },
+    rows: [
+        "                ",
+        "                ",
+        "  RR   RR   RR  ",
+        "  RRR RRRR RRR  ",
+        "  RRRRRRRRRRRR  ",
+        "  RRRRRRRRRRRR  ",
+        "   RRRRRRRRRR   ",
+        "    RRRRRRRR    ",
+        "     RRRRRR     ",
+        "       ##       ",
+        "    #####       ",
+        "       ##       ",
+        "       #####    ",
+        "       ##       ",
+        "                ",
+        "                ",
+    ],
+};
+
+/* Wizard — a crystal ball that knows where they are, the hat as the marker. */
+const WIZARD_MINE: PixelArt = {
+    palette: {
+        "#": "var(--ms-ink-strong)",
+        o: "var(--ms-cell-open)",
+    },
+    rows: [
+        "                ",
+        "     oooooo     ",
+        "    oooooooo    ",
+        "   oooooooooo   ",
+        "   ooo#oooooo   ",
+        "   oo###ooooo   ",
+        "   ooo#oooooo   ",
+        "   oooooooooo   ",
+        "    oooooooo    ",
+        "     oooooo     ",
+        "     o    o     ",
+        "    oooooooo    ",
+        "                ",
+        "                ",
+        "                ",
+        "                ",
+    ],
+};
+
+const WIZARD_FLAG: PixelArt = {
+    palette: {
+        "#": "var(--ms-ink-strong)",
+        o: "var(--ms-cell-open)",
+        R: "var(--ms-cell-mine)",
+    },
+    rows: [
+        "                ",
+        "                ",
+        "        ##      ",
+        "       ###      ",
+        "      ####      ",
+        "      #####     ",
+        "     ######     ",
+        "     ##o###     ",
+        "    ########    ",
+        "    ###o####    ",
+        "   RRRRRRRRRR   ",
+        " ############## ",
+        "                ",
+        "                ",
+        "                ",
+        "                ",
+    ],
+};
+
 /** Keyed by `data-theme`; DEFAULT covers every palette without a pair. */
 export const DEFAULT_SET: SpriteSet = { mine: DEFAULT_MINE, flag: DEFAULT_FLAG };
 
@@ -906,6 +1009,8 @@ export const GENERAL_SPRITE_SETS: ReadonlyArray<{ id: string; label: string; set
     { id: "shinobi", label: "Shinobi", set: { mine: SHINOBI_MINE, flag: SHINOBI_FLAG } },
     { id: "puppy", label: "Puppy", set: { mine: PUPPY_MINE, flag: PUPPY_FLAG } },
     { id: "robot", label: "Robot", set: { mine: ROBOT_MINE, flag: ROBOT_FLAG } },
+    { id: "garden", label: "Garden", set: { mine: GARDEN_MINE, flag: GARDEN_FLAG } },
+    { id: "wizard", label: "Wizard", set: { mine: WIZARD_MINE, flag: WIZARD_FLAG } },
 ];
 
 /** Every pinnable set id — "classic" names the default pair. No seasonal ids. */
