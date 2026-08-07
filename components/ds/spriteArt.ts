@@ -871,7 +871,9 @@ const ROBOT_FLAG: PixelArt = {
     ],
 };
 
-/* Garden — a bumblebee on patrol, a tulip as the marker. */
+/* Garden — a bumblebee on patrol, a tulip as the marker. Antennae, a small
+ * head, wings out to the sides, and the bands run ACROSS the body — drawn
+ * down the body they read as a face, not a bee. */
 const GARDEN_MINE: PixelArt = {
     palette: {
         "#": "var(--ms-ink-strong)",
@@ -879,17 +881,17 @@ const GARDEN_MINE: PixelArt = {
     },
     rows: [
         "                ",
-        "                ",
-        "    oo    oo    ",
-        "   oooo  oooo   ",
-        "   oooo  oooo   ",
-        "    oo    oo    ",
-        "   oo##oo##oo   ",
-        "  ooo##oo##ooo  ",
-        "  ooo##oo##ooo  ",
-        "  ooo##oo##ooo  ",
-        "   oo##oo##oo   ",
-        "    o##oo##o    ",
+        "   o        o   ",
+        "    o      o    ",
+        "     oooooo     ",
+        "     oooooo     ",
+        " oo oooooooo oo ",
+        " oo o######o oo ",
+        " oo oooooooo oo ",
+        "    o######o    ",
+        "    oooooooo    ",
+        "     o####o     ",
+        "     oooooo     ",
         "       oo       ",
         "                ",
         "                ",
@@ -930,6 +932,8 @@ const WIZARD_MINE: PixelArt = {
     },
     rows: [
         "                ",
+        "                ",
+        "                ",
         "     oooooo     ",
         "    oooooooo    ",
         "   oooooooooo   ",
@@ -941,8 +945,6 @@ const WIZARD_MINE: PixelArt = {
         "     oooooo     ",
         "     o    o     ",
         "    oooooooo    ",
-        "                ",
-        "                ",
         "                ",
         "                ",
     ],
