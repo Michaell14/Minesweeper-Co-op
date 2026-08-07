@@ -47,13 +47,22 @@ interface Holiday {
  * American Thanksgiving to every English speaker on earth, which is the
  * specific thing this exists to stop. An unknown region means the holiday
  * shows — see `inRegion`.
+ *
+ * The optional subtags between language and region are the whole difficulty:
+ * `zh-Hans-CN` carries a script and `zh-yue-HK` an extlang, and a pattern that
+ * expects the region second reads neither — it finds no region, fails open, and
+ * paints Thanksgiving in Shanghai. The region is matched by POSITION, not as
+ * "the first two-letter subtag": `en-u-ca-gregory` has a two-letter `ca` in it
+ * that is a calendar, not Canada.
  */
+const REGION_TAG = /^[A-Za-z]{2,3}(?:[-_][A-Za-z]{3}){0,3}(?:[-_][A-Za-z]{4})?[-_]([A-Za-z]{2})(?![A-Za-z0-9])/;
+
 export function browserRegions(): string[] {
     if (typeof navigator === "undefined") return [];
     const tags = [navigator.language, ...(navigator.languages ?? [])];
     const regions = new Set<string>();
     for (const tag of tags) {
-        const match = /^[A-Za-z]{2,3}[-_]([A-Za-z]{2})\b/.exec(tag ?? "");
+        const match = REGION_TAG.exec(tag ?? "");
         if (match) regions.add(match[1].toUpperCase());
     }
     return [...regions];
@@ -267,15 +276,15 @@ export const SCHEDULE_SNIPPET = `
     d.setUTCDate(d.getUTCDate() + n);
     return d.toISOString().slice(0, 10);
   }
-  // \\b is doubled because this is a template literal — a single one is the
-  // BACKSPACE escape, which silently turns the regex into one that never
-  // matches, and fails the gate open everywhere.
+  // The pattern is INTERPOLATED, not retyped: hand-copying it into a template
+  // literal is how a \\b becomes a BACKSPACE escape, which turns the regex into
+  // one that never matches and fails the gate open everywhere.
   function regionsOf() {
     if (typeof navigator === 'undefined') return [];
     var tags = [navigator.language].concat(navigator.languages || []);
     var out = [];
     for (var i = 0; i < tags.length; i++) {
-      var m = /^[A-Za-z]{2,3}[-_]([A-Za-z]{2})\\b/.exec(tags[i] || '');
+      var m = /${REGION_TAG.source}/.exec(tags[i] || '');
       if (m && out.indexOf(m[1].toUpperCase()) === -1) out.push(m[1].toUpperCase());
     }
     return out;

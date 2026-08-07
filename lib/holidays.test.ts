@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test } from "vitest";
 import {
     HOLIDAY_THEME_IDS,
     activeHoliday,
@@ -195,16 +195,21 @@ describe("region gating", () => {
 });
 
 describe("browserRegions", () => {
+    const original = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+    const set = (language: string, languages: string[]) =>
+        Object.defineProperty(globalThis, "navigator", {
+            value: { language, languages },
+            configurable: true,
+        });
+
+    afterEach(() => {
+        if (original) Object.defineProperty(globalThis, "navigator", original);
+        else delete (globalThis as { navigator?: unknown }).navigator;
+    });
+
     /* A bare "en" must NOT resolve to US — that is the whole point of not
      * maximising the tag, and it is what would hand Thanksgiving to Britain. */
     test("reads regions from language tags, and only when present", () => {
-        const original = Object.getOwnPropertyDescriptor(globalThis, "navigator");
-        const set = (language: string, languages: string[]) =>
-            Object.defineProperty(globalThis, "navigator", {
-                value: { language, languages },
-                configurable: true,
-            });
-
         set("en-GB", ["en-GB", "fr-FR"]);
         expect(browserRegions()).toEqual(["GB", "FR"]);
 
@@ -213,9 +218,31 @@ describe("browserRegions", () => {
 
         set("en_US", ["en_US"]);
         expect(browserRegions()).toEqual(["US"]);
+    });
 
-        if (original) Object.defineProperty(globalThis, "navigator", original);
-        else delete (globalThis as { navigator?: unknown }).navigator;
+    /*
+     * The region is not always the second subtag. Reading these as region-less
+     * is not a harmless miss: no region fails the gate OPEN, so every one of
+     * them used to be painted American Thanksgiving.
+     */
+    test.each([
+        ["zh-Hans-CN", "CN"],
+        ["zh-Hant-TW", "TW"],
+        ["sr-Latn-RS", "RS"],
+        ["zh_Hans_CN", "CN"],
+        ["zh-yue-HK", "HK"], // extlang, not script
+        ["en-GB-oxendict", "GB"], // a variant after the region
+        ["en-US-u-ca-gregory", "US"], // an extension after the region
+    ])("finds the region in %s", (tag, region) => {
+        set(tag, [tag]);
+        expect(browserRegions()).toEqual([region]);
+    });
+
+    /* `ca` here is a calendar key, not Canada — the region is matched by
+     * position, so a tag carrying none still reports none. */
+    test.each(["en-u-ca-gregory", "en", "es-419"])("claims no region for %s", (tag) => {
+        set(tag, [tag]);
+        expect(browserRegions()).toEqual([]);
     });
 });
 

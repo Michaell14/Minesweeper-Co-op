@@ -297,6 +297,13 @@ describe("the no-flash script agrees with the schedule", () => {
             asBrowserIn("en", () => expect(run(THANKSGIVING)).toBe("thanksgiving"));
         });
 
+        /* A script subtag between language and region is the case that fails
+         * open by accident, and the initial paint is where it would be seen. */
+        it("reads past a script subtag", () => {
+            asBrowserIn("zh-Hans-CN", () => expect(run(THANKSGIVING)).toBeNull());
+            asBrowserIn("sr-Latn-RS", () => expect(run(THANKSGIVING)).toBeNull());
+        });
+
         it("does not gate the holidays that are not gated", () => {
             asBrowserIn("en-GB", () => expect(run("2026-12-25")).toBe("christmas"));
         });
