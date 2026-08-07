@@ -588,6 +588,10 @@ const KNOWN_CONTRAST_FAILURES = {
     'lunar-new-year': [],
     valentines: [],
     thanksgiving: [],
+    stpatricks: [],
+    pride: [],
+    'day-of-the-dead': [],
+    newyear: [],
 };
 
 /*

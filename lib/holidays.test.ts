@@ -25,9 +25,12 @@ function everyDay(from: string, to: string): Date[] {
 
 describe("the windows land where they should", () => {
     test.each([
-        ["2026-10-31", "halloween"], // the night itself
+        ["2026-10-31", "halloween"], // the night itself, and the last day of it
         ["2026-10-24", "halloween"], // first day
-        ["2026-11-01", "halloween"], // the morning after
+        ["2026-11-01", "day-of-the-dead"], // picks up where Halloween stops
+        ["2026-11-02", "day-of-the-dead"],
+        ["2026-03-17", "stpatricks"],
+        ["2026-06-15", "pride"],
         ["2026-12-25", "christmas"],
         ["2026-02-17", "lunar-new-year"], // the day, from the table
         ["2026-02-14", "valentines"],
@@ -37,7 +40,7 @@ describe("the windows land where they should", () => {
         expect(activeHoliday(on(day))?.themeId).toBe(id);
     });
 
-    test.each(["2026-11-02", "2026-06-15", "2026-12-27", "2026-02-25", "2026-01-01"])(
+    test.each(["2026-11-03", "2026-07-01", "2026-12-27", "2026-02-25", "2026-05-30"])(
         "%s is an ordinary day",
         (day) => {
             expect(activeHoliday(on(day))).toBeNull();
@@ -66,18 +69,83 @@ describe("the Lunar New Year / Valentine's collision", () => {
         expect(activeHoliday(on("2027-02-14"))?.themeId).toBe("valentines");
     });
 
+});
+
+/*
+ * New Year is the only window that crosses into the next Gregorian year, and
+ * the reason `activeHoliday` scans neighbouring years at all — a scan that
+ * shipped unused and unproven until this palette existed.
+ */
+describe("the window that crosses New Year", () => {
+    test.each([
+        ["2026-12-30", "newyear-2026"],
+        ["2026-12-31", "newyear-2026"],
+        ["2027-01-01", "newyear-2026"], // the far side, still the SAME occurrence
+        ["2027-01-02", "newyear-2026"],
+    ])("%s is %s", (day, key) => {
+        expect(activeHoliday(on(day))?.key).toBe(key);
+    });
+
+    test("stops on the far edge", () => {
+        expect(activeHoliday(on("2027-01-03"))).toBeNull();
+        expect(activeHoliday(on("2026-12-29"))).toBeNull();
+    });
+
     /*
-     * Two holidays painting on the same day is fine — one wins. Two windows
-     * from DIFFERENT years overlapping is not: `activeHoliday` scans years
-     * outermost, so the older window would win over a higher-precedence newer
-     * one, and the no-flash script would have to make the same wrong choice to
-     * stay in step.
+     * One key across the boundary is the point: dismissing it at 23:00 on the
+     * 31st must not un-dismiss itself an hour later, which is exactly what a
+     * key derived from the CURRENT year rather than the window's would do.
      */
-    test("no window reaches into an adjacent year's", () => {
-        for (const day of everyDay("2026-01-01", "2036-12-31")) {
-            const holiday = activeHoliday(day);
-            if (!holiday) continue;
-            expect(Number(holiday.key.slice(-4))).toBe(day.getFullYear());
+    test("a dismissal on the way in survives midnight", () => {
+        const prefs = { seasonalThemes: true, seasonalDismissed: "newyear-2026" };
+        expect(activeOverride(prefs, on("2026-12-31"))).toBeNull();
+        expect(activeOverride(prefs, on("2027-01-01"))).toBeNull();
+    });
+});
+
+/*
+ * Windows overlapping by accident is the failure a schedule this size invites:
+ * the loser simply never paints, and nothing says so. Counting the days each
+ * holiday actually wins catches a new window eating an old one, which asserting
+ * a few dates does not.
+ */
+describe("no holiday quietly eats another", () => {
+    const SPANS: Record<string, number> = {
+        "lunar-new-year": 8,
+        valentines: 6,
+        stpatricks: 4,
+        pride: 30,
+        halloween: 8,
+        "day-of-the-dead": 2,
+        thanksgiving: 10,
+        christmas: 12,
+        newyear: 4,
+    };
+
+    const daysWonIn = (year: number) => {
+        const won: Record<string, number> = {};
+        for (const day of everyDay(`${year}-01-01`, `${year}-12-31`)) {
+            const id = activeHoliday(day)?.themeId;
+            if (id) won[id] = (won[id] ?? 0) + 1;
+        }
+        return won;
+    };
+
+    /* 2026: Lunar New Year is 17 Feb, clear of Valentine's, so nobody overlaps. */
+    test("every holiday wins its whole span in a year with no collision", () => {
+        const won = daysWonIn(2026);
+        // New Year is split across the year boundary: two days at each end.
+        expect(won).toEqual({ ...SPANS, newyear: 4 });
+    });
+
+    /* 2029: Lunar New Year is 13 Feb and lands inside Valentine's. */
+    test("only the documented collision costs a holiday days", () => {
+        const won = daysWonIn(2029);
+        expect(won["lunar-new-year"]).toBe(SPANS["lunar-new-year"]);
+        expect(won.valentines).toBeLessThan(SPANS.valentines);
+        for (const id of Object.keys(SPANS)) {
+            if (id === "valentines") continue;
+            expect({ [id]: won[id] }).toEqual({ [id]: SPANS[id] });
         }
     });
 });

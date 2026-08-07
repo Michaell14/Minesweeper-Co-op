@@ -18,6 +18,21 @@ import SettingsClient from './SettingsClient';
 import { useMinesweeperStore } from '@/app/store';
 import { THEMES, isSeasonal } from '@/lib/theme';
 import { DEFAULT_SETTINGS, writeStoredSettings, type Settings } from '@/lib/settings';
+import { activeHoliday, localDay } from '@/lib/holidays';
+
+/**
+ * A day the schedule leaves alone — found, not hardcoded. Every holiday added
+ * shrinks the set of ordinary days, and twice now a pin here has quietly become
+ * a holiday and changed what these cases were testing.
+ */
+const ORDINARY_DAY = (() => {
+    for (let i = 0; i < 365; i++) {
+        const day = new Date(2026, 0, 1 + i);
+        if (!activeHoliday(day)) return localDay(day);
+    }
+    throw new Error('the schedule now covers every day of the year');
+})();
+
 
 beforeEach(() => {
     localStorage.clear();
@@ -74,7 +89,7 @@ describe('structure', () => {
 });
 
 describe('the palette picker out of season', () => {
-    pinTo('2026-06-15');
+    pinTo(ORDINARY_DAY);
 
     it('offers every year-round palette as a radio, reflecting the store', () => {
         render(<SettingsClient />);
@@ -95,7 +110,7 @@ describe('choosing a palette', () => {
     // Pinned even though the assertions happen to hold either way: in season
     // this click takes the switch-away branch instead, and a case that changes
     // which path it exercises depending on the date is not one case.
-    pinTo('2026-06-15');
+    pinTo(ORDINARY_DAY);
 
     it('writes the store, the document and storage', () => {
         render(<SettingsClient />);
@@ -201,7 +216,7 @@ describe('crossing a window boundary with the tab open', () => {
         render(<SettingsClient />);
         expect(document.documentElement.dataset.theme).toBe('halloween');
 
-        crossTo('2026-11-02'); // the day after the window ends
+        crossTo(ORDINARY_DAY); // out the far side, onto a day with no holiday
 
         expect(document.documentElement.dataset.theme).toBe('gameboy');
         expect(screen.queryByRole('radio', { name: /Halloween/ })).toBeNull();

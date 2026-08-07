@@ -1512,3 +1512,283 @@
     --ms-palette-num-7: #2e1c0d;
     --ms-palette-num-8: #6b5942;
 }
+
+/* ---------------------------------------------------------------------------
+ * St Patrick's Day. Shamrock, moss, harp gold, cream.
+ *
+ * An almost-monochrome palette, so primary and success are two greens split by
+ * VALUE — the Game Boy trade again, made once. Gold takes warning rather than
+ * primary, which keeps the loudest control green where this palette expects it.
+ * ------------------------------------------------------------------------- */
+:root[data-theme="stpatricks"] {
+    --ms-palette-ink: #10240a;
+    --ms-palette-paper: #f5faef;
+    --ms-palette-smoke: #e0efd6;
+    --ms-palette-ash: #bcd8ae;
+    --ms-palette-steel: #6b8f5c;
+    --ms-palette-gray: #3a5a2c;
+    --ms-palette-gray-dark: #26401a;
+    --ms-palette-track: #bcd8ae;
+    --ms-palette-mist: #eef7e7;
+    --ms-palette-mist-deep: #d2e8c6;
+    --ms-palette-chrome: #d2e8c6;
+
+    --ms-palette-blue: #12692f;
+    --ms-palette-blue-deep: #0d5324;
+    --ms-palette-blue-shade: #093d1a;
+    --ms-palette-blue-ink: #ffffff;
+    --ms-palette-green: #2a7a40;
+    --ms-palette-green-deep: #216334;
+    --ms-palette-green-shade: #1a512b;
+    --ms-palette-green-ink: #ffffff;
+    --ms-palette-yellow: #c8940a;
+    --ms-palette-yellow-deep: #e0aa1f;
+    --ms-palette-yellow-shade: #8f6a00;
+    --ms-palette-yellow-ink: #10240a;
+    --ms-palette-red: #9c3016;
+    --ms-palette-red-deep: #7d2611;
+    --ms-palette-red-shade: #5c1c0c;
+    --ms-palette-red-ink: #ffffff;
+
+    --ms-palette-blue-alt: #12692f;
+    --ms-palette-blue-text: #12692f;
+    --ms-palette-green-alt: #2f8a4a;
+    --ms-palette-green-text: #256e3b;
+    --ms-palette-red-alt: #9c3016;
+    --ms-palette-red-text: #9c3016;
+    --ms-palette-orange-alt: #c8940a;
+    --ms-palette-amber: #e8c05a;
+    --ms-palette-amber-ink: #10240a;
+
+    --ms-palette-cell-closed: #cbe3bd;
+    --ms-palette-cell-light: #e2f2d8;
+    --ms-palette-cell-shade: #9ab98a;
+    --ms-palette-cell-open: #f2f8ec;
+    --ms-palette-gutter: #10240a;
+    --ms-palette-mine: #9c3016;
+    --ms-palette-cursor-ink: #10240a;
+    --ms-palette-cursor-1: #3f9e57;
+    --ms-palette-cursor-2: #e8c05a;
+    --ms-palette-cursor-3: #7fc98f;
+    --ms-palette-cursor-4: #c97f5a;
+    --ms-palette-cursor-5: #8fb5d6;
+    --ms-palette-cursor-6: #f5faef;
+
+    --ms-palette-num-1: #1b4d8f;
+    --ms-palette-num-2: #12692f;
+    --ms-palette-num-3: #9c3016;
+    --ms-palette-num-4: #5b2a86;
+    --ms-palette-num-5: #7a4a12;
+    --ms-palette-num-6: #0f5f63;
+    --ms-palette-num-7: #10240a;
+    --ms-palette-num-8: #4e5c46;
+}
+
+/* ---------------------------------------------------------------------------
+ * Pride. The six flag stripes, on a neutral ground.
+ *
+ * The one palette where the cursor ramp is not decorative: six players, six
+ * stripes, in flag order. Numbers are the same six darkened to clear AA on the
+ * open cell, which is why they read as a rainbow rather than matching it.
+ * ------------------------------------------------------------------------- */
+:root[data-theme="pride"] {
+    --ms-palette-ink: #1a1523;
+    --ms-palette-paper: #ffffff;
+    --ms-palette-smoke: #f4f0f7;
+    --ms-palette-ash: #d8d0e0;
+    --ms-palette-steel: #8a7d9c;
+    --ms-palette-gray: #55496b;
+    --ms-palette-gray-dark: #3a3049;
+    --ms-palette-track: #d8d0e0;
+    --ms-palette-mist: #faf7fc;
+    --ms-palette-mist-deep: #ebe3f2;
+    --ms-palette-chrome: #ebe3f2;
+
+    --ms-palette-blue: #6a1fb0;
+    --ms-palette-blue-deep: #55198c;
+    --ms-palette-blue-shade: #3f1269;
+    --ms-palette-blue-ink: #ffffff;
+    --ms-palette-green: #0f7a35;
+    --ms-palette-green-deep: #0c6129;
+    --ms-palette-green-shade: #084a1e;
+    --ms-palette-green-ink: #ffffff;
+    --ms-palette-yellow: #f0a500;
+    --ms-palette-yellow-deep: #ffbe33;
+    --ms-palette-yellow-shade: #a87400;
+    --ms-palette-yellow-ink: #1a1523;
+    --ms-palette-red: #c21818;
+    --ms-palette-red-deep: #9c1212;
+    --ms-palette-red-shade: #740d0d;
+    --ms-palette-red-ink: #ffffff;
+
+    --ms-palette-blue-alt: #6a1fb0;
+    --ms-palette-blue-text: #6a1fb0;
+    --ms-palette-green-alt: #0f7a35;
+    --ms-palette-green-text: #0f7a35;
+    --ms-palette-red-alt: #c21818;
+    --ms-palette-red-text: #c21818;
+    --ms-palette-orange-alt: #e06d00;
+    --ms-palette-amber: #ffbe33;
+    --ms-palette-amber-ink: #1a1523;
+
+    --ms-palette-cell-closed: #ded6e8;
+    --ms-palette-cell-light: #efe9f5;
+    --ms-palette-cell-shade: #b0a3c2;
+    --ms-palette-cell-open: #f8f5fb;
+    --ms-palette-gutter: #1a1523;
+    --ms-palette-mine: #c21818;
+    --ms-palette-cursor-ink: #1a1523;
+    /* Flag order, top stripe first. */
+    --ms-palette-cursor-1: #e40303;
+    --ms-palette-cursor-2: #ff8c00;
+    --ms-palette-cursor-3: #ffed00;
+    --ms-palette-cursor-4: #35c449;
+    --ms-palette-cursor-5: #5b73d8;
+    --ms-palette-cursor-6: #b45cc9;
+
+    --ms-palette-num-1: #1f4fc4;
+    --ms-palette-num-2: #0f7a35;
+    --ms-palette-num-3: #c21818;
+    --ms-palette-num-4: #6a1fb0;
+    --ms-palette-num-5: #a35200;
+    --ms-palette-num-6: #0c6f75;
+    --ms-palette-num-7: #1a1523;
+    --ms-palette-num-8: #6b6277;
+}
+
+/* ---------------------------------------------------------------------------
+ * Día de Muertos. Marigold, papel picado magenta, purple, candle bone.
+ *
+ * Dark, like Halloween, and deliberately unlike it: where Halloween is one
+ * orange in the dark, this is four saturated colours at once.
+ * ------------------------------------------------------------------------- */
+:root[data-theme="day-of-the-dead"] {
+    --ms-palette-ink: #fdf0d5;
+    --ms-palette-paper: #170c22;
+    --ms-palette-smoke: #26143a;
+    --ms-palette-ash: #3c2158;
+    --ms-palette-steel: #7d5ca8;
+    --ms-palette-gray: #c9aede;
+    --ms-palette-gray-dark: #e2d0f0;
+    --ms-palette-track: #3c2158;
+    --ms-palette-mist: #2d1844;
+    --ms-palette-mist-deep: #3c2158;
+    --ms-palette-chrome: #341d4d;
+
+    --ms-palette-blue: #ff9f1c;
+    --ms-palette-blue-deep: #ffb648;
+    --ms-palette-blue-shade: #b06b00;
+    --ms-palette-blue-ink: #1f1000;
+    --ms-palette-green: #5fd67f;
+    --ms-palette-green-deep: #86e39f;
+    --ms-palette-green-shade: #2f8f4d;
+    --ms-palette-green-ink: #06200f;
+    --ms-palette-yellow: #ffd23f;
+    --ms-palette-yellow-deep: #ffe073;
+    --ms-palette-yellow-shade: #b8930f;
+    --ms-palette-yellow-ink: #241a00;
+    --ms-palette-red: #ff4d9d;
+    --ms-palette-red-deep: #ff7ab5;
+    --ms-palette-red-shade: #b01a5e;
+    --ms-palette-red-ink: #240012;
+
+    --ms-palette-blue-alt: #ff9f1c;
+    --ms-palette-blue-text: #ffb648;
+    --ms-palette-green-alt: #5fd67f;
+    --ms-palette-green-text: #86e39f;
+    --ms-palette-red-alt: #ff4d9d;
+    --ms-palette-red-text: #ff7ab5;
+    --ms-palette-orange-alt: #ff9f1c;
+    --ms-palette-amber: #ffd23f;
+    --ms-palette-amber-ink: #241a00;
+
+    --ms-palette-cell-closed: #3c2158;
+    --ms-palette-cell-light: #553080;
+    --ms-palette-cell-shade: #25133a;
+    --ms-palette-cell-open: #1e1030;
+    --ms-palette-gutter: #0d0614;
+    --ms-palette-mine: #ff4d9d;
+    --ms-palette-cursor-ink: #170c22;
+    --ms-palette-cursor-1: #ff9f1c;
+    --ms-palette-cursor-2: #ff4d9d;
+    --ms-palette-cursor-3: #5fd67f;
+    --ms-palette-cursor-4: #ffd23f;
+    --ms-palette-cursor-5: #7fd6e0;
+    --ms-palette-cursor-6: #fdf0d5;
+
+    --ms-palette-num-1: #7fb3ff;
+    --ms-palette-num-2: #5fd67f;
+    --ms-palette-num-3: #ff7ab5;
+    --ms-palette-num-4: #d9a3ff;
+    --ms-palette-num-5: #ffb648;
+    --ms-palette-num-6: #5fded0;
+    --ms-palette-num-7: #fdf0d5;
+    --ms-palette-num-8: #b9a3cc;
+}
+
+/* ---------------------------------------------------------------------------
+ * New Year. Midnight, gold, champagne.
+ * ------------------------------------------------------------------------- */
+:root[data-theme="newyear"] {
+    --ms-palette-ink: #f5efd8;
+    --ms-palette-paper: #0b0d1a;
+    --ms-palette-smoke: #161a2e;
+    --ms-palette-ash: #2a3050;
+    --ms-palette-steel: #6b7399;
+    --ms-palette-gray: #b9c0dd;
+    --ms-palette-gray-dark: #d8dcf0;
+    --ms-palette-track: #2a3050;
+    --ms-palette-mist: #1d2238;
+    --ms-palette-mist-deep: #2a3050;
+    --ms-palette-chrome: #232842;
+
+    --ms-palette-blue: #ffd35c;
+    --ms-palette-blue-deep: #ffe08a;
+    --ms-palette-blue-shade: #b8901f;
+    --ms-palette-blue-ink: #1a1400;
+    --ms-palette-green: #4fd6a8;
+    --ms-palette-green-deep: #7ce3c1;
+    --ms-palette-green-shade: #24906c;
+    --ms-palette-green-ink: #04231a;
+    --ms-palette-yellow: #ffb340;
+    --ms-palette-yellow-deep: #ffc86e;
+    --ms-palette-yellow-shade: #b87613;
+    --ms-palette-yellow-ink: #241600;
+    --ms-palette-red: #ff6b7a;
+    --ms-palette-red-deep: #ff94a0;
+    --ms-palette-red-shade: #b02532;
+    --ms-palette-red-ink: #240409;
+
+    --ms-palette-blue-alt: #ffd35c;
+    --ms-palette-blue-text: #ffe08a;
+    --ms-palette-green-alt: #4fd6a8;
+    --ms-palette-green-text: #7ce3c1;
+    --ms-palette-red-alt: #ff6b7a;
+    --ms-palette-red-text: #ff94a0;
+    --ms-palette-orange-alt: #ffb340;
+    --ms-palette-amber: #ffd35c;
+    --ms-palette-amber-ink: #1a1400;
+
+    --ms-palette-cell-closed: #2a3050;
+    --ms-palette-cell-light: #3d4570;
+    --ms-palette-cell-shade: #191d33;
+    --ms-palette-cell-open: #141829;
+    --ms-palette-gutter: #05060f;
+    --ms-palette-mine: #ff6b7a;
+    --ms-palette-cursor-ink: #0b0d1a;
+    --ms-palette-cursor-1: #ffd35c;
+    --ms-palette-cursor-2: #f5efd8;
+    --ms-palette-cursor-3: #4fd6a8;
+    --ms-palette-cursor-4: #ff6b7a;
+    --ms-palette-cursor-5: #b07dff;
+    --ms-palette-cursor-6: #6bb8ff;
+
+    --ms-palette-num-1: #7fb3ff;
+    --ms-palette-num-2: #4fd6a8;
+    --ms-palette-num-3: #ff8a96;
+    --ms-palette-num-4: #c79cff;
+    --ms-palette-num-5: #ffc07a;
+    --ms-palette-num-6: #5fded0;
+    --ms-palette-num-7: #f5efd8;
+    --ms-palette-num-8: #a6adcc;
+}

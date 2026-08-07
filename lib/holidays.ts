@@ -118,11 +118,24 @@ const HOLIDAYS: Holiday[] = [
         }, 1, 6),
     },
     { id: "valentines", window: fixed("02-10", "02-15") },
-    // Ends Nov 1 so the palette covers the night itself and the morning after.
-    { id: "halloween", window: fixed("10-24", "11-01") },
+    { id: "stpatricks", window: fixed("03-15", "03-18") },
+    // The longest window by far, and the only one measured in weeks.
+    { id: "pride", window: fixed("06-01", "06-30") },
+    // Ends ON the night. It used to run a day longer, which left no room for
+    // Día de Muertos — the two are adjacent, not overlapping, in the calendar.
+    { id: "halloween", window: fixed("10-24", "10-31") },
+    { id: "day-of-the-dead", window: fixed("11-01", "11-02") },
     // The fourth Thursday of November, from the Friday before to the Sunday after.
     { id: "thanksgiving", window: around((year) => nthWeekday(year, 11, 4, 4), 6, 3) },
     { id: "christmas", window: fixed("12-15", "12-26") },
+    /*
+     * The only window that crosses New Year, which is why `activeHoliday` scans
+     * the neighbouring years at all — that scan shipped unused. The occurrence
+     * is keyed to the year it STARTS in, so 31 December and 1 January are one
+     * `newyear-2026`, and dismissing it on the way in does not un-dismiss it
+     * four hours later.
+     */
+    { id: "newyear", window: (year) => ({ start: `${year}-12-30`, end: `${year + 1}-01-02` }) },
 ];
 
 /** Every seasonal palette id. */
@@ -209,11 +222,15 @@ export const SCHEDULE_SNIPPET = `
       var spans = [];
       if (lny[y]) spans.push(['lunar-new-year', shift(y + '-' + lny[y], -1), shift(y + '-' + lny[y], 6)]);
       spans.push(['valentines', y + '-02-10', y + '-02-15']);
-      spans.push(['halloween', y + '-10-24', y + '-11-01']);
+      spans.push(['stpatricks', y + '-03-15', y + '-03-18']);
+      spans.push(['pride', y + '-06-01', y + '-06-30']);
+      spans.push(['halloween', y + '-10-24', y + '-10-31']);
+      spans.push(['day-of-the-dead', y + '-11-01', y + '-11-02']);
       var nov = new Date(Date.UTC(y, 10, 1));
       var thu = shift(y + '-11-01', ((4 - nov.getUTCDay() + 7) % 7) + 21);
       spans.push(['thanksgiving', shift(thu, -6), shift(thu, 3)]);
       spans.push(['christmas', y + '-12-15', y + '-12-26']);
+      spans.push(['newyear', y + '-12-30', (y + 1) + '-01-02']);
       for (var j = 0; j < spans.length; j++) {
         if (today >= spans[j][1] && today <= spans[j][2]) return [spans[j][0], spans[j][0] + '-' + y];
       }
