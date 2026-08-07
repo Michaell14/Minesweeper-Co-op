@@ -155,6 +155,87 @@ export const VALID_THEME_IDS = THEMES.map((t) => t.id).filter(
 export const isSeasonal = (id: string | null): boolean =>
     id !== null && HOLIDAY_THEME_IDS.includes(id);
 
+const PALETTE_PREFIX = "--ms-palette-";
+
+/**
+ * The five entries a card previews, in order: the ground, the board, and the
+ * three loudest intents. Chosen because they are what actually separates these
+ * palettes at 14px — Game Boy and Minecraft are both green until you see the
+ * closed cell, and the light/dark split reads entirely off `paper`.
+ */
+export const SWATCH_TOKENS = ["paper", "cell-closed", "blue", "green", "red"] as const;
+
+/** Palette entries declared by `:root` and every theme block, in ONE sheet walk. */
+function paletteBlocks(): Map<string, Record<string, string>> {
+    const blocks = new Map<string, Record<string, string>>();
+    for (const sheet of Array.from(document.styleSheets)) {
+        let rules: CSSRuleList;
+        // Cross-origin sheets throw on access; none of ours are, but a browser
+        // extension's might be.
+        try {
+            rules = sheet.cssRules;
+        } catch {
+            continue;
+        }
+        for (const rule of Array.from(rules)) {
+            if (!(rule instanceof CSSStyleRule)) continue;
+            const selector = rule.selectorText;
+            if (selector !== ":root" && !selector.startsWith(':root[data-theme=')) continue;
+            const found = blocks.get(selector) ?? {};
+            for (const prop of Array.from(rule.style)) {
+                if (prop.startsWith(PALETTE_PREFIX)) {
+                    found[prop] = rule.style.getPropertyValue(prop).trim();
+                }
+            }
+            blocks.set(selector, found);
+        }
+    }
+    return blocks;
+}
+
+/**
+ * Swatch colours for every built-in palette, keyed by theme id (null = default).
+ *
+ * Read out of the CSSOM rather than listed here, for the same reason the /ds
+ * coverage report is: a second copy of sixty colours would drift from
+ * tokens.css silently, and the card would then lie about the palette it
+ * offers. Reading the RULES rather than computed style is what lets a Game Boy
+ * card show Game Boy green while the page is painted in NES — the cascade only
+ * ever holds the palette currently applied.
+ *
+ * A theme inheriting an entry (Dark keeps the NES intent hues) falls back to
+ * `:root`, so its swatches show what it will actually paint.
+ *
+ * Empty when the stylesheet is not readable — jsdom, or before styles load —
+ * which renders no swatches rather than five transparent boxes.
+ */
+export function readSwatches(): Map<string | null, string[]> {
+    const out = new Map<string | null, string[]>();
+    if (typeof document === "undefined") return out;
+
+    const blocks = paletteBlocks();
+    const base = blocks.get(":root");
+    if (!base) return out;
+
+    for (const { id } of THEMES) {
+        const overrides = (id && blocks.get(`:root[data-theme="${id}"]`)) || {};
+        const swatches = SWATCH_TOKENS.map(
+            (token) => overrides[`${PALETTE_PREFIX}${token}`] ?? base[`${PALETTE_PREFIX}${token}`],
+        );
+        if (swatches.every(Boolean)) out.set(id, swatches);
+    }
+    return out;
+}
+
+/**
+ * The same five, for a custom palette. Pure — a custom theme carries its
+ * resolved palette on the object, so there is no sheet to read.
+ */
+export function swatchesFromPalette(palette: Record<string, string>): string[] {
+    const swatches = SWATCH_TOKENS.map((token) => palette[`${PALETTE_PREFIX}${token}`]);
+    return swatches.every(Boolean) ? swatches : [];
+}
+
 /**
  * Removes every inline `--ms-palette-*` override a custom theme stamped.
  * Walked off the style object itself rather than a hardcoded key list, so a
@@ -164,7 +245,7 @@ function clearCustomPaletteOverrides(): void {
     const style = document.documentElement.style;
     for (let i = style.length - 1; i >= 0; i--) {
         const name = style[i];
-        if (name.startsWith("--ms-palette-")) style.removeProperty(name);
+        if (name.startsWith(PALETTE_PREFIX)) style.removeProperty(name);
     }
 }
 
@@ -181,7 +262,7 @@ export function applyTheme(id: string | null, customPalette?: Record<string, str
     if (customPalette) {
         delete document.documentElement.dataset.theme;
         for (const [name, value] of Object.entries(customPalette)) {
-            if (name.startsWith("--ms-palette-")) {
+            if (name.startsWith(PALETTE_PREFIX)) {
                 document.documentElement.style.setProperty(name, value);
             }
         }

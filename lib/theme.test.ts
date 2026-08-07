@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { CURSOR_RAMP_SIZE, THEMES, cursorColorForId } from "./theme";
+import {
+    CURSOR_RAMP_SIZE,
+    SWATCH_TOKENS,
+    THEMES,
+    cursorColorForId,
+    readSwatches,
+    swatchesFromPalette,
+} from "./theme";
 
 describe("THEMES", () => {
     it("has exactly one default, and it is first", () => {
@@ -13,6 +20,38 @@ describe("THEMES", () => {
         const labels = THEMES.map((t) => t.label);
         expect(new Set(ids).size).toBe(ids.length);
         expect(new Set(labels).size).toBe(labels.length);
+    });
+});
+
+/*
+ * The card swatches. Only the palette-map half is testable here — reading
+ * tokens.css needs a real stylesheet, so `readSwatches` is covered by the
+ * smoke suite, which is also the only place the load-bearing property (each
+ * card showing its OWN palette, not the applied one) is observable.
+ */
+describe("swatchesFromPalette", () => {
+    const full = Object.fromEntries(
+        SWATCH_TOKENS.map((token, i) => [`--ms-palette-${token}`, `#00000${i}`]),
+    );
+
+    it("returns the five tokens in declared order", () => {
+        expect(swatchesFromPalette(full)).toEqual(
+            SWATCH_TOKENS.map((token) => full[`--ms-palette-${token}`]),
+        );
+    });
+
+    /* Four of five would render a strip that silently misrepresents the theme. */
+    it("returns nothing at all when an entry is missing", () => {
+        const { [`--ms-palette-${SWATCH_TOKENS[2]}`]: _dropped, ...partial } = full;
+        expect(swatchesFromPalette(partial)).toEqual([]);
+        expect(swatchesFromPalette({})).toEqual([]);
+    });
+});
+
+describe("readSwatches", () => {
+    /* No stylesheet to walk: no swatches, rather than five transparent boxes. */
+    it("degrades to empty where tokens.css is not loaded", () => {
+        expect(readSwatches().size).toBe(0);
     });
 });
 

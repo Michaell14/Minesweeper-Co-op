@@ -590,6 +590,64 @@ const KNOWN_CONTRAST_FAILURES = {
     thanksgiving: [],
 };
 
+/*
+ * The palette cards preview each theme's colours by reading tokens.css out of
+ * the CSSOM, NOT out of the cascade — a Game Boy card has to show Game Boy
+ * green while the page is painted in NES. Reading computed style instead would
+ * give every card the same five colours and look entirely plausible, which is
+ * why the load-bearing check below is that the cards DIFFER from each other.
+ *
+ * Only a real browser can see this: jsdom has no stylesheet to walk, so the
+ * component renders no swatches there and a unit test would pass on nothing.
+ */
+async function themeSwatches(page) {
+    console.log('\n\x1b[1m--- THEME SWATCHES ---\x1b[0m');
+
+    await page.goto(`${CLIENT}/settings`);
+    await page.waitFor(`!!document.querySelector('[aria-label="Colour palette"]')`,
+        { timeout: 60000, label: 'the palette cards render' });
+    // They arrive in an effect after mount, so waiting on the group is not enough.
+    await page.waitFor(`document.querySelectorAll('[data-swatch]').length > 0`,
+        { label: 'the swatches resolve' });
+
+    const cards = JSON.parse(await page.evaluate(`
+        const group = document.querySelector('[aria-label="Colour palette"]');
+        return JSON.stringify([...group.querySelectorAll('label')].map((card) => ({
+            value: card.querySelector('input[type=radio]').value,
+            swatches: [...card.querySelectorAll('[data-swatch]')]
+                .map((s) => getComputedStyle(s).backgroundColor),
+        })));
+    `));
+
+    check(cards.length > 0, `every palette card carries swatches (${cards.length} cards)`,
+        'no palette cards found');
+
+    const wrong = cards.filter((c) => c.swatches.length !== 5);
+    check(wrong.length === 0, `each card shows all five swatches`,
+        `cards with the wrong count: ${wrong.map((c) => `${c.value}:${c.swatches.length}`).join(', ')}`);
+
+    // A colour that failed to resolve paints transparent, which reads as "no
+    // swatch" rather than as an error.
+    const blank = cards.filter((c) =>
+        c.swatches.some((s) => !s || s === 'rgba(0, 0, 0, 0)' || s === 'transparent'));
+    check(blank.length === 0, 'no swatch resolved to transparent',
+        `cards with an unresolved swatch: ${blank.map((c) => c.value).join(', ')}`);
+
+    // The whole point. Identical rows across every card would mean the swatches
+    // are reading the APPLIED palette, which is the bug this feature can have.
+    const byValue = Object.fromEntries(cards.map((c) => [c.value, c.swatches.join('|')]));
+    const distinct = new Set(Object.values(byValue));
+    check(distinct.size > 1,
+        `cards show different palettes from one another (${distinct.size} distinct strips)`,
+        'every card shows the same colours — swatches are reading the applied theme');
+
+    for (const id of ['gameboy', 'c64']) {
+        check(byValue[id] && byValue[id] !== byValue.__default__,
+            `${id}'s swatches differ from the default palette's`,
+            `${id}: ${byValue[id]} vs default: ${byValue.__default__}`);
+    }
+}
+
 async function themeContrast(page) {
     console.log('\n\x1b[1m--- THEMES ---\x1b[0m');
 
@@ -851,6 +909,7 @@ async function joinLink(host, guest) {
         await footerClearance(page);
         await rejoinOnReload(page);
         await themeContrast(page);
+        await themeSwatches(page);
 
         const host = await attach(await newTarget('about:blank'));
         const guest = await attach(await newTarget('about:blank'));
