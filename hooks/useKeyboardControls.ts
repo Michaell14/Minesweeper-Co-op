@@ -34,6 +34,15 @@ const EDITABLE = 'input, textarea, select, [contenteditable="true"]';
 const ACTIVATABLE = 'button, a[href], [tabindex]';
 
 /**
+ * A checkbox is an input, but keystroke-wise it is a button: Space toggles it
+ * and nothing types into it, and unlike a radio it has no arrow-key group to
+ * navigate. The HUD's flag-mode switch is one, and it is focusable mid-game —
+ * treating it as EDITABLE stranded keyboard play on it just like the buttons.
+ */
+const isCheckbox = (el: Element | null | undefined): boolean =>
+    el instanceof HTMLInputElement && el.type === "checkbox";
+
+/**
  * Keyboard play: arrows/WASD move a selection cursor, Space/Enter reveals (or
  * chords an open number), F flags, Escape hides the cursor. Mounted next to
  * useChording by Grid and DailyChallenge, so passing each mode's own callbacks
@@ -53,8 +62,9 @@ export function useKeyboardControls({ openCell, toggleFlag, chordCell, emitCellH
             // Shift is deliberately ignored — it changes no binding here.
             if (event.ctrlKey || event.metaKey || event.altKey) return;
             if (document.querySelector("dialog[open]")) return;
-            if (document.activeElement?.closest(EDITABLE)) return;
-            const activatableFocus = document.activeElement?.closest(ACTIVATABLE);
+            const editableFocus = document.activeElement?.closest(EDITABLE);
+            if (editableFocus && !isCheckbox(editableFocus)) return;
+            const activatableFocus = editableFocus ?? document.activeElement?.closest(ACTIVATABLE);
 
             const key = event.key.toLowerCase();
             const { board, kbCursor } = state;

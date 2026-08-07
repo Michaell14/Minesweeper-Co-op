@@ -338,6 +338,40 @@ describe("guards", () => {
         expect(a.openCell).toHaveBeenCalledWith(1, 2); // so reveal works again
     });
 
+    test("the HUD switch (a checkbox) yields like a button, not like an input", () => {
+        const a = actions();
+        render(<Probe {...a} />);
+        const toggle = document.createElement("input");
+        toggle.type = "checkbox";
+        document.body.appendChild(toggle);
+        toggle.focus();
+        act(() => state().setKbCursor({ r: 1, c: 1 }));
+
+        key(" ");
+        expect(a.openCell).not.toHaveBeenCalled(); // Space still toggles the switch
+
+        key("ArrowRight");
+        expect(state().kbCursor).toEqual({ r: 1, c: 2 });
+        expect(document.activeElement).not.toBe(toggle);
+
+        key(" ");
+        expect(a.openCell).toHaveBeenCalledWith(1, 2);
+    });
+
+    test("a radio keeps its arrow keys — they navigate its group", () => {
+        const a = actions();
+        render(<Probe {...a} />);
+        const radio = document.createElement("input");
+        radio.type = "radio";
+        document.body.appendChild(radio);
+        radio.focus();
+
+        key("ArrowRight");
+
+        expect(state().kbCursor).toBeNull();
+        expect(document.activeElement).toBe(radio);
+    });
+
     test("F flags even while a button holds focus", () => {
         const a = actions();
         render(<Probe {...a} />);
