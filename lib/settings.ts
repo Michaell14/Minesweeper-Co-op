@@ -16,7 +16,9 @@
 
 import { VALID_THEME_IDS, THEME_STORAGE_KEY as LEGACY_THEME_KEY } from "@/lib/theme";
 import { SCHEDULE_SNIPPET } from "@/lib/holidays";
-import { SPRITE_SET_IDS } from "@/components/ds/sprites";
+// spriteArt, not sprites: the art table is pure, so this stays importable
+// anywhere lib/ is — no React, no CSS module.
+import { SPRITE_SET_IDS } from "@/components/ds/spriteArt";
 
 /** The board's cell-size ceiling — token variants in app/tokens.css. */
 export const CELL_SIZES = ["compact", "standard", "large"] as const;
