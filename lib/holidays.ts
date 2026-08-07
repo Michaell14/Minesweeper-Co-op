@@ -16,11 +16,10 @@
  * schedule client-trusted (a changed system clock summons Halloween early),
  * which is the correct trade for a palette.
  *
- * Resolution is per PAINT, not live: nothing here watches the clock, so a tab
- * left open across midnight on 1 November keeps Halloween until it reloads or
- * some other setting repaints. Deliberate — a timer running all year to catch
- * ten boundaries would cost more than the boundary is worth. If a window ever
- * needs to open under an open tab, that is a new mechanism, not a bug here.
+ * Windows are whole-day granular, which is what makes keeping a long-lived tab
+ * in step cheap: `activeHoliday` can only ever change at LOCAL MIDNIGHT, so
+ * there is no boundary to search for. `msUntilLocalMidnight` is the whole
+ * scheduling story — components/SettingsSync.tsx arms one timer at a time.
  */
 
 /** A schedule entry. `id` is both the `data-theme` value and the key prefix. */
@@ -150,6 +149,20 @@ export function activeHoliday(now: Date = new Date()): HolidayOccurrence | null 
         }
     }
     return null;
+}
+
+/**
+ * Milliseconds until the next local midnight — the only instant at which
+ * `activeHoliday` can return something different.
+ *
+ * Built from the local Y/M/D rather than by adding 24h, so the days a DST
+ * change makes 23 or 25 hours long still land on midnight rather than an hour
+ * either side of it. Always > 0: exactly at midnight it returns a full day
+ * ahead, so a timer armed on the boundary cannot spin.
+ */
+export function msUntilLocalMidnight(now: Date = new Date()): number {
+    const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0, 0);
+    return midnight.getTime() - now.getTime();
 }
 
 /** The subset of settings the override depends on. */

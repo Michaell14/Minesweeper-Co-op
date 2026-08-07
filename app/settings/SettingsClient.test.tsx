@@ -6,7 +6,7 @@
  * heading stops labelling it, or theme cards that stop reflecting the store.
  */
 import React from 'react';
-import { render, screen, fireEvent, cleanup } from '@testing-library/react';
+import { render, screen, fireEvent, cleanup, act } from '@testing-library/react';
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 
 const mockUseSession = vi.fn();
@@ -17,11 +17,15 @@ vi.mock('next-auth/react', () => ({
 import SettingsClient from './SettingsClient';
 import { useMinesweeperStore } from '@/app/store';
 import { THEMES, isSeasonal } from '@/lib/theme';
-import { DEFAULT_SETTINGS } from '@/lib/settings';
+import { DEFAULT_SETTINGS, writeStoredSettings, type Settings } from '@/lib/settings';
 
 beforeEach(() => {
     localStorage.clear();
-    useMinesweeperStore.setState({ settings: { ...DEFAULT_SETTINGS }, settingsHydrated: true });
+    useMinesweeperStore.setState({
+        settings: { ...DEFAULT_SETTINGS },
+        seasonalOverride: null,
+        settingsHydrated: true,
+    });
     mockUseSession.mockReturnValue({ data: null, status: 'unauthenticated' });
 });
 
@@ -31,14 +35,29 @@ afterEach(() => {
 });
 
 /**
+ * Puts settings in place through the real path — storage, then hydration —
+ * rather than by setting store state directly. `seasonalOverride` is resolved
+ * during hydration, so a test that assigns `settings` straight to the store
+ * gets a stale override and a picker that disagrees with the clock.
+ */
+const seed = (overrides: Partial<Settings> = {}) => {
+    writeStoredSettings({ ...DEFAULT_SETTINGS, ...overrides });
+    useMinesweeperStore.getState().hydrateSettings();
+};
+
+/**
  * Pins the clock for a describe that reads the calendar. Only the palette
  * picker does — the sound, HUD and account cases have no business running
  * under fake timers, which are a standing source of async flake.
+ *
+ * Hydration is repeated here because the file-level beforeEach ran before the
+ * clock was pinned, and the override resolved then would be today's.
  */
 const pinTo = (day: string) => {
     beforeEach(() => {
         vi.useFakeTimers({ shouldAdvanceTime: true });
         vi.setSystemTime(new Date(`${day}T12:00:00`));
+        seed();
     });
     afterEach(() => vi.useRealTimers());
 };
@@ -103,10 +122,7 @@ describe('a holiday in season', () => {
     });
 
     it('shows as selected over the saved palette, without overwriting it', () => {
-        useMinesweeperStore.setState({
-            settings: { ...DEFAULT_SETTINGS, theme: 'gameboy' },
-            settingsHydrated: true,
-        });
+        seed({ theme: 'gameboy' });
         render(<SettingsClient />);
 
         expect((screen.getByRole('radio', { name: /Halloween/ }) as HTMLInputElement).checked).toBe(true);
@@ -135,10 +151,7 @@ describe('a holiday in season', () => {
     });
 
     it('turning the switch off gives the saved palette straight back', () => {
-        useMinesweeperStore.setState({
-            settings: { ...DEFAULT_SETTINGS, theme: 'c64' },
-            settingsHydrated: true,
-        });
+        seed({ theme: 'c64' });
         render(<SettingsClient />);
         fireEvent.click(screen.getByRole('switch', { name: 'Seasonal palettes' }));
 
@@ -148,19 +161,63 @@ describe('a holiday in season', () => {
 
     /* A stale dismissal would otherwise make the toggle look broken. */
     it('turning the switch back on brings this occurrence back', () => {
-        useMinesweeperStore.setState({
-            settings: {
-                ...DEFAULT_SETTINGS,
-                seasonalThemes: false,
-                seasonalDismissed: 'halloween-2026',
-            },
-            settingsHydrated: true,
-        });
+        seed({ seasonalThemes: false, seasonalDismissed: 'halloween-2026' });
         render(<SettingsClient />);
         fireEvent.click(screen.getByRole('switch', { name: 'Seasonal palettes' }));
 
         expect(useMinesweeperStore.getState().settings.seasonalDismissed).toBeNull();
         expect(document.documentElement.dataset.theme).toBe('halloween');
+    });
+});
+
+/*
+ * The tab that stays open. Windows are whole-day granular, so the schedule can
+ * only move at local midnight — but nothing repaints on its own, and before
+ * `refreshSeasonal` existed a browser left open overnight kept yesterday's
+ * answer until it reloaded. Both edges, because a palette that arrives and
+ * never leaves is the same bug wearing the other hat.
+ */
+describe('crossing a window boundary with the tab open', () => {
+    pinTo('2026-10-23'); // the evening before Halloween opens
+
+    const crossTo = (day: string) => {
+        vi.setSystemTime(new Date(`${day}T00:00:30`));
+        act(() => useMinesweeperStore.getState().refreshSeasonal());
+    };
+
+    it('picks the holiday up at midnight, with no reload', () => {
+        render(<SettingsClient />);
+        expect(screen.queryByRole('radio', { name: /Halloween/ })).toBeNull();
+
+        crossTo('2026-10-24');
+
+        expect(screen.getByRole('radio', { name: /Halloween/ })).toBeTruthy();
+        expect(document.documentElement.dataset.theme).toBe('halloween');
+    });
+
+    it('hands the saved palette back when the window closes', () => {
+        seed({ theme: 'gameboy' });
+        crossTo('2026-10-24');
+        render(<SettingsClient />);
+        expect(document.documentElement.dataset.theme).toBe('halloween');
+
+        crossTo('2026-11-02'); // the day after the window ends
+
+        expect(document.documentElement.dataset.theme).toBe('gameboy');
+        expect(screen.queryByRole('radio', { name: /Halloween/ })).toBeNull();
+        expect(useMinesweeperStore.getState().settings.theme).toBe('gameboy');
+    });
+
+    /* Fires on every visibility change too, so it must be free when idle. */
+    it('changes nothing on a tick within the same day', () => {
+        render(<SettingsClient />);
+        const before = useMinesweeperStore.getState().settings;
+
+        vi.setSystemTime(new Date('2026-10-23T23:00:00'));
+        act(() => useMinesweeperStore.getState().refreshSeasonal());
+
+        expect(useMinesweeperStore.getState().settings).toBe(before);
+        expect(useMinesweeperStore.getState().seasonalOverride).toBeNull();
     });
 });
 

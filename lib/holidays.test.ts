@@ -4,6 +4,7 @@ import {
     activeHoliday,
     activeOverride,
     localDay,
+    msUntilLocalMidnight,
 } from "@/lib/holidays";
 import { THEMES } from "@/lib/theme";
 
@@ -102,6 +103,31 @@ describe("the schedule stays serviceable", () => {
     test("every scheduled holiday has a palette to paint", () => {
         for (const id of HOLIDAY_THEME_IDS) {
             expect(THEMES.find((t) => t.id === id)).toBeDefined();
+        }
+    });
+});
+
+/*
+ * The only instant at which activeHoliday can change, and therefore the whole
+ * scheduling story for a tab that stays open (components/SettingsSync.tsx).
+ */
+describe("msUntilLocalMidnight", () => {
+    test("counts to the next local midnight, not 24h from now", () => {
+        expect(msUntilLocalMidnight(on("2026-06-15"))).toBe(12 * 60 * 60 * 1000);
+    });
+
+    /* A zero would let a timer armed on the boundary spin. */
+    test("is a full day at midnight exactly, never zero", () => {
+        const midnight = new Date(2026, 5, 15, 0, 0, 0, 0);
+        expect(msUntilLocalMidnight(midnight)).toBe(24 * 60 * 60 * 1000);
+    });
+
+    test("is always positive, across a year of local times", () => {
+        for (let day = 0; day < 365; day++) {
+            for (const hour of [0, 1, 2, 3, 12, 23]) {
+                const at = new Date(2026, 0, 1 + day, hour, 30, 0, 0);
+                expect(msUntilLocalMidnight(at)).toBeGreaterThan(0);
+            }
         }
     });
 });

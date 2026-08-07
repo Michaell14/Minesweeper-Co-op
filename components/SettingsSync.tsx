@@ -6,6 +6,7 @@ import { fetchSettings, saveSettings } from '@/lib/settingsApi';
 import { deleteThemeRemote, fetchThemes, saveThemeRemote } from '@/lib/themesApi';
 import { clearPendingThemeDeletion, readPendingThemeDeletions } from '@/lib/customThemes';
 import { installSoundUnlock } from '@/lib/sound';
+import { msUntilLocalMidnight } from '@/lib/holidays';
 
 /**
  * Renders nothing; owns the settings lifecycle. Mounted once in the layout.
@@ -43,6 +44,40 @@ export default function SettingsSync() {
         // stay silent until the player happens to click after enabling sound.
         installSoundUnlock();
     }, [hydrateSettings]);
+
+    /*
+     * Keeps a long-lived tab in step with the calendar. A holiday window can
+     * only open or close at local midnight, so this arms ONE timer at a time
+     * rather than polling.
+     *
+     * The visibility listener is not redundant with it: background timers are
+     * throttled to minutes and do not run at all across a sleep, which is
+     * exactly the tab that sits open overnight. Re-resolving on the way back
+     * catches the boundary the timer slept through, and `refreshSeasonal` is a
+     * no-op when the answer has not moved.
+     */
+    React.useEffect(() => {
+        let timer: ReturnType<typeof setTimeout>;
+
+        const tick = () => {
+            useMinesweeperStore.getState().refreshSeasonal();
+            timer = setTimeout(tick, msUntilLocalMidnight());
+        };
+        timer = setTimeout(tick, msUntilLocalMidnight());
+
+        const onVisible = () => {
+            if (document.visibilityState !== 'visible') return;
+            useMinesweeperStore.getState().refreshSeasonal();
+            clearTimeout(timer);
+            timer = setTimeout(tick, msUntilLocalMidnight());
+        };
+        document.addEventListener('visibilitychange', onVisible);
+
+        return () => {
+            clearTimeout(timer);
+            document.removeEventListener('visibilitychange', onVisible);
+        };
+    }, []);
 
     React.useEffect(() => {
         if (status !== 'authenticated') {

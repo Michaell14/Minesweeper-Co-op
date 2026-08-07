@@ -2,7 +2,6 @@
 import React from 'react';
 import { RadioCard, RadioCardGroup } from '@/components/ds';
 import { THEMES, isSeasonal } from '@/lib/theme';
-import { activeOverride } from '@/lib/holidays';
 import { CUSTOM_THEME_PREFIX } from '@/lib/customThemes';
 import { useMinesweeperStore } from '@/app/store';
 
@@ -16,9 +15,10 @@ const DEFAULT_THEME = '__default__';
  *
  * The store hydrates from storage after mount (see settingsSlice); until then
  * this briefly shows the default selected, while the PAINTED theme is already
- * correct via the no-flash script. The seasonal override waits on that same
- * flag for a second reason: it reads the clock, and the server rendering this
- * may be a day behind the player's browser.
+ * correct via the no-flash script. `seasonalOverride` is read from the store
+ * for the same reason it is stored rather than derived here: it moves on the
+ * clock, and a value computed during render would go stale at midnight with
+ * no state change to re-render it.
  *
  * `name` must be unique per mounted instance: these are real radio inputs,
  * and two groups sharing one name would steal each other's checked state.
@@ -28,13 +28,9 @@ export default function ThemeCards({ name }: { name: string }) {
     // object on every write, so selecting it wholesale would re-render all
     // seventeen cards on each step of the volume slider further down the page.
     const theme = useMinesweeperStore((s) => s.settings.theme);
-    const seasonalThemes = useMinesweeperStore((s) => s.settings.seasonalThemes);
-    const seasonalDismissed = useMinesweeperStore((s) => s.settings.seasonalDismissed);
-    const hydrated = useMinesweeperStore((s) => s.settingsHydrated);
+    const holiday = useMinesweeperStore((s) => s.seasonalOverride);
     const customThemes = useMinesweeperStore((s) => s.customThemes);
     const setSetting = useMinesweeperStore((s) => s.setSetting);
-
-    const holiday = hydrated ? activeOverride({ seasonalThemes, seasonalDismissed }) : null;
 
     const choose = (value: string) =>
         setSetting('theme', value === DEFAULT_THEME ? null : value);
