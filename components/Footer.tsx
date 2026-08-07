@@ -99,6 +99,9 @@ export default function Footer() {
                 <p>2) Share your room code with friends</p>
                 <p>3) Play together!</p>
                 <hr />
+                <p>Keyboard: arrows or WASD move the cursor</p>
+                <p>Space/Enter reveals, F flags, Esc hides it</p>
+                <hr />
             </Dialog>
 
             <AccountMenu />

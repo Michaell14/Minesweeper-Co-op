@@ -263,6 +263,7 @@ describe('the gameplay and HUD sections', () => {
         expectSwitch('Start taps in flag mode', false);
         expectSwitch('Confetti', true);
         expectSwitch('Share your cursor', true);
+        expectSwitch('Keyboard controls', true);
         expectSwitch('Timer', true);
         expectSwitch('Flag counter', true);
         expectSwitch('PVP progress bars', true);
@@ -273,6 +274,13 @@ describe('the gameplay and HUD sections', () => {
         fireEvent.click(screen.getByRole('switch', { name: 'Swap mouse buttons' }));
         expect(useMinesweeperStore.getState().settings.swapMouseButtons).toBe(true);
         expect(localStorage.getItem('minesweeper_settings')).toContain('"swapMouseButtons":true');
+    });
+
+    it('keyboard controls can be switched off, and it persists', () => {
+        render(<SettingsClient />);
+        fireEvent.click(screen.getByRole('switch', { name: 'Keyboard controls' }));
+        expect(useMinesweeperStore.getState().settings.keyboardControls).toBe(false);
+        expect(localStorage.getItem('minesweeper_settings')).toContain('"keyboardControls":false');
     });
 
     it('offers the three cell sizes and stores a choice', () => {

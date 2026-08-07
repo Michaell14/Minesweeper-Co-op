@@ -8,6 +8,7 @@ import FlagCounter from '@/components/game/FlagCounter';
 import Timer from '@/components/game/Timer';
 import { useGameStats } from '@/hooks/useGameStats';
 import { useChording } from '@/hooks/useChording';
+import { useKeyboardControls } from '@/hooks/useKeyboardControls';
 import { DIALOGS, openDialog } from '@/lib/dialogs';
 
 interface DailyChallengeParams {
@@ -42,6 +43,14 @@ export default function DailyChallenge({ leaveDaily, dailyOpenCell, dailyChordCe
      * opened afterwards fired on a cell the player had not pressed twice.
      */
     useChording(dailyChordCell);
+
+    // Keyboard play, with the daily's own callbacks; hover stays a noop (solo).
+    useKeyboardControls({
+        openCell: dailyOpenCell,
+        toggleFlag: dailyToggleFlag,
+        chordCell: dailyChordCell,
+        emitCellHover: noop,
+    });
 
     // <Timer> reads gameSlice's shared run clock, which the daily handlers in
     // hooks/useGameEvents.ts set directly -- deriving it here reactively would

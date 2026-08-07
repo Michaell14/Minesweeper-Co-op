@@ -14,12 +14,15 @@ export interface InputSlice {
     leftClick: boolean;
     rightClick: boolean;
     bothPressed: boolean;
+    /** Keyboard selection on the board; null = hidden. */
+    kbCursor: { r: number; c: number } | null;
 
     setIsChecked: (checked: boolean) => void;
     setCoord: (newR: number, newC: number) => void;
     setLeftClick: (lClick: boolean) => void;
     setRightClick: (rClick: boolean) => void;
     setBothPressed: (bothPressed: boolean) => void;
+    setKbCursor: (cursor: { r: number; c: number } | null) => void;
 }
 
 export const createInputSlice: StateCreator<MinesweeperState, [], [], InputSlice> = (set) => ({
@@ -29,10 +32,12 @@ export const createInputSlice: StateCreator<MinesweeperState, [], [], InputSlice
     leftClick: false,
     rightClick: false,
     bothPressed: false,
+    kbCursor: null,
 
     setIsChecked: (checked) => set({ isChecked: checked }),
     setCoord: (newR, newC) => set({ r: newR, c: newC }),
     setLeftClick: (lClick) => set({ leftClick: lClick }),
     setRightClick: (rClick) => set({ rightClick: rClick }),
     setBothPressed: (bothPressed) => set({ bothPressed }),
+    setKbCursor: (kbCursor) => set({ kbCursor }),
 });

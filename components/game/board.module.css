@@ -160,6 +160,24 @@
     box-shadow: 0 0 4px var(--cursor-color), 0 1px 3px rgba(0, 0, 0, 0.4);
 }
 
+/*
+ * The keyboard selection cursor — a cell-sized frame above the remote cursors
+ * (the local player's marker should win). The two-tone ring is what keeps it
+ * legible on every palette without a token of its own: whichever tone matches
+ * the cell beneath, the other contrasts.
+ */
+.kbCursor {
+    position: absolute;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+    z-index: 6;
+    box-shadow:
+        0 0 0 var(--ms-border-width) var(--ms-border-color),
+        inset 0 0 0 var(--ms-border-width) var(--ms-cell-light);
+    transition: transform var(--ms-duration-quick) var(--ms-ease-out);
+}
+
 @media (max-width: 48em) {
     .cursorLabel {
         font-size: 9px;

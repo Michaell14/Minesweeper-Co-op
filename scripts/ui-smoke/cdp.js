@@ -178,7 +178,28 @@ async function attach(target) {
         await sleep(1200);
     };
 
-    return { send, evaluate, waitFor, click, type, goto, consoleErrors, close: () => ws.close() };
+    /**
+     * Presses one key the way a keyboard would. Named keys pass their code and
+     * virtual key code explicitly: key('ArrowRight', { code: 'ArrowRight', keyCode: 39 }).
+     * `keyDown` rather than `rawKeyDown` so single characters carry text.
+     */
+    const key = async (k, { code, keyCode = 0 } = {}) => {
+        const base = {
+            key: k,
+            code: code || k,
+            windowsVirtualKeyCode: keyCode,
+            nativeVirtualKeyCode: keyCode,
+        };
+        await send('Input.dispatchKeyEvent', {
+            type: 'keyDown',
+            ...(k.length === 1 ? { text: k } : {}),
+            ...base,
+        });
+        await send('Input.dispatchKeyEvent', { type: 'keyUp', ...base });
+        await sleep(80);
+    };
+
+    return { send, evaluate, waitFor, click, type, key, goto, consoleErrors, close: () => ws.close() };
 }
 
 module.exports = { launchChrome, attach, newTarget, sleep };

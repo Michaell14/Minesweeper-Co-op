@@ -2,6 +2,7 @@ import React, { useRef } from 'react';
 import { useMinesweeperStore } from '@/app/store';
 import Cell from '@/components/game/Cell';
 import CursorLayer from '@/components/game/CursorLayer';
+import KeyboardCursor from '@/components/game/KeyboardCursor';
 import styles from '@/components/game/board.module.css';
 
 export interface BoardProps {
@@ -49,6 +50,7 @@ export default function Board({ toggleFlag, openCell, chordCell, emitCellHover, 
                 </div>
             ))}
             <CursorLayer boardRef={boardRef} />
+            <KeyboardCursor boardRef={boardRef} />
         </div>
     );
 }

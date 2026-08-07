@@ -7,6 +7,7 @@ import { useMinesweeperStore, Cell as CellType } from '@/app/store';
 import { pointerClass } from '@/components/ds/pointer';
 import Sprite from '@/components/ds/sprites';
 import { cascadeBand, type CascadeOrigin } from '@/lib/motion';
+import { cellAriaLabel } from './cellLabel';
 
 interface CellParams {
     cell: CellType,
@@ -170,20 +171,7 @@ const Cell = ({ cell, row, col, cascadeOrigin, toggleFlag, openCell, chordCell, 
         }
     };
 
-    const getAriaLabel = () => {
-        if (cell.isMine && (cell.isOpen || minesRevealed)) {
-            return `Mine at row ${row + 1}, column ${col + 1}`;
-        }
-        if (cell.isOpen) {
-            return cell.nearbyMines > 0
-                ? `Revealed cell at row ${row + 1}, column ${col + 1}, ${cell.nearbyMines} nearby ${cell.nearbyMines === 1 ? 'mine' : 'mines'}`
-                : `Empty cell at row ${row + 1}, column ${col + 1}`;
-        }
-        if (cell.isFlagged) {
-            return `Flagged cell at row ${row + 1}, column ${col + 1}`;
-        }
-        return `Unrevealed cell at row ${row + 1}, column ${col + 1}`;
-    };
+    const getAriaLabel = () => cellAriaLabel(cell, row, col, minesRevealed);
 
     /*
      * <Sprite> is a two-node <use> of art mounted once in the layout, so the
