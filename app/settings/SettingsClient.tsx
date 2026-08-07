@@ -44,6 +44,11 @@ export default function SettingsClient() {
             <section aria-labelledby="settings-appearance" className="mb-8">
                 <Panel title={<span id="settings-appearance">Appearance</span>}>
                     <ThemeCards name="app-theme-settings" />
+                    <SettingRow
+                        settingKey="seasonalThemes"
+                        name="Seasonal palettes"
+                        description="Let a holiday palette take over around Halloween, Christmas and a few others. Your own choice comes back afterwards."
+                    />
                     <ThemeStudio />
                 </Panel>
             </section>

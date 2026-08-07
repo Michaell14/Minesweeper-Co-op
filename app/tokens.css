@@ -1151,3 +1151,364 @@
     --ms-palette-num-7: #2b1c0e;
     --ms-palette-num-8: #6e6252;
 }
+
+/* ============================================================================
+ * SEASONAL PALETTES
+ *
+ * Ordinary themes in every respect — palette layer only, one data-theme block
+ * each. What differs is who picks them: lib/holidays.ts paints one by DATE, on
+ * top of whatever the player saved, for the length of its window. They stay in
+ * VALID_THEME_IDS year-round so a stored id never silently reverts; the picker
+ * hides the out-of-season ones (components/ThemeCards.tsx).
+ * ========================================================================== */
+
+/* ---------------------------------------------------------------------------
+ * Halloween. Midnight purple, pumpkin, toxic green, bone.
+ *
+ * Dark, which decides everything downstream: fills are bright and take DARK
+ * ink, the inverse of the light themes, and the eight numbers sit on a
+ * near-black open cell so each one has to be a bright hue rather than a deep
+ * one.
+ * ------------------------------------------------------------------------- */
+:root[data-theme="halloween"] {
+    --ms-palette-ink: #f6ead6;
+    --ms-palette-paper: #150f1f;
+    --ms-palette-smoke: #221936;
+    --ms-palette-ash: #3a2d52;
+    --ms-palette-steel: #6f5f92;
+    --ms-palette-gray: #c3b2dd;
+    --ms-palette-gray-dark: #ded0f0;
+    --ms-palette-track: #3a2d52;
+    --ms-palette-mist: #291f40;
+    --ms-palette-mist-deep: #3a2d52;
+    --ms-palette-chrome: #322648;
+
+    /* Bright fill, dark ink — hover moves the fill further from its ink. */
+    --ms-palette-blue: #ff7a18;
+    --ms-palette-blue-deep: #ff9440;
+    --ms-palette-blue-shade: #b04d00;
+    --ms-palette-blue-ink: #1a1000;
+    --ms-palette-green: #86e01e;
+    --ms-palette-green-deep: #a0eb4d;
+    --ms-palette-green-shade: #5a9c0c;
+    --ms-palette-green-ink: #12200a;
+    --ms-palette-yellow: #ffc23c;
+    --ms-palette-yellow-deep: #ffd470;
+    --ms-palette-yellow-shade: #b8850f;
+    --ms-palette-yellow-ink: #241600;
+    --ms-palette-red: #ff5c5c;
+    --ms-palette-red-deep: #ff8080;
+    --ms-palette-red-shade: #b02020;
+    --ms-palette-red-ink: #240404;
+
+    --ms-palette-blue-alt: #ff7a18;
+    --ms-palette-blue-text: #ffa04d;
+    --ms-palette-green-alt: #86e01e;
+    --ms-palette-green-text: #9ce03f;
+    --ms-palette-red-alt: #ff5c5c;
+    --ms-palette-red-text: #ff8080;
+    --ms-palette-orange-alt: #ff9440;
+    --ms-palette-amber: #ffc23c;
+    --ms-palette-amber-ink: #241600;
+
+    --ms-palette-cell-closed: #3a2d52;
+    --ms-palette-cell-light: #52407a;
+    --ms-palette-cell-shade: #241a38;
+    --ms-palette-cell-open: #1c1430;
+    --ms-palette-gutter: #0c0814;
+    --ms-palette-mine: #ff5c5c;
+    --ms-palette-cursor-ink: #150f1f;
+    --ms-palette-cursor-1: #ff7a18;
+    --ms-palette-cursor-2: #86e01e;
+    --ms-palette-cursor-3: #f6ead6;
+    --ms-palette-cursor-4: #c792ff;
+    --ms-palette-cursor-5: #ff5c5c;
+    --ms-palette-cursor-6: #ffc23c;
+
+    --ms-palette-num-1: #6ea8ff;
+    --ms-palette-num-2: #86e01e;
+    --ms-palette-num-3: #ff6b6b;
+    --ms-palette-num-4: #c792ff;
+    --ms-palette-num-5: #ffb347;
+    --ms-palette-num-6: #5fe3d0;
+    --ms-palette-num-7: #f6ead6;
+    --ms-palette-num-8: #a99ac4;
+}
+
+/* ---------------------------------------------------------------------------
+ * Christmas. Snow, fir, cranberry, gold.
+ *
+ * Two reds, deliberately: primary is cranberry and danger is a deeper crimson,
+ * separated by VALUE rather than hue. Giving danger a non-red would have been
+ * the alternative and it would not read as danger — the same trade Game Boy
+ * makes across its four shades, made once here.
+ * ------------------------------------------------------------------------- */
+:root[data-theme="christmas"] {
+    --ms-palette-ink: #16261e;
+    --ms-palette-paper: #f5f9f8;
+    --ms-palette-smoke: #e4efec;
+    --ms-palette-ash: #c3d6d0;
+    --ms-palette-steel: #6d8a80;
+    --ms-palette-gray: #3f5b51;
+    --ms-palette-gray-dark: #263b33;
+    --ms-palette-track: #c3d6d0;
+    --ms-palette-mist: #eef5f3;
+    --ms-palette-mist-deep: #d7e8e2;
+    --ms-palette-chrome: #d7e8e2;
+
+    --ms-palette-blue: #a41623;
+    --ms-palette-blue-deep: #8c1220;
+    --ms-palette-blue-shade: #6b0d18;
+    --ms-palette-blue-ink: #ffffff;
+    --ms-palette-green: #14653a;
+    --ms-palette-green-deep: #0f4e2c;
+    --ms-palette-green-shade: #0a3a20;
+    --ms-palette-green-ink: #ffffff;
+    --ms-palette-yellow: #d99a00;
+    --ms-palette-yellow-deep: #f0b41f;
+    --ms-palette-yellow-shade: #9c6e00;
+    --ms-palette-yellow-ink: #241a00;
+    --ms-palette-red: #7a0f16;
+    --ms-palette-red-deep: #5e0b11;
+    --ms-palette-red-shade: #45080c;
+    --ms-palette-red-ink: #ffffff;
+
+    --ms-palette-blue-alt: #a41623;
+    --ms-palette-blue-text: #8c1220;
+    --ms-palette-green-alt: #14653a;
+    --ms-palette-green-text: #14653a;
+    --ms-palette-red-alt: #7a0f16;
+    --ms-palette-red-text: #7a0f16;
+    --ms-palette-orange-alt: #d99a00;
+    --ms-palette-amber: #f2c14e;
+    --ms-palette-amber-ink: #241a00;
+
+    --ms-palette-cell-closed: #cddcd6;
+    --ms-palette-cell-light: #e6f0ec;
+    --ms-palette-cell-shade: #9ab0a8;
+    --ms-palette-cell-open: #f2f7f5;
+    --ms-palette-gutter: #16261e;
+    --ms-palette-mine: #a41623;
+    --ms-palette-cursor-ink: #16261e;
+    --ms-palette-cursor-1: #e05263;
+    --ms-palette-cursor-2: #4c9a70;
+    --ms-palette-cursor-3: #e3b23c;
+    --ms-palette-cursor-4: #7fb3d5;
+    --ms-palette-cursor-5: #a67ab5;
+    --ms-palette-cursor-6: #ffffff;
+
+    --ms-palette-num-1: #1b4d8f;
+    --ms-palette-num-2: #14653a;
+    --ms-palette-num-3: #a41623;
+    --ms-palette-num-4: #5b2a86;
+    --ms-palette-num-5: #7a3b12;
+    --ms-palette-num-6: #0f5f63;
+    --ms-palette-num-7: #16261e;
+    --ms-palette-num-8: #4a5d55;
+}
+
+/* ---------------------------------------------------------------------------
+ * Lunar New Year. Black lacquer, vermilion, gold.
+ *
+ * Gold takes the primary slot rather than red. Vermilion sits mid-luminance,
+ * so it clears 4.5:1 against neither cream nor near-black ink — the honest
+ * options were to brighten it past recognition or to give the loudest slot to
+ * the gold, which the palette has plenty of.
+ * ------------------------------------------------------------------------- */
+:root[data-theme="lunar-new-year"] {
+    --ms-palette-ink: #ffe9c4;
+    --ms-palette-paper: #2a0a0a;
+    --ms-palette-smoke: #3d1210;
+    --ms-palette-ash: #5c1e1a;
+    --ms-palette-steel: #a35c3a;
+    --ms-palette-gray: #e0b483;
+    --ms-palette-gray-dark: #f0d0a8;
+    --ms-palette-track: #5c1e1a;
+    --ms-palette-mist: #46160f;
+    --ms-palette-mist-deep: #5c1e1a;
+    --ms-palette-chrome: #4a1613;
+
+    --ms-palette-blue: #f5b52a;
+    --ms-palette-blue-deep: #ffc94d;
+    --ms-palette-blue-shade: #b07d0c;
+    --ms-palette-blue-ink: #2a0a0a;
+    --ms-palette-green: #3fbf7f;
+    --ms-palette-green-deep: #5fd699;
+    --ms-palette-green-shade: #22804f;
+    --ms-palette-green-ink: #06200f;
+    --ms-palette-yellow: #f28c28;
+    --ms-palette-yellow-deep: #ffa94d;
+    --ms-palette-yellow-shade: #a85c0f;
+    --ms-palette-yellow-ink: #2a1000;
+    --ms-palette-red: #ff5c47;
+    --ms-palette-red-deep: #ff7d6b;
+    --ms-palette-red-shade: #b02a1c;
+    --ms-palette-red-ink: #2a0505;
+
+    --ms-palette-blue-alt: #f5b52a;
+    --ms-palette-blue-text: #ffc94d;
+    --ms-palette-green-alt: #3fbf7f;
+    --ms-palette-green-text: #5fd699;
+    --ms-palette-red-alt: #ff5c47;
+    --ms-palette-red-text: #ff7d6b;
+    --ms-palette-orange-alt: #f28c28;
+    --ms-palette-amber: #f5b52a;
+    --ms-palette-amber-ink: #2a0a0a;
+
+    --ms-palette-cell-closed: #5c1e1a;
+    --ms-palette-cell-light: #7d2a24;
+    --ms-palette-cell-shade: #3d1210;
+    --ms-palette-cell-open: #33100e;
+    --ms-palette-gutter: #1a0505;
+    --ms-palette-mine: #ff5c47;
+    --ms-palette-cursor-ink: #2a0a0a;
+    --ms-palette-cursor-1: #f5b52a;
+    --ms-palette-cursor-2: #ff5c47;
+    --ms-palette-cursor-3: #3fbf7f;
+    --ms-palette-cursor-4: #ffe9c4;
+    --ms-palette-cursor-5: #c77dbb;
+    --ms-palette-cursor-6: #f28c28;
+
+    --ms-palette-num-1: #7fb3ff;
+    --ms-palette-num-2: #4fd18a;
+    --ms-palette-num-3: #ff7a6b;
+    --ms-palette-num-4: #d9a3ff;
+    --ms-palette-num-5: #ffb570;
+    --ms-palette-num-6: #5fded0;
+    --ms-palette-num-7: #ffe9c4;
+    --ms-palette-num-8: #c9a48c;
+}
+
+/* ---------------------------------------------------------------------------
+ * Valentine's. Blush, crimson, cream, rose gold.
+ * ------------------------------------------------------------------------- */
+:root[data-theme="valentines"] {
+    --ms-palette-ink: #3d1029;
+    --ms-palette-paper: #fff5f7;
+    --ms-palette-smoke: #ffe4ec;
+    --ms-palette-ash: #f0c2d2;
+    --ms-palette-steel: #a4657f;
+    --ms-palette-gray: #7a3757;
+    --ms-palette-gray-dark: #5c2440;
+    --ms-palette-track: #f0c2d2;
+    --ms-palette-mist: #fff0f4;
+    --ms-palette-mist-deep: #ffd6e3;
+    --ms-palette-chrome: #ffd6e3;
+
+    --ms-palette-blue: #c2185b;
+    --ms-palette-blue-deep: #a01049;
+    --ms-palette-blue-shade: #7d0c39;
+    --ms-palette-blue-ink: #ffffff;
+    --ms-palette-green: #2f7a52;
+    --ms-palette-green-deep: #24603f;
+    --ms-palette-green-shade: #1a4a2f;
+    --ms-palette-green-ink: #ffffff;
+    --ms-palette-yellow: #e8a33d;
+    --ms-palette-yellow-deep: #f2bd6a;
+    --ms-palette-yellow-shade: #a86f18;
+    --ms-palette-yellow-ink: #3d1029;
+    --ms-palette-red: #8c1240;
+    --ms-palette-red-deep: #6e0e32;
+    --ms-palette-red-shade: #520a25;
+    --ms-palette-red-ink: #ffffff;
+
+    --ms-palette-blue-alt: #c2185b;
+    --ms-palette-blue-text: #a01049;
+    --ms-palette-green-alt: #2f7a52;
+    --ms-palette-green-text: #2f7a52;
+    --ms-palette-red-alt: #8c1240;
+    --ms-palette-red-text: #8c1240;
+    --ms-palette-orange-alt: #e8a33d;
+    --ms-palette-amber: #f2bd6a;
+    --ms-palette-amber-ink: #3d1029;
+
+    --ms-palette-cell-closed: #f3c9d8;
+    --ms-palette-cell-light: #ffe0ea;
+    --ms-palette-cell-shade: #d199ae;
+    --ms-palette-cell-open: #fff0f4;
+    --ms-palette-gutter: #3d1029;
+    --ms-palette-mine: #c2185b;
+    --ms-palette-cursor-ink: #3d1029;
+    --ms-palette-cursor-1: #e0517f;
+    --ms-palette-cursor-2: #ff9ec4;
+    --ms-palette-cursor-3: #e8a33d;
+    --ms-palette-cursor-4: #b98fd6;
+    --ms-palette-cursor-5: #7fc9a8;
+    --ms-palette-cursor-6: #fff5f7;
+
+    --ms-palette-num-1: #2e4fa8;
+    --ms-palette-num-2: #2f7a52;
+    --ms-palette-num-3: #c2185b;
+    --ms-palette-num-4: #6b3597;
+    --ms-palette-num-5: #8c4a12;
+    --ms-palette-num-6: #0f6b70;
+    --ms-palette-num-7: #3d1029;
+    --ms-palette-num-8: #6b5560;
+}
+
+/* ---------------------------------------------------------------------------
+ * Thanksgiving. Wheat, ochre, rust, cranberry.
+ * ------------------------------------------------------------------------- */
+:root[data-theme="thanksgiving"] {
+    --ms-palette-ink: #2e1c0d;
+    --ms-palette-paper: #fdf3e3;
+    --ms-palette-smoke: #f3e2c8;
+    --ms-palette-ash: #d8c09a;
+    --ms-palette-steel: #8a6b45;
+    --ms-palette-gray: #5c4227;
+    --ms-palette-gray-dark: #3d2b17;
+    --ms-palette-track: #d8c09a;
+    --ms-palette-mist: #fbeed8;
+    --ms-palette-mist-deep: #edd9b6;
+    --ms-palette-chrome: #edd9b6;
+
+    --ms-palette-blue: #a84318;
+    --ms-palette-blue-deep: #8c3612;
+    --ms-palette-blue-shade: #6b280d;
+    --ms-palette-blue-ink: #ffffff;
+    --ms-palette-green: #3f6b2b;
+    --ms-palette-green-deep: #325622;
+    --ms-palette-green-shade: #264018;
+    --ms-palette-green-ink: #ffffff;
+    --ms-palette-yellow: #d98f00;
+    --ms-palette-yellow-deep: #f0a91f;
+    --ms-palette-yellow-shade: #9c6600;
+    --ms-palette-yellow-ink: #2e1c0d;
+    --ms-palette-red: #8c1c2b;
+    --ms-palette-red-deep: #70161f;
+    --ms-palette-red-shade: #551017;
+    --ms-palette-red-ink: #ffffff;
+
+    --ms-palette-blue-alt: #a84318;
+    --ms-palette-blue-text: #8c3612;
+    --ms-palette-green-alt: #3f6b2b;
+    --ms-palette-green-text: #3f6b2b;
+    --ms-palette-red-alt: #8c1c2b;
+    --ms-palette-red-text: #8c1c2b;
+    --ms-palette-orange-alt: #d98f00;
+    --ms-palette-amber: #e0a33c;
+    --ms-palette-amber-ink: #2e1c0d;
+
+    --ms-palette-cell-closed: #e3cba3;
+    --ms-palette-cell-light: #f2e0bf;
+    --ms-palette-cell-shade: #b59a70;
+    --ms-palette-cell-open: #fbeed8;
+    --ms-palette-gutter: #2e1c0d;
+    --ms-palette-mine: #8c1c2b;
+    --ms-palette-cursor-ink: #2e1c0d;
+    --ms-palette-cursor-1: #c1592a;
+    --ms-palette-cursor-2: #e0a33c;
+    --ms-palette-cursor-3: #6b9a4a;
+    --ms-palette-cursor-4: #b8455a;
+    --ms-palette-cursor-5: #9a7ab5;
+    --ms-palette-cursor-6: #fdf3e3;
+
+    --ms-palette-num-1: #23478f;
+    --ms-palette-num-2: #3f6b2b;
+    --ms-palette-num-3: #a8291c;
+    --ms-palette-num-4: #5c3585;
+    --ms-palette-num-5: #7a3d12;
+    --ms-palette-num-6: #0f6060;
+    --ms-palette-num-7: #2e1c0d;
+    --ms-palette-num-8: #6b5942;
+}

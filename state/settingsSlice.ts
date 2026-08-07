@@ -9,6 +9,7 @@ import {
     type Settings,
 } from '@/lib/settings';
 import { applyTheme } from '@/lib/theme';
+import { activeOverride, type HolidayOccurrence } from '@/lib/holidays';
 import {
     CUSTOM_THEME_PREFIX,
     isCustomThemeSetting,
@@ -35,8 +36,23 @@ export interface SettingsSlice {
     settingsHydrated: boolean;
     /** The player's saved custom palettes. Hydrated with settings. */
     customThemes: CustomTheme[];
+    /**
+     * The holiday painting over `settings.theme` right now, or null.
+     *
+     * Held rather than derived at each render because it changes on the CLOCK,
+     * with nothing else moving — a component computing it from `new Date()`
+     * would go stale at midnight with no state change to re-render it.
+     * `refreshSeasonal` is what advances it.
+     */
+    seasonalOverride: HolidayOccurrence | null;
 
     hydrateSettings: () => void;
+    /**
+     * Re-resolves the schedule against the current clock, repainting only if
+     * the answer moved. Driven by components/SettingsSync.tsx at each local
+     * midnight and whenever the tab is shown again.
+     */
+    refreshSeasonal: () => void;
     setSetting: <K extends SettingKey>(key: K, value: Settings[K]) => void;
     /** Wholesale replacement from the server (sanitised here). Server-wins. */
     replaceSettings: (incoming: unknown) => void;
@@ -53,49 +69,98 @@ export interface SettingsSlice {
  * The one place a settings change touches the world outside the store.
  * A `custom:` theme resolves against the saved list; pointing at a theme that
  * no longer exists renders the default rather than half a palette.
+ *
+ * A holiday in season wins over all of it, and `settings.theme` is left
+ * untouched underneath — which is the whole reason the override is resolved
+ * here, at paint, rather than written into the blob.
  */
-const applySideEffects = (settings: Settings, customThemes: CustomTheme[]) => {
-    if (typeof document === 'undefined') return;
+const applySideEffects = (
+    settings: Settings,
+    customThemes: CustomTheme[],
+): HolidayOccurrence | null => {
+    // Null on the server: resolving the schedule there would seed the store
+    // from the SERVER's date, which can be a day off the player's.
+    if (typeof document === 'undefined') return null;
+    const holiday = activeOverride(settings);
+    if (holiday) {
+        applyTheme(holiday.themeId);
+        return holiday;
+    }
     if (isCustomThemeSetting(settings.theme)) {
         const id = settings.theme.slice(CUSTOM_THEME_PREFIX.length);
         const theme = customThemes.find((t) => t.id === id);
         applyTheme(null, theme?.palette);
-        return;
+        return null;
     }
     applyTheme(settings.theme);
+    return null;
 };
 
 export const createSettingsSlice: StateCreator<MinesweeperState, [], [], SettingsSlice> = (set) => ({
     settings: DEFAULT_SETTINGS,
     settingsHydrated: false,
     customThemes: [],
+    seasonalOverride: null,
 
     hydrateSettings: () => {
         const settings = readStoredSettings();
         const customThemes = readCustomThemes();
-        applySideEffects(settings, customThemes);
+        const seasonalOverride = applySideEffects(settings, customThemes);
         // The mobile tap-mode default is applied at hydration ONLY: it seeds
         // the toggle for this visit. setSetting/replaceSettings deliberately
         // leave `isChecked` alone — flipping the in-game toggle under the
         // player mid-run because a sync arrived would be worse than any
         // default. (isChecked=true means "tap opens".)
-        set({ settings, customThemes, settingsHydrated: true, isChecked: !settings.mobileDefaultFlag });
+        set({
+            settings,
+            customThemes,
+            seasonalOverride,
+            settingsHydrated: true,
+            isChecked: !settings.mobileDefaultFlag,
+        });
     },
+
+    refreshSeasonal: () =>
+        set((state) => {
+            const holiday = activeOverride(state.settings);
+            // Key, not identity: activeOverride builds a fresh object each call,
+            // so comparing references would repaint every tick.
+            if (holiday?.key === state.seasonalOverride?.key) return {};
+            applySideEffects(state.settings, state.customThemes);
+            return { seasonalOverride: holiday };
+        }),
 
     setSetting: (key, value) =>
         set((state) => {
+            const holiday = activeOverride(state.settings);
+
+            // Picking the palette that is already painting is a no-op click on
+            // the highlighted card. Writing it would outlive the window and
+            // strand the player on Halloween in December.
+            if (key === 'theme' && holiday && value === holiday.themeId) return {};
+
             const settings = { ...state.settings, [key]: value };
+
+            // Choosing any other palette during a holiday IS the switch-away,
+            // recorded against this occurrence so next year still surprises them.
+            if (key === 'theme' && holiday) settings.seasonalDismissed = holiday.key;
+
+            // Turning the switch back on means "yes, I want the holiday" — a
+            // dismissal left over from earlier in the same window would
+            // otherwise make the toggle look broken.
+            if (key === 'seasonalThemes' && value === true) settings.seasonalDismissed = null;
+
             writeStoredSettings(settings);
-            applySideEffects(settings, state.customThemes);
-            return { settings };
+            const seasonalOverride = applySideEffects(settings, state.customThemes);
+            return { settings, seasonalOverride };
         }),
 
     replaceSettings: (incoming) => {
         set((state) => {
             const settings = sanitizeSettings(incoming);
             writeStoredSettings(settings);
-            applySideEffects(settings, state.customThemes);
-            return { settings, settingsHydrated: true };
+            const seasonalOverride = applySideEffects(settings, state.customThemes);
+            return { settings, seasonalOverride, settingsHydrated: true };
         });
     },
 
@@ -121,8 +186,8 @@ export const createSettingsSlice: StateCreator<MinesweeperState, [], [], Setting
                 // explicitly, so storage, store and paint agree.
                 const settings = { ...state.settings, theme: null };
                 writeStoredSettings(settings);
-                applySideEffects(settings, customThemes);
-                return { customThemes, settings };
+                const seasonalOverride = applySideEffects(settings, customThemes);
+                return { customThemes, settings, seasonalOverride };
             }
             return { customThemes };
         }),
