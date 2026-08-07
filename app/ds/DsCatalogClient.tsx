@@ -23,7 +23,7 @@ import type { ButtonIntent } from "@/components/ds";
 // Past the barrel on purpose, the way this page already reaches for the board's
 // stylesheet: the art table is a design-system internal, and the catalog is the
 // one page whose job is to show internals.
-import { DEFAULT_SET, PixelRects, SPRITE_SETS, type SpriteSet } from "@/components/ds/sprites";
+import { DEFAULT_SET, GENERAL_SPRITE_SETS, PixelRects, SPRITE_SETS, type SpriteSet } from "@/components/ds/sprites";
 import board from "@/components/game/board.module.css";
 import { readPaletteEntries } from "@/lib/theme";
 import { THEMES, applyTheme, coverageOf, type ThemeCoverage } from "./themes";
@@ -94,17 +94,23 @@ function SpriteSheet() {
     const [fills, setFills] = React.useState<Map<string | null, Record<string, string>>>(new Map());
     React.useEffect(() => setFills(readPaletteEntries(["mine", "cell-closed"])), []);
 
-    const sets: [string, string | null, SpriteSet][] = [
-        ["Default", null, DEFAULT_SET],
+    // [label, fills key, data id, art]. The general sets are pinnable on ANY
+    // palette, so they preview on the default fills (null key) like the
+    // default pair; a seasonal pair previews on its own palette's fills.
+    const sets: [string, string | null, string, SpriteSet][] = [
+        ["Default", null, "default", DEFAULT_SET],
+        ...GENERAL_SPRITE_SETS.map(
+            (g) => [g.label, null, g.id, g.set] as [string, string | null, string, SpriteSet],
+        ),
         ...THEMES.filter((t) => t.id && SPRITE_SETS[t.id]).map(
-            (t) => [t.label, t.id, SPRITE_SETS[t.id!]] as [string, string | null, SpriteSet],
+            (t) => [t.label, t.id, t.id!, SPRITE_SETS[t.id!]] as [string, string | null, string, SpriteSet],
         ),
     ];
 
     return (
         <div className="flex flex-wrap gap-4">
-            {sets.map(([label, id, set]) => (
-                <div key={label} className="flex flex-col gap-1" data-sprite-set={id ?? "default"}>
+            {sets.map(([label, fillsKey, id, set]) => (
+                <div key={label} className="flex flex-col gap-1" data-sprite-set={id}>
                     <div className="flex gap-1">
                         {(["mine", "flag"] as const).map((kind) => (
                             <span
@@ -112,7 +118,7 @@ function SpriteSheet() {
                                 className="flex items-center justify-center h-10 w-10 border border-muted"
                                 style={{
                                     backgroundColor:
-                                        fills.get(id)?.[kind === "mine" ? "mine" : "cell-closed"],
+                                        fills.get(fillsKey)?.[kind === "mine" ? "mine" : "cell-closed"],
                                 }}
                             >
                                 <svg viewBox="0 0 16 16" width={28} height={28} shapeRendering="crispEdges" aria-hidden="true">
@@ -251,14 +257,14 @@ export default function DsCatalogClient() {
 
             <Section
                 title="Board"
-                note="The eight number colours, an unopened cell, a flag and a mine — rendered with the board's own stylesheet. This is where a small palette fails first. Seasonal palettes swap the two sprites (components/ds/sprites.tsx); pick one above to see them — unless a set is pinned in Settings, which wins here too."
+                note="The eight number colours, an unopened cell, a flag and a mine — rendered with the board's own stylesheet. This is where a small palette fails first. Seasonal palettes swap the two sprites (components/ds/sprites.tsx); pick one above to see them."
             >
                 <BoardPreview />
             </Section>
 
             <Section
                 title="Sprites"
-                note="The mine and the flag, drawn as 16x16 pixel art like the icons (components/ds/sprites.tsx). Each seasonal palette brings its own pair; every other palette takes the default one, which paints in tokens so it reads on all of them. Shown here on the cell fill each one actually sits on."
+                note="The mine and the flag, drawn as 16x16 pixel art like the icons (components/ds/sprites.tsx). The general sets are pinnable from Settings and paint in tokens, so they read on every palette; each seasonal pair belongs to its holiday's palette alone, arrives with its window, and is not pickable. Shown here on the cell fill each one actually sits on."
             >
                 <SpriteSheet />
             </Section>

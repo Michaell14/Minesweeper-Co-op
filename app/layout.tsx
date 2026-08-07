@@ -163,7 +163,7 @@ export default function RootLayout({
 
       <body className={inter.className}>
         {/* The mine and flag art every <Sprite> points at; follows the palette
-            unless the player pinned a set. */}
+            (holiday pairs included) unless the player pinned a general set. */}
         <SpriteDefsHost />
         <AuthProvider>
           <SettingsSync />

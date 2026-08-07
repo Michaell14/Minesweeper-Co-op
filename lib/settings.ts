@@ -38,9 +38,11 @@ export interface Settings {
     /** Let a holiday palette take over while its window is open. */
     seasonalThemes: boolean;
     /**
-     * A pinned mine/flag sprite set ("classic", "halloween", ...), or null to
-     * follow the palette. A pin is the player's own data, so it beats the
-     * holiday's ART — the holiday still paints its colours.
+     * A pinned GENERAL mine/flag set ("classic", "naval", ...), or null to
+     * follow the palette. Seasonal ids are deliberately not valid here — the
+     * holiday pairs are paint, not pickable data, and while a holiday window
+     * is open its pair wins over the pin the same way its palette wins over
+     * `theme`.
      */
     spriteSet: string | null;
     /**

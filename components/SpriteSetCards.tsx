@@ -5,11 +5,10 @@ import { RadioCard, RadioCardGroup } from '@/components/ds';
 // renderer are design-system internals, and this picker's job is showing them.
 import {
     DEFAULT_SET,
+    GENERAL_SPRITE_SETS,
     PixelRects,
-    SPRITE_SETS,
     type SpriteSet,
 } from '@/components/ds/sprites';
-import { THEMES } from '@/lib/theme';
 import { useMinesweeperStore } from '@/app/store';
 
 /** RadioCard values are strings; "follow the palette" is null in the blob. */
@@ -40,13 +39,11 @@ function PairPreview({ set }: { set: SpriteSet }) {
     );
 }
 
-const labelFor = (id: string): string =>
-    THEMES.find((t) => t.id === id)?.label ?? id;
-
 /**
- * The mine/flag art picker on /settings. "Match palette" is the default and
- * today's behaviour; anything else pins that pair year-round, holidays
- * included — a pin is the player's own data, where a holiday is only paint.
+ * The mine/flag art picker on /settings. Only the GENERAL sets are offered —
+ * the seasonal pairs are paint, arriving with their holiday window and
+ * leaving with it, and while one paints it wins over the pin too. "Match
+ * palette" is the default and the old behaviour.
  */
 export default function SpriteSetCards({ name }: { name: string }) {
     const spriteSet = useMinesweeperStore((s) => s.settings.spriteSet);
@@ -70,11 +67,11 @@ export default function SpriteSetCards({ name }: { name: string }) {
                 label="Classic"
                 description={<PairPreview set={DEFAULT_SET} />}
             />
-            {Object.entries(SPRITE_SETS).map(([id, set]) => (
+            {GENERAL_SPRITE_SETS.map(({ id, label, set }) => (
                 <RadioCard
                     key={id}
                     value={id}
-                    label={labelFor(id)}
+                    label={label}
                     description={<PairPreview set={set} />}
                 />
             ))}

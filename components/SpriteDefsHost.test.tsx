@@ -39,11 +39,11 @@ afterEach(cleanup);
 
 describe('before the store hydrates', () => {
     it('draws the STORED pin, not the store default', () => {
-        writeStoredSettings({ ...DEFAULT_SETTINGS, spriteSet: 'halloween' });
+        writeStoredSettings({ ...DEFAULT_SETTINGS, spriteSet: 'naval' });
 
         const { container } = render(<SpriteDefsHost />);
 
-        expect(mineArt(container)).toEqual(artOf('halloween'));
+        expect(mineArt(container)).toEqual(artOf('naval'));
     });
 
     it('with nothing stored, follows the palette as before', () => {
@@ -62,8 +62,8 @@ describe('before the store hydrates', () => {
      * useEffect — this is the one test that pins the fix itself.
      */
     it('applies the stored pin in the same commit, before any paint could happen', () => {
-        writeStoredSettings({ ...DEFAULT_SETTINGS, spriteSet: 'halloween' });
-        const halloween = artOf('halloween');
+        writeStoredSettings({ ...DEFAULT_SETTINGS, spriteSet: 'naval' });
+        const naval = artOf('naval');
 
         const g = globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean };
         const actFlag = g.IS_REACT_ACT_ENVIRONMENT;
@@ -73,7 +73,7 @@ describe('before the store hydrates', () => {
         try {
             flushSync(() => root.render(<SpriteDefsHost />));
 
-            expect(mineArt(container)).toEqual(halloween);
+            expect(mineArt(container)).toEqual(naval);
         } finally {
             flushSync(() => root.unmount());
             container.remove();
@@ -84,14 +84,14 @@ describe('before the store hydrates', () => {
 
 describe('once the store hydrates', () => {
     it('the store wins — a sync can change the pin under the stored value', () => {
-        writeStoredSettings({ ...DEFAULT_SETTINGS, spriteSet: 'halloween' });
+        writeStoredSettings({ ...DEFAULT_SETTINGS, spriteSet: 'naval' });
         useMinesweeperStore.setState({
-            settings: { ...DEFAULT_SETTINGS, spriteSet: 'christmas' },
+            settings: { ...DEFAULT_SETTINGS, spriteSet: 'space' },
             settingsHydrated: true,
         });
 
         const { container } = render(<SpriteDefsHost />);
 
-        expect(mineArt(container)).toEqual(artOf('christmas'));
+        expect(mineArt(container)).toEqual(artOf('space'));
     });
 });

@@ -53,7 +53,7 @@ export default function SettingsClient() {
                     <SettingRow
                         settingKey="seasonalThemes"
                         name="Seasonal palettes"
-                        description="Let a holiday palette take over around Halloween, Christmas and a few others. Your own choice comes back afterwards."
+                        description="Let a holiday palette and its mine &amp; flag art take over around Halloween, Christmas and a few others. Your own choice comes back afterwards."
                     />
                     <ThemeStudio />
                 </Panel>

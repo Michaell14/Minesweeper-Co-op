@@ -57,16 +57,22 @@ describe("sanitizeSettings", () => {
         expect(sanitizeSettings({ theme: 3 }).theme).toBeNull();
     });
 
-    it("accepts a pinned sprite set, and null for following the palette", () => {
+    it("accepts a pinned general sprite set, and null for following the palette", () => {
         expect(sanitizeSettings({ spriteSet: "classic" }).spriteSet).toBe("classic");
-        expect(sanitizeSettings({ spriteSet: "halloween" }).spriteSet).toBe("halloween");
+        expect(sanitizeSettings({ spriteSet: "naval" }).spriteSet).toBe("naval");
         expect(sanitizeSettings({ spriteSet: null }).spriteSet).toBeNull();
+    });
+
+    it("discards a seasonal id — holiday art is paint, never a pin", () => {
+        // A blob from when holiday sets were pinnable degrades to following.
+        expect(sanitizeSettings({ spriteSet: "halloween" }).spriteSet).toBeNull();
+        expect(sanitizeSettings({ spriteSet: "christmas" }).spriteSet).toBeNull();
     });
 
     it("discards a sprite set no art defines", () => {
         expect(sanitizeSettings({ spriteSet: "pirate" }).spriteSet).toBeNull();
         expect(sanitizeSettings({ spriteSet: 7 }).spriteSet).toBeNull();
-        // A palette without its own pair is not pinnable either.
+        // A palette without its own pair is not a set id either.
         expect(sanitizeSettings({ spriteSet: "gameboy" }).spriteSet).toBeNull();
     });
 
