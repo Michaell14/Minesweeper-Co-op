@@ -15,7 +15,21 @@ import {
     writeStoredSettings,
 } from "./settings";
 import { THEMES, THEME_STORAGE_KEY } from "./theme";
-import { activeHoliday } from "./holidays";
+import { activeHoliday, localDay } from "./holidays";
+
+/**
+ * A day the schedule leaves alone — found, not hardcoded. Every holiday added
+ * shrinks the set of ordinary days, and twice now a pin here has quietly become
+ * a holiday and changed what these cases were testing.
+ */
+const ORDINARY_DAY = (() => {
+    for (let i = 0; i < 365; i++) {
+        const day = new Date(2026, 0, 1 + i);
+        if (!activeHoliday(day)) return localDay(day);
+    }
+    throw new Error("the schedule now covers every day of the year");
+})();
+
 
 beforeEach(() => localStorage.clear());
 
@@ -128,7 +142,7 @@ describe("NO_FLASH_SCRIPT", () => {
      */
     beforeEach(() => {
         vi.useFakeTimers({ shouldAdvanceTime: true });
-        vi.setSystemTime(new Date("2026-06-15T12:00:00"));
+        vi.setSystemTime(new Date(`${ORDINARY_DAY}T12:00:00`));
     });
     afterEach(() => vi.useRealTimers());
 
@@ -229,7 +243,7 @@ describe("the no-flash script agrees with the schedule", () => {
     });
 
     it("leaves the saved palette alone outside the window", () => {
-        expect(run("2026-11-02", { version: 1, theme: "gameboy" })).toBe("gameboy");
+        expect(run(ORDINARY_DAY, { version: 1, theme: "gameboy" })).toBe("gameboy");
     });
 
     it("respects the seasonal switch", () => {

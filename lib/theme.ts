@@ -122,6 +122,30 @@ export const THEMES: ThemeOption[] = [
         short: "Harvest",
         note: "Wheat, ochre and rust — the whole year's colours falling off the trees.",
     },
+    {
+        id: "stpatricks",
+        label: "St Patrick's",
+        short: "Shamrock",
+        note: "Every green there is, and a gold harp somewhere in the middle of it.",
+    },
+    {
+        id: "pride",
+        label: "Pride",
+        short: "Six stripes",
+        note: "Six stripes, and for once a cursor colour per player that means something.",
+    },
+    {
+        id: "day-of-the-dead",
+        label: "Día de Muertos",
+        short: "Marigold",
+        note: "Marigold and magenta by candlelight, for remembering people fondly.",
+    },
+    {
+        id: "newyear",
+        label: "New Year",
+        short: "Midnight gold",
+        note: "Midnight blue and champagne gold, and everyone counting backwards.",
+    },
 ];
 
 /**
