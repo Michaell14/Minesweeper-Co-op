@@ -15,6 +15,10 @@ export { default as Field } from "./Field";
 export { default as Input } from "./Input";
 export { default as Panel } from "./Panel";
 export { default as Slider } from "./Slider";
+// Sprite and its defs only: the art table and the rect renderer behind them are
+// internals, and a caller hand-rolling one would bypass the <use> indirection
+// that keeps 512 cells cheap. The /ds catalog reaches past this deliberately.
+export { default as Sprite, SpriteDefs } from "./sprites";
 export { default as Switch } from "./Switch";
 export { default as Table } from "./Table";
 export { RadioCard, RadioCardGroup } from "./RadioCard";
@@ -29,6 +33,7 @@ export type { FieldProps } from "./Field";
 export type { InputProps } from "./Input";
 export type { PanelProps } from "./Panel";
 export type { SliderProps } from "./Slider";
+export type { SpriteProps } from "./sprites";
 export type { SwitchProps } from "./Switch";
 export type { TableProps } from "./Table";
 export type { RadioCardGroupProps, RadioCardProps } from "./RadioCard";

@@ -1,4 +1,5 @@
 import React from "react";
+import { rectsOf, type PixelArt } from "./pixelArt";
 
 /**
  * Pixel icons, stored as the art itself.
@@ -8,41 +9,15 @@ import React from "react";
  * below and you can see the shape. A space is a transparent pixel.
  *
  * To add an icon: draw a 16x16 block, list its colours, export a component.
+ * The board's mine and flag are drawn the same way, in sprites.tsx.
  */
-
-type Sprite = {
-    readonly palette: Readonly<Record<string, string>>;
-    readonly rows: readonly string[];
-};
-
-type Rect = { x: number; y: number; w: number; fill: string };
-
-/**
- * Flatten a sprite into horizontal runs of same-coloured pixels — 252 pixels
- * become 52 rects for the GitHub mark. Runs at module load, not per render.
- */
-function toRects({ palette, rows }: Sprite): Rect[] {
-    const rects: Rect[] = [];
-    rows.forEach((row, y) => {
-        let x = 0;
-        while (x < row.length) {
-            const glyph = row[x];
-            if (glyph === " ") { x++; continue; }
-            let w = 1;
-            while (row[x + w] === glyph) w++;
-            rects.push({ x, y, w, fill: palette[glyph] });
-            x += w;
-        }
-    });
-    return rects;
-}
 
 export interface PixelIconProps extends React.SVGProps<SVGSVGElement> {
     /** Rendered width and height in px. The art is a 16x16 grid. */
     size?: number;
 }
 
-function PixelIcon({ sprite, size = 32, ...rest }: PixelIconProps & { sprite: Rect[] }) {
+function PixelIcon({ art, size = 32, ...rest }: PixelIconProps & { art: PixelArt }) {
     return (
         <svg
             viewBox="0 0 16 16"
@@ -59,7 +34,7 @@ function PixelIcon({ sprite, size = 32, ...rest }: PixelIconProps & { sprite: Re
             aria-hidden={true}
             {...rest}
         >
-            {sprite.map(({ x, y, w, fill }, i) => (
+            {rectsOf(art).map(({ x, y, w, fill }, i) => (
                 <rect key={i} x={x} y={y} width={w} height={1} fill={fill} />
             ))}
         </svg>
@@ -144,13 +119,9 @@ const TROPHY = {
     ],
 } as const;
 
-const GITHUB_RECTS = toRects(GITHUB);
-const COIN_RECTS = toRects(COIN);
-const TROPHY_RECTS = toRects(TROPHY);
-
-export const GithubIcon = (props: PixelIconProps) => <PixelIcon sprite={GITHUB_RECTS} {...props} />;
-export const CoinIcon = (props: PixelIconProps) => <PixelIcon sprite={COIN_RECTS} {...props} />;
-export const TrophyIcon = (props: PixelIconProps) => <PixelIcon sprite={TROPHY_RECTS} {...props} />;
+export const GithubIcon = (props: PixelIconProps) => <PixelIcon art={GITHUB} {...props} />;
+export const CoinIcon = (props: PixelIconProps) => <PixelIcon art={COIN} {...props} />;
+export const TrophyIcon = (props: PixelIconProps) => <PixelIcon art={TROPHY} {...props} />;
 
 /** Head and shoulders — the account menu. */
 const USER = {
@@ -178,8 +149,7 @@ const USER = {
     ],
 } as const;
 
-const USER_RECTS = toRects(USER);
-export const UserIcon = (props: PixelIconProps) => <PixelIcon sprite={USER_RECTS} {...props} />;
+export const UserIcon = (props: PixelIconProps) => <PixelIcon art={USER} {...props} />;
 
 /** A gear — the settings page. */
 const GEAR = {
@@ -207,8 +177,7 @@ const GEAR = {
     ],
 } as const;
 
-const GEAR_RECTS = toRects(GEAR);
-export const GearIcon = (props: PixelIconProps) => <PixelIcon sprite={GEAR_RECTS} {...props} />;
+export const GearIcon = (props: PixelIconProps) => <PixelIcon art={GEAR} {...props} />;
 
 const CALENDAR = {
     palette: {
@@ -258,8 +227,5 @@ const SWORDS = {
     ],
 } as const;
 
-const CALENDAR_RECTS = toRects(CALENDAR);
-const SWORDS_RECTS = toRects(SWORDS);
-
-export const CalendarIcon = (props: PixelIconProps) => <PixelIcon sprite={CALENDAR_RECTS} {...props} />;
-export const SwordsIcon = (props: PixelIconProps) => <PixelIcon sprite={SWORDS_RECTS} {...props} />;
+export const CalendarIcon = (props: PixelIconProps) => <PixelIcon art={CALENDAR} {...props} />;
+export const SwordsIcon = (props: PixelIconProps) => <PixelIcon art={SWORDS} {...props} />;

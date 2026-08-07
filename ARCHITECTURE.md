@@ -69,6 +69,8 @@ components/
 components/ds/            The design system. Import via its index barrel
   pixel.module.css        The two border treatments: notched (controls), boxed (regions)
   icons.tsx               16x16 sprites stored as editable character grids
+  sprites.tsx             The mine and flag, one pair per seasonal palette; drawn the same way
+  pixelArt.ts             The grid -> <rect> runs both of those share
   cx.ts, pointer.ts       Class joiner; the shared pixel-cursor class
 shared/                   Imported by BOTH halves; viable because the whole repo deploys (§6)
   boardConfig.js          Board sizes, difficulty densities, limits, validity rule, DAILY_PRESET
@@ -141,7 +143,7 @@ server/                   Separate npm package (own package.json, lockfile, node
 ### Component tree
 
 ```
-layout.tsx → tokens.css + globals.css → page.tsx + Footer + Analytics
+layout.tsx → tokens.css + globals.css → SpriteDefs + page.tsx + Footer + Analytics
 page.tsx ──┬→ DailyChallenge (when dailyActive)   → Cell[][]
            ├→ Landing        (when !playerJoined)
            └→ Grid           (when playerJoined)  → Cell[][]

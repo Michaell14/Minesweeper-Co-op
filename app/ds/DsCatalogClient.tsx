@@ -13,13 +13,19 @@ import {
     RadioCard,
     RadioCardGroup,
     Slider,
+    Sprite,
     SwordsIcon,
     Switch,
     Table,
     TrophyIcon,
 } from "@/components/ds";
 import type { ButtonIntent } from "@/components/ds";
+// Past the barrel on purpose, the way this page already reaches for the board's
+// stylesheet: the art table is a design-system internal, and the catalog is the
+// one page whose job is to show internals.
+import { DEFAULT_SET, PixelRects, SPRITE_SETS, type SpriteSet } from "@/components/ds/sprites";
 import board from "@/components/game/board.module.css";
+import { readPaletteEntries } from "@/lib/theme";
 import { THEMES, applyTheme, coverageOf, type ThemeCoverage } from "./themes";
 import { AUDITED_PAIRS, measure, type ContrastResult } from "./contrast";
 
@@ -67,9 +73,57 @@ function BoardPreview() {
                     </div>
                 ))}
                 <div className={`${board.cell} ${board.closed}`} />
-                <div className={`${board.cell} ${board.flagged}`}>🚩</div>
-                <div className={`${board.cell} ${board.mine}`}>💣</div>
+                <div className={`${board.cell} ${board.flagged}`} data-sprite="flag">
+                    <Sprite kind="flag" className={board.cellSprite} />
+                </div>
+                <div className={`${board.cell} ${board.mine}`} data-sprite="mine">
+                    <Sprite kind="mine" className={board.cellSprite} />
+                </div>
             </div>
+        </div>
+    );
+}
+
+/**
+ * Every sprite set, each drawn on the two cell fills it will actually sit on —
+ * a mine only ever appears on the mine cell, a flag on a closed one. Read from
+ * the CSSOM for the same reason the palette cards are: the page can only be
+ * painted in one palette at a time, and this has to show all ten.
+ */
+function SpriteSheet() {
+    const [fills, setFills] = React.useState<Map<string | null, Record<string, string>>>(new Map());
+    React.useEffect(() => setFills(readPaletteEntries(["mine", "cell-closed"])), []);
+
+    const sets: [string, string | null, SpriteSet][] = [
+        ["Default", null, DEFAULT_SET],
+        ...THEMES.filter((t) => t.id && SPRITE_SETS[t.id]).map(
+            (t) => [t.label, t.id, SPRITE_SETS[t.id!]] as [string, string | null, SpriteSet],
+        ),
+    ];
+
+    return (
+        <div className="flex flex-wrap gap-4">
+            {sets.map(([label, id, set]) => (
+                <div key={label} className="flex flex-col gap-1" data-sprite-set={id ?? "default"}>
+                    <div className="flex gap-1">
+                        {(["mine", "flag"] as const).map((kind) => (
+                            <span
+                                key={kind}
+                                className="flex items-center justify-center h-10 w-10 border border-muted"
+                                style={{
+                                    backgroundColor:
+                                        fills.get(id)?.[kind === "mine" ? "mine" : "cell-closed"],
+                                }}
+                            >
+                                <svg viewBox="0 0 16 16" width={28} height={28} shapeRendering="crispEdges" aria-hidden="true">
+                                    <PixelRects art={set[kind]} />
+                                </svg>
+                            </span>
+                        ))}
+                    </div>
+                    <span className="text-pixel-xs text-ink-muted">{label}</span>
+                </div>
+            ))}
         </div>
     );
 }
@@ -197,9 +251,16 @@ export default function DsCatalogClient() {
 
             <Section
                 title="Board"
-                note="The eight number colours, an unopened cell, a flag and a mine — rendered with the board's own stylesheet. This is where a small palette fails first."
+                note="The eight number colours, an unopened cell, a flag and a mine — rendered with the board's own stylesheet. This is where a small palette fails first. Seasonal palettes swap the two sprites (components/ds/sprites.tsx); pick one above to see them."
             >
                 <BoardPreview />
+            </Section>
+
+            <Section
+                title="Sprites"
+                note="The mine and the flag, drawn as 16x16 pixel art like the icons (components/ds/sprites.tsx). Each seasonal palette brings its own pair; every other palette takes the default one, which paints in tokens so it reads on all of them. Shown here on the cell fill each one actually sits on."
+            >
+                <SpriteSheet />
             </Section>
 
             <Section
@@ -244,7 +305,7 @@ export default function DsCatalogClient() {
                         <p className="text-pixel-sm">abc123</p>
                     </Panel>
                     <Panel centered className="max-w-60">
-                        <p className="text-pixel-sm m-0">🚩 40</p>
+                        <p className="text-pixel-sm m-0"><Sprite kind="flag" /> 40</p>
                     </Panel>
                 </div>
             </Section>

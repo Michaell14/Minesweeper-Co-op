@@ -90,6 +90,21 @@ describe("a closed cell the server says is a mine", () => {
         expect(isShownAsAMine()).toBe(false);
     });
 
+    /*
+     * And that it draws the sprite, not just the label. The art is a <use>
+     * pointing at a <symbol> in the layout, so nothing else here would notice
+     * it going: the smoke suite never loses a game, and every assertion above
+     * passes on a cell rendering an empty red square.
+     */
+    test("draws the mine sprite, not only the accessible name", () => {
+        useMinesweeperStore.getState().setGameOver(true);
+
+        renderCell(closedMine);
+
+        const cell = screen.getByRole("gridcell", { name: /^Mine at/ });
+        expect(cell.querySelector("use")?.getAttribute("href")).toBe("#ms-sprite-mine");
+    });
+
     test("a decided co-op game is unaffected by the PVP branch", () => {
         // pvpWinner can survive a mode change in the store; co-op must not start
         // revealing boards because of a race played earlier in the session.
