@@ -312,6 +312,21 @@
     background-color: var(--ms-cell-mine);
 }
 
+/*
+ * The mine and the flag (components/ds/sprites.tsx).
+ *
+ * Absolute rather than a flex child, so the flagged cell's two tap targets keep
+ * the whole square, and clicks pass straight through the art to them.
+ */
+.cellSprite {
+    position: absolute;
+    left: 15%;
+    top: 15%;
+    width: 70%;
+    height: 70%;
+    pointer-events: none;
+}
+
 /* Official Minesweeper number colors */
 .cell.open.num1 {
     color: var(--ms-num-1);

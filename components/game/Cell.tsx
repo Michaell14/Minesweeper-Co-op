@@ -5,6 +5,7 @@ import { useMinesweeperStore, Cell as CellType } from '@/app/store';
 // cell (256+ on a medium board) and has no business pulling in Dialog, Button
 // and the icon sprites to get one class name.
 import { pointerClass } from '@/components/ds/pointer';
+import Sprite from '@/components/ds/sprites';
 import { cascadeBand, type CascadeOrigin } from '@/lib/motion';
 
 interface CellParams {
@@ -184,6 +185,11 @@ const Cell = ({ cell, row, col, cascadeOrigin, toggleFlag, openCell, chordCell, 
         return `Unrevealed cell at row ${row + 1}, column ${col + 1}`;
     };
 
+    /*
+     * <Sprite> is a two-node <use> of art mounted once in the layout, so the
+     * palette can swap the mine and the flag without re-rendering a cell — and
+     * a board that has just lost is not carrying 99 copies of the same 40 rects.
+     */
     if ((cell.isOpen || minesRevealed) && cell.isMine) {
         return <div
             key={col}
@@ -196,7 +202,9 @@ const Cell = ({ cell, row, col, cascadeOrigin, toggleFlag, openCell, chordCell, 
             // Suppress middle-click autoscroll.
             onMouseDown={(e) => {
                 if (e.button === 1) e.preventDefault();
-            }}>💣</div>;
+            }}>
+            <Sprite kind="mine" className={styles.cellSprite} />
+        </div>;
     }
     if (cell.isOpen) {
         const numClass = cell.nearbyMines > 0 ? styles[`num${cell.nearbyMines}`] : '';
@@ -225,7 +233,7 @@ const Cell = ({ cell, row, col, cascadeOrigin, toggleFlag, openCell, chordCell, 
                 key={col}
                 role="gridcell"
                 aria-label={getAriaLabel()}
-                className={`${styles.cell} ${styles.flagged} ${isHovered ? styles.hovered : ''} text-pixel-lg`}
+                className={`${styles.cell} ${styles.flagged} ${isHovered ? styles.hovered : ''}`}
                 style={hoverStyle}
                 /*
                  * Both buttons fire their MAPPED action here; the server's
@@ -244,14 +252,11 @@ const Cell = ({ cell, row, col, cascadeOrigin, toggleFlag, openCell, chordCell, 
                     if (e.button === 1) e.preventDefault();
                 }}>
 
-                <div className="h-full w-full xl:hidden" onClick={() => { if (!isDisabled) { !isChecked ? toggleFlag(row, col) : {} } }}>
-                    🚩
-                </div>
+                <Sprite kind="flag" className={styles.cellSprite} />
+                <div className="h-full w-full xl:hidden" onClick={() => { if (!isDisabled) { !isChecked ? toggleFlag(row, col) : {} } }} />
                 <div
                     className="h-full w-full hidden xl:block"
-                    onClick={() => { if (!isDisabled) primaryAction(row, col); }}>
-                    🚩
-                </div>
+                    onClick={() => { if (!isDisabled) primaryAction(row, col); }} />
             </div>
         );
     }

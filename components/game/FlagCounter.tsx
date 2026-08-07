@@ -1,5 +1,5 @@
 import React from 'react';
-import { Panel } from '@/components/ds';
+import { Panel, Sprite } from '@/components/ds';
 import { useMinesweeperStore } from '@/app/store';
 
 export interface FlagCounterProps {
@@ -24,9 +24,11 @@ export default function FlagCounter({ remainingFlags, variant }: FlagCounterProp
 
     /* The sticky bar is tight on height, so no panel chrome around it. */
     if (variant === 'hud') {
+        // Flex, not an inline glyph: the sprite is a box with its own margin
+        // and would otherwise ride above the digits.
         return (
-            <p className="text-pixel-sm whitespace-nowrap" role="status" aria-label={label}>
-                🚩 <strong>{remainingFlags}</strong>
+            <p className="text-pixel-sm whitespace-nowrap flex items-center gap-1" role="status" aria-label={label}>
+                <Sprite kind="flag" /><strong>{remainingFlags}</strong>
             </p>
         );
     }
@@ -38,8 +40,8 @@ export default function FlagCounter({ remainingFlags, variant }: FlagCounterProp
             className={variant === 'dialog' ? 'mt-4 py-1' : 'mt-4'}
             role="status"
             aria-label={label}>
-            <p className="text-pixel-md m-0">
-                🚩 <strong>{remainingFlags}</strong>{variant === 'dialog' ? ' left' : ''}
+            <p className="text-pixel-md m-0 flex items-center justify-center gap-1">
+                <Sprite kind="flag" /><strong>{remainingFlags}</strong>{variant === 'dialog' ? <span>left</span> : null}
             </p>
         </Panel>
     );

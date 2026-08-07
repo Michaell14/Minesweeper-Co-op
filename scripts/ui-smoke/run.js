@@ -192,7 +192,39 @@ async function coop(page) {
     await sleep(600);
     const after = await flagsRemaining();
     check(after === before - 1, `right-click flags a cell (counter ${before} -> ${after})`);
-    check(await page.evaluate(`return document.body.textContent.includes('🚩');`), 'the flag renders on the board');
+    /*
+     * The flag is pixel art (components/ds/sprites.tsx), so there is no glyph in
+     * any textContent to look for: a <use> in the cell pointing at a <symbol>
+     * mounted in the layout. A renamed id leaves the <use> resolving to nothing
+     * and paints an empty cell, which is why the art is measured rather than the
+     * element counted.
+     */
+    const flagSprite = JSON.parse(await page.evaluate(`
+        const grid = document.querySelector('[role=grid]');
+        const flagged = [...grid.querySelectorAll('[role=gridcell]')].find(c => (c.getAttribute('aria-label') || '').startsWith('Flagged'));
+        if (!flagged) return JSON.stringify(null);
+        const use = flagged.querySelector('use');
+        const art = use && document.querySelector(use.getAttribute('href'));
+        const svg = flagged.querySelector('svg');
+        const box = svg && svg.getBoundingClientRect();
+        return JSON.stringify({
+            href: use && use.getAttribute('href'),
+            rects: art ? art.querySelectorAll('rect').length : 0,
+            hits: svg && getComputedStyle(svg).pointerEvents,
+            width: box ? Math.round(box.width) : 0,
+        });
+    `));
+    check(flagSprite && flagSprite.rects > 4,
+        `the flag sprite renders on the board (${flagSprite && flagSprite.rects} rects via ${flagSprite && flagSprite.href})`,
+        `the <use> resolved to no art: ${JSON.stringify(flagSprite)}`);
+    check(flagSprite && flagSprite.width > 8,
+        `the sprite is drawn at a usable size (${flagSprite && flagSprite.width}px)`,
+        `sprite measured ${flagSprite && flagSprite.width}px — an svg with no CSS size collapses`);
+    // It covers most of the square, so a sprite that takes clicks is a flag that
+    // cannot be removed by tapping it.
+    check(flagSprite && flagSprite.hits === 'none',
+        'the sprite lets clicks through to the cell',
+        `pointer-events: ${flagSprite && flagSprite.hits}`);
 
     // Reset.
     await page.evaluate(`
@@ -715,6 +747,65 @@ async function themeContrast(page) {
     }
 }
 
+/*
+ * The seasonal mine and flag (components/ds/sprites.tsx).
+ *
+ * The art is mounted once as two <symbol>s and swapped when `data-theme`
+ * changes, which the catalog does directly rather than through the store — so
+ * this also covers the path a unit test cannot reach, where the palette moves
+ * without a single React state change anywhere.
+ */
+async function themeSprites(page) {
+    console.log('\n\x1b[1m--- SPRITES ---\x1b[0m');
+
+    await page.goto(`${CLIENT}/ds`);
+    await page.waitFor(`!!document.querySelector('[data-sprite="mine"] use')`,
+        { timeout: 60000, label: 'the board preview renders' });
+
+    // The drawn art itself, so a swap that changes nothing is a failure rather
+    // than two identical passes.
+    const read = () => page.evaluate(`
+        const of = (kind) => {
+            const use = document.querySelector('[data-sprite="' + kind + '"] use');
+            const art = use && document.querySelector(use.getAttribute('href'));
+            return art ? art.innerHTML : '';
+        };
+        return JSON.stringify({ mine: of('mine'), flag: of('flag') });
+    `);
+    const pick = async (theme) => {
+        await page.evaluate(`
+            const group = document.querySelector('[aria-label="Preview palette"]');
+            [...group.querySelectorAll('input[type=radio]')].find(i => i.value === ${JSON.stringify(theme)}).click();
+            return true;
+        `);
+        await page.waitFor(
+            `document.documentElement.dataset.theme === ${JSON.stringify(theme)}`,
+            { label: `${theme} applied` });
+        await sleep(150);
+        return JSON.parse(await read());
+    };
+
+    const base = JSON.parse(await read());
+    check(base.mine.length > 0 && base.flag.length > 0,
+        `the default palette draws both sprites (${base.mine.length}/${base.flag.length} bytes of art)`,
+        'a <use> resolved to no symbol — the ids have drifted apart');
+
+    for (const theme of ['halloween', 'christmas']) {
+        const themed = await pick(theme);
+        check(themed.mine !== base.mine && themed.flag !== base.flag,
+            `${theme} swaps both sprites`,
+            `${theme} is still drawing the default pair`);
+    }
+
+    // And back: the swap has to be reversible, or the board keeps December's
+    // art until the tab is reloaded.
+    await pick('gameboy');
+    const plain = JSON.parse(await read());
+    check(plain.mine === base.mine && plain.flag === base.flag,
+        'leaving a holiday restores the default pair',
+        'the seasonal art stayed after switching to an ordinary palette');
+}
+
 async function pvp(host, guest) {
     console.log('\n\x1b[1m--- PVP ---\x1b[0m');
     const room = 'smokepvp' + Date.now().toString().slice(-6);
@@ -913,6 +1004,7 @@ async function joinLink(host, guest) {
         await footerClearance(page);
         await rejoinOnReload(page);
         await themeContrast(page);
+        await themeSprites(page);
         await themeSwatches(page);
 
         const host = await attach(await newTarget('about:blank'));

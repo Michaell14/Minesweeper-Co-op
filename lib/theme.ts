@@ -235,6 +235,22 @@ function paletteBlocks(): Map<string, Record<string, string>> {
  */
 export function readSwatches(): Map<string | null, string[]> {
     const out = new Map<string | null, string[]>();
+    for (const [id, entries] of readPaletteEntries(SWATCH_TOKENS)) {
+        const swatches = SWATCH_TOKENS.map((token) => entries[token]);
+        if (swatches.every(Boolean)) out.set(id, swatches);
+    }
+    return out;
+}
+
+/**
+ * The requested palette entries for every built-in palette, keyed by theme id.
+ * Same sheet walk as the swatches — a theme that inherits an entry gets the
+ * `:root` one, so the values are what it will actually paint.
+ */
+export function readPaletteEntries(
+    tokens: readonly string[],
+): Map<string | null, Record<string, string>> {
+    const out = new Map<string | null, Record<string, string>>();
     if (typeof document === "undefined") return out;
 
     const blocks = paletteBlocks();
@@ -243,10 +259,12 @@ export function readSwatches(): Map<string | null, string[]> {
 
     for (const { id } of THEMES) {
         const overrides = (id && blocks.get(`:root[data-theme="${id}"]`)) || {};
-        const swatches = SWATCH_TOKENS.map(
-            (token) => overrides[`${PALETTE_PREFIX}${token}`] ?? base[`${PALETTE_PREFIX}${token}`],
-        );
-        if (swatches.every(Boolean)) out.set(id, swatches);
+        const entries: Record<string, string> = {};
+        for (const token of tokens) {
+            const value = overrides[`${PALETTE_PREFIX}${token}`] ?? base[`${PALETTE_PREFIX}${token}`];
+            if (value) entries[token] = value;
+        }
+        out.set(id, entries);
     }
     return out;
 }
@@ -294,6 +312,30 @@ export function applyTheme(id: string | null, customPalette?: Record<string, str
     }
     if (id) document.documentElement.dataset.theme = id;
     else delete document.documentElement.dataset.theme;
+}
+
+/**
+ * The palette currently painted, as the attribute holds it — null for the
+ * default palette and for a custom one, which stamps properties instead.
+ *
+ * Read rather than derived because four different things set it: the no-flash
+ * script before any bundle runs, the settings slice, a holiday in season, and
+ * the /ds catalog previewing a palette. Anything wanting to follow the paint
+ * (components/ds/sprites.tsx) follows this.
+ */
+export function getAppliedTheme(): string | null {
+    if (typeof document === "undefined") return null;
+    return document.documentElement.dataset.theme ?? null;
+}
+
+export function subscribeAppliedTheme(onChange: () => void): () => void {
+    if (typeof document === "undefined") return () => {};
+    const observer = new MutationObserver(onChange);
+    observer.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ["data-theme"],
+    });
+    return () => observer.disconnect();
 }
 
 /** How many cursor colours the palette defines. Keep in step with tokens.css. */

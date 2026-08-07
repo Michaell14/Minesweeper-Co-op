@@ -9,6 +9,9 @@ import { NO_FLASH_SCRIPT } from "@/lib/settings";
 import Footer from "@/components/Footer";
 import AuthProvider from "@/components/AuthProvider";
 import SettingsSync from "@/components/SettingsSync";
+// Direct, not via the @/components/ds barrel: this is a server component, and
+// the barrel drags in primitives that build a context at module scope.
+import { SpriteDefs } from "@/components/ds/sprites";
 
 const inter = Inter({ subsets: ["latin"] });
 const pressStart2P = Press_Start_2P({
@@ -161,6 +164,8 @@ export default function RootLayout({
       </head>
 
       <body className={inter.className}>
+        {/* The mine and flag art every <Sprite> points at; follows the palette. */}
+        <SpriteDefs />
         <AuthProvider>
           <SettingsSync />
           {children}

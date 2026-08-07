@@ -1,0 +1,26 @@
+/* Off-screen, but still painted: display:none would kill every <use>. */
+.defs {
+    position: absolute;
+    width: 0;
+    height: 0;
+    overflow: hidden;
+}
+
+.sprite {
+    flex: none;
+}
+
+/*
+ * The size a caller gets when it asks for none. Kept OUT of .sprite so it never
+ * competes with the board's own sizing class — two single-class rules setting
+ * width would be decided by stylesheet order, which is not a thing to rely on.
+ *
+ * Larger than 1em because the art carries its own margin: the drawing fills
+ * about fourteen of the sixteen rows, so at 1em it reads smaller than the
+ * digits beside it.
+ */
+.inline {
+    width: 1.4em;
+    height: 1.4em;
+    vertical-align: -0.35em;
+}
