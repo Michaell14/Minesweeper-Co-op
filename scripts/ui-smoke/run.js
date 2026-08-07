@@ -759,6 +759,12 @@ async function themeSprites(page) {
     console.log('\n\x1b[1m--- SPRITES ---\x1b[0m');
 
     await page.goto(`${CLIENT}/ds`);
+    // The Chrome profile persists across runs, and a pinned settings.spriteSet
+    // left in it would hold the art regardless of palette — failing the swap
+    // checks below for reasons nothing in this run did. Clear, then reload so
+    // the page mounts against the clean blob.
+    await page.evaluate(`localStorage.removeItem('minesweeper_settings'); return true;`);
+    await page.goto(`${CLIENT}/ds`);
     await page.waitFor(`!!document.querySelector('[data-sprite="mine"] use')`,
         { timeout: 60000, label: 'the board preview renders' });
 

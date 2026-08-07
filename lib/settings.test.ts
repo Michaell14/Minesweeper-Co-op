@@ -57,6 +57,19 @@ describe("sanitizeSettings", () => {
         expect(sanitizeSettings({ theme: 3 }).theme).toBeNull();
     });
 
+    it("accepts a pinned sprite set, and null for following the palette", () => {
+        expect(sanitizeSettings({ spriteSet: "classic" }).spriteSet).toBe("classic");
+        expect(sanitizeSettings({ spriteSet: "halloween" }).spriteSet).toBe("halloween");
+        expect(sanitizeSettings({ spriteSet: null }).spriteSet).toBeNull();
+    });
+
+    it("discards a sprite set no art defines", () => {
+        expect(sanitizeSettings({ spriteSet: "pirate" }).spriteSet).toBeNull();
+        expect(sanitizeSettings({ spriteSet: 7 }).spriteSet).toBeNull();
+        // A palette without its own pair is not pinnable either.
+        expect(sanitizeSettings({ spriteSet: "gameboy" }).spriteSet).toBeNull();
+    });
+
     it("accepts every real theme id and the default", () => {
         for (const { id } of THEMES) {
             expect(sanitizeSettings({ theme: id }).theme).toBe(id);

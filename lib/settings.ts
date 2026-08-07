@@ -16,6 +16,9 @@
 
 import { VALID_THEME_IDS, THEME_STORAGE_KEY as LEGACY_THEME_KEY } from "@/lib/theme";
 import { SCHEDULE_SNIPPET } from "@/lib/holidays";
+// spriteArt, not sprites: the art table is pure, so this stays importable
+// anywhere lib/ is — no React, no CSS module.
+import { SPRITE_SET_IDS } from "@/components/ds/spriteArt";
 
 /** The board's cell-size ceiling — token variants in app/tokens.css. */
 export const CELL_SIZES = ["compact", "standard", "large"] as const;
@@ -34,6 +37,12 @@ export interface Settings {
     theme: string | null;
     /** Let a holiday palette take over while its window is open. */
     seasonalThemes: boolean;
+    /**
+     * A pinned mine/flag sprite set ("classic", "halloween", ...), or null to
+     * follow the palette. A pin is the player's own data, so it beats the
+     * holiday's ART — the holiday still paints its colours.
+     */
+    spriteSet: string | null;
     /**
      * The one holiday occurrence already switched away from — 'halloween-2026'.
      * Per occurrence rather than a flag, so dismissing Halloween still lets
@@ -75,6 +84,7 @@ export const DEFAULT_SETTINGS: Settings = {
     version: 1,
     theme: null,
     seasonalThemes: true,
+    spriteSet: null,
     seasonalDismissed: null,
     swapMouseButtons: false,
     mobileDefaultFlag: false,
@@ -110,6 +120,10 @@ const SANITISERS: { [K in SettingKey]: (value: unknown) => Settings[K] | undefin
             ? (value as string | null)
             : undefined,
     seasonalThemes: boolean,
+    spriteSet: (value) =>
+        value === null || (typeof value === "string" && SPRITE_SET_IDS.includes(value))
+            ? (value as string | null)
+            : undefined,
     seasonalDismissed: (value) =>
         value === null || (typeof value === "string" && OCCURRENCE_RE.test(value))
             ? (value as string | null)
