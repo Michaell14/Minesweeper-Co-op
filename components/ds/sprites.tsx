@@ -531,6 +531,13 @@ export type SpriteKind = "mine" | "flag";
 export const spriteSetFor = (theme: string | null): SpriteSet =>
     (theme && SPRITE_SETS[theme]) || DEFAULT_SET;
 
+/** Every pinnable set id — "classic" names the default pair. */
+export const SPRITE_SET_IDS: string[] = ["classic", ...Object.keys(SPRITE_SETS)];
+
+/** A pinned set by id, or null for anything unknown — the caller falls back. */
+export const spriteSetById = (id: string | null | undefined): SpriteSet | null =>
+    id === "classic" ? DEFAULT_SET : (id && SPRITE_SETS[id]) || null;
+
 /** The art as <rect> runs. Callers wrap it in their own <svg> or <symbol>. */
 export const PixelRects = ({ art }: { art: PixelArt }) => (
     <>
@@ -564,9 +571,16 @@ function useAppliedTheme(): string | null {
  * inlining that in every cell would put thousands of nodes on a lost board.
  * <use> is a live reference, so swapping the palette redraws every flag on the
  * board without React re-rendering a single cell.
+ *
+ * `pinned` is a set id the player chose (settings.spriteSet, wired up by
+ * components/SpriteDefsHost.tsx) and beats the palette, holidays included — a
+ * pin is the player's own data, where the holiday is only paint. An unknown id
+ * falls back to following, never to blank art.
  */
-export function SpriteDefs() {
-    const set = spriteSetFor(useAppliedTheme());
+export function SpriteDefs({ pinned }: { pinned?: string | null } = {}) {
+    // The hook runs unconditionally (rules of hooks); the pin wins afterwards.
+    const applied = useAppliedTheme();
+    const set = spriteSetById(pinned) ?? spriteSetFor(applied);
     return (
         <svg className={styles.defs} aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">
             <symbol id={SYMBOL_ID.mine} viewBox="0 0 16 16">

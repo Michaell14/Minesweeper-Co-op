@@ -6,7 +6,7 @@
  * heading stops labelling it, or theme cards that stop reflecting the store.
  */
 import React from 'react';
-import { render, screen, fireEvent, cleanup, act } from '@testing-library/react';
+import { render, screen, fireEvent, cleanup, act, within } from '@testing-library/react';
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 
 const mockUseSession = vi.fn();
@@ -25,6 +25,13 @@ import { activeHoliday, localDay } from '@/lib/holidays';
  * shrinks the set of ordinary days, and twice now a pin here has quietly become
  * a holiday and changed what these cases were testing.
  */
+/**
+ * The palette group only. The sprite-set picker shares this page and offers
+ * the seasonal NAMES year-round ("Halloween" the art, not the palette), so a
+ * page-wide radio query is ambiguous for exactly the cases below.
+ */
+const paletteGroup = () => within(screen.getByRole('radiogroup', { name: 'Colour palette' }));
+
 const ORDINARY_DAY = (() => {
     for (let i = 0; i < 365; i++) {
         const day = new Date(2026, 0, 1 + i);
@@ -101,7 +108,7 @@ describe('the palette picker out of season', () => {
     it('keeps the seasonal palettes out of the picker', () => {
         render(<SettingsClient />);
         for (const theme of THEMES.filter((t) => isSeasonal(t.id))) {
-            expect(screen.queryByRole('radio', { name: new RegExp(theme.label) })).toBeNull();
+            expect(paletteGroup().queryByRole('radio', { name: new RegExp(theme.label) })).toBeNull();
         }
     });
 });
@@ -132,16 +139,16 @@ describe('a holiday in season', () => {
 
     it('offers its card, and only its card', () => {
         render(<SettingsClient />);
-        expect(screen.getByRole('radio', { name: /Halloween/ })).toBeTruthy();
-        expect(screen.queryByRole('radio', { name: /Christmas/ })).toBeNull();
+        expect(paletteGroup().getByRole('radio', { name: /Halloween/ })).toBeTruthy();
+        expect(paletteGroup().queryByRole('radio', { name: /Christmas/ })).toBeNull();
     });
 
     it('shows as selected over the saved palette, without overwriting it', () => {
         seed({ theme: 'gameboy' });
         render(<SettingsClient />);
 
-        expect((screen.getByRole('radio', { name: /Halloween/ }) as HTMLInputElement).checked).toBe(true);
-        expect((screen.getByRole('radio', { name: /Game Boy/ }) as HTMLInputElement).checked).toBe(false);
+        expect((paletteGroup().getByRole('radio', { name: /Halloween/ }) as HTMLInputElement).checked).toBe(true);
+        expect((paletteGroup().getByRole('radio', { name: /Game Boy/ }) as HTMLInputElement).checked).toBe(false);
         expect(useMinesweeperStore.getState().settings.theme).toBe('gameboy');
     });
 
@@ -158,7 +165,7 @@ describe('a holiday in season', () => {
     /* Clicking the card that is already lit must not outlive the window. */
     it('re-picking the holiday itself writes nothing', () => {
         render(<SettingsClient />);
-        fireEvent.click(screen.getByRole('radio', { name: /Halloween/ }));
+        fireEvent.click(paletteGroup().getByRole('radio', { name: /Halloween/ }));
 
         const { settings } = useMinesweeperStore.getState();
         expect(settings.theme).toBeNull();
@@ -202,11 +209,11 @@ describe('crossing a window boundary with the tab open', () => {
 
     it('picks the holiday up at midnight, with no reload', () => {
         render(<SettingsClient />);
-        expect(screen.queryByRole('radio', { name: /Halloween/ })).toBeNull();
+        expect(paletteGroup().queryByRole('radio', { name: /Halloween/ })).toBeNull();
 
         crossTo('2026-10-24');
 
-        expect(screen.getByRole('radio', { name: /Halloween/ })).toBeTruthy();
+        expect(paletteGroup().getByRole('radio', { name: /Halloween/ })).toBeTruthy();
         expect(document.documentElement.dataset.theme).toBe('halloween');
     });
 
@@ -219,7 +226,7 @@ describe('crossing a window boundary with the tab open', () => {
         crossTo(ORDINARY_DAY); // out the far side, onto a day with no holiday
 
         expect(document.documentElement.dataset.theme).toBe('gameboy');
-        expect(screen.queryByRole('radio', { name: /Halloween/ })).toBeNull();
+        expect(paletteGroup().queryByRole('radio', { name: /Halloween/ })).toBeNull();
         expect(useMinesweeperStore.getState().settings.theme).toBe('gameboy');
     });
 

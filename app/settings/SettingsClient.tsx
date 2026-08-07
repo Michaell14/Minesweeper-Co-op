@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react';
 import { Button, Panel, RadioCard, RadioCardGroup } from '@/components/ds';
 import { DIALOGS, openDialog } from '@/lib/dialogs';
 import ThemeCards from '@/components/ThemeCards';
+import SpriteSetCards from '@/components/SpriteSetCards';
 import ThemeStudio from '@/components/ThemeStudio';
 import SettingRow from './SettingRow';
 import { useMinesweeperStore } from '@/app/store';
@@ -44,6 +45,8 @@ export default function SettingsClient() {
             <section aria-labelledby="settings-appearance" className="mb-8">
                 <Panel title={<span id="settings-appearance">Appearance</span>}>
                     <ThemeCards name="app-theme-settings" />
+                    <h3 className="text-pixel-sm mt-6 mb-2">Mine &amp; flag art</h3>
+                    <SpriteSetCards name="app-sprite-set-settings" />
                     <SettingRow
                         settingKey="seasonalThemes"
                         name="Seasonal palettes"
