@@ -92,6 +92,15 @@ jest.mock('../utils/initializeRedisClient', () => ({
     redisClient: Promise.resolve(mockRedisSingleton),
 }));
 
+// Only recordForSockets is faked (it would no-op anyway without a DB, which
+// hides what finishAttempt actually sent); boardKeyOf stays real because
+// daily.js uses it to build the payload under test.
+const mockRecordForSockets = jest.fn();
+jest.mock('../utils/statsRecorder', () => ({
+    ...jest.requireActual('../utils/statsRecorder'),
+    recordForSockets: (...args) => mockRecordForSockets(...args),
+}));
+
 const dailyRepo = require('../data/dailyRepo');
 const dailyGame = require('../game/daily');
 const { startDaily, submitDailyScore, getDailyLeaderboard } = require('../controllers/dailyController');
@@ -157,6 +166,7 @@ beforeEach(async () => {
     mockEmit.mockClear();
     mockTo.mockClear();
     mockJoin.mockClear();
+    mockRecordForSockets.mockClear();
     nowSpy = jest.spyOn(Date, 'now').mockReturnValue(BASE_TIME);
     await seedTinyBoard();
 });
@@ -494,5 +504,34 @@ describe('submitDailyScore and the leaderboard', () => {
 
         expect(mockJoin).toHaveBeenCalledWith('daily-lb:2026-07-30');
         expect(socket.emit).toHaveBeenCalledWith('dailyLeaderboardUpdate', { entries: [] });
+    });
+});
+
+describe('stats recording carries the puzzle date', () => {
+    // The calendar on /profile keys on the PUZZLE date, and an attempt can
+    // legally finish after UTC midnight — so what finishAttempt sends must be
+    // the attempt's date, not something derived from the finish time.
+    test('a win records mode daily with dailyDate = the attempt date', async () => {
+        const socket = socketFor('sock-1');
+        await startDaily({ socket, dailyAttemptToken: 'tok-1' });
+        await dailyGame.openCell(DATE, 'tok-1', 'sock-1', 1, 1); // safe
+        await dailyGame.openCell(DATE, 'tok-1', 'sock-1', 2, 0); // safe
+        await dailyGame.openCell(DATE, 'tok-1', 'sock-1', 2, 1); // last safe cell -> win
+
+        expect(mockRecordForSockets).toHaveBeenCalledWith(
+            ['sock-1'],
+            expect.objectContaining({ mode: 'daily', won: true, dailyDate: DATE }),
+        );
+    });
+
+    test('a loss records it too, dated the same way', async () => {
+        const socket = socketFor('sock-1');
+        await startDaily({ socket, dailyAttemptToken: 'tok-1' });
+        await dailyGame.openCell(DATE, 'tok-1', 'sock-1', 0, 1); // hits the mine -> failed
+
+        expect(mockRecordForSockets).toHaveBeenCalledWith(
+            ['sock-1'],
+            expect.objectContaining({ mode: 'daily', won: false, dailyDate: DATE }),
+        );
     });
 });

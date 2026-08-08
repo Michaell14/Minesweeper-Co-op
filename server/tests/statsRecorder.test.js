@@ -25,7 +25,9 @@ jest.mock('../data/statsRepo', () => ({
 
 const { recordForSockets, boardKeyOf } = require('../utils/statsRecorder');
 
-const RESULT = { mode: 'daily', boardKey: '9x9/10', won: true, durationMs: 1000, players: 1, finishedAt: 1 };
+// dailyDate included to pin the pass-through contract: recordForSockets must
+// hand the result to the repo verbatim, new fields riding along untouched.
+const RESULT = { mode: 'daily', boardKey: '9x9/10', won: true, durationMs: 1000, players: 1, finishedAt: 1, dailyDate: '2026-08-02' };
 
 beforeEach(() => {
     mockSockets.clear();

@@ -3,7 +3,7 @@
  * be a plausible, wrong number on every profile forever.
  */
 
-const { advanceStreak, dayBefore, utcDayOf } = require('../domain/streak');
+const { advanceStreak, dayBefore, streaksFromDays, utcDayOf } = require('../domain/streak');
 
 describe('utcDayOf', () => {
     test('is the UTC day, not the local one', () => {
@@ -61,5 +61,40 @@ describe('advanceStreak', () => {
     test('a stored zero on the same day heals to 1 rather than staying 0', () => {
         const odd = { currentStreak: 0, bestStreak: 0, lastPlayedDay: '2026-08-02' };
         expect(advanceStreak(odd, '2026-08-02').currentStreak).toBe(1);
+    });
+});
+
+describe('streaksFromDays', () => {
+    test('no days: zeros and no last day', () => {
+        expect(streaksFromDays([])).toEqual({ currentStreak: 0, bestStreak: 0, lastPlayedDay: null });
+    });
+
+    test('a single day is a streak of 1', () => {
+        expect(streaksFromDays(['2026-08-02'])).toEqual({
+            currentStreak: 1, bestStreak: 1, lastPlayedDay: '2026-08-02',
+        });
+    });
+
+    test('current is the run ending at the newest day', () => {
+        const s = streaksFromDays(['2026-08-04', '2026-08-03', '2026-08-01']);
+        expect(s).toEqual({ currentStreak: 2, bestStreak: 2, lastPlayedDay: '2026-08-04' });
+    });
+
+    test('best can live in an older run than current', () => {
+        const s = streaksFromDays(['2026-08-09', '2026-08-04', '2026-08-03', '2026-08-02']);
+        expect(s).toEqual({ currentStreak: 1, bestStreak: 3, lastPlayedDay: '2026-08-09' });
+    });
+
+    test('runs join across month boundaries', () => {
+        const s = streaksFromDays(['2026-08-01', '2026-07-31', '2026-07-30']);
+        expect(s.currentStreak).toBe(3);
+    });
+
+    test('the out-of-order repair: a late-arriving middle day joins its neighbours', () => {
+        // Won the 1st and 3rd, then the leftover 2nd lands: derived from the
+        // full set, the answer is a 3-run — exactly what an accumulator that
+        // saw 3 before 2 can never reach.
+        const s = streaksFromDays(['2026-08-03', '2026-08-02', '2026-08-01']);
+        expect(s).toEqual({ currentStreak: 3, bestStreak: 3, lastPlayedDay: '2026-08-03' });
     });
 });

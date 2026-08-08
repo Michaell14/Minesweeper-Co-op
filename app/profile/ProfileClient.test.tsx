@@ -42,6 +42,8 @@ const PAYLOAD = {
         dailyGames: 2, dailyWins: 1,
         currentStreak: 3, bestStreak: 7,
         lastPlayedDay: '2026-08-02',
+        dailyCurrentStreak: 1, dailyBestStreak: 2,
+        lastDailyDay: '2026-08-01',
     },
     boardBests: [
         { boardKey: '16x16/40', seconds: 92, players: 1, achievedAt: '2026-08-01T12:00:00Z' },
@@ -49,6 +51,9 @@ const PAYLOAD = {
     recentGames: [
         { mode: 'co-op', boardKey: '16x16/40', won: true, durationMs: 92500, players: 3, finishedAt: '2026-08-02T10:00:00Z' },
         { mode: 'daily', boardKey: '14x14/32', won: false, durationMs: 30000, players: 1, finishedAt: '2026-08-01T09:00:00Z' },
+    ],
+    dailyHistory: [
+        { day: '2026-08-01', won: true, durationMs: 61000 },
     ],
 };
 
@@ -83,13 +88,15 @@ describe('signed in', () => {
         mockUseSession.mockReturnValue({ data: { user: {} }, status: 'authenticated' });
     });
 
-    it('shows the three sections with the recorded numbers', async () => {
+    it('shows the sections with the recorded numbers', async () => {
         mockFetchStats.mockResolvedValue(PAYLOAD);
         render(<ProfileClient />);
 
         await waitFor(() =>
             expect(screen.getByRole('table', { name: 'Games and wins by mode' })).toBeTruthy(),
         );
+        // The daily section rides the same payload.
+        expect(screen.getByRole('list', { name: /Daily results for/ })).toBeTruthy();
         // Win rate is derived: 6/10 co-op.
         expect(screen.getByText('60%')).toBeTruthy();
         expect(screen.getByRole('status', { name: 'Play streak' }).textContent).toContain('3');
@@ -103,6 +110,21 @@ describe('signed in', () => {
         // Account management follows the stats, deletion last and low-key.
         await screen.findByRole('textbox', { name: 'Display name' });
         expect(screen.getByRole('button', { name: 'Delete account…' })).toBeTruthy();
+    });
+
+    it('tolerates a backend payload that predates the daily-history fields', async () => {
+        // The two halves deploy from one trunk but never land atomically.
+        const { dailyHistory: _dropped, ...oldPayload } = PAYLOAD;
+        const { dailyCurrentStreak: _a, dailyBestStreak: _b, lastDailyDay: _c, ...oldStats } = PAYLOAD.stats;
+        mockFetchStats.mockResolvedValue({ ...oldPayload, stats: oldStats });
+        render(<ProfileClient />);
+
+        await waitFor(() =>
+            expect(screen.getByRole('table', { name: 'Games and wins by mode' })).toBeTruthy(),
+        );
+        // The daily section still renders, just empty.
+        expect(screen.getByRole('list', { name: /Daily results for/ })).toBeTruthy();
+        expect(screen.getByText(/No dailies recorded yet/)).toBeTruthy();
     });
 
     it('degrades to the unavailable panel with a retry', async () => {

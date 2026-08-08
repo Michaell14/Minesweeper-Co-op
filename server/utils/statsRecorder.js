@@ -32,7 +32,8 @@ const userOf = (socketId) => io.sockets.sockets.get(socketId)?.data?.user ?? nul
  * skipped without comment. Fire-and-forget: call it, do not await it.
  *
  * @param socketIds array of socket ids sharing this outcome
- * @param result    { mode, boardKey, won, durationMs|null, players, finishedAt }
+ * @param result    { mode, boardKey, won, durationMs|null, players, finishedAt,
+ *                    dailyDate? ('YYYY-MM-DD' puzzle date, daily mode only) }
  */
 const recordForSockets = (socketIds, result) => {
     if (!isDbEnabled()) return;

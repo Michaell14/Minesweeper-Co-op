@@ -156,6 +156,10 @@ const finishAttempt = async (date, token, socketId, board, { won }) => {
             durationMs: elapsedMs,
             players: 1,
             finishedAt,
+            // The PUZZLE date, not the finish day: this attempt can be
+            // yesterday's daily finished after UTC midnight, and the profile
+            // calendar files it under the day it was set.
+            dailyDate: date,
         });
     } catch (error) {
         console.error('Stats write dropped:', error.message);
