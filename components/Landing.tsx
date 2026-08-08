@@ -2,6 +2,7 @@ import React from 'react';
 import Link from 'next/link';
 import { useMinesweeperStore } from '@/app/store';
 import { Button, ButtonLink, CalendarIcon, Dialog, DialogClose, SwordsIcon } from "@/components/ds";
+import { DAILY_PLAY_HREF } from "@/lib/dailyLink";
 import { DIALOGS, openDialog } from "@/lib/dialogs";
 import AnnouncementBanner from '@/components/landing/AnnouncementBanner';
 import JoinRoomForm from '@/components/landing/JoinRoomForm';
@@ -49,9 +50,11 @@ export default function Landing({ createRoom, joinRoom, findMatch, cancelMatch, 
                     now, with nothing to fill in and nobody to coordinate with. */}
                 <div className="mt-3 flex flex-wrap justify-center gap-2">
                     {/* A link, not a button: the daily is its own page now, and
-                        this is how it gets crawled and opened in a new tab. */}
+                        this is how it gets crawled and opened in a new tab. It
+                        carries the play intent, so pressing it lands on the
+                        board rather than on a page describing one. */}
                     <ButtonLink
-                        href="/daily"
+                        href={DAILY_PLAY_HREF}
                         intent="primary"
                         size="sm"
                         aria-label="Play today's daily challenge — same board for everyone, ranked by time, one attempt">

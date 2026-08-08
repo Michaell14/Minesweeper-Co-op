@@ -1088,6 +1088,46 @@ async function daily(page) {
     // The board mounts exactly once here too — same invariant Grid.tsx has.
     const boards = await page.evaluate(`return document.querySelectorAll('[role=grid]').length`);
     check(boards === 1, 'the daily board mounts exactly once', `found ${boards} grids`);
+
+    /*
+     * The other arrival: the front page's button carries the play intent, so it
+     * has to land on the BOARD. It shipped landing on the intro instead —
+     * a page of copy and a second button reading exactly what was just pressed.
+     */
+    /*
+     * Arm the landing page rather than inherit one. Same reason rejoinOnReload
+     * does it: a tab that ended inside a room lands straight back in it, and
+     * this section arrives holding whatever the previous one left.
+     */
+    await page.goto(CLIENT);
+    await sleep(1500);
+    await page.evaluate(`
+        const leave = [...document.querySelectorAll('button')]
+            .find(b => /Return to Home/i.test(b.textContent));
+        if (leave) leave.click();
+        return true;
+    `);
+    await page.waitFor(`!!document.querySelector('[aria-label^="Play today\\'s daily challenge"]')`,
+        { timeout: 60000, label: 'the landing page renders its daily button' });
+
+    const href = await page.evaluate(
+        `return document.querySelector('[aria-label^="Play today\\'s daily challenge"]').getAttribute('href')`);
+    check(/\?play=1$/.test(href), `the landing button carries the play intent (${href})`,
+        `expected ?play=1, got ${href}`);
+
+    await page.click(`[aria-label^="Play today's daily challenge"]`);
+    await page.waitFor(`document.querySelectorAll('[role=gridcell]').length > 0`,
+        { label: 'the landing button lands on the board, not the intro' });
+    pass('the landing button lands on the board, not the intro');
+
+    const introShown = await page.evaluate(`return !!document.querySelector('.ms-prose')`);
+    check(!introShown, 'the intro copy is not shown on the way through',
+        'the daily intro rendered for a player who had already pressed play');
+
+    // Left in the URL, a refresh would read as a second request to start.
+    const search = await page.evaluate(`return window.location.search`);
+    check(search === '', 'the play intent is stripped from the URL once used',
+        `location.search is still "${search}"`);
 }
 
 (async () => {
