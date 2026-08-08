@@ -17,6 +17,7 @@
 
 const { pgPool } = require('../utils/initializePgClient');
 const { advanceStreak, streaksFromDays, utcDayOf } = require('../domain/streak');
+const { earnedFrom } = require('../domain/achievements');
 
 /** How many recent games each player keeps, per the PRD (aggregates + window). */
 const RECENT_WINDOW = 50;
@@ -25,12 +26,34 @@ const RECENT_WINDOW = 50;
 const MODE_COLUMNS = { 'co-op': 'coop', pvp: 'pvp', daily: 'daily' };
 
 /**
+ * A user_stats row in the shape everything above the database speaks — the
+ * profile payload, and the snapshot achievements are evaluated against. One
+ * mapping, because two would let the thresholds a player is awarded on and the
+ * progress they are shown disagree.
+ */
+const snapshotOf = (row) => ({
+    coopGames: row?.coop_games ?? 0,
+    coopWins: row?.coop_wins ?? 0,
+    pvpGames: row?.pvp_games ?? 0,
+    pvpWins: row?.pvp_wins ?? 0,
+    dailyGames: row?.daily_games ?? 0,
+    dailyWins: row?.daily_wins ?? 0,
+    currentStreak: row?.current_streak ?? 0,
+    bestStreak: row?.best_streak ?? 0,
+    lastPlayedDay: row?.last_played_day ?? null,
+    dailyCurrentStreak: row?.daily_current_streak ?? 0,
+    dailyBestStreak: row?.daily_best_streak ?? 0,
+    lastDailyDay: row?.last_daily_day ?? null,
+});
+
+/**
  * Records one finished game and everything downstream of it, atomically.
  *
  * @param userId  the account (callers have already resolved and null-checked)
  * @param result  { mode, boardKey, won, durationMs|null, players, finishedAt,
  *                  dailyDate? } — dailyDate is the daily's PUZZLE date
  *                  ('YYYY-MM-DD' UTC), the calendar key; see the migration.
+ * @returns the achievement ids newly earned by this result (often empty).
  */
 const recordResult = async (userId, { mode, boardKey, won, durationMs, players, finishedAt, dailyDate }) => {
     if (!pgPool) throw new Error('Postgres is not configured (DATABASE_URL is unset)');
@@ -161,6 +184,25 @@ const recordResult = async (userId, { mode, boardKey, won, durationMs, players, 
                 dailyStreak.currentStreak, dailyStreak.bestStreak, dailyStreak.lastPlayedDay],
         );
 
+        // Achievements, from the aggregates just written plus this game. The
+        // evaluator returns everything CURRENTLY satisfied rather than a diff,
+        // so ON CONFLICT decides what is actually new and RETURNING hands back
+        // exactly that — one statement, no SELECT, and re-running a result
+        // awards nothing twice. In the transaction because an achievement
+        // without the result that earned it is the same lie as a stray
+        // aggregate.
+        const earned = earnedFrom(
+            {
+                ...snapshotOf(row),
+                [`${prefix}Games`]: games,
+                [`${prefix}Wins`]: wins,
+                bestStreak: streak.bestStreak,
+                dailyBestStreak: dailyStreak.bestStreak,
+            },
+            { mode, boardKey, won, durationMs, players },
+        );
+        const unlocked = await awardAchievements(client, userId, earned);
+
         // A board best is a WIN with a measured time; keep only if faster.
         if (won && typeof durationMs === 'number' && durationMs >= 0) {
             await upsertBest(client, userId, {
@@ -172,12 +214,64 @@ const recordResult = async (userId, { mode, boardKey, won, durationMs, players, 
         }
 
         await client.query('COMMIT');
+        return unlocked;
     } catch (error) {
         await client.query('ROLLBACK').catch(() => {});
         throw error;
     } finally {
         client.release();
     }
+};
+
+/**
+ * Awards a set of achievement ids, returning only the ones that were actually
+ * new. ON CONFLICT decides that, and RETURNING reports it — so no read comes
+ * first, re-awarding is a no-op, and two concurrent results cannot both claim
+ * to have unlocked the same badge. `client` may be a pool or a transaction
+ * client.
+ */
+const awardAchievements = async (client, userId, ids) => {
+    if (ids.length === 0) return [];
+    const inserted = await client.query(
+        `INSERT INTO user_achievements (user_id, achievement_id)
+         SELECT $1, unnest($2::text[])
+         ON CONFLICT DO NOTHING
+         RETURNING achievement_id`,
+        [userId, ids],
+    );
+    return (inserted.rows || []).map((row) => row.achievement_id);
+};
+
+/**
+ * One-shot: award every counter each existing player already qualifies for.
+ *
+ * Not needed for correctness — the evaluator reads a snapshot, so anyone who
+ * qualified collects on their next finished game anyway. This exists so the
+ * shelf is not blank on the day it ships, for players who have not come back
+ * yet. Idempotent, and safe to re-run.
+ *
+ * Moments are deliberately unreachable here: it evaluates with NO result, and
+ * every moment predicate requires a win, so none can fire. They describe a
+ * single game and `game_results` keeps only the recent window — there is
+ * nothing to reconstruct them from, and inventing one would be a lie about
+ * something a player never did.
+ *
+ * **Shaped for a one-off, and only that.** It reads every user_stats row into
+ * memory and then makes one round-trip per player, sequentially. That is fine
+ * for a hand-run script against this table and would not be fine for anything
+ * scheduled or request-driven — batch the ids and page the scan before reusing
+ * this shape.
+ */
+const backfillAchievements = async () => {
+    if (!pgPool) throw new Error('Postgres is not configured (DATABASE_URL is unset)');
+
+    const players = await pgPool.query('SELECT * FROM user_stats');
+    let awarded = 0;
+    for (const row of players.rows) {
+        const earned = earnedFrom(snapshotOf(row), {});
+        awarded += (await awardAchievements(pgPool, row.user_id, earned)).length;
+    }
+    return { players: players.rows.length, awarded };
 };
 
 /** Keep-if-faster upsert. `client` may be a pool or a transaction client. */
@@ -197,7 +291,7 @@ const upsertBest = (client, userId, { boardKey, seconds, players, achievedAt }) 
 const getProfile = async (userId) => {
     if (!pgPool) throw new Error('Postgres is not configured (DATABASE_URL is unset)');
 
-    const [stats, bests, recent, daily] = await Promise.all([
+    const [stats, bests, recent, daily, achievements] = await Promise.all([
         pgPool.query('SELECT * FROM user_stats WHERE user_id = $1', [userId]),
         pgPool.query(
             'SELECT board_key, seconds, players, achieved_at FROM user_board_bests WHERE user_id = $1 ORDER BY achieved_at DESC',
@@ -215,24 +309,16 @@ const getProfile = async (userId) => {
             'SELECT day, won, duration_ms FROM user_daily_results WHERE user_id = $1 ORDER BY day ASC',
             [userId],
         ),
+        // Newest first: the shelf's "new since you last looked" watermark is
+        // the first row's earned_at, so the order is part of the contract.
+        pgPool.query(
+            'SELECT achievement_id, earned_at FROM user_achievements WHERE user_id = $1 ORDER BY earned_at DESC',
+            [userId],
+        ),
     ]);
 
-    const row = stats.rows[0];
     return {
-        stats: {
-            coopGames: row?.coop_games ?? 0,
-            coopWins: row?.coop_wins ?? 0,
-            pvpGames: row?.pvp_games ?? 0,
-            pvpWins: row?.pvp_wins ?? 0,
-            dailyGames: row?.daily_games ?? 0,
-            dailyWins: row?.daily_wins ?? 0,
-            currentStreak: row?.current_streak ?? 0,
-            bestStreak: row?.best_streak ?? 0,
-            lastPlayedDay: row?.last_played_day ?? null,
-            dailyCurrentStreak: row?.daily_current_streak ?? 0,
-            dailyBestStreak: row?.daily_best_streak ?? 0,
-            lastDailyDay: row?.last_daily_day ?? null,
-        },
+        stats: snapshotOf(stats.rows[0]),
         boardBests: bests.rows.map((b) => ({
             boardKey: b.board_key,
             seconds: b.seconds,
@@ -251,6 +337,10 @@ const getProfile = async (userId) => {
             day: d.day,
             won: d.won,
             durationMs: d.duration_ms,
+        })),
+        achievements: achievements.rows.map((a) => ({
+            id: a.achievement_id,
+            earnedAt: a.earned_at,
         })),
     };
 };
@@ -278,4 +368,4 @@ const importBests = async (userId, bests) => {
     }
 };
 
-module.exports = { recordResult, getProfile, importBests, RECENT_WINDOW };
+module.exports = { recordResult, getProfile, importBests, backfillAchievements, RECENT_WINDOW };

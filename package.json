@@ -15,6 +15,7 @@
     "test": "npm --prefix server test",
     "test:ui": "node scripts/ui-smoke/run.js",
     "verify:deploy": "node scripts/verify-deploy/run.js",
+    "backfill:achievements": "node scripts/backfill-achievements.js",
     "start-server": "cd server && node server.js",
     "heroku-postbuild": "node scripts/write-version.js && cd server && npm install",
     "test:client": "vitest run"

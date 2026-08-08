@@ -318,10 +318,15 @@ export default function DsCatalogClient() {
                 </div>
             </Section>
 
-            <Section title="Badge" note="One element, four offset shadows as a fill.">
-                <div className="flex flex-wrap">
+            <Section
+                title="Badge"
+                note="One element, four offset shadows as a fill. Small drops the strip's min-width, for a marker inside a tile."
+            >
+                <div className="flex flex-wrap items-center">
                     <Badge intent="success">GAME WON!</Badge>
                     <Badge intent="error">GAME LOST!</Badge>
+                    <Badge intent="primary" size="sm">New</Badge>
+                    <Badge intent="default" size="sm">Beta</Badge>
                 </div>
             </Section>
 

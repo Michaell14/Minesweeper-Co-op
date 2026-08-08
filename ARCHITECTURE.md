@@ -231,6 +231,16 @@ derives the graph from the source and fails on a cycle, on any module importing
 a higher layer, or on anything in `domain/` reaching outside it. Reintroducing
 the `gameUtils` ⇄ `playerUtils` cycle fails it by name.
 
+**`shared/` is outside the graph, at every layer.** `importsOf` keeps only
+paths under `server/`, so a require of `../../shared/*` is invisible to these
+rules — which is what lets `domain/achievements.js` read the achievement
+catalog and `domain/` stay "pure" at the same time. That is deliberate:
+`shared/` is imported by both deployables and holds no I/O, so it is a leaf
+like `config.js`. The cost is that the test can say nothing about it. A
+`shared/` module that grew a Redis call, or a require back into `server/`,
+would pass silently — so purity there is a review responsibility, not a
+tested one.
+
 The layers, lowest first — a module may import its own layer or below:
 
 | | |
@@ -420,6 +430,7 @@ Shapes are typed in `shared/socketPayloads.ts` (`ClientToServerEvents`).
 | `receiveConfetti` | — |
 | `playerHoverUpdate` | `{id, row, col, name}` (client derives color from `id`) |
 | `playerLeft` | `socketId` |
+| `achievementsUnlocked` | `{ids}` — catalog ids, to ONE socket, only what this result newly earned |
 
 ### Server → Client — PVP
 
@@ -782,6 +793,22 @@ via `GET /api/stats`; the only stats write endpoint is the guest best-times
 import, keep-if-faster by construction. A signed-in daily submit stores the
 ACCOUNT display name on the leaderboard.
 
+**Achievements ride the same transaction, and are derived rather than
+tracked.** `domain/achievements.js` answers what a player satisfies given the
+aggregates just written plus the game itself, and `recordResult` inserts the
+lot with `ON CONFLICT DO NOTHING ... RETURNING`, so Postgres decides what is
+actually new in one statement and no read precedes it. Two consequences worth
+knowing. The evaluator reads a SNAPSHOT, not a delta, which makes every
+threshold retroactive for free: a player who qualified before the feature
+existed collects on their next finished game, with no backfill involved. And
+because it is in the transaction, an achievement can never outlive a rolled-back
+result — the same guarantee the aggregates get. Single-game achievements are
+NOT retroactive and cannot be: `game_results` keeps only the recent window.
+The catalog is shared (`shared/achievements.js`) because the shelf has to draw
+locked entries and their progress; a counter carries its metric and threshold
+as data so both halves evaluate the same rule, and only the single-game
+predicates are server-side.
+
 **Users live in Postgres** (`server/data/userRepo.js`, the first
 Postgres-backed repo) keyed by `(provider, provider_account_id)`, created on
 first sight with one upserting statement. Email refreshes each sign-in;
@@ -851,6 +878,7 @@ npm run test:client        # client unit tests (Vitest): pure logic + component 
 npm run test:ui            # client smoke test in headless Chrome (needs dev:all running)
                            # also runs in CI, as its own job with a redis service
 npm run verify:deploy      # plays a real game against the DEPLOYED backend; not in CI
+npm run backfill:achievements  # ONE-SHOT after the achievements release; idempotent
 npm run lint
 ```
 
@@ -983,6 +1011,7 @@ through both modes and compares, so the two can't drift apart again.
 | Board sizes and difficulty densities | `shared/boardConfig.js` | — |
 | Board size/mine rules | `shared/boardConfig.js` | — |
 | Socket event names | `shared/events.js` | — |
+| Achievement catalog | `shared/achievements.js` | moment predicates in `server/domain/achievements.js`, matched to the catalog by `achievements.test.js` |
 | Redis key names | `server/data/keys.js` | — |
 | CORS origins | `server/config.js` | — |
 | Backend URL | `lib/initSocket.ts` (`NEXT_PUBLIC_SOCKET_URL`) | — |

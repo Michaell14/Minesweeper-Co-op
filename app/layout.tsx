@@ -8,6 +8,7 @@ import { Analytics } from '@vercel/analytics/next';
 import { NO_FLASH_SCRIPT } from "@/lib/settings";
 import { OG_IMAGE, SITE_URL } from "@/lib/site";
 import Footer from "@/components/Footer";
+import AchievementToast from "@/components/AchievementToast";
 import AuthProvider from "@/components/AuthProvider";
 import SettingsSync from "@/components/SettingsSync";
 import SpriteDefsHost from "@/components/SpriteDefsHost";
@@ -148,6 +149,9 @@ export default function RootLayout({
           <SettingsSync />
           {children}
           <Footer />
+          {/* Renders nothing until the server announces an unlock; here rather
+              than on the game page so a toast survives navigating away. */}
+          <AchievementToast />
         </AuthProvider>
         <Analytics />
       </body>

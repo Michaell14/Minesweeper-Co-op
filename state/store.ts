@@ -16,6 +16,7 @@ import { createPvpSlice, type PvpSlice } from './pvpSlice';
 import { createInputSlice, type InputSlice } from './inputSlice';
 import { createDailySlice, type DailySlice } from './dailySlice';
 import { createSettingsSlice, type SettingsSlice } from './settingsSlice';
+import { createAchievementsSlice, type AchievementsSlice } from './achievementsSlice';
 
 export type MinesweeperState =
     GameSlice &
@@ -24,7 +25,8 @@ export type MinesweeperState =
     PvpSlice &
     InputSlice &
     DailySlice &
-    SettingsSlice;
+    SettingsSlice &
+    AchievementsSlice;
 
 export const useMinesweeperStore = create<MinesweeperState>()((...a) => ({
     ...createGameSlice(...a),
@@ -34,4 +36,5 @@ export const useMinesweeperStore = create<MinesweeperState>()((...a) => ({
     ...createInputSlice(...a),
     ...createDailySlice(...a),
     ...createSettingsSlice(...a),
+    ...createAchievementsSlice(...a),
 }));

@@ -75,6 +75,11 @@ const SERVER_EVENTS = Object.freeze({
     SESSION_RESUME: 'sessionResume',
     PLAYER_LEFT: 'playerLeft',
 
+    // Achievements -- sent to ONE socket, and only when a result actually
+    // unlocked something. Not room-scoped: an achievement is the player's,
+    // not the game's, and it can be earned in any mode including the daily.
+    ACHIEVEMENTS_UNLOCKED: 'achievementsUnlocked',
+
     // PVP
     PVP_ROOM_FULL: 'pvpRoomFull',
     PVP_ROOM_READY: 'pvpRoomReady',

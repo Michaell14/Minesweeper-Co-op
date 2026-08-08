@@ -212,6 +212,13 @@ export interface ServerToClientEvents {
      */
     sessionResume: (payload: { room: string; name: string }) => void;
     playerLeft: (socketId: string) => void;
+    /**
+     * Achievements this player just unlocked — catalog ids from
+     * shared/achievements.js, never names. The catalog ships with the client,
+     * and an id it does not recognise is skipped rather than rendered raw.
+     * Only ever the NEW ones: the server sends what ON CONFLICT let through.
+     */
+    achievementsUnlocked: (payload: { ids: string[] }) => void;
 
     // --- PVP ---
     pvpRoomFull: () => void;
