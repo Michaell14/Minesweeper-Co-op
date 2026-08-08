@@ -11,9 +11,6 @@ import {
 } from '@/components/ds/sprites';
 import { useMinesweeperStore } from '@/app/store';
 
-/** RadioCard values are strings; "follow the palette" is null in the blob. */
-const FOLLOW = '__follow__';
-
 /**
  * The pair, drawn on the cell fills it actually sits on — via CSS vars, so the
  * preview repaints with the palette for free. aria-hidden: the card's label
@@ -42,8 +39,10 @@ function PairPreview({ set }: { set: SpriteSet }) {
 /**
  * The mine/flag art picker on /settings. Only the GENERAL sets are offered —
  * the seasonal pairs are paint, arriving with their holiday window and
- * leaving with it, and while one paints it wins over the pin too. "Match
- * palette" is the default and the old behaviour.
+ * leaving with it, and while one paints it wins over the pin too.
+ *
+ * A stored null means no pin, which resolves to the default pair — the same
+ * art "classic" names — so it shows as Classic rather than as its own card.
  */
 export default function SpriteSetCards({ name }: { name: string }) {
     const spriteSet = useMinesweeperStore((s) => s.settings.spriteSet);
@@ -53,15 +52,10 @@ export default function SpriteSetCards({ name }: { name: string }) {
         <RadioCardGroup
             name={name}
             ariaLabel="Mine and flag art"
-            value={spriteSet ?? FOLLOW}
-            onChange={(value) => setSetting('spriteSet', value === FOLLOW ? null : value)}
+            value={spriteSet ?? 'classic'}
+            onChange={(value) => setSetting('spriteSet', value)}
             wrap
         >
-            <RadioCard
-                value={FOLLOW}
-                label="Match palette"
-                description={<span className="whitespace-nowrap text-pixel-xs">Follows the theme</span>}
-            />
             <RadioCard
                 value="classic"
                 label="Classic"
