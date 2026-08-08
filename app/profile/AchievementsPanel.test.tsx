@@ -43,11 +43,11 @@ describe('the shelf', () => {
         expect(screen.getAllByRole('listitem')).toHaveLength(ACHIEVEMENTS.length);
     });
 
-    it('counts what has been earned, on the summary you click', () => {
-        const { container } = renderPanel({
+    it('counts what has been earned', () => {
+        renderPanel({
             achievements: [{ id: 'first-clear', earnedAt: '2026-08-01T09:00:00.000Z' }],
         });
-        expect(container.querySelector('summary')?.textContent).toContain(
+        expect(screen.getByLabelText('Achievements earned').textContent).toContain(
             `1 of ${ACHIEVEMENTS.length}`,
         );
     });
@@ -92,10 +92,33 @@ describe('the shelf', () => {
 
 describe('collapsing', () => {
     const details = (c: HTMLElement) => c.querySelector('details') as HTMLDetailsElement;
+    /** Tiles OUTSIDE the disclosure — the ones on show while collapsed. */
+    const previewTiles = (c: HTMLElement) =>
+        [...c.querySelectorAll('li')].filter((li) => !li.closest('details'));
 
     it('starts collapsed, so the shelf does not bury the panels below it', () => {
         const { container } = renderPanel();
         expect(details(container).open).toBe(false);
+    });
+
+    /*
+     * The point of the preview: hiding the whole catalog left a profile with
+     * nothing to look at, so a few tiles sit outside the disclosure entirely.
+     */
+    it('keeps the first few tiles on show while collapsed', () => {
+        const { container } = renderPanel();
+        const shown = previewTiles(container);
+
+        expect(shown).toHaveLength(4);
+        expect(shown[0].getAttribute('aria-label')).toContain(ACHIEVEMENTS[0].name);
+        expect(container.querySelectorAll('li')).toHaveLength(ACHIEVEMENTS.length);
+    });
+
+    it('offers the rest by count, and says so when open', () => {
+        const { container } = renderPanel();
+        const summary = container.querySelector('summary')!;
+        expect(summary.textContent).toContain(`Show all ${ACHIEVEMENTS.length}`);
+        expect(summary.textContent).toContain('Show fewer');
     });
 
     it('opens and closes from the summary', () => {
@@ -114,17 +137,46 @@ describe('collapsing', () => {
      * whole payoff of earning something, and they are useless behind a panel
      * the player has to think to open.
      */
-    it('starts open when something is new since the last visit', () => {
+    // Derived, not typed out: which ids fall either side of the fold is
+    // PREVIEW_COUNT's business, and these must not pin the catalog's order.
+    const onShow = ACHIEVEMENTS[0].id;
+    const behindTheFold = ACHIEVEMENTS[ACHIEVEMENTS.length - 1].id;
+
+    it('starts open when something new is behind the fold', () => {
         const { container } = renderPanel({
-            achievements: [{ id: 'sweeper', earnedAt: '2026-08-08T09:00:00.000Z' }],
-            highlighted: new Set(['sweeper']),
+            achievements: [{ id: behindTheFold, earnedAt: '2026-08-08T09:00:00.000Z' }],
+            highlighted: new Set([behindTheFold]),
+        });
+        expect(details(container).open).toBe(true);
+    });
+
+    /*
+     * The badge is already on screen in that case, so expanding would push
+     * twenty-two tiles and every panel below them down the page for nothing.
+     */
+    it('stays collapsed when the only new entry is one already on show', () => {
+        const { container } = renderPanel({
+            achievements: [{ id: onShow, earnedAt: '2026-08-08T09:00:00.000Z' }],
+            highlighted: new Set([onShow]),
+        });
+        expect(details(container).open).toBe(false);
+        expect(screen.getByText('New')).toBeTruthy();
+    });
+
+    it('opens when news straddles the fold', () => {
+        const { container } = renderPanel({
+            achievements: [
+                { id: onShow, earnedAt: '2026-08-08T09:00:00.000Z' },
+                { id: behindTheFold, earnedAt: '2026-08-08T09:00:00.000Z' },
+            ],
+            highlighted: new Set([onShow, behindTheFold]),
         });
         expect(details(container).open).toBe(true);
     });
 
     it('stays collapsed when the only earned entries are already seen', () => {
         const { container } = renderPanel({
-            achievements: [{ id: 'sweeper', earnedAt: '2026-08-08T09:00:00.000Z' }],
+            achievements: [{ id: behindTheFold, earnedAt: '2026-08-08T09:00:00.000Z' }],
             highlighted: new Set(),
         });
         expect(details(container).open).toBe(false);
