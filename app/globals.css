@@ -9,6 +9,28 @@
 }
 
 /*
+ * The one opt-out from the rule above, for pages made of sentences rather than
+ * labels.
+ *
+ * Press Start 2P is a 8x8 bitmap face: fine for a button, close to unreadable
+ * at paragraph length, which would defeat content pages whose entire purpose is
+ * being read. Only body copy switches — headings keep the pixel face, so the
+ * pages still look like the game they belong to.
+ *
+ * Specificity is load-bearing and not an accident: `:is()` takes the
+ * specificity of its most specific argument, so the heading rule (0,1,1) beats
+ * the blanket `.ms-prose *` (0,1,0) below it.
+ */
+.ms-prose,
+.ms-prose * {
+    font-family: var(--font-inter), system-ui, sans-serif;
+}
+
+.ms-prose :is(h1, h2, h3) {
+    font-family: var(--font-press-start-2p), serif;
+}
+
+/*
  * The page surface.
  *
  * Load-bearing: without an explicit background the browser supplies one, and a

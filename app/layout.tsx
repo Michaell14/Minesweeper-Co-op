@@ -6,12 +6,16 @@ import "./tokens.css";
 import "./globals.css";
 import { Analytics } from '@vercel/analytics/next';
 import { NO_FLASH_SCRIPT } from "@/lib/settings";
+import { OG_IMAGE, SITE_URL } from "@/lib/site";
 import Footer from "@/components/Footer";
 import AuthProvider from "@/components/AuthProvider";
 import SettingsSync from "@/components/SettingsSync";
 import SpriteDefsHost from "@/components/SpriteDefsHost";
 
-const inter = Inter({ subsets: ["latin"] });
+// `variable` as well as `className`: the class puts Inter on <body>, where the
+// `*` rule in globals.css immediately overrides it with the pixel face. The
+// variable is what lets `.ms-prose` opt back in for long-form copy.
+const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const pressStart2P = Press_Start_2P({
   weight: "400",
   subsets: ["latin"],
@@ -19,45 +23,20 @@ const pressStart2P = Press_Start_2P({
   variable: "--font-press-start-2p"
 });
 
+// Kept inside the SERP's own limits — a title over ~60 chars and a description
+// over ~155 are truncated, and the tail is the part that gets cut. No `keywords`
+// meta: Google has ignored it since 2009, and a stuffed one is a spam signal to
+// everyone who still reads it.
+const TITLE = "Minesweeper Co-op — Free Online Multiplayer Minesweeper";
+const DESCRIPTION =
+  "Play Minesweeper with friends on one shared board, race a 1v1, or take on the daily challenge. Free in your browser, no download, unblocked at school.";
+
 export const metadata: Metadata = {
-  title: "Minesweeper Co-Op - Free Online Multiplayer Minesweeper Game | Unblocked",
-  description: "Play FREE Minesweeper Co-Op online! The best multiplayer minesweeper game for 2+ players. Unblocked at school and work. Play with friends, compete in real-time, and enjoy classic puzzle gaming together. No download required!",
-  keywords: [
-    "minesweeper",
-    "minesweeper online",
-    "minesweeper multiplayer",
-    "minesweeper co-op",
-    "minesweeper coop",
-    "play minesweeper",
-    "free minesweeper",
-    "minesweeper game",
-    "online minesweeper",
-    "unblocked games",
-    "unblocked minesweeper",
-    "minesweeper unblocked",
-    "two player games",
-    "2 player games",
-    "couple games",
-    "games to play with friends",
-    "multiplayer puzzle games",
-    "cooperative games",
-    "browser games",
-    "free online games",
-    "play with friends",
-    "web games",
-    "puzzle games",
-    "strategy games",
-    "logic games",
-    "mind games",
-    "brain games",
-    "classic games online",
-    "retro games",
-    "minesweeper browser",
-    "no download games",
-    "instant play games",
-    "school games",
-    "work games"
-  ].join(", "),
+  // Every other URL here is absolute, but this is what keeps a relative one
+  // from silently resolving against localhost.
+  metadataBase: new URL(SITE_URL),
+  title: TITLE,
+  description: DESCRIPTION,
   authors: [{ name: "Michael", url: "https://github.com/Michaell14" }],
   creator: "Michael",
   publisher: "Minesweeper Co-Op",
@@ -75,28 +54,27 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     locale: 'en_US',
-    url: 'https://www.minesweepercoop.com',
+    url: SITE_URL,
     siteName: 'Minesweeper Co-Op',
-    title: 'Minesweeper Co-Op - Free Online Multiplayer Minesweeper | Unblocked',
-    description: 'Play FREE Minesweeper Co-Op online! The best multiplayer minesweeper game for 2+ players. Unblocked at school and work. Team up with friends in this classic puzzle game!',
+    title: TITLE,
+    description: DESCRIPTION,
     images: [
       {
-        url: 'https://www.minesweepercoop.com/minesweeperss.png',
+        url: OG_IMAGE,
         width: 1200,
         height: 630,
-        alt: 'Minesweeper Co-Op Multiplayer Game Screenshot',
+        alt: 'Minesweeper Co-op — two players on one shared board',
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Minesweeper Co-Op - Free Online Multiplayer Minesweeper | Unblocked',
-    description: 'Play FREE Minesweeper Co-Op online! The best multiplayer minesweeper game for 2+ players. Unblocked at school and work.',
-    images: ['https://www.minesweepercoop.com/minesweeperss.png'],
-    creator: '@yourtwitterhandle',
+    title: TITLE,
+    description: DESCRIPTION,
+    images: [OG_IMAGE],
   },
   alternates: {
-    canonical: 'https://www.minesweepercoop.com',
+    canonical: SITE_URL,
   },
   category: 'games',
 };
@@ -107,7 +85,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning className={pressStart2P.variable}>
+    <html lang="en" suppressHydrationWarning className={`${pressStart2P.variable} ${inter.variable}`}>
       <head>
         <link rel="icon" href="/favicon.ico" sizes="any" />
         <link rel="icon" href="/icon.svg" type="image/svg+xml" />
@@ -117,11 +95,13 @@ export default function RootLayout({
             the default flash on every load. <html> carries
             suppressHydrationWarning, which is what lets this mutate it safely. */}
         <script dangerouslySetInnerHTML={{ __html: NO_FLASH_SCRIPT }} />
-        {/* No raw canonical here: metadata.alternates.canonical emits it for
-            the homepage, and a hardcoded tag would render on every route,
-            claiming each one is a duplicate of /. */}
+        {/* No canonical or theme-color here on purpose. The canonical comes
+            from metadata.alternates; a hardcoded one in the LAYOUT renders on
+            every route, claiming each is a duplicate of /. A theme-color has to
+            be one literal colour, and there are twelve palettes — white was
+            wrong on eleven of them, so the browser default is the better answer
+            until it can follow `data-theme`. */}
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <meta name="theme-color" content="#ffffff" />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
@@ -129,9 +109,9 @@ export default function RootLayout({
               "@context": "https://schema.org",
               "@type": "VideoGame",
               "name": "Minesweeper Co-Op",
-              "description": "Free online multiplayer minesweeper game. Play with friends, unblocked at school and work. Team up to solve puzzles together!",
-              "url": "https://www.minesweepercoop.com",
-              "image": "https://www.minesweepercoop.com/minesweeperss.png",
+              "description": DESCRIPTION,
+              "url": SITE_URL,
+              "image": OG_IMAGE,
               "author": {
                 "@type": "Person",
                 "name": "Michael"
@@ -144,13 +124,10 @@ export default function RootLayout({
                 "priceCurrency": "USD",
                 "availability": "https://schema.org/InStock"
               },
-              "aggregateRating": {
-                "@type": "AggregateRating",
-                "ratingValue": "4.8",
-                "ratingCount": "1250",
-                "bestRating": "5",
-                "worstRating": "1"
-              },
+              // No aggregateRating: nothing in the app collects one, and a
+              // made-up rating breaks Google's structured-data policy — the
+              // downside is a manual action, not a nicer snippet. Add it back
+              // only alongside a real rating feature.
               "playMode": ["CoOp", "MultiPlayer"],
               "numberOfPlayers": {
                 "@type": "QuantitativeValue",

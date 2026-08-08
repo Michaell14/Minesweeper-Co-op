@@ -3,49 +3,30 @@ import React from "react";
 import { useMinesweeperStore } from './store';
 import Landing from "@/components/Landing";
 import Grid from "@/components/Grid";
-import DailyChallenge from "@/components/DailyChallenge";
 import GameDialogs from "@/components/dialogs/GameDialogs";
-import DailyDialogs from "@/components/dialogs/DailyDialogs";
-import { useSocket } from "@/hooks/useSocket";
-import { useSocketEvents } from "@/hooks/useSocketEvents";
-import { useGameActions } from "@/hooks/useGameActions";
-import { useGameEvents } from "@/hooks/useGameEvents";
-import { useMatchReconnect } from "@/hooks/useMatchReconnect";
+import { useGameSession } from "@/hooks/useGameSession";
 
 /**
- * Chooses between the Landing page, the daily challenge, and the game Grid.
- * Exactly one of the three is ever mounted. All socket wiring lives in hooks/:
- *   useSocket       - connection lifecycle
- *   useGameActions  - client -> server emits
- *   useGameEvents   - server -> client handler table
- *   useSocketEvents - registers that table and derives its own cleanup
+ * Chooses between the Landing page and the game Grid. All socket wiring lives
+ * in `useGameSession`, which `/daily` mounts too.
+ *
+ * The daily challenge used to be a third branch here, gated on `dailyActive`.
+ * It is its own route now — it is a distinct thing to arrive at, link to and
+ * bookmark, and as a flag on this page it had no URL for any of that.
  */
 export default function Home() {
-    const socket = useSocket();
-    const actions = useGameActions(socket);
-    useSocketEvents(socket, useGameEvents(socket, actions.leaveRoom));
-    useMatchReconnect(socket, actions.findMatch);
+    const { actions } = useGameSession();
 
     // Subscribed narrowly on purpose: this component re-renders only when the
     // view switches, not on every board or hover update.
     const playerJoined = useMinesweeperStore((state) => state.playerJoined);
-    const dailyActive = useMinesweeperStore((state) => state.dailyActive);
 
     return (
         <>
-            {dailyActive ? (
-                <DailyChallenge
-                    leaveDaily={actions.leaveDaily}
-                    dailyOpenCell={actions.dailyOpenCell}
-                    dailyChordCell={actions.dailyChordCell}
-                    dailyToggleFlag={actions.dailyToggleFlag}
-                    getDailyLeaderboard={actions.getDailyLeaderboard}
-                />
-            ) : !playerJoined ? (
+            {!playerJoined ? (
                 <Landing
                     createRoom={actions.createRoom}
                     joinRoom={actions.joinRoom}
-                    startDaily={actions.startDaily}
                     findMatch={actions.findMatch}
                     cancelMatch={actions.cancelMatch}
                     startPracticeRace={actions.startPracticeRace}
@@ -67,7 +48,6 @@ export default function Home() {
             )}
 
             <GameDialogs resetGame={actions.resetGame} />
-            <DailyDialogs submitDailyScore={actions.submitDailyScore} getDailyLeaderboard={actions.getDailyLeaderboard} />
         </>
     );
 };
