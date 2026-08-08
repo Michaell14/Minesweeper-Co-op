@@ -36,7 +36,7 @@ export default function Footer() {
      * route: other pages open the account dialog imperatively.
      */
     const pathname = usePathname();
-    const showCluster = pathname === '/';
+    const showCluster = pathname === '/' || pathname === '/daily';
 
     useEffect(() => {
         const refreshUnseenState = () => {
@@ -66,8 +66,12 @@ export default function Footer() {
      * and icons over cells are cells nobody can click. With a game mounted
      * (room or daily) the cluster joins normal flow below the board instead,
      * matching what every sub-xl screen already does.
+     *
+     * Pinned to '/' as well as the two flags: /daily is a page of prose until
+     * the player opts in, and floating over prose is how this landed on top of
+     * /settings' switches once already.
      */
-    const floating = !playerJoined && !dailyActive;
+    const floating = pathname === '/' && !playerJoined && !dailyActive;
 
     return (
         <>
@@ -171,6 +175,22 @@ export default function Footer() {
                 <hr />
                 <p>Keyboard: arrows or WASD move the cursor</p>
                 <p>Space/Enter reveals, F flags, Esc hides it</p>
+                <hr />
+                {/*
+                  * Real links, not more dialog copy. This dialog is mounted on
+                  * every route, so these are the internal links that keep the
+                  * content pages from being reachable only through the sitemap
+                  * — which is barely reachable at all.
+                  */}
+                <p className="text-pixel-sm">
+                    <Link href="/how-to-play">Full rules and chording</Link>
+                </p>
+                <p className="text-pixel-sm">
+                    <Link href="/no-guess-minesweeper">Why these boards never need a guess</Link>
+                </p>
+                <p className="text-pixel-sm">
+                    <Link href="/daily">Today&apos;s daily challenge</Link>
+                </p>
                 <hr />
             </Dialog>
 

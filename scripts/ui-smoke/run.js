@@ -1057,6 +1057,39 @@ async function keyboardPlay(page) {
     pass('Escape hides the cursor');
 }
 
+/**
+ * /daily is a page of prose that becomes a board on request.
+ *
+ * The load-bearing check is the negative one: arriving must NOT mount a board.
+ * A visitor from a search result gets one attempt a day, and auto-starting it
+ * would spend that attempt before they had decided to play — with nothing on
+ * screen to say so. jsdom covers the component's own branch; only a real browser
+ * proves the route serves the intro and that the button reaches the server.
+ */
+async function daily(page) {
+    console.log('\n\x1b[1m--- DAILY ---\x1b[0m');
+
+    await page.goto(`${CLIENT}/daily`);
+    await page.waitFor(`!!document.querySelector('h1')`, { timeout: 60000, label: 'the daily page renders' });
+
+    const heading = await page.evaluate(`return document.querySelector('h1').textContent`);
+    check(/daily challenge/i.test(heading), `the intro heading renders ("${heading}")`,
+        `unexpected h1: ${heading}`);
+
+    const cellsOnArrival = await page.evaluate(`return document.querySelectorAll('[role=gridcell]').length`);
+    check(cellsOnArrival === 0, 'no board is mounted on arrival',
+        `${cellsOnArrival} cells were already on screen — the attempt starts itself`);
+
+    await page.click(`[aria-label^="Play today's daily challenge"]`);
+    await page.waitFor(`document.querySelectorAll('[role=gridcell]').length > 0`,
+        { label: 'the play button starts a board' });
+    pass('the play button starts a board');
+
+    // The board mounts exactly once here too — same invariant Grid.tsx has.
+    const boards = await page.evaluate(`return document.querySelectorAll('[role=grid]').length`);
+    check(boards === 1, 'the daily board mounts exactly once', `found ${boards} grids`);
+}
+
 (async () => {
     await preflight();
     const chrome = await launchChrome();
@@ -1069,6 +1102,7 @@ async function keyboardPlay(page) {
         await footerClearance(page);
         await rejoinOnReload(page);
         await keyboardPlay(page);
+        await daily(page);
         await themeContrast(page);
         await themeSprites(page);
         await themeSwatches(page);

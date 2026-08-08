@@ -10,6 +10,7 @@
  */
 export { default as Badge } from "./Badge";
 export { default as Button } from "./Button";
+export { default as ButtonLink } from "./ButtonLink";
 export { default as Dialog, DialogClose } from "./Dialog";
 export { default as Field } from "./Field";
 export { default as Input } from "./Input";
@@ -28,6 +29,7 @@ export { pointerClass } from "./pointer";
 
 export type { BadgeIntent, BadgeProps } from "./Badge";
 export type { ButtonIntent, ButtonProps, ButtonSize } from "./Button";
+export type { ButtonLinkProps } from "./ButtonLink";
 export type { DialogProps } from "./Dialog";
 export type { FieldProps } from "./Field";
 export type { InputProps } from "./Input";

@@ -89,6 +89,10 @@ const config: Config = {
                 "pixel-xl": ["var(--ms-text-xl)", { lineHeight: "var(--ms-leading-xl)" }],
                 "pixel-2xl": ["var(--ms-text-2xl)", { lineHeight: "var(--ms-leading-2xl)" }],
                 "pixel-4xl": ["var(--ms-text-4xl)", { lineHeight: "var(--ms-leading-4xl)" }],
+                // Prose, set in Inter rather than the pixel face — content
+                // pages only. See the token comment in app/tokens.css.
+                "body": ["var(--ms-text-body)", { lineHeight: "var(--ms-leading-body)" }],
+                "body-sm": ["var(--ms-text-body-sm)", { lineHeight: "var(--ms-leading-body-sm)" }],
             },
             borderWidth: {
                 pixel: "var(--ms-border-width)",

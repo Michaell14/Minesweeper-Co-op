@@ -355,6 +355,21 @@
     --ms-leading-xl: 28px;
     --ms-leading-2xl: 32px;
     --ms-leading-4xl: 40px;
+
+    /*
+     * The prose scale, for the content pages only.
+     *
+     * Separate from the scale above because it is set in a different face:
+     * everything else here is Press Start 2P, which is why those sizes are
+     * small integers with tight leading. Body copy is Inter (see `.ms-prose` in
+     * globals.css) and wants ordinary reading sizes and generous leading —
+     * feeding it the pixel scale gives 12px text at 16px leading, which is a
+     * caption, not a paragraph.
+     */
+    --ms-text-body: 16px;
+    --ms-text-body-sm: 14px;
+    --ms-leading-body: 28px;
+    --ms-leading-body-sm: 24px;
 }
 
 /* The board shrinks on small screens; the token moves, nothing else does. */
