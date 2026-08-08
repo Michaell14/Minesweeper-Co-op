@@ -200,6 +200,37 @@ const GEAR = {
 
 export const GearIcon = (props: PixelIconProps) => <PixelIcon art={GEAR} {...props} />;
 
+/**
+ * A star — the changelog. Filled with the warning intent (the yellow of most
+ * palettes) rather than a literal, so every theme keeps it legible.
+ */
+const STAR = {
+    palette: {
+        "#": "#333",
+        "w": "var(--ms-intent-warning)",
+    },
+    rows: [
+        "       ##       ",
+        "      #ww#      ",
+        "      #ww#      ",
+        "     #wwww#     ",
+        "     #wwww#     ",
+        "######wwww######",
+        "#wwwwwwwwwwwwww#",
+        " #wwwwwwwwwwww# ",
+        "  #wwwwwwwwww#  ",
+        "   #wwwwwwww#   ",
+        "   #wwwwwwww#   ",
+        "  #www####www#  ",
+        "  #ww#    #ww#  ",
+        " #ww#      #ww# ",
+        " ##          ## ",
+        "                ",
+    ],
+} as const;
+
+export const StarIcon = (props: PixelIconProps) => <PixelIcon art={STAR} {...props} />;
+
 const CALENDAR = {
     palette: {
         "#": "currentColor",

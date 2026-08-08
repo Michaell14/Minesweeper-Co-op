@@ -1,12 +1,13 @@
 'use client'
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { DIALOGS, openDialog } from '@/lib/dialogs';
-import { CoinIcon, Dialog, DialogClose, GearIcon, GithubIcon, UserIcon, UserSignedInIcon, pointerClass } from '@/components/ds';
+import { CoinIcon, Dialog, DialogClose, GearIcon, GithubIcon, StarIcon, UserIcon, UserSignedInIcon, pointerClass } from '@/components/ds';
 import AccountMenu from '@/components/AccountMenu';
 import { useMinesweeperStore } from '@/app/store';
+import { hasUnseenEntries, markChangelogSeen } from '@/lib/changelog';
 
 export default function Footer() {
     const playerJoined = useMinesweeperStore((s) => s.playerJoined);
@@ -17,6 +18,15 @@ export default function Footer() {
     const openAccountDialog = () => openDialog(DIALOGS.account);
 
     /*
+     * The changelog badge. Starts false so the first client render matches
+     * SSR (no hydration mismatch — the dot pops in after mount, fine for a
+     * notification). The Footer is mounted once in the layout, so the effect
+     * re-fires on every client-side navigation: landing on /changelog is what
+     * marks it seen, whether the player clicked the star or a direct link.
+     */
+    const [hasUnseen, setHasUnseen] = useState(false);
+
+    /*
      * The floating cluster belongs to the GAME page only: it is absolutely
      * positioned over the content column, so on any long document page
      * (/settings, /profile, whatever comes next) it overlaps the controls —
@@ -25,7 +35,29 @@ export default function Footer() {
      * rule that cannot repeat that. The DIALOGS below stay mounted on every
      * route: other pages open the account dialog imperatively.
      */
-    const showCluster = usePathname() === '/';
+    const pathname = usePathname();
+    const showCluster = pathname === '/';
+
+    useEffect(() => {
+        const refreshUnseenState = () => {
+            if (pathname === '/changelog') {
+                markChangelogSeen();
+                setHasUnseen(false);
+            } else {
+                setHasUnseen(hasUnseenEntries());
+            }
+        };
+
+        refreshUnseenState();
+        /*
+         * Seen-state is shared across tabs (that is why it is localStorage),
+         * so reading the changelog in one tab should clear the dot in the
+         * rest. The storage event fires only in OTHER tabs and only on real
+         * value changes, so this cannot loop.
+         */
+        window.addEventListener('storage', refreshUnseenState);
+        return () => window.removeEventListener('storage', refreshUnseenState);
+    }, [pathname]);
 
     /*
      * Floating is for the LANDING page only. Absolutely positioned, the
@@ -92,6 +124,21 @@ export default function Footer() {
                             : <UserIcon size={48} />}
                     </Link>
                 )}
+                <Link
+                    href="/changelog"
+                    aria-label="What's new"
+                    className={`relative inline-block ${pointerClass}`}>
+                    <StarIcon size={48} />
+                    {/* Square and unrounded on purpose — a round dot reads as
+                        anti-aliasing next to pixel icons. */}
+                    {hasUnseen && (
+                        <span
+                            aria-hidden="true"
+                            data-testid="changelog-unseen-dot"
+                            className="absolute top-0 right-0 w-2.5 h-2.5 bg-error"
+                        />
+                    )}
+                </Link>
                 <Link href="/settings" aria-label="Settings" className={pointerClass}>
                     <GearIcon size={48} />
                 </Link>
