@@ -1,6 +1,6 @@
 'use client'
 import React from 'react';
-import { Badge, Panel } from '@/components/ds';
+import { Badge, Panel, pointerClass } from '@/components/ds';
 import { ACHIEVEMENTS, metricsFrom, progressOf } from '@/shared/achievements';
 import { formatDate } from '@/lib/formatDate';
 import type { EarnedAchievement, ProfileStats } from '@/lib/statsApi';
@@ -17,6 +17,11 @@ import type { EarnedAchievement, ProfileStats } from '@/lib/statsApi';
  *
  * A HIDDEN entry shows neither name nor description until it is earned. It
  * still occupies a tile, so the shelf's size is honest about what is left.
+ *
+ * Collapsed by default, because a full catalog of tiles buries the panels
+ * below it. A native `<details>` rather than a button and conditional render:
+ * keyboard operation, the disclosure role and the expanded state come with the
+ * element, and none of them can drift out of step with each other later.
  */
 
 interface AchievementsPanelProps {
@@ -40,19 +45,46 @@ export default function AchievementsPanel({
 
     const earnedCount = ACHIEVEMENTS.filter((a) => earnedAt.has(a.id)).length;
 
+    /*
+     * Opens itself when there is something new behind it — otherwise the "New"
+     * badges announce an unlock to a panel the player has to think to open,
+     * which is the one case collapsing must not cost anything.
+     */
+    const hasNews = !!highlighted && highlighted.size > 0;
+
     return (
         <section aria-labelledby="profile-achievements" className="mb-8">
             <Panel title={<span id="profile-achievements">Achievements</span>}>
-                <p className="text-pixel-sm" role="status" aria-label="Achievements earned">
-                    🏆 <strong>{earnedCount}</strong> of {ACHIEVEMENTS.length} earned
-                </p>
+                <details className="group" open={hasNews}>
+                    <summary
+                        /*
+                         * `list-none` kills the marker in Chrome and Firefox;
+                         * Safari needs the -webkit pseudo-element too. `py-2`
+                         * is the tap target, not decoration: one line of
+                         * text-pixel-sm is 16px tall, well under the 24px
+                         * minimum, and this is the only control on the panel.
+                         *
+                         * The row layout hangs off an inner span so this stays
+                         * `display: list-item` — a summary given `display:
+                         * flex` loses its disclosure triangle in Safari, and
+                         * the marker is the affordance the chevron replaces.
+                         */
+                        className={`text-pixel-sm py-2 list-none [&::-webkit-details-marker]:hidden ${pointerClass}`}>
+                        <span className="flex items-center gap-2">
+                            <span aria-hidden="true" className="group-open:hidden">▸</span>
+                            <span aria-hidden="true" className="hidden group-open:inline">▾</span>
+                            <span>
+                                🏆 <strong>{earnedCount}</strong> of {ACHIEVEMENTS.length} earned
+                            </span>
+                        </span>
+                    </summary>
 
-                <ul
-                    className="grid grid-cols-1 sm:grid-cols-2 gap-2 list-none p-0 mt-4 mb-0"
-                    /* Explicit despite the tag: WebKit strips list semantics
-                       from any list-style:none list. */
-                    role="list"
-                    aria-label="Achievements">
+                    <ul
+                        className="grid grid-cols-1 sm:grid-cols-2 gap-2 list-none p-0 mt-4 mb-0"
+                        /* Explicit despite the tag: WebKit strips list semantics
+                           from any list-style:none list. */
+                        role="list"
+                        aria-label="Achievements">
                     {ACHIEVEMENTS.map((achievement) => {
                         const earned = earnedAt.get(achievement.id);
                         const secret = achievement.hidden && !earned;
@@ -124,7 +156,8 @@ export default function AchievementsPanel({
                             </li>
                         );
                     })}
-                </ul>
+                    </ul>
+                </details>
             </Panel>
         </section>
     );

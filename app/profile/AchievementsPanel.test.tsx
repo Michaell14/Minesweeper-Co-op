@@ -5,7 +5,7 @@
  * derived from something other than what the server awards on.
  */
 import React from 'react';
-import { render, screen, cleanup } from '@testing-library/react';
+import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import AchievementsPanel from './AchievementsPanel';
@@ -31,17 +31,23 @@ const renderPanel = (props: Partial<React.ComponentProps<typeof AchievementsPane
         />,
     );
 
+/*
+ * NOTE for everything below: jsdom does not hide the contents of a CLOSED
+ * <details>, so these queries find tiles a real browser would not paint. That
+ * makes the assertions here about content and naming only — whether collapsing
+ * actually hides anything is a browser question, not a jsdom one.
+ */
 describe('the shelf', () => {
     it('draws every catalog entry, earned or not', () => {
         renderPanel();
         expect(screen.getAllByRole('listitem')).toHaveLength(ACHIEVEMENTS.length);
     });
 
-    it('counts what has been earned', () => {
-        renderPanel({
+    it('counts what has been earned, on the summary you click', () => {
+        const { container } = renderPanel({
             achievements: [{ id: 'first-clear', earnedAt: '2026-08-01T09:00:00.000Z' }],
         });
-        expect(screen.getByLabelText('Achievements earned').textContent).toContain(
+        expect(container.querySelector('summary')?.textContent).toContain(
             `1 of ${ACHIEVEMENTS.length}`,
         );
     });
@@ -81,6 +87,47 @@ describe('the shelf', () => {
         renderPanel({ stats: { ...NOBODY, coopWins: 99 } });
         expect(screen.getByRole('listitem', { name: 'Sweeper — earned on your next game' })).toBeTruthy();
         expect(screen.queryByText('10 / 10')).toBeNull();
+    });
+});
+
+describe('collapsing', () => {
+    const details = (c: HTMLElement) => c.querySelector('details') as HTMLDetailsElement;
+
+    it('starts collapsed, so the shelf does not bury the panels below it', () => {
+        const { container } = renderPanel();
+        expect(details(container).open).toBe(false);
+    });
+
+    it('opens and closes from the summary', () => {
+        const { container } = renderPanel();
+        const summary = container.querySelector('summary')!;
+
+        fireEvent.click(summary);
+        expect(details(container).open).toBe(true);
+
+        fireEvent.click(summary);
+        expect(details(container).open).toBe(false);
+    });
+
+    /*
+     * The one case collapsing must not cost anything: the "New" badges are the
+     * whole payoff of earning something, and they are useless behind a panel
+     * the player has to think to open.
+     */
+    it('starts open when something is new since the last visit', () => {
+        const { container } = renderPanel({
+            achievements: [{ id: 'sweeper', earnedAt: '2026-08-08T09:00:00.000Z' }],
+            highlighted: new Set(['sweeper']),
+        });
+        expect(details(container).open).toBe(true);
+    });
+
+    it('stays collapsed when the only earned entries are already seen', () => {
+        const { container } = renderPanel({
+            achievements: [{ id: 'sweeper', earnedAt: '2026-08-08T09:00:00.000Z' }],
+            highlighted: new Set(),
+        });
+        expect(details(container).open).toBe(false);
     });
 });
 
