@@ -6,7 +6,7 @@
  * the icon, but the name is what screen readers and the smoke suite go by.
  */
 import React from 'react';
-import { render, screen, cleanup } from '@testing-library/react';
+import { render, screen, cleanup, act } from '@testing-library/react';
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 
 const mockUseSession = vi.fn();
@@ -14,8 +14,9 @@ vi.mock('next-auth/react', () => ({
     useSession: () => mockUseSession(),
 }));
 
+const mockUsePathname = vi.fn(() => '/');
 vi.mock('next/navigation', () => ({
-    usePathname: () => '/',
+    usePathname: () => mockUsePathname(),
 }));
 
 // The dialogs under AccountMenu have their own tests; keep this one about
@@ -30,12 +31,59 @@ vi.mock('@/app/store', () => ({
 }));
 
 import Footer from './Footer';
+import { LATEST_ENTRY_DATE } from '@/lib/changelog';
 
 beforeEach(() => {
     mockUseSession.mockReset();
+    mockUseSession.mockReturnValue({ data: null, status: 'unauthenticated' });
+    mockUsePathname.mockReset();
+    mockUsePathname.mockReturnValue('/');
+    localStorage.clear();
 });
 
 afterEach(cleanup);
+
+describe('the changelog star', () => {
+    it('links to /changelog', () => {
+        render(<Footer />);
+        const link = screen.getByRole('link', { name: "What's new" }) as HTMLAnchorElement;
+        expect(link.getAttribute('href')).toBe('/changelog');
+    });
+
+    it('shows the dot to a player who has never seen the changelog', () => {
+        render(<Footer />);
+        expect(screen.getByTestId('changelog-unseen-dot')).toBeTruthy();
+    });
+
+    it('shows the dot again once a newer entry exists than the one last seen', () => {
+        localStorage.setItem('minesweeper_changelog_last_seen', '2020-01-01');
+        render(<Footer />);
+        expect(screen.getByTestId('changelog-unseen-dot')).toBeTruthy();
+    });
+
+    it('hides the dot from a player who is up to date', () => {
+        localStorage.setItem('minesweeper_changelog_last_seen', LATEST_ENTRY_DATE);
+        render(<Footer />);
+        expect(screen.queryByTestId('changelog-unseen-dot')).toBeNull();
+    });
+
+    it('marks the changelog seen when the player lands on it', () => {
+        mockUsePathname.mockReturnValue('/changelog');
+        render(<Footer />);
+        expect(localStorage.getItem('minesweeper_changelog_last_seen')).toBe(LATEST_ENTRY_DATE);
+    });
+
+    it('clears the dot when another tab reads the changelog', () => {
+        render(<Footer />);
+        expect(screen.getByTestId('changelog-unseen-dot')).toBeTruthy();
+        // What the browser fires here when a second tab writes the key.
+        act(() => {
+            localStorage.setItem('minesweeper_changelog_last_seen', LATEST_ENTRY_DATE);
+            window.dispatchEvent(new StorageEvent('storage', { key: 'minesweeper_changelog_last_seen' }));
+        });
+        expect(screen.queryByTestId('changelog-unseen-dot')).toBeNull();
+    });
+});
 
 describe('the user icon', () => {
     it('signed out: a button that opens the sign-in dialog', () => {

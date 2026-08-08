@@ -1,6 +1,7 @@
 "use client";
 
 import React from 'react';
+import Link from 'next/link';
 
 /** The dismissable strip above the title. Owns its own visibility. */
 export default function AnnouncementBanner() {
@@ -13,14 +14,10 @@ export default function AnnouncementBanner() {
             role="banner"
             aria-label="Website milestone announcement">
             <p className="text-pixel-2xs md:text-pixel-sm m-0">
-                Daily Challenge just dropped! One board, everyone plays it, ranked by time. Got feedback?{' '}
-                <a
-                    href="https://forms.gle/ALpScH8K7K2QsA8M7"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="underline hover:text-ink-muted-hover">
-                    Tell us!
-                </a>
+                Daily Challenge just dropped! One board, everyone plays it, ranked by time.{' '}
+                <Link href="/changelog" className="underline hover:text-ink-muted-hover">
+                    See what&apos;s new
+                </Link>
             </p>
             <button
                 onClick={() => setVisible(false)}

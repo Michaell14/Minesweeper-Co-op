@@ -117,7 +117,9 @@ export default function RootLayout({
             the default flash on every load. <html> carries
             suppressHydrationWarning, which is what lets this mutate it safely. */}
         <script dangerouslySetInnerHTML={{ __html: NO_FLASH_SCRIPT }} />
-        <link rel="canonical" href="https://www.minesweepercoop.com" />
+        {/* No raw canonical here: metadata.alternates.canonical emits it for
+            the homepage, and a hardcoded tag would render on every route,
+            claiming each one is a duplicate of /. */}
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="theme-color" content="#ffffff" />
         <script
