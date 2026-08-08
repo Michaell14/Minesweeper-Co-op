@@ -123,29 +123,33 @@ export const GithubIcon = (props: PixelIconProps) => <PixelIcon art={GITHUB} {..
 export const CoinIcon = (props: PixelIconProps) => <PixelIcon art={COIN} {...props} />;
 export const TrophyIcon = (props: PixelIconProps) => <PixelIcon art={TROPHY} {...props} />;
 
-/** Head and shoulders — the account menu. */
+/**
+ * An avatar: a bust cropped inside a circle — the shape every app uses for
+ * "your account", which a bare figure never reads as. The footer's way into
+ * sign-in and the profile.
+ */
 const USER = {
     palette: {
         "#": "#333",
         "w": "#fff",
     },
     rows: [
-        "                ",
         "     ######     ",
-        "    #wwwwww#    ",
-        "    #wwwwww#    ",
-        "    #wwwwww#    ",
-        "    #wwwwww#    ",
-        "     ######     ",
-        "      #ww#      ",
-        "   ####ww####   ",
+        "   ##wwwwww##   ",
         "  #wwwwwwwwww#  ",
-        " #wwwwwwwwwwww# ",
-        " #wwwwwwwwwwww# ",
-        " #wwwwwwwwwwww# ",
-        " #wwwwwwwwwwww# ",
+        " #wwww####wwww# ",
+        " #www######www# ",
+        "#wwww######wwww#",
+        "#wwww######wwww#",
+        "#wwwww####wwwww#",
+        "#www########www#",
+        "#ww##########ww#",
+        "#w############w#",
         " ############## ",
-        "                ",
+        " ############## ",
+        "  ############  ",
+        "   ##########   ",
+        "     ######     ",
     ],
 } as const;
 
