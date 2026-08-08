@@ -6,23 +6,28 @@ import DailyClient from './DailyClient';
 import { useMinesweeperStore } from '@/app/store';
 
 /**
- * The socket is the whole point of `useGameSession`, and none of it is what
- * this file is about: these tests are here because the intro must NOT start an
- * attempt, and because the button that does start one has to keep resolving by
- * name. Both fail silently — a page that quietly burns the visitor's one attempt
- * for the day looks exactly like a page that does not.
+ * The socket is the whole point of `useGameSession` and none of it is what this
+ * file is about. These tests exist for the things that fail SILENTLY: a page
+ * that quietly spends the visitor's one attempt for the day looks exactly like
+ * one that does not, and a player still holding a room behind the daily view
+ * looks exactly like one who left it.
  */
 const startDaily = vi.fn();
 const leaveDaily = vi.fn();
+const leaveRoom = vi.fn();
+const cancelMatch = vi.fn();
 const push = vi.fn();
+
+/** Swapped per test to model `useSocket` before and after its effect runs. */
+let mockSocket: unknown = { id: 'test-socket' };
 
 // jsdom has no app-router context, so useRouter throws on sight.
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push }) }));
 
 vi.mock('@/hooks/useGameSession', () => ({
     useGameSession: () => ({
-        socket: null,
-        actions: new Proxy({ startDaily, leaveDaily }, {
+        socket: mockSocket,
+        actions: new Proxy({ startDaily, leaveDaily, leaveRoom, cancelMatch }, {
             get: (target: Record<string, unknown>, key: string) => target[key] ?? (() => {}),
         }),
     }),
@@ -30,15 +35,17 @@ vi.mock('@/hooks/useGameSession', () => ({
 
 const intro = <h1>Minesweeper Daily Challenge</h1>;
 
-const playButton = () => screen.queryByRole('link', { name: /daily challenge/i })
-    ?? screen.queryByRole('button', { name: /daily challenge/i });
+const playButton = () => screen.getByRole('button', { name: /daily challenge/i });
 
 beforeEach(() => {
-    startDaily.mockClear();
-    leaveDaily.mockClear();
-    push.mockClear();
+    [startDaily, leaveDaily, leaveRoom, cancelMatch, push].forEach((m) => m.mockClear());
+    mockSocket = { id: 'test-socket' };
     act(() => {
-        useMinesweeperStore.getState().setDailyActive(false);
+        const store = useMinesweeperStore.getState();
+        store.setDailyActive(false);
+        store.setDailyStatus('idle');
+        store.setPlayerJoined(false);
+        store.setMatchSearching(false);
     });
 });
 
@@ -60,36 +67,106 @@ describe('/daily before the player opts in', () => {
     test('the play button starts the attempt', () => {
         render(<DailyClient intro={intro} />);
 
-        const button = playButton();
-        expect(button).toBeTruthy();
+        fireEvent.click(playButton());
 
-        fireEvent.click(button!);
+        expect(startDaily).toHaveBeenCalledTimes(1);
+    });
+
+    /*
+     * `startDaily` returns silently without a socket, and the button is live
+     * from hydration — a click in that gap did nothing and said nothing.
+     */
+    test('a click before the socket exists still starts once it arrives', () => {
+        mockSocket = null;
+        const { rerender } = render(<DailyClient intro={intro} />);
+
+        fireEvent.click(playButton());
+        expect(startDaily).not.toHaveBeenCalled();
+
+        mockSocket = { id: 'test-socket' };
+        rerender(<DailyClient intro={intro} />);
+
         expect(startDaily).toHaveBeenCalledTimes(1);
     });
 });
 
-describe('/daily once the attempt is active', () => {
+/*
+ * The daily and a room are mutually exclusive views sharing one board field.
+ * hooks/useGameEvents.ts refuses a SESSION_RESUME offer while `dailyActive` is
+ * set, so this route has to raise it for the INTRO too, not just the board —
+ * otherwise a resume is accepted behind the intro and the player is silently
+ * still in the room they walked out of.
+ */
+describe('/daily is exclusive with a room', () => {
+    test('marks the daily view active on arrival, before any board exists', () => {
+        render(<DailyClient intro={intro} />);
+
+        expect(useMinesweeperStore.getState().dailyActive).toBe(true);
+    });
+
+    test('leaves the room when arriving from one', () => {
+        act(() => {
+            useMinesweeperStore.getState().setPlayerJoined(true);
+        });
+
+        render(<DailyClient intro={intro} />);
+
+        // PLAYER_LEAVE is what calls forgetRoom server-side; without it the
+        // session stays resumable and the next connection is offered it back.
+        expect(leaveRoom).toHaveBeenCalledTimes(1);
+    });
+
+    test('leaves the quick-match queue when arriving from one', () => {
+        act(() => {
+            useMinesweeperStore.getState().setMatchSearching(true);
+        });
+
+        render(<DailyClient intro={intro} />);
+
+        expect(cancelMatch).toHaveBeenCalledTimes(1);
+    });
+
+    test('leaves nothing when arriving with no room and no search', () => {
+        render(<DailyClient intro={intro} />);
+
+        expect(leaveRoom).not.toHaveBeenCalled();
+        expect(cancelMatch).not.toHaveBeenCalled();
+    });
+
+    test('clears the daily view on navigating away', () => {
+        const { unmount } = render(<DailyClient intro={intro} />);
+        leaveDaily.mockClear();
+
+        unmount();
+
+        // The full leave, not just the daily slice: a run clock left standing
+        // gets recorded by the next room that announces a win.
+        expect(leaveDaily).toHaveBeenCalled();
+    });
+});
+
+describe('/daily once the attempt is loaded', () => {
     test('swaps the intro for the board', () => {
         render(<DailyClient intro={intro} />);
 
         act(() => {
-            useMinesweeperStore.getState().setDailyActive(true);
+            useMinesweeperStore.getState().setDailyStatus('ready');
         });
 
         expect(screen.queryByRole('heading', { name: 'Minesweeper Daily Challenge' })).toBeNull();
     });
 
     /*
-     * The button says "Return to Home", and on its own route clearing
-     * `dailyActive` alone lands on this page's intro instead — a control that
-     * quietly stopped doing what it says. Clearing still has to happen too: a
-     * clock left running gets recorded as a run the browser played.
+     * The button says "Return to Home", and on its own route clearing the daily
+     * state alone lands on this page's intro instead — a control that quietly
+     * stopped doing what it says.
      */
     test('leaving clears daily state AND goes home, as the button promises', () => {
         render(<DailyClient intro={intro} />);
         act(() => {
-            useMinesweeperStore.getState().setDailyActive(true);
+            useMinesweeperStore.getState().setDailyStatus('ready');
         });
+        leaveDaily.mockClear();
 
         fireEvent.click(screen.getByRole('button', {
             name: 'Leave daily challenge and return to home page',
