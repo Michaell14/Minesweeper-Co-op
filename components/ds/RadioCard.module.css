@@ -39,7 +39,16 @@
     overflow: visible;
 }
 
+/*
+ * `position: relative` is load-bearing, not decoration: it makes the card the
+ * containing block for the clipped `.input` below. Without it the input resolves
+ * against the initial containing block, so a card scrolled past the viewport put
+ * its input's overflow on the DOCUMENT rather than inside `.scrollable` —
+ * widening the layout viewport, which every `position: fixed` element then
+ * centres on. See the note on `.input`.
+ */
 .card {
+    position: relative;
     flex: 1 1 0%;
     border-radius: 4px;
     background-color: var(--ms-surface-option);
@@ -47,7 +56,9 @@
     cursor: pointer;
 }
 
-/* The native input drives state and focus but is never seen. */
+/* The native input drives state and focus but is never seen. Its containing
+ * block must stay the card — `clip` hides it but does not stop it counting
+ * towards scrollable overflow. */
 .input {
     position: absolute;
     width: 1px;

@@ -343,6 +343,43 @@ async function mobileFit(page) {
     await page.goto(CLIENT);
     await page.waitFor(`!!document.querySelector('form[aria-label="Create new room form"] button[type=submit]')`,
         { timeout: 60000, label: 'landing renders at phone width' });
+
+    /*
+     * Nothing may overflow the DOCUMENT on the landing page.
+     *
+     * On a real phone Chrome widens the layout viewport to cover whatever
+     * overflows the documentElement, and every `position: fixed` element then
+     * centres on that instead of on the visible content — 442px of layout for
+     * 375px of page. The cause was the option cards' clipped radio inputs:
+     * absolutely positioned with no positioned ancestor, so their containing
+     * block was the ICB, and a card scrolled past the fold put its overflow on
+     * the document rather than inside `.scrollable`.
+     *
+     * Measured against the BODY, not `window.innerWidth`. The two are the same
+     * here only because the harness runs `mobile: false` (see above), which
+     * skips the viewport-meta handling that does the widening — so the real
+     * symptom cannot be reproduced in this suite at all, and `scrollWidth <=
+     * innerWidth` below would have been satisfied by the very growth it was
+     * meant to catch. The overflow underneath it is what is checkable.
+     *
+     * Has to run HERE, before the room: the cards are a landing-page control
+     * and are gone by the time a board is mounted.
+     */
+    const landing = JSON.parse(await page.evaluate(`
+        return JSON.stringify({
+            body: document.body.clientWidth,
+            docScroll: document.documentElement.scrollWidth,
+            widest: [...document.querySelectorAll('body *')]
+                .filter((e) => e.getBoundingClientRect().right > document.body.clientWidth)
+                .map((e) => e.tagName + '.' + String(e.className).slice(0, 30))
+                .slice(0, 3),
+        });
+    `));
+    check(landing.docScroll <= landing.body,
+        `the landing page does not overflow the document (${landing.body}px)`,
+        `documentElement scrolls to ${landing.docScroll}px in a ${landing.body}px body`
+        + (landing.widest.length ? ` — past the edge: ${landing.widest.join(', ')}` : ''));
+
     await enterRoom(page, { room, name: 'Mobile' });
     await page.waitFor(`document.querySelectorAll('[role=gridcell]').length === 256`,
         { label: 'board renders at phone width' });
