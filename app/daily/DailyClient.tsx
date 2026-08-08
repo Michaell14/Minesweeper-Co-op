@@ -7,6 +7,7 @@ import { Button, CalendarIcon } from "@/components/ds";
 import DailyChallenge from "@/components/DailyChallenge";
 import DailyDialogs from "@/components/dialogs/DailyDialogs";
 import { useGameSession } from "@/hooks/useGameSession";
+import { clearImmediatePlay, wantsImmediatePlay } from "@/lib/dailyLink";
 
 /**
  * The interactive half of /daily.
@@ -104,6 +105,29 @@ export default function DailyClient({ intro }: { intro: React.ReactNode }) {
         startDaily();
     }, [socket, startDaily]);
 
+    /*
+     * Arriving with the play intent (lib/dailyLink.ts) skips the intro entirely:
+     * the control that sent them here already said "Play Today's Puzzle", and
+     * meeting them with prose and a second button of the same name is a step
+     * that reads as the first click not having worked.
+     *
+     * `autoStarting` is separate from the pending-click ref because it also has
+     * to suppress the intro. Waiting for the board without it would leave the
+     * whole page of copy on screen for a socket round trip, which is the flash
+     * this exists to remove — one frame of it survives regardless, since the
+     * route is statically rendered and the intro is what hydrates.
+     */
+    const [autoStarting, setAutoStarting] = React.useState(false);
+    const autoStarted = React.useRef(false);
+
+    React.useEffect(() => {
+        if (autoStarted.current || !wantsImmediatePlay()) return;
+        autoStarted.current = true;
+        setAutoStarting(true);
+        clearImmediatePlay();
+        requestStart();
+    }, [requestStart]);
+
     const leaveDaily = React.useCallback(() => {
         clearDailyState();
         router.push("/");
@@ -119,6 +143,12 @@ export default function DailyClient({ intro }: { intro: React.ReactNode }) {
                     dailyToggleFlag={actions.dailyToggleFlag}
                     getDailyLeaderboard={actions.getDailyLeaderboard}
                 />
+            ) : autoStarting ? (
+                <p
+                    role="status"
+                    className="mx-auto w-full max-w-2xl px-4 py-16 text-center text-pixel-md text-ink-muted">
+                    Loading today&apos;s board…
+                </p>
             ) : (
                 <>
                     {intro}
