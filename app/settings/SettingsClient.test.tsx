@@ -250,11 +250,14 @@ describe('the account section', () => {
         expect(screen.getByRole('button', { name: 'Sign in' })).toBeTruthy();
     });
 
-    it('signed in: explains sync and offers account management', () => {
+    it('signed in: explains sync and links to the profile', () => {
         mockUseSession.mockReturnValue({ data: { user: {} }, status: 'authenticated' });
         render(<SettingsClient />);
         expect(screen.getByText(/sync to your account/i)).toBeTruthy();
-        expect(screen.getByRole('button', { name: 'Manage account' })).toBeTruthy();
+        const link = screen.getByRole('link', { name: 'View your profile' }) as HTMLAnchorElement;
+        expect(link.getAttribute('href')).toBe('/profile');
+        // Account management moved to /profile — no dialog opener here.
+        expect(screen.queryByRole('button', { name: 'Sign in' })).toBeNull();
     });
 });
 

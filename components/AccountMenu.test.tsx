@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 /**
- * The account dialogs' three states, by accessible name — what fails silently
- * here is a sign-in button whose provider stops resolving, or a rename control
- * that loses its name. Sign-in/out themselves are full-page redirects, so the
- * assertions stop at "the right control calls the right function".
+ * The sign-in dialog by accessible name — what fails silently here is a
+ * sign-in button whose provider stops resolving. Sign-in itself is a
+ * full-page redirect, so the assertions stop at "the right control calls the
+ * right function". Account management (rename, sign out, delete) lives on
+ * /profile now — see app/profile/AccountPanel.test.tsx.
  */
 import React from 'react';
 import { render, screen, waitFor, fireEvent, cleanup } from '@testing-library/react';
@@ -11,33 +12,18 @@ import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 
 const mockUseSession = vi.fn();
 const mockSignIn = vi.fn();
-const mockSignOut = vi.fn();
 const mockGetProviders = vi.fn();
 vi.mock('next-auth/react', () => ({
     useSession: () => mockUseSession(),
     signIn: (...args: unknown[]) => mockSignIn(...args),
-    signOut: (...args: unknown[]) => mockSignOut(...args),
     getProviders: () => mockGetProviders(),
 }));
 
-// The Profile button navigates; outside a real Next router the hook throws.
+// The signed-in safety net navigates; outside a real Next router the hook throws.
 const mockPush = vi.fn();
 vi.mock('next/navigation', () => ({
     useRouter: () => ({ push: mockPush }),
 }));
-
-const mockFetchProfile = vi.fn();
-const mockUpdateDisplayName = vi.fn();
-const mockDeleteAccount = vi.fn();
-vi.mock('@/lib/profileApi', async () => {
-    const actual = await vi.importActual<typeof import('@/lib/profileApi')>('@/lib/profileApi');
-    return {
-        ProfileApiError: actual.ProfileApiError,
-        fetchProfile: (...args: unknown[]) => mockFetchProfile(...args),
-        updateDisplayName: (...args: unknown[]) => mockUpdateDisplayName(...args),
-        deleteAccount: (...args: unknown[]) => mockDeleteAccount(...args),
-    };
-});
 
 import AccountMenu from './AccountMenu';
 import { DIALOGS } from '@/lib/dialogs';
@@ -57,22 +43,11 @@ const renderOpen = (id: string = DIALOGS.account) => {
     return result;
 };
 
-const PROFILE = {
-    id: 'uuid-1',
-    provider: 'github',
-    email: 'm@example.com',
-    displayName: 'Michael',
-    createdAt: '2026-08-02',
-};
-
 beforeEach(() => {
     mockUseSession.mockReset();
     mockSignIn.mockReset();
-    mockSignOut.mockReset();
     mockGetProviders.mockReset();
-    mockFetchProfile.mockReset();
-    mockUpdateDisplayName.mockReset();
-    mockDeleteAccount.mockReset();
+    mockPush.mockReset();
 });
 
 afterEach(cleanup);
@@ -106,89 +81,15 @@ describe('signed out', () => {
 });
 
 describe('signed in', () => {
-    beforeEach(() => {
+    it('points at the profile instead of dead-ending', () => {
         mockUseSession.mockReturnValue({ data: { user: {} }, status: 'authenticated' });
-    });
-
-    it('loads the profile and shows the rename control', async () => {
-        mockFetchProfile.mockResolvedValue(PROFILE);
         renderOpen();
+        // jsdom's <dialog> has no close(); the click below closes-then-navigates.
+        const dialog = document.getElementById(DIALOGS.account) as HTMLDialogElement;
+        dialog.close = () => { dialog.open = false; };
 
-        const input = (await screen.findByRole('textbox', {
-            name: 'Display name',
-        })) as HTMLInputElement;
-        expect(input.value).toBe('Michael');
-        expect(screen.getByText(/signed in with GitHub as m@example\.com/i)).toBeTruthy();
-        expect(screen.getByRole('button', { name: 'Sign out' })).toBeTruthy();
-        expect(screen.getByRole('button', { name: 'Delete account…' })).toBeTruthy();
-    });
-
-    it('saves a rename and confirms it', async () => {
-        mockFetchProfile.mockResolvedValue(PROFILE);
-        mockUpdateDisplayName.mockResolvedValue({ ...PROFILE, displayName: 'Miguel' });
-        renderOpen();
-
-        const input = await screen.findByRole('textbox', { name: 'Display name' });
-        fireEvent.change(input, { target: { value: 'Miguel' } });
-        fireEvent.click(screen.getByRole('button', { name: 'Save' }));
-
-        await waitFor(() => expect(screen.getByRole('status').textContent).toBe('Saved!'));
-        expect(mockUpdateDisplayName).toHaveBeenCalledWith('Miguel');
-    });
-
-    it('surfaces a refused rename without closing anything', async () => {
-        const { ProfileApiError } = await vi.importActual<typeof import('@/lib/profileApi')>(
-            '@/lib/profileApi',
-        );
-        mockFetchProfile.mockResolvedValue(PROFILE);
-        mockUpdateDisplayName.mockRejectedValue(new ProfileApiError('Invalid display name', 400));
-        renderOpen();
-
-        fireEvent.click(await screen.findByRole('button', { name: 'Save' }));
-
-        await waitFor(() =>
-            expect(screen.getByRole('alert').textContent).toBe('Invalid display name'),
-        );
-    });
-
-    it('degrades to the unavailable message when the game server cannot answer', async () => {
-        mockFetchProfile.mockResolvedValue(null);
-        renderOpen();
-        await waitFor(() =>
-            expect(screen.getByText(/could not be loaded right now/i)).toBeTruthy(),
-        );
-        // Sign-out must stay reachable even with no profile to show.
-        expect(screen.getByRole('button', { name: 'Sign out' })).toBeTruthy();
-    });
-
-    it('deletes the account then ends the session', async () => {
-        mockFetchProfile.mockResolvedValue(PROFILE);
-        mockDeleteAccount.mockResolvedValue(true);
-        mockSignOut.mockResolvedValue(undefined);
-        renderOpen();
-        await screen.findByRole('textbox', { name: 'Display name' });
-        openById(DIALOGS.accountDelete);
-
-        fireEvent.click(screen.getByRole('button', { name: 'Delete forever' }));
-
-        await waitFor(() => expect(mockDeleteAccount).toHaveBeenCalled());
-        await waitFor(() =>
-            expect(mockSignOut).toHaveBeenCalledWith({ callbackUrl: '/' }),
-        );
-    });
-
-    it('keeps the session when deletion fails, and says why', async () => {
-        mockFetchProfile.mockResolvedValue(PROFILE);
-        mockDeleteAccount.mockResolvedValue(false);
-        renderOpen();
-        await screen.findByRole('textbox', { name: 'Display name' });
-        openById(DIALOGS.accountDelete);
-
-        fireEvent.click(screen.getByRole('button', { name: 'Delete forever' }));
-
-        await waitFor(() =>
-            expect(screen.getByRole('alert').textContent).toMatch(/could not delete/i),
-        );
-        expect(mockSignOut).not.toHaveBeenCalled();
+        fireEvent.click(screen.getByRole('button', { name: 'View your profile' }));
+        expect(mockPush).toHaveBeenCalledWith('/profile');
+        expect(mockGetProviders).not.toHaveBeenCalled();
     });
 });

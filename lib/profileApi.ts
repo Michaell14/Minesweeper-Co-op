@@ -20,6 +20,13 @@ export interface ProfileUser {
     createdAt: string;
 }
 
+/** Provider ids rendered for humans. Falls back to the raw id. */
+const PROVIDER_LABELS: Record<string, string> = {
+    github: "GitHub",
+    google: "Google",
+};
+export const providerLabel = (id: string) => PROVIDER_LABELS[id] ?? id;
+
 export class ProfileApiError extends Error {
     status: number;
     constructor(message: string, status: number) {

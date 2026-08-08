@@ -151,6 +151,23 @@ const USER = {
 
 export const UserIcon = (props: PixelIconProps) => <PixelIcon art={USER} {...props} />;
 
+/**
+ * The same head and shoulders, filled with the primary intent — the footer's
+ * signed-in state, where the icon links to /profile instead of opening the
+ * sign-in dialog. A token, not a literal, so every palette keeps it legible.
+ */
+const USER_SIGNED_IN = {
+    palette: {
+        "#": "#333",
+        "w": "var(--ms-intent-primary)",
+    },
+    rows: USER.rows,
+} as const;
+
+export const UserSignedInIcon = (props: PixelIconProps) => (
+    <PixelIcon art={USER_SIGNED_IN} {...props} />
+);
+
 /** A gear — the settings page. */
 const GEAR = {
     palette: {

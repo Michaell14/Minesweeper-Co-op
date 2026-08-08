@@ -2,14 +2,16 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import { DIALOGS, openDialog } from '@/lib/dialogs';
-import { CoinIcon, Dialog, DialogClose, GearIcon, GithubIcon, UserIcon, pointerClass } from '@/components/ds';
+import { CoinIcon, Dialog, DialogClose, GearIcon, GithubIcon, UserIcon, UserSignedInIcon, pointerClass } from '@/components/ds';
 import AccountMenu from '@/components/AccountMenu';
 import { useMinesweeperStore } from '@/app/store';
 
 export default function Footer() {
     const playerJoined = useMinesweeperStore((s) => s.playerJoined);
     const dailyActive = useMinesweeperStore((s) => s.dailyActive);
+    const { status } = useSession();
 
     const openGuideDialog = () => openDialog(DIALOGS.guide);
     const openAccountDialog = () => openDialog(DIALOGS.account);
@@ -62,13 +64,34 @@ export default function Footer() {
                     className={pointerClass}>
                     <CoinIcon size={48} />
                 </button>
-                <button
-                    type="button"
-                    onClick={openAccountDialog}
-                    aria-label="Account"
-                    className={pointerClass}>
-                    <UserIcon size={48} />
-                </button>
+                {/*
+                  * Signed in, the user icon IS the profile: it links straight
+                  * to /profile (tinted so the state is visible). While the
+                  * session is still RESOLVING it links there too, untinted —
+                  * the right destination for a signed-in player, a sign-in
+                  * invite for a signed-out one — because treating "unknown"
+                  * as signed-out would flash the wrong control at every
+                  * signed-in player on every load. Only known-signed-out gets
+                  * the dialog button.
+                  */}
+                {status === 'unauthenticated' ? (
+                    <button
+                        type="button"
+                        onClick={openAccountDialog}
+                        aria-label="Sign in"
+                        className={pointerClass}>
+                        <UserIcon size={48} />
+                    </button>
+                ) : (
+                    <Link
+                        href="/profile"
+                        aria-label={status === 'authenticated' ? 'Profile' : 'Account'}
+                        className={pointerClass}>
+                        {status === 'authenticated'
+                            ? <UserSignedInIcon size={48} />
+                            : <UserIcon size={48} />}
+                    </Link>
+                )}
                 <Link href="/settings" aria-label="Settings" className={pointerClass}>
                     <GearIcon size={48} />
                 </Link>

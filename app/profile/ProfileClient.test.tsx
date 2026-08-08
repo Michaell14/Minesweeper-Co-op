@@ -11,6 +11,7 @@ import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 const mockUseSession = vi.fn();
 vi.mock('next-auth/react', () => ({
     useSession: () => mockUseSession(),
+    signOut: vi.fn(),
 }));
 
 const mockFetchStats = vi.fn();
@@ -19,6 +20,17 @@ vi.mock('@/lib/statsApi', () => ({
     fetchStats: (...args: unknown[]) => mockFetchStats(...args),
     importBests: (...args: unknown[]) => mockImportBests(...args),
 }));
+
+// The page mounts AccountPanel (its own tests live beside it); its fetch
+// needs an answer here so the panel settles instead of leaking a promise.
+const mockFetchProfile = vi.fn();
+vi.mock('@/lib/profileApi', async () => {
+    const actual = await vi.importActual<typeof import('@/lib/profileApi')>('@/lib/profileApi');
+    return {
+        ...actual,
+        fetchProfile: (...args: unknown[]) => mockFetchProfile(...args),
+    };
+});
 
 import ProfileClient from './ProfileClient';
 import { clearBestTimes, recordBestTime, boardKey } from '@/lib/bestTimes';
@@ -45,6 +57,14 @@ beforeEach(() => {
     mockUseSession.mockReset();
     mockFetchStats.mockReset();
     mockImportBests.mockReset();
+    mockFetchProfile.mockReset();
+    mockFetchProfile.mockResolvedValue({
+        id: 'uuid-1',
+        provider: 'github',
+        email: 'm@example.com',
+        displayName: 'Michael',
+        createdAt: '2026-08-02',
+    });
 });
 
 afterEach(cleanup);
@@ -80,14 +100,19 @@ describe('signed in', () => {
         expect(screen.queryByText('16x16/40')).toBeNull();
         expect(screen.getByRole('table', { name: 'Recent games' })).toBeTruthy();
         expect(screen.getByText('Lost')).toBeTruthy();
+        // Account management follows the stats, deletion last and low-key.
+        await screen.findByRole('textbox', { name: 'Display name' });
+        expect(screen.getByRole('button', { name: 'Delete account…' })).toBeTruthy();
     });
 
     it('degrades to the unavailable panel with a retry', async () => {
         mockFetchStats.mockResolvedValue(null);
         render(<ProfileClient />);
         await waitFor(() =>
-            expect(screen.getByText(/could not be loaded right now/i)).toBeTruthy(),
+            expect(screen.getByText(/stats could not be loaded right now/i)).toBeTruthy(),
         );
+        // The account panel still renders below — sign-out stays reachable.
+        await screen.findByRole('button', { name: 'Sign out' });
         mockFetchStats.mockResolvedValue(PAYLOAD);
         fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
         await waitFor(() =>

@@ -7,6 +7,7 @@ import { DIALOGS, openDialog } from '@/lib/dialogs';
 import { RECENT_WINDOW, fetchStats, importBests, type ProfilePayload } from '@/lib/statsApi';
 import { boardLabel, readBestTimes } from '@/lib/bestTimes';
 import { formatClock } from '@/lib/gameClock';
+import AccountPanel from './AccountPanel';
 
 /**
  * The private dashboard over what the SERVER recorded — the page has no way
@@ -234,6 +235,10 @@ export default function ProfileClient() {
                     </section>
                 </>
             )}
+
+            {/* Account management follows the stats — and renders even when the
+                stats are unavailable, because sign-out must stay reachable. */}
+            {status === 'authenticated' && <AccountPanel />}
         </main>
     );
 }
