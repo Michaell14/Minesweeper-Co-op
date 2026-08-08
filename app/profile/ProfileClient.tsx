@@ -8,6 +8,7 @@ import { RECENT_WINDOW, fetchStats, importBests, type ProfilePayload } from '@/l
 import { boardLabel, readBestTimes } from '@/lib/bestTimes';
 import { formatClock } from '@/lib/gameClock';
 import AccountPanel from './AccountPanel';
+import DailyHistoryPanel from './DailyHistoryPanel';
 
 /**
  * The private dashboard over what the SERVER recorded — the page has no way
@@ -140,6 +141,16 @@ export default function ProfileClient() {
                             </p>
                         </Panel>
                     </section>
+
+                    {/* The ?? fallbacks cover a backend that briefly predates
+                        these payload fields — the two halves deploy from the
+                        same trunk but never land atomically. */}
+                    <DailyHistoryPanel
+                        history={profile.dailyHistory ?? []}
+                        dailyCurrentStreak={profile.stats.dailyCurrentStreak ?? 0}
+                        dailyBestStreak={profile.stats.dailyBestStreak ?? 0}
+                        lastDailyDay={profile.stats.lastDailyDay ?? null}
+                    />
 
                     <section aria-labelledby="profile-bests" className="mb-8">
                         <Panel title={<span id="profile-bests">Best times</span>}>

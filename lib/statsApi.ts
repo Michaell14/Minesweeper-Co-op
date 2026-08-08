@@ -24,6 +24,21 @@ export interface ProfileStats {
     currentStreak: number;
     bestStreak: number;
     lastPlayedDay: string | null;
+    /**
+     * The daily-clear streak (consecutive UTC days WON, keyed by puzzle date)
+     * — distinct from currentStreak's any-mode play streak. The backend may
+     * briefly predate these fields after a deploy, so consumers `??` them.
+     */
+    dailyCurrentStreak: number;
+    dailyBestStreak: number;
+    lastDailyDay: string | null;
+}
+
+/** One calendar day of daily-challenge history. `day` is 'YYYY-MM-DD' UTC. */
+export interface DailyDayResult {
+    day: string;
+    won: boolean;
+    durationMs: number | null;
 }
 
 export interface BoardBest {
@@ -46,6 +61,7 @@ export interface ProfilePayload {
     stats: ProfileStats;
     boardBests: BoardBest[];
     recentGames: RecentGame[];
+    dailyHistory: DailyDayResult[];
 }
 
 const request = async (path: string, method: string, body?: unknown): Promise<Response | null> => {

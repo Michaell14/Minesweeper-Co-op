@@ -42,4 +42,38 @@ const advanceStreak = ({ currentStreak, bestStreak, lastPlayedDay }, day) => {
     };
 };
 
-module.exports = { utcDayOf, dayBefore, advanceStreak };
+/**
+ * Streaks recomputed from the full set of days, newest first.
+ *
+ * advanceStreak accumulates and assumes days ARRIVE in order — true for the
+ * play streak, whose day comes from a monotonic server clock. The daily-clear
+ * streak keys on the PUZZLE date instead, and a leftover attempt can win
+ * AFTER a later day already recorded (48h attempt TTL); an accumulator can
+ * only refuse to go backwards, never repair the gap the ordering opened. So
+ * that streak is derived from its calendar table, where arrival order cannot
+ * matter.
+ *
+ * `daysDesc`: unique 'YYYY-MM-DD' strings, newest first (the caller's ORDER
+ * BY is the contract). Current = the run ending at the newest day; whether
+ * that run is still alive is the DISPLAY's question, not storage's.
+ */
+const streaksFromDays = (daysDesc) => {
+    if (daysDesc.length === 0) {
+        return { currentStreak: 0, bestStreak: 0, lastPlayedDay: null };
+    }
+    let best = 1;
+    let run = 1;
+    let current = 0;
+    for (let i = 1; i <= daysDesc.length; i++) {
+        if (i < daysDesc.length && daysDesc[i] === dayBefore(daysDesc[i - 1])) {
+            run++;
+            continue;
+        }
+        if (current === 0) current = run; // the first run is the newest
+        best = Math.max(best, run);
+        run = 1;
+    }
+    return { currentStreak: current, bestStreak: best, lastPlayedDay: daysDesc[0] };
+};
+
+module.exports = { utcDayOf, dayBefore, advanceStreak, streaksFromDays };

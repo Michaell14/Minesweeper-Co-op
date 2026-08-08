@@ -16,7 +16,7 @@
  */
 
 const { pgPool } = require('../utils/initializePgClient');
-const { advanceStreak, utcDayOf } = require('../domain/streak');
+const { advanceStreak, streaksFromDays, utcDayOf } = require('../domain/streak');
 
 /** How many recent games each player keeps, per the PRD (aggregates + window). */
 const RECENT_WINDOW = 50;
@@ -28,12 +28,20 @@ const MODE_COLUMNS = { 'co-op': 'coop', pvp: 'pvp', daily: 'daily' };
  * Records one finished game and everything downstream of it, atomically.
  *
  * @param userId  the account (callers have already resolved and null-checked)
- * @param result  { mode, boardKey, won, durationMs|null, players, finishedAt }
+ * @param result  { mode, boardKey, won, durationMs|null, players, finishedAt,
+ *                  dailyDate? } — dailyDate is the daily's PUZZLE date
+ *                  ('YYYY-MM-DD' UTC), the calendar key; see the migration.
  */
-const recordResult = async (userId, { mode, boardKey, won, durationMs, players, finishedAt }) => {
+const recordResult = async (userId, { mode, boardKey, won, durationMs, players, finishedAt, dailyDate }) => {
     if (!pgPool) throw new Error('Postgres is not configured (DATABASE_URL is unset)');
     const prefix = MODE_COLUMNS[mode];
     if (!prefix) throw new Error(`Unknown mode for stats: ${mode}`);
+
+    // Re-validated here even though the producer already regex-checks it: a
+    // daily result without a usable date still records everything else and
+    // just skips the daily-specific writes, so a drifted producer can never
+    // block the base stats.
+    const isDaily = mode === 'daily' && typeof dailyDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dailyDate);
 
     const client = await pgPool.connect();
     try {
@@ -80,6 +88,8 @@ const recordResult = async (userId, { mode, boardKey, won, durationMs, players, 
             daily_games: 0, daily_wins: 0,
             current_streak: 0, best_streak: 0,
             last_played_day: null,
+            daily_current_streak: 0, daily_best_streak: 0,
+            last_daily_day: null,
         };
         const streak = advanceStreak(
             {
@@ -89,21 +99,66 @@ const recordResult = async (userId, { mode, boardKey, won, durationMs, players, 
             },
             utcDayOf(finishedAt),
         );
+        // The calendar row: one per (user, puzzle day), never pruned. A loss
+        // only lands on an empty day; a win upgrades a loss or a slower win.
+        // Written BEFORE the stats row because the streak below is derived
+        // from this table. Safe concurrency-wise: the FOR UPDATE above already
+        // serialises same-user transactions, so the ON CONFLICT cannot
+        // deadlock.
+        if (isDaily) {
+            await client.query(
+                `INSERT INTO user_daily_results (user_id, day, won, duration_ms, finished_at)
+                 VALUES ($1, $2, $3, $4, to_timestamp($5 / 1000.0))
+                 ON CONFLICT (user_id, day) DO UPDATE SET
+                     won = true,
+                     duration_ms = EXCLUDED.duration_ms,
+                     finished_at = EXCLUDED.finished_at
+                 WHERE EXCLUDED.won
+                   AND (NOT user_daily_results.won
+                        OR EXCLUDED.duration_ms < user_daily_results.duration_ms)`,
+                [userId, dailyDate, won, durationMs, finishedAt],
+            );
+        }
+
+        // The daily-clear streak: WINS only (losing the daily breaks nothing —
+        // it just doesn't extend), and recomputed from the calendar rather
+        // than accumulated. Accumulating assumes wins arrive in day order,
+        // and they don't have to: a leftover attempt (48h TTL) can win after
+        // a later day already recorded, and an accumulator can refuse to go
+        // backwards but never repair the gap. Deriving from the table makes
+        // arrival order unable to matter.
+        let dailyStreak = {
+            currentStreak: row.daily_current_streak,
+            bestStreak: row.daily_best_streak,
+            lastPlayedDay: row.last_daily_day,
+        };
+        if (isDaily && won) {
+            const wonDays = await client.query(
+                'SELECT day FROM user_daily_results WHERE user_id = $1 AND won ORDER BY day DESC',
+                [userId],
+            );
+            dailyStreak = streaksFromDays(wonDays.rows.map((r) => r.day));
+        }
         const games = row[`${prefix}_games`] + 1;
         const wins = row[`${prefix}_wins`] + (won ? 1 : 0);
 
         await client.query(
             `INSERT INTO user_stats (user_id, ${prefix}_games, ${prefix}_wins,
-                 current_streak, best_streak, last_played_day, updated_at)
-             VALUES ($1, $2, $3, $4, $5, $6, now())
+                 current_streak, best_streak, last_played_day,
+                 daily_current_streak, daily_best_streak, last_daily_day, updated_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, now())
              ON CONFLICT (user_id) DO UPDATE SET
                  ${prefix}_games = $2,
                  ${prefix}_wins = $3,
                  current_streak = $4,
                  best_streak = $5,
                  last_played_day = $6,
+                 daily_current_streak = $7,
+                 daily_best_streak = $8,
+                 last_daily_day = $9,
                  updated_at = now()`,
-            [userId, games, wins, streak.currentStreak, streak.bestStreak, streak.lastPlayedDay],
+            [userId, games, wins, streak.currentStreak, streak.bestStreak, streak.lastPlayedDay,
+                dailyStreak.currentStreak, dailyStreak.bestStreak, dailyStreak.lastPlayedDay],
         );
 
         // A board best is a WIN with a measured time; keep only if faster.
@@ -142,7 +197,7 @@ const upsertBest = (client, userId, { boardKey, seconds, players, achievedAt }) 
 const getProfile = async (userId) => {
     if (!pgPool) throw new Error('Postgres is not configured (DATABASE_URL is unset)');
 
-    const [stats, bests, recent] = await Promise.all([
+    const [stats, bests, recent, daily] = await Promise.all([
         pgPool.query('SELECT * FROM user_stats WHERE user_id = $1', [userId]),
         pgPool.query(
             'SELECT board_key, seconds, players, achieved_at FROM user_board_bests WHERE user_id = $1 ORDER BY achieved_at DESC',
@@ -153,6 +208,12 @@ const getProfile = async (userId) => {
              FROM game_results WHERE user_id = $1
              ORDER BY finished_at DESC, id DESC LIMIT $2`,
             [userId, RECENT_WINDOW],
+        ),
+        // Unbounded on purpose: unlike game_results this table is never
+        // pruned, and a whole year is 365 tiny rows.
+        pgPool.query(
+            'SELECT day, won, duration_ms FROM user_daily_results WHERE user_id = $1 ORDER BY day ASC',
+            [userId],
         ),
     ]);
 
@@ -168,6 +229,9 @@ const getProfile = async (userId) => {
             currentStreak: row?.current_streak ?? 0,
             bestStreak: row?.best_streak ?? 0,
             lastPlayedDay: row?.last_played_day ?? null,
+            dailyCurrentStreak: row?.daily_current_streak ?? 0,
+            dailyBestStreak: row?.daily_best_streak ?? 0,
+            lastDailyDay: row?.last_daily_day ?? null,
         },
         boardBests: bests.rows.map((b) => ({
             boardKey: b.board_key,
@@ -182,6 +246,11 @@ const getProfile = async (userId) => {
             durationMs: g.duration_ms,
             players: g.players,
             finishedAt: g.finished_at,
+        })),
+        dailyHistory: daily.rows.map((d) => ({
+            day: d.day,
+            won: d.won,
+            durationMs: d.duration_ms,
         })),
     };
 };
