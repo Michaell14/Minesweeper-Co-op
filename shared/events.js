@@ -94,6 +94,7 @@ const SERVER_EVENTS = Object.freeze({
     // Matchmaking. A found match arrives as an ordinary joinRoomSuccess +
     // pvpRoomReady -- the queue's only job is to build the room.
     MATCH_SEARCHING: 'matchSearching',
+    MATCH_ONLINE_COUNT: 'matchOnlineCount',
     MATCH_CANCELLED: 'matchCancelled',
     MATCH_ERROR: 'matchError',
 

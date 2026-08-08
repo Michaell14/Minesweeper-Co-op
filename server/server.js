@@ -5,7 +5,13 @@ const { createRoom, resetGame } = require('./utils/gameUtils');
 const { openCell, chordCell, toggleFlag } = require('./game');
 const { startPvpGame, resetMyBoard, pvpRematch } = require('./controllers/pvpController');
 const { offerResume, forgetRoom } = require('./controllers/sessionController');
-const { findMatch, cancelMatch, startPracticeRace, leaveQueue } = require('./controllers/matchmakingController');
+const {
+    findMatch,
+    cancelMatch,
+    startPracticeRace,
+    leaveQueue,
+    broadcastOnlineCount,
+} = require('./controllers/matchmakingController');
 const { resolveSocketUser, registerProfileRoutes } = require('./controllers/profileController');
 const { registerSettingsRoutes } = require('./controllers/settingsController');
 const { registerThemesRoutes } = require('./controllers/themesController');
@@ -465,6 +471,10 @@ io.on('connection', async (socket) => {
         } catch (error) {
             console.error('Error in disconnect:', error);
         }
+
+        // Last, so a cosmetic refresh cannot delay the cleanup above, and after
+        // `leaveQueue` so a leaver is never sent their own departure.
+        await broadcastOnlineCount();
     });
 
     // Last, deliberately: this can prompt the client to send `joinRoom` straight
@@ -474,6 +484,10 @@ io.on('connection', async (socket) => {
     } catch (error) {
         console.error('Error offering session resume:', error);
     }
+
+    // After the resume, which a reloading player is waiting on: this socket now
+    // counts towards "how many are here", and anyone queued is one behind.
+    await broadcastOnlineCount();
 });
 
 /**
