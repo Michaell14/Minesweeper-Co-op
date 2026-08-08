@@ -14,6 +14,7 @@
 const { io } = require('./initializeClient');
 const { isDbEnabled } = require('./initializePgClient');
 const statsRepo = require('../data/statsRepo');
+const { SERVER_EVENTS } = require('../../shared/events');
 
 /** Board records key on what the board IS — CLAUDE.md trap #10. */
 const boardKeyOf = (board) => {
@@ -28,6 +29,22 @@ const boardKeyOf = (board) => {
 const userOf = (socketId) => io.sockets.sockets.get(socketId)?.data?.user ?? null;
 
 /**
+ * Tells one socket what it just unlocked, once the transaction has COMMITTED —
+ * a badge announced by a write that then rolled back is a badge the profile
+ * will not have. `recordResult` returns only what was genuinely new, so a
+ * player who already held one is not told again and an empty list sends
+ * nothing.
+ *
+ * Addressed to the socket, not the room: co-op players finish the same board
+ * with different shelves behind them.
+ */
+const announce = (socketId) => (unlocked) => {
+    if (unlocked && unlocked.length > 0) {
+        io.to(socketId).emit(SERVER_EVENTS.ACHIEVEMENTS_UNLOCKED, { ids: unlocked });
+    }
+};
+
+/**
  * Records one result for every AUTHENTICATED socket in the list; guests are
  * skipped without comment. Fire-and-forget: call it, do not await it.
  *
@@ -40,9 +57,20 @@ const recordForSockets = (socketIds, result) => {
     for (const socketId of socketIds) {
         const user = userOf(socketId);
         if (!user) continue;
-        statsRepo.recordResult(user.id, result).catch((error) => {
-            console.error('Stats write dropped:', error.message);
-        });
+        statsRepo
+            .recordResult(user.id, result)
+            /*
+             * Two-argument `then`, so a failed WRITE and a failed ANNOUNCE are
+             * never reported as each other. A single trailing `.catch` reads
+             * every emit error as "Stats write dropped" and sends whoever is
+             * on call to look at Postgres for a socket problem.
+             */
+            .then(announce(socketId), (error) => {
+                console.error('Stats write dropped:', error.message);
+            })
+            .catch((error) => {
+                console.error('Achievement announce dropped:', error.message);
+            });
     }
 };
 

@@ -32,6 +32,25 @@
         -0.5em 0 0 0 var(--badge-fill);
 }
 
+/*
+ * The small variant: an inline marker inside a tile, not the strip above the
+ * board. Both of the defaults above are sized for the strip and neither
+ * survives a narrow container — `min-width: 10.5em` forces the badge wider
+ * than its cell, and the 0.5em shadow takes no layout space, so the fill
+ * bleeds straight through the tile's border. Opt-in, so the strip is untouched.
+ */
+.sm {
+    min-width: 0;
+    padding: 1px 0.25em;
+    margin: 0.25em;
+    font-size: var(--ms-text-2xs);
+    box-shadow:
+        0 0.25em 0 0 var(--badge-fill),
+        0 -0.25em 0 0 var(--badge-fill),
+        0.25em 0 0 0 var(--badge-fill),
+        -0.25em 0 0 0 var(--badge-fill);
+}
+
 .clickable {
     cursor: pointer;
 }

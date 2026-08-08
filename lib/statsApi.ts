@@ -57,11 +57,23 @@ export interface RecentGame {
     finishedAt: string;
 }
 
+/**
+ * One earned achievement. `id` is a catalog id from shared/achievements.js —
+ * an id the catalog no longer knows is simply not rendered, which is what lets
+ * one be retired without deleting anyone's row.
+ */
+export interface EarnedAchievement {
+    id: string;
+    earnedAt: string;
+}
+
 export interface ProfilePayload {
     stats: ProfileStats;
     boardBests: BoardBest[];
     recentGames: RecentGame[];
     dailyHistory: DailyDayResult[];
+    /** Newest first. May be absent against a backend that predates the field. */
+    achievements: EarnedAchievement[];
 }
 
 const request = async (path: string, method: string, body?: unknown): Promise<Response | null> => {

@@ -5,8 +5,14 @@
  */
 
 const mockSockets = new Map();
+/** Every `io.to(id).emit(event, payload)` this module makes, in order. */
+const emitted = [];
 jest.mock('../utils/initializeClient', () => ({
-    io: { sockets: { sockets: mockSockets }, to: jest.fn(() => ({ emit: jest.fn() })), use: jest.fn() },
+    io: {
+        sockets: { sockets: mockSockets },
+        to: jest.fn((id) => ({ emit: (event, payload) => emitted.push({ id, event, payload }) })),
+        use: jest.fn(),
+    },
     server: { listen: jest.fn() },
     app: { use: jest.fn(), get: jest.fn(), put: jest.fn(), delete: jest.fn(), post: jest.fn() },
 }));
@@ -31,9 +37,13 @@ const RESULT = { mode: 'daily', boardKey: '9x9/10', won: true, durationMs: 1000,
 
 beforeEach(() => {
     mockSockets.clear();
+    emitted.length = 0;
     mockRecordResult.mockReset().mockResolvedValue(undefined);
     mockDbState.enabled = true;
 });
+
+/** Lets the recordResult promise and its .then settle. */
+const settle = () => new Promise((r) => setImmediate(r));
 
 describe('boardKeyOf', () => {
     test('keys by what the board IS: dimensions and counted mines', () => {
@@ -68,6 +78,100 @@ describe('recordForSockets', () => {
         mockSockets.set('sock-user', { data: { user: { id: 'uuid-1' } } });
         mockRecordResult.mockRejectedValue(new Error('pg down'));
         expect(() => recordForSockets(['sock-user'], RESULT)).not.toThrow();
-        await new Promise((r) => setImmediate(r)); // let the rejection settle
+        await settle();
+    });
+});
+
+describe('the unlock announcement', () => {
+    const { SERVER_EVENTS } = require('../../shared/events');
+
+    test('tells the socket what it just unlocked', async () => {
+        mockSockets.set('sock-user', { data: { user: { id: 'uuid-1' } } });
+        mockRecordResult.mockResolvedValue(['first-clear', 'sweeper']);
+
+        recordForSockets(['sock-user'], RESULT);
+        await settle();
+
+        expect(emitted).toEqual([{
+            id: 'sock-user',
+            event: SERVER_EVENTS.ACHIEVEMENTS_UNLOCKED,
+            payload: { ids: ['first-clear', 'sweeper'] },
+        }]);
+    });
+
+    test('says nothing when the result unlocked nothing', async () => {
+        mockSockets.set('sock-user', { data: { user: { id: 'uuid-1' } } });
+        mockRecordResult.mockResolvedValue([]);
+
+        recordForSockets(['sock-user'], RESULT);
+        await settle();
+
+        expect(emitted).toEqual([]);
+    });
+
+    /*
+     * The one that matters: a badge announced by a write that then failed is a
+     * badge the profile will not have. The emit hangs off the resolution, so a
+     * rejection can never reach it.
+     */
+    test('announces nothing when the write failed', async () => {
+        mockSockets.set('sock-user', { data: { user: { id: 'uuid-1' } } });
+        mockRecordResult.mockRejectedValue(new Error('pg down'));
+
+        recordForSockets(['sock-user'], RESULT);
+        await settle();
+
+        expect(emitted).toEqual([]);
+    });
+
+    // Co-op finishes one board for everyone, but the shelves behind each
+    // player differ — so this is per socket, never to the room.
+    test('addresses each player separately', async () => {
+        mockSockets.set('sock-a', { data: { user: { id: 'uuid-a' } } });
+        mockSockets.set('sock-b', { data: { user: { id: 'uuid-b' } } });
+        mockRecordResult
+            .mockResolvedValueOnce(['first-clear'])
+            .mockResolvedValueOnce([]);
+
+        recordForSockets(['sock-a', 'sock-b'], RESULT);
+        await settle();
+
+        expect(emitted.map((e) => e.id)).toEqual(['sock-a']);
+    });
+
+    // A backend deployed ahead of the client, or the pre-achievements repo.
+    test('survives a repo that returns nothing at all', async () => {
+        mockSockets.set('sock-user', { data: { user: { id: 'uuid-1' } } });
+        mockRecordResult.mockResolvedValue(undefined);
+
+        recordForSockets(['sock-user'], RESULT);
+        await settle();
+
+        expect(emitted).toEqual([]);
+    });
+
+    /*
+     * A failed EMIT must not be reported as a failed WRITE. Under one trailing
+     * `.catch` every socket problem printed "Stats write dropped" and sent
+     * whoever was on call to look at a healthy Postgres.
+     */
+    test('a broken emit is logged as an announce failure, not a write failure', async () => {
+        const { io } = require('../utils/initializeClient');
+        mockSockets.set('sock-user', { data: { user: { id: 'uuid-1' } } });
+        mockRecordResult.mockResolvedValue(['first-clear']);
+        io.to.mockImplementationOnce(() => ({
+            emit: () => { throw new Error('socket gone'); },
+        }));
+        const logged = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+        try {
+            recordForSockets(['sock-user'], RESULT);
+            await settle();
+
+            const messages = logged.mock.calls.map((call) => call.join(' '));
+            expect(messages).toEqual(['Achievement announce dropped: socket gone']);
+        } finally {
+            logged.mockRestore();
+        }
     });
 });

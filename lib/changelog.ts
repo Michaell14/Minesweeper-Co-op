@@ -4,8 +4,9 @@
  *
  * To add an entry: prepend it to CHANGELOG with a fresh ISO date (never reuse
  * an earlier entry's date — the unseen badge compares dates, so a same-day
- * second entry would go unnoticed by anyone who saw the first), and bump
- * <lastmod> on the /changelog entry in public/sitemap.xml.
+ * second entry would go unnoticed by anyone who saw the first). Nothing else
+ * to touch: app/sitemap.ts stamps lastModified itself, since the static
+ * public/sitemap.xml it replaced is gone.
  *
  * Seen-state lives in localStorage, not the sessionStorage the session id
  * uses: "has this person seen the news" is per-browser, not per-tab, and
@@ -23,6 +24,17 @@ export interface ChangelogEntry {
 }
 
 export const CHANGELOG: ChangelogEntry[] = [
+    {
+        id: 'achievements',
+        date: '2026-08-08',
+        tag: 'New',
+        title: 'Achievements',
+        bullets: [
+            'A shelf of achievements to collect, from your first clear to thirty daily puzzles running.',
+            'Your profile shows the whole shelf — including how close you are to the ones you have not earned yet.',
+            'Games you already played count: anything you had qualified for lands the next time you finish one.',
+        ],
+    },
     {
         id: 'keyboard-play',
         date: '2026-08-07',

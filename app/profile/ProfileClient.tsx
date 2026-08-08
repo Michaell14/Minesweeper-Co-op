@@ -7,7 +7,10 @@ import { DIALOGS, openDialog } from '@/lib/dialogs';
 import { RECENT_WINDOW, fetchStats, importBests, type ProfilePayload } from '@/lib/statsApi';
 import { boardLabel, readBestTimes } from '@/lib/bestTimes';
 import { formatClock } from '@/lib/gameClock';
+import { formatDate } from '@/lib/formatDate';
+import { markAchievementsSeen, newlyEarned } from '@/lib/achievementsSeen';
 import AccountPanel from './AccountPanel';
+import AchievementsPanel from './AchievementsPanel';
 import DailyHistoryPanel from './DailyHistoryPanel';
 
 /**
@@ -29,18 +32,35 @@ const MODE_LABELS = { 'co-op': 'Co-op', pvp: 'PVP', daily: 'Daily' } as const;
 const winRate = (wins: number, games: number) =>
     games === 0 ? '—' : `${Math.round((wins / games) * 100)}%`;
 
-const dateOf = (iso: string) => new Date(iso).toLocaleDateString();
-
 export default function ProfileClient() {
     const { status } = useSession();
     const [profile, setProfile] = React.useState<ProfilePayload | null>(null);
     const [state, setState] = React.useState<'loading' | 'ready' | 'unavailable'>('loading');
+
+    /*
+     * Which achievements are new since this browser last looked. Captured at
+     * load and held in state, then the watermark advances immediately: reading
+     * it during render instead would clear the badges on the first re-render,
+     * before anyone had a chance to see them.
+     *
+     * Once per VISIT, not once per fetch. `load` runs again after the guest
+     * import, and a second pass would compare against the watermark it just
+     * wrote and blank the badges while the player was still reading them.
+     */
+    const [freshAchievements, setFreshAchievements] = React.useState<Set<string>>(new Set());
+    const seenMarked = React.useRef(false);
 
     const load = React.useCallback(() => {
         setState('loading');
         fetchStats().then((payload) => {
             setProfile(payload);
             setState(payload ? 'ready' : 'unavailable');
+            if (payload && !seenMarked.current) {
+                seenMarked.current = true;
+                const earned = payload.achievements ?? [];
+                setFreshAchievements(newlyEarned(earned));
+                markAchievementsSeen(earned);
+            }
         });
     }, []);
 
@@ -142,6 +162,12 @@ export default function ProfileClient() {
                         </Panel>
                     </section>
 
+                    <AchievementsPanel
+                        achievements={profile.achievements ?? []}
+                        stats={profile.stats}
+                        highlighted={freshAchievements}
+                    />
+
                     {/* The ?? fallbacks cover a backend that briefly predates
                         these payload fields — the two halves deploy from the
                         same trunk but never land atomically. */}
@@ -170,7 +196,7 @@ export default function ProfileClient() {
                                                 <td>{labelForKey(best.boardKey)}</td>
                                                 <td>{formatClock(best.seconds)}</td>
                                                 <td>{best.players}</td>
-                                                <td>{dateOf(best.achievedAt)}</td>
+                                                <td>{formatDate(best.achievedAt)}</td>
                                             </tr>
                                         ))}
                                     </tbody>
@@ -235,7 +261,7 @@ export default function ProfileClient() {
                                                             ? '—'
                                                             : formatClock(Math.floor(game.durationMs / 1000))}
                                                     </td>
-                                                    <td>{dateOf(game.finishedAt)}</td>
+                                                    <td>{formatDate(game.finishedAt)}</td>
                                                 </tr>
                                             ))}
                                         </tbody>

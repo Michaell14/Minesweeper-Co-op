@@ -27,7 +27,7 @@ export { CalendarIcon, CoinIcon, GearIcon, GithubIcon, StarIcon, SwordsIcon, Tro
 export type { PixelIconProps } from "./icons";
 export { pointerClass } from "./pointer";
 
-export type { BadgeIntent, BadgeProps } from "./Badge";
+export type { BadgeIntent, BadgeProps, BadgeSize } from "./Badge";
 export type { ButtonIntent, ButtonProps, ButtonSize } from "./Button";
 export type { ButtonLinkProps } from "./ButtonLink";
 export type { DialogProps } from "./Dialog";

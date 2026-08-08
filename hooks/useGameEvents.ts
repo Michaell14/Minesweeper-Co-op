@@ -187,6 +187,14 @@ const coopHandlers = (socket: AppSocket, leaveRoom: () => void): SocketHandlers 
     },
 
     [SERVER_EVENTS.PLAYER_LEFT]: (socketId) => useMinesweeperStore.getState().removePlayerHover(socketId),
+
+    /*
+     * Queued rather than shown here: this arrives moments after the win, while
+     * the summary dialog is opening, and a handler that rendered would be
+     * racing it. <AchievementToast> drains the queue on its own schedule.
+     */
+    [SERVER_EVENTS.ACHIEVEMENTS_UNLOCKED]: ({ ids }) =>
+        useMinesweeperStore.getState().pushUnlocked(ids),
 });
 
 /** PVP events. `socket` is needed to tell "I won" from "they won". */
