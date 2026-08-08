@@ -1110,10 +1110,15 @@ async function daily(page) {
     await page.waitFor(`!!document.querySelector('[aria-label^="Play today\\'s daily challenge"]')`,
         { timeout: 60000, label: 'the landing page renders its daily button' });
 
+    /*
+     * The intent is the PRESS, never the URL. A shareable `?play=1` would spend
+     * the reader's one attempt for the day the moment they opened it, so the
+     * href stays plain and the click is what carries the choice.
+     */
     const href = await page.evaluate(
         `return document.querySelector('[aria-label^="Play today\\'s daily challenge"]').getAttribute('href')`);
-    check(/\?play=1$/.test(href), `the landing button carries the play intent (${href})`,
-        `expected ?play=1, got ${href}`);
+    check(href === '/daily', `the landing button links to plain /daily (${href})`,
+        `expected /daily with no query, got ${href}`);
 
     await page.click(`[aria-label^="Play today's daily challenge"]`);
     await page.waitFor(`document.querySelectorAll('[role=gridcell]').length > 0`,
@@ -1124,10 +1129,23 @@ async function daily(page) {
     check(!introShown, 'the intro copy is not shown on the way through',
         'the daily intro rendered for a player who had already pressed play');
 
-    // Left in the URL, a refresh would read as a second request to start.
     const search = await page.evaluate(`return window.location.search`);
-    check(search === '', 'the play intent is stripped from the URL once used',
-        `location.search is still "${search}"`);
+    check(search === '', 'no query parameter is left behind', `location.search is "${search}"`);
+
+    /*
+     * The other half of the same rule: a link someone could paste anywhere must
+     * not start anything. This is a real page load, so nothing carries over.
+     */
+    await page.goto(`${CLIENT}/daily?play=1`);
+    await page.waitFor(`!!document.querySelector('h1')`, { timeout: 60000, label: '/daily?play=1 loads' });
+    await sleep(2500);
+    const forged = await page.evaluate(`return {
+        cells: document.querySelectorAll('[role=gridcell]').length,
+        intro: !!document.querySelector('.ms-prose'),
+    }`);
+    check(forged.cells === 0 && forged.intro,
+        'a ?play=1 link starts nothing and still shows the intro',
+        `cells=${forged.cells} intro=${forged.intro} — a pasted link can spend someone's attempt`);
 }
 
 (async () => {

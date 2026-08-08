@@ -7,7 +7,16 @@ import { Button, CalendarIcon } from "@/components/ds";
 import DailyChallenge from "@/components/DailyChallenge";
 import DailyDialogs from "@/components/dialogs/DailyDialogs";
 import { useGameSession } from "@/hooks/useGameSession";
-import { clearImmediatePlay, wantsImmediatePlay } from "@/lib/dailyLink";
+import { consumePlayIntent } from "@/lib/dailyIntent";
+
+/**
+ * How long to wait for the server to answer an automatic start before handing
+ * the page back.
+ *
+ * Generous on purpose: the first request of the day generates the board, and
+ * the no-guess generator may try many candidates before one is solvable.
+ */
+const AUTO_START_TIMEOUT_MS = 15_000;
 
 /**
  * The interactive half of /daily.
@@ -106,10 +115,10 @@ export default function DailyClient({ intro }: { intro: React.ReactNode }) {
     }, [socket, startDaily]);
 
     /*
-     * Arriving with the play intent (lib/dailyLink.ts) skips the intro entirely:
-     * the control that sent them here already said "Play Today's Puzzle", and
-     * meeting them with prose and a second button of the same name is a step
-     * that reads as the first click not having worked.
+     * Arriving on a press of "Play Today's Puzzle" (lib/dailyIntent.ts) skips
+     * the intro entirely: that control already said play, and meeting it with
+     * prose and a second button of the same name reads as the first click not
+     * having worked.
      *
      * `autoStarting` is separate from the pending-click ref because it also has
      * to suppress the intro. Waiting for the board without it would leave the
@@ -121,12 +130,26 @@ export default function DailyClient({ intro }: { intro: React.ReactNode }) {
     const autoStarted = React.useRef(false);
 
     React.useEffect(() => {
-        if (autoStarted.current || !wantsImmediatePlay()) return;
+        if (autoStarted.current || !consumePlayIntent()) return;
         autoStarted.current = true;
         setAutoStarting(true);
-        clearImmediatePlay();
         requestStart();
     }, [requestStart]);
+
+    /*
+     * Give the page back if the answer never comes.
+     *
+     * `startDaily`'s handler emits nothing on failure — its catch only logs —
+     * so a dropped socket or a Redis blip leaves nothing to wait for. Without
+     * this the player is left on a loading line with no board, no intro and no
+     * button: a dead end where the pre-auto-start version simply still had the
+     * button to press. Falling back to the intro IS the retry.
+     */
+    React.useEffect(() => {
+        if (!autoStarting || attemptLoaded) return;
+        const timer = setTimeout(() => setAutoStarting(false), AUTO_START_TIMEOUT_MS);
+        return () => clearTimeout(timer);
+    }, [autoStarting, attemptLoaded]);
 
     const leaveDaily = React.useCallback(() => {
         clearDailyState();
