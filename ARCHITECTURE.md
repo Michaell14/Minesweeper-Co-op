@@ -785,8 +785,11 @@ ACCOUNT display name on the leaderboard.
 **Users live in Postgres** (`server/data/userRepo.js`, the first
 Postgres-backed repo) keyed by `(provider, provider_account_id)`, created on
 first sight with one upserting statement. Email refreshes each sign-in;
-`display_name` deliberately does not — renames made in the account menu must
-survive. Deletion is a hard `DELETE`; tables added by later phases must declare
+`display_name` deliberately does not — renames made on `/profile` must
+survive. (The footer's user icon is state-aware: signed out it opens the
+sign-in dialog, signed in it links straight to `/profile`, where the rename,
+sign-out and delete controls live — deletion behind a typed-name confirm in
+`app/profile/AccountPanel.tsx`.) Deletion is a hard `DELETE`; tables added by later phases must declare
 `ON DELETE CASCADE` against `users` so it stays the single deletion point.
 
 ### Mobile flag mode

@@ -179,26 +179,32 @@ export default function SettingsClient() {
             <section aria-labelledby="settings-account">
                 <Panel title={<span id="settings-account">Account</span>}>
                     {status === 'authenticated' ? (
-                        <p className="text-pixel-sm">
-                            Signed in — your settings sync to your account and follow you
-                            to any browser you sign in on.{' '}
-                            <Link href="/profile" className="underline">
+                        <>
+                            <p className="text-pixel-sm">
+                                Signed in — your settings sync to your account and follow
+                                you to any browser you sign in on. Renames, sign-out and
+                                everything else about your account live on your profile.
+                            </p>
+                            <Link
+                                href="/profile"
+                                className="inline-block mt-4 text-pixel-sm underline">
                                 View your profile
                             </Link>
-                            .
-                        </p>
+                        </>
                     ) : (
-                        <p className="text-pixel-sm">
-                            Your settings are stored in this browser only. Sign in to
-                            keep them on every device.
-                        </p>
+                        <>
+                            <p className="text-pixel-sm">
+                                Your settings are stored in this browser only. Sign in to
+                                keep them on every device.
+                            </p>
+                            <Button
+                                size="sm"
+                                className="mt-4"
+                                onClick={() => openDialog(DIALOGS.account)}>
+                                Sign in
+                            </Button>
+                        </>
                     )}
-                    <Button
-                        size="sm"
-                        className="mt-4"
-                        onClick={() => openDialog(DIALOGS.account)}>
-                        {status === 'authenticated' ? 'Manage account' : 'Sign in'}
-                    </Button>
                 </Panel>
             </section>
         </main>

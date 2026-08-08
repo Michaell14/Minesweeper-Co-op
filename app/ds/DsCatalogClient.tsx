@@ -18,6 +18,8 @@ import {
     Switch,
     Table,
     TrophyIcon,
+    UserIcon,
+    UserSignedInIcon,
 } from "@/components/ds";
 import type { ButtonIntent } from "@/components/ds";
 // Past the barrel on purpose, the way this page already reaches for the board's
@@ -414,6 +416,9 @@ export default function DsCatalogClient() {
                     <TrophyIcon size={64} />
                     <CalendarIcon size={48} />
                     <SwordsIcon size={48} />
+                    {/* The footer's two account states: signed out, signed in. */}
+                    <UserIcon size={48} />
+                    <UserSignedInIcon size={48} />
                 </div>
             </Section>
 
