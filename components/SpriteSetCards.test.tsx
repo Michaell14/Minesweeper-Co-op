@@ -27,12 +27,11 @@ afterEach(cleanup);
 const group = () => screen.getByRole('radiogroup', { name: 'Mine and flag art' });
 
 describe('the sprite-set picker', () => {
-    it('offers every general set plus following the palette — and nothing seasonal', () => {
+    it('offers every general set — and nothing seasonal', () => {
         render(<SpriteSetCards name="test-sprites" />);
 
         const radios = [...group().querySelectorAll('input[type=radio]')] as HTMLInputElement[];
-        expect(radios).toHaveLength(SPRITE_SET_IDS.length + 1);
-        expect(screen.getByRole('radio', { name: /Match palette/ })).toBeDefined();
+        expect(radios).toHaveLength(SPRITE_SET_IDS.length);
         expect(screen.getByRole('radio', { name: /Classic/ })).toBeDefined();
         expect(screen.getByRole('radio', { name: /Naval/ })).toBeDefined();
 
@@ -43,11 +42,14 @@ describe('the sprite-set picker', () => {
         }
     });
 
-    it('starts on Match palette — the default and the old behaviour', () => {
+    // An unpinned blob is null, and null resolves to the default pair. Without
+    // this the picker renders with nothing checked for everyone who never chose.
+    it('shows Classic for a stored null — no pin is the default pair', () => {
         render(<SpriteSetCards name="test-sprites" />);
 
+        expect(useMinesweeperStore.getState().settings.spriteSet).toBeNull();
         expect(
-            (screen.getByRole('radio', { name: /Match palette/ }) as HTMLInputElement).checked,
+            (screen.getByRole('radio', { name: /Classic/ }) as HTMLInputElement).checked,
         ).toBe(true);
     });
 
@@ -59,7 +61,7 @@ describe('the sprite-set picker', () => {
         expect(useMinesweeperStore.getState().settings.spriteSet).toBe('naval');
     });
 
-    it('picking Match palette clears the pin back to null', () => {
+    it('reflects the stored pin, and picking Classic writes back over it', () => {
         useMinesweeperStore.setState((state) => ({
             settings: { ...state.settings, spriteSet: 'space' },
         }));
@@ -69,8 +71,8 @@ describe('the sprite-set picker', () => {
             (screen.getByRole('radio', { name: /Space/ }) as HTMLInputElement).checked,
         ).toBe(true);
 
-        fireEvent.click(screen.getByRole('radio', { name: /Match palette/ }));
+        fireEvent.click(screen.getByRole('radio', { name: /Classic/ }));
 
-        expect(useMinesweeperStore.getState().settings.spriteSet).toBeNull();
+        expect(useMinesweeperStore.getState().settings.spriteSet).toBe('classic');
     });
 });
