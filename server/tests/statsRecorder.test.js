@@ -151,6 +151,62 @@ describe('the unlock announcement', () => {
     });
 
     /*
+     * The finishing socket is not the socket to announce to. Each route dials
+     * its own (ARCHITECTURE.md §5), so navigating to /daily or reconnecting
+     * through a blip during the transaction leaves it dead — and emitting at a
+     * captured id dropped the toast while the write landed fine.
+     */
+    test('follows the player to whatever socket they are on now', async () => {
+        mockSockets.set('sock-old', { data: { user: { id: 'uuid-1' } } });
+        mockRecordResult.mockResolvedValue(['first-clear']);
+
+        recordForSockets(['sock-old'], RESULT);
+        // Reconnected (or navigated) before the transaction came back.
+        mockSockets.delete('sock-old');
+        mockSockets.set('sock-new', { data: { user: { id: 'uuid-1' } } });
+        await settle();
+
+        expect(emitted.map((e) => e.id)).toEqual(['sock-new']);
+    });
+
+    test('reaches every tab the player has open', async () => {
+        mockSockets.set('sock-a', { data: { user: { id: 'uuid-1' } } });
+        mockSockets.set('sock-b', { data: { user: { id: 'uuid-1' } } });
+        mockRecordResult.mockResolvedValue(['first-clear']);
+
+        recordForSockets(['sock-a'], RESULT);
+        await settle();
+
+        expect(emitted.map((e) => e.id).sort()).toEqual(['sock-a', 'sock-b']);
+    });
+
+    // Closed the tab and did not come back: the row is written, and /profile's
+    // unseen badge is what surfaces it. Nothing to emit at, and no throw.
+    test('says nothing when the player has gone entirely', async () => {
+        mockSockets.set('sock-user', { data: { user: { id: 'uuid-1' } } });
+        mockRecordResult.mockResolvedValue(['first-clear']);
+
+        recordForSockets(['sock-user'], RESULT);
+        mockSockets.clear();
+        await settle();
+
+        expect(emitted).toEqual([]);
+    });
+
+    // A guest on the same box must not collect someone else's announcement.
+    test('never announces to a socket belonging to another account', async () => {
+        mockSockets.set('sock-user', { data: { user: { id: 'uuid-1' } } });
+        mockSockets.set('sock-other', { data: { user: { id: 'uuid-2' } } });
+        mockSockets.set('sock-guest', { data: { user: null } });
+        mockRecordResult.mockResolvedValue(['first-clear']);
+
+        recordForSockets(['sock-user'], RESULT);
+        await settle();
+
+        expect(emitted.map((e) => e.id)).toEqual(['sock-user']);
+    });
+
+    /*
      * A failed EMIT must not be reported as a failed WRITE. Under one trailing
      * `.catch` every socket problem printed "Stats write dropped" and sent
      * whoever was on call to look at a healthy Postgres.

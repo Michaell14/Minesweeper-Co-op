@@ -29,17 +29,43 @@ const boardKeyOf = (board) => {
 const userOf = (socketId) => io.sockets.sockets.get(socketId)?.data?.user ?? null;
 
 /**
- * Tells one socket what it just unlocked, once the transaction has COMMITTED —
+ * Every live socket belonging to an account, resolved NOW rather than assumed.
+ *
+ * A scan rather than a `user:<id>` room, which would be the idiomatic answer
+ * anywhere else: room codes here are arbitrary strings (`validation.js` bounds
+ * only the length), so `socket.join('user:<uuid>')` shares a namespace with
+ * whatever players type into the join box — and anyone who knew a victim's id
+ * could create that room and receive their announcements. Unlocks are rare and
+ * the socket map is small, so the scan costs nothing worth protecting.
+ */
+const socketIdsOf = (userId) => {
+    const ids = [];
+    for (const [socketId, socket] of io.sockets.sockets) {
+        if (socket?.data?.user?.id === userId) ids.push(socketId);
+    }
+    return ids;
+};
+
+/**
+ * Tells a player what they just unlocked, once the transaction has COMMITTED —
  * a badge announced by a write that then rolled back is a badge the profile
  * will not have. `recordResult` returns only what was genuinely new, so a
  * player who already held one is not told again and an empty list sends
  * nothing.
  *
- * Addressed to the socket, not the room: co-op players finish the same board
+ * Addressed to the ACCOUNT's current sockets, not the one that finished the
+ * game. Each route dials its own socket (ARCHITECTURE.md §5), so navigating to
+ * /daily or reconnecting through a blip in the milliseconds the transaction
+ * takes leaves the finishing socket dead — the write still lands, and emitting
+ * at it would drop the toast on the floor. Hitting every tab the player has
+ * open falls out of this, which is what you want from "you earned something".
+ *
+ * Still per player, never to the game room: co-op players finish the same board
  * with different shelves behind them.
  */
-const announce = (socketId) => (unlocked) => {
-    if (unlocked && unlocked.length > 0) {
+const announce = (userId) => (unlocked) => {
+    if (!unlocked || unlocked.length === 0) return;
+    for (const socketId of socketIdsOf(userId)) {
         io.to(socketId).emit(SERVER_EVENTS.ACHIEVEMENTS_UNLOCKED, { ids: unlocked });
     }
 };
@@ -65,7 +91,7 @@ const recordForSockets = (socketIds, result) => {
              * every emit error as "Stats write dropped" and sends whoever is
              * on call to look at Postgres for a socket problem.
              */
-            .then(announce(socketId), (error) => {
+            .then(announce(user.id), (error) => {
                 console.error('Stats write dropped:', error.message);
             })
             .catch((error) => {
