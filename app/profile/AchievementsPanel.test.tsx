@@ -43,11 +43,11 @@ describe('the shelf', () => {
         expect(screen.getAllByRole('listitem')).toHaveLength(ACHIEVEMENTS.length);
     });
 
-    it('counts what has been earned, on the summary you click', () => {
-        const { container } = renderPanel({
+    it('counts what has been earned', () => {
+        renderPanel({
             achievements: [{ id: 'first-clear', earnedAt: '2026-08-01T09:00:00.000Z' }],
         });
-        expect(container.querySelector('summary')?.textContent).toContain(
+        expect(screen.getByLabelText('Achievements earned').textContent).toContain(
             `1 of ${ACHIEVEMENTS.length}`,
         );
     });
@@ -92,10 +92,33 @@ describe('the shelf', () => {
 
 describe('collapsing', () => {
     const details = (c: HTMLElement) => c.querySelector('details') as HTMLDetailsElement;
+    /** Tiles OUTSIDE the disclosure — the ones on show while collapsed. */
+    const previewTiles = (c: HTMLElement) =>
+        [...c.querySelectorAll('li')].filter((li) => !li.closest('details'));
 
     it('starts collapsed, so the shelf does not bury the panels below it', () => {
         const { container } = renderPanel();
         expect(details(container).open).toBe(false);
+    });
+
+    /*
+     * The point of the preview: hiding the whole catalog left a profile with
+     * nothing to look at, so a few tiles sit outside the disclosure entirely.
+     */
+    it('keeps the first few tiles on show while collapsed', () => {
+        const { container } = renderPanel();
+        const shown = previewTiles(container);
+
+        expect(shown).toHaveLength(4);
+        expect(shown[0].getAttribute('aria-label')).toContain(ACHIEVEMENTS[0].name);
+        expect(container.querySelectorAll('li')).toHaveLength(ACHIEVEMENTS.length);
+    });
+
+    it('offers the rest by count, and says so when open', () => {
+        const { container } = renderPanel();
+        const summary = container.querySelector('summary')!;
+        expect(summary.textContent).toContain(`Show all ${ACHIEVEMENTS.length}`);
+        expect(summary.textContent).toContain('Show fewer');
     });
 
     it('opens and closes from the summary', () => {
