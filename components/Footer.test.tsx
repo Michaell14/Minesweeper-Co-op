@@ -32,6 +32,7 @@ vi.mock('@/app/store', () => ({
 
 import Footer from './Footer';
 import { LATEST_ENTRY_DATE } from '@/lib/changelog';
+import { DIALOGS } from '@/lib/dialogs';
 
 beforeEach(() => {
     mockUseSession.mockReset();
@@ -82,6 +83,45 @@ describe('the changelog star', () => {
             window.dispatchEvent(new StorageEvent('storage', { key: 'minesweeper_changelog_last_seen' }));
         });
         expect(screen.queryByTestId('changelog-unseen-dot')).toBeNull();
+    });
+});
+
+/**
+ * The guide dialog is the only place the content pages are linked from, so a
+ * dropped link takes them back to being reachable through the sitemap alone.
+ * Nothing about that failure is visible in a diff that was only reformatting.
+ */
+describe('the how-to-play dialog', () => {
+    // A closed <dialog> is display:none, so nothing inside it resolves by role.
+    const openGuide = () => {
+        const { container } = render(<Footer />);
+        const dialog = container.querySelector<HTMLDialogElement>(`dialog#${DIALOGS.guide}`);
+        if (!dialog) throw new Error('no guide dialog rendered');
+        dialog.open = true;
+        return dialog;
+    };
+
+    it.each([
+        ['Full rules and chording', '/how-to-play'],
+        ['Why these boards never need a guess', '/no-guess-minesweeper'],
+        ["Today's daily challenge", '/daily'],
+    ])('links %s to %s', (name, href) => {
+        openGuide();
+        expect(screen.getByRole('link', { name }).getAttribute('href')).toBe(href);
+    });
+
+    it('lists the three steps in order, each numbered once', () => {
+        const dialog = openGuide();
+        const items = [...dialog.querySelectorAll('li')];
+
+        // Marker and text are separate elements so a wrapped step hangs under
+        // its own text; asserted apart for the same reason.
+        expect(items.map((li) => li.firstElementChild?.textContent)).toEqual(['1)', '2)', '3)']);
+        expect(items.map((li) => li.lastElementChild?.textContent)).toEqual([
+            'Create a room code — it can be anything you want',
+            'Share your room code with friends',
+            'Play together!',
+        ]);
     });
 });
 

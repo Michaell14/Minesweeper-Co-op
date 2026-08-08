@@ -9,6 +9,13 @@ import AccountMenu from '@/components/AccountMenu';
 import { useMinesweeperStore } from '@/app/store';
 import { hasUnseenEntries, markChangelogSeen } from '@/lib/changelog';
 
+const KEY_BINDINGS: [string, string][] = [
+    ['Arrows / WASD', 'Move the cursor'],
+    ['Space / Enter', 'Reveal a cell'],
+    ['F', 'Flag a cell'],
+    ['Esc', 'Hide the cursor'],
+];
+
 export default function Footer() {
     const playerJoined = useMinesweeperStore((s) => s.playerJoined);
     const dailyActive = useMinesweeperStore((s) => s.dailyActive);
@@ -151,7 +158,13 @@ export default function Footer() {
             <Dialog
                 id={DIALOGS.guide}
                 title="How to Play!"
-                className="max-w-2xl"
+                /*
+                 * One max-width, not `max-w-2xl` plus a cap: a bare `max-w-2xl`
+                 * REPLACES the UA's viewport-relative max-width, so the dialog
+                 * ran 491px wide on a 375px screen with the right-hand words
+                 * off the edge.
+                 */
+                className="max-w-[min(42rem,calc(100vw-2rem))]"
                 actionsAlign="between"
                 actions={
                     <>
@@ -169,29 +182,57 @@ export default function Footer() {
                         <DialogClose aria-label="Close how to play dialog">Cancel</DialogClose>
                     </>
                 }>
-                <p>1) Create a room code (Can be anything you want)</p>
-                <p>2) Share your room code with friends</p>
-                <p>3) Play together!</p>
-                <hr />
-                <p>Keyboard: arrows or WASD move the cursor</p>
-                <p>Space/Enter reveals, F flags, Esc hides it</p>
-                <hr />
+                {/*
+                  * The number is its own flex item so a step that wraps indents
+                  * under its own text. Run together in one <p>, "1) Create a
+                  * room code (Can be / anything you want)" wrapped back to the
+                  * left margin and read as a fourth step.
+                  */}
+                <ol className="grid gap-3">
+                    {[
+                        'Create a room code — it can be anything you want',
+                        'Share your room code with friends',
+                        'Play together!',
+                    ].map((step, index) => (
+                        <li key={step} className="flex gap-2 leading-6">
+                            <span className="shrink-0 text-ink-muted">{index + 1})</span>
+                            <span>{step}</span>
+                        </li>
+                    ))}
+                </ol>
+
+                <hr className="my-5 border-edge-muted" />
+
+                <p className="text-pixel-sm text-ink-muted mb-3">KEYBOARD</p>
+                {/*
+                  * Wraps rather than a two-column grid. `Arrows / WASD` is 13em
+                  * of a fixed-width pixel face, which on a phone leaves the
+                  * action about eight characters wide — `Move the cursor` came
+                  * out three words tall. Flex-basis on both means the action
+                  * drops to its own full-width line instead.
+                  */}
+                <dl className="grid gap-2 text-pixel-sm">
+                    {KEY_BINDINGS.map(([keys, action]) => (
+                        <div key={keys} className="flex flex-wrap gap-x-5">
+                            <dt className="basis-[13em]">{keys}</dt>
+                            <dd className="grow basis-[10em] text-ink-muted">{action}</dd>
+                        </div>
+                    ))}
+                </dl>
+
+                <hr className="my-5 border-edge-muted" />
+
                 {/*
                   * Real links, not more dialog copy. This dialog is mounted on
                   * every route, so these are the internal links that keep the
                   * content pages from being reachable only through the sitemap
                   * — which is barely reachable at all.
                   */}
-                <p className="text-pixel-sm">
+                <div className="grid gap-2 text-pixel-sm">
                     <Link href="/how-to-play">Full rules and chording</Link>
-                </p>
-                <p className="text-pixel-sm">
                     <Link href="/no-guess-minesweeper">Why these boards never need a guess</Link>
-                </p>
-                <p className="text-pixel-sm">
                     <Link href="/daily">Today&apos;s daily challenge</Link>
-                </p>
-                <hr />
+                </div>
             </Dialog>
 
             <AccountMenu />
