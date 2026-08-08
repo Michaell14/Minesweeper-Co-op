@@ -137,17 +137,46 @@ describe('collapsing', () => {
      * whole payoff of earning something, and they are useless behind a panel
      * the player has to think to open.
      */
-    it('starts open when something is new since the last visit', () => {
+    // Derived, not typed out: which ids fall either side of the fold is
+    // PREVIEW_COUNT's business, and these must not pin the catalog's order.
+    const onShow = ACHIEVEMENTS[0].id;
+    const behindTheFold = ACHIEVEMENTS[ACHIEVEMENTS.length - 1].id;
+
+    it('starts open when something new is behind the fold', () => {
         const { container } = renderPanel({
-            achievements: [{ id: 'sweeper', earnedAt: '2026-08-08T09:00:00.000Z' }],
-            highlighted: new Set(['sweeper']),
+            achievements: [{ id: behindTheFold, earnedAt: '2026-08-08T09:00:00.000Z' }],
+            highlighted: new Set([behindTheFold]),
+        });
+        expect(details(container).open).toBe(true);
+    });
+
+    /*
+     * The badge is already on screen in that case, so expanding would push
+     * twenty-two tiles and every panel below them down the page for nothing.
+     */
+    it('stays collapsed when the only new entry is one already on show', () => {
+        const { container } = renderPanel({
+            achievements: [{ id: onShow, earnedAt: '2026-08-08T09:00:00.000Z' }],
+            highlighted: new Set([onShow]),
+        });
+        expect(details(container).open).toBe(false);
+        expect(screen.getByText('New')).toBeTruthy();
+    });
+
+    it('opens when news straddles the fold', () => {
+        const { container } = renderPanel({
+            achievements: [
+                { id: onShow, earnedAt: '2026-08-08T09:00:00.000Z' },
+                { id: behindTheFold, earnedAt: '2026-08-08T09:00:00.000Z' },
+            ],
+            highlighted: new Set([onShow, behindTheFold]),
         });
         expect(details(container).open).toBe(true);
     });
 
     it('stays collapsed when the only earned entries are already seen', () => {
         const { container } = renderPanel({
-            achievements: [{ id: 'sweeper', earnedAt: '2026-08-08T09:00:00.000Z' }],
+            achievements: [{ id: behindTheFold, earnedAt: '2026-08-08T09:00:00.000Z' }],
             highlighted: new Set(),
         });
         expect(details(container).open).toBe(false);

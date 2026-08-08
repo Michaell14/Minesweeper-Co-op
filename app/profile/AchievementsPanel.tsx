@@ -55,11 +55,15 @@ export default function AchievementsPanel({
     const rest = ACHIEVEMENTS.slice(PREVIEW_COUNT);
 
     /*
-     * Opens itself when there is something new behind it — otherwise the "New"
-     * badges announce an unlock to a panel the player has to think to open,
-     * which is the one case collapsing must not cost anything.
+     * Opens itself when there is something new BEHIND THE FOLD — otherwise the
+     * "New" badges announce an unlock to a panel the player has to think to
+     * open, which is the one case collapsing must not cost anything.
+     *
+     * Scoped to `rest`, not to the whole shelf: a badge on a preview tile is
+     * already on screen, so expanding for it would show twenty-two tiles
+     * nobody asked for and push the panels below down the page.
      */
-    const hasNews = !!highlighted && highlighted.size > 0;
+    const hasHiddenNews = !!highlighted && rest.some(({ id }) => highlighted.has(id));
 
     const tile = (achievement: (typeof ACHIEVEMENTS)[number]) => {
         const earned = earnedAt.get(achievement.id);
@@ -147,7 +151,7 @@ export default function AchievementsPanel({
                 </ul>
 
                 {rest.length > 0 && (
-                    <details className="group mt-2" open={hasNews}>
+                    <details className="group mt-2" open={hasHiddenNews}>
                         <summary
                             /*
                              * `list-none` kills the marker in Chrome and
