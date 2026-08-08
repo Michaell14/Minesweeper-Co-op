@@ -37,9 +37,13 @@ const intro = <h1>Minesweeper Daily Challenge</h1>;
 
 const playButton = () => screen.getByRole('button', { name: /daily challenge/i });
 
+/** The two arrivals /daily has to tell apart. */
+const arriveVia = (url: string) => window.history.replaceState(null, '', url);
+
 beforeEach(() => {
     [startDaily, leaveDaily, leaveRoom, cancelMatch, push].forEach((m) => m.mockClear());
     mockSocket = { id: 'test-socket' };
+    arriveVia('/daily');
     act(() => {
         const store = useMinesweeperStore.getState();
         store.setDailyActive(false);
@@ -97,6 +101,54 @@ describe('/daily before the player opts in', () => {
  * otherwise a resume is accepted behind the intro and the player is silently
  * still in the room they walked out of.
  */
+/*
+ * Starting consumes the day's one attempt even with no move made
+ * (server/controllers/dailyController.js), so the two arrivals cannot be
+ * treated alike: pressing "Play Today's Puzzle" is a decision, landing on the
+ * page from a search result is not.
+ */
+describe('/daily arrived at with the play intent', () => {
+    test('starts the attempt without a second click', () => {
+        arriveVia('/daily?play=1');
+
+        render(<DailyClient intro={intro} />);
+
+        expect(startDaily).toHaveBeenCalledTimes(1);
+    });
+
+    test('does not show the intro copy while the board is on its way', () => {
+        arriveVia('/daily?play=1');
+
+        render(<DailyClient intro={intro} />);
+
+        // The complaint this exists for: a page of prose, and a second button
+        // reading exactly what the player already pressed.
+        expect(screen.queryByRole('heading', { name: 'Minesweeper Daily Challenge' })).toBeNull();
+        expect(screen.queryByRole('button', { name: /daily challenge/i })).toBeNull();
+        expect(screen.getByRole('status')).toBeTruthy();
+    });
+
+    test('strips the param, so a refresh is not a second start', () => {
+        arriveVia('/daily?play=1');
+
+        render(<DailyClient intro={intro} />);
+
+        expect(window.location.search).toBe('');
+    });
+
+    test('still starts when the socket lands after the intent is read', () => {
+        arriveVia('/daily?play=1');
+        mockSocket = null;
+        const { rerender } = render(<DailyClient intro={intro} />);
+        expect(startDaily).not.toHaveBeenCalled();
+
+        mockSocket = { id: 'test-socket' };
+        rerender(<DailyClient intro={intro} />);
+
+        expect(startDaily).toHaveBeenCalledTimes(1);
+    });
+});
+
 describe('/daily is exclusive with a room', () => {
     test('marks the daily view active on arrival, before any board exists', () => {
         render(<DailyClient intro={intro} />);
