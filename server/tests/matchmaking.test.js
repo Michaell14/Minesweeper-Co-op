@@ -33,10 +33,10 @@ jest.mock('../utils/initializeClient', () => ({
     app: { use: jest.fn(), get: jest.fn(), post: jest.fn(), put: jest.fn(), delete: jest.fn() },
     io: {
         use: jest.fn(),
+        // socket.io's live connection map. Both "is this socket still here" and
+        // "how many are here at all" read it, which is the point — there is no
+        // second tally that can lag behind it.
         sockets: { sockets: mockConnected },
-        // socket.io's own connected count, which is what "is anyone around"
-        // reads. Derived from the same map so the two cannot disagree.
-        engine: { get clientsCount() { return mockConnected.size; } },
         to: (target) => ({ emit: (event, payload) => record(target, event, payload) }),
     },
     server: { listen: jest.fn() },
@@ -54,7 +54,13 @@ jest.mock('../utils/playerUtils', () => {
     };
 });
 
-const { findMatch, cancelMatch, startPracticeRace, leaveQueue } = require('../controllers/matchmakingController');
+const {
+    findMatch,
+    cancelMatch,
+    startPracticeRace,
+    leaveQueue,
+    broadcastOnlineCount,
+} = require('../controllers/matchmakingController');
 const matchRepo = require('../data/matchRepo');
 const roomRepo = require('../data/roomRepo');
 const playerRepo = require('../data/playerRepo');
@@ -77,6 +83,12 @@ const makeSocket = (id, { connect = true } = {}) => {
 
 const eventsFor = (id) => (mockEmitted[id] || []).map((e) => e.event);
 const payloadOf = (id, event) => (mockEmitted[id] || []).find((e) => e.event === event)?.payload;
+/** The most recent of a repeated event — the online count is sent many times. */
+const lastPayloadOf = (id, event) =>
+    (mockEmitted[id] || []).filter((e) => e.event === event).at(-1)?.payload;
+
+/** A socket going away: socket.io drops it from the map before `disconnect`. */
+const disconnectSocket = (id) => mockConnected.delete(id);
 
 beforeEach(() => {
     mockRedis.flush();
@@ -309,6 +321,84 @@ describe('what a waiting player is told', () => {
         await findMatch({ socket: alice, name: 'Alice' });
 
         expect(payloadOf('alice', SERVER_EVENTS.MATCH_SEARCHING)).toEqual({ othersOnline: 0 });
+    });
+});
+
+/**
+ * The count is a snapshot of a number that moves, shown beside a waiting timer
+ * that does not stop. Sent once, it is wrong for as long as the player waits —
+ * and the longer they wait, the more wrong it gets.
+ */
+describe('the online count while the search runs', () => {
+    test('follows people arriving', async () => {
+        const alice = makeSocket('alice');
+        await findMatch({ socket: alice, name: 'Alice' });
+        expect(payloadOf('alice', SERVER_EVENTS.MATCH_SEARCHING)).toEqual({ othersOnline: 0 });
+
+        makeSocket('idle-one');
+        await broadcastOnlineCount();
+        makeSocket('idle-two');
+        await broadcastOnlineCount();
+
+        expect(lastPayloadOf('alice', SERVER_EVENTS.MATCH_ONLINE_COUNT)).toEqual({ othersOnline: 2 });
+    });
+
+    test('follows people leaving', async () => {
+        makeSocket('idle-one');
+        makeSocket('idle-two');
+        const alice = makeSocket('alice');
+        await findMatch({ socket: alice, name: 'Alice' });
+
+        disconnectSocket('idle-one');
+        await broadcastOnlineCount();
+
+        expect(lastPayloadOf('alice', SERVER_EVENTS.MATCH_ONLINE_COUNT)).toEqual({ othersOnline: 1 });
+    });
+
+    test('never counts the waiting player as one of the others', async () => {
+        const alice = makeSocket('alice');
+        await findMatch({ socket: alice, name: 'Alice' });
+
+        await broadcastOnlineCount();
+
+        expect(lastPayloadOf('alice', SERVER_EVENTS.MATCH_ONLINE_COUNT)).toEqual({ othersOnline: 0 });
+    });
+
+    test('does not re-assert the search itself', async () => {
+        // A cancel and a broadcast can cross. If this arrived as a second
+        // `matchSearching`, it would put the client back into a search it had
+        // just left, with the dialog already closed and nothing to reopen it.
+        const alice = makeSocket('alice');
+        await findMatch({ socket: alice, name: 'Alice' });
+        await cancelMatch({ socket: alice });
+
+        makeSocket('idle-one');
+        await broadcastOnlineCount();
+
+        expect(eventsFor('alice')).toEqual([SERVER_EVENTS.MATCH_SEARCHING, SERVER_EVENTS.MATCH_CANCELLED]);
+    });
+
+    test('goes to nobody when nobody is waiting', async () => {
+        makeSocket('idle-one');
+        makeSocket('idle-two');
+
+        await broadcastOnlineCount();
+
+        expect(eventsFor('idle-one')).toEqual([]);
+        expect(eventsFor('idle-two')).toEqual([]);
+    });
+
+    test('skips a queue entry whose socket is already gone', async () => {
+        // A dyno restart leaves entries behind. `isPairable` prunes them on the
+        // way past a search; this path has no reason to write, so it just
+        // declines to talk to a socket it cannot see.
+        const alice = makeSocket('alice');
+        await findMatch({ socket: alice, name: 'Alice' });
+        disconnectSocket('alice');
+
+        await broadcastOnlineCount();
+
+        expect(eventsFor('alice')).toEqual([SERVER_EVENTS.MATCH_SEARCHING]);
     });
 });
 

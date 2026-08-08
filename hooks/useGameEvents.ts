@@ -294,6 +294,13 @@ const matchHandlers = (): SocketHandlers => ({
         store.setMatchOthersOnline(othersOnline);
     },
 
+    // The count moving while the dialog is open. Says nothing about the search
+    // itself on purpose — a cancel and a broadcast can cross, and this landing
+    // after the dialog closed must not put the search back on.
+    [SERVER_EVENTS.MATCH_ONLINE_COUNT]: ({ othersOnline }) => {
+        useMinesweeperStore.getState().setMatchOthersOnline(othersOnline);
+    },
+
     [SERVER_EVENTS.MATCH_CANCELLED]: () => {
         useMinesweeperStore.getState().setMatchSearching(false);
         closeDialog(DIALOGS.matchSearching);

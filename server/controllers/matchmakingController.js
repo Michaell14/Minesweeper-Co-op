@@ -60,18 +60,52 @@ const mintRoomCode = async (prefix) => {
     throw new Error(`Could not mint a free ${prefix} room code`);
 };
 
+/** Whether this socket is still connected to THIS process. */
+const isConnected = (socketId) => Boolean(io.sockets?.sockets?.get(socketId));
+
 /**
- * Connected sockets other than this one.
+ * Connected sockets other than `socketId`.
  *
  * NOT a queue depth — the queue can never hold two waiting players, since
  * anyone arriving pairs with whoever is already there. "Is anyone here at all"
  * is the only honest signal, and it is what decides whether waiting is worth
  * it. Local to this process, like every other socket count here.
+ *
+ * The total and the "is that me" subtraction read the SAME map, so they cannot
+ * disagree about a socket. That matters on the disconnect path, where this is
+ * called for a leaver: `io.engine.clientsCount` is a second tally kept
+ * elsewhere, and one that had not caught up would leave the survivors reading a
+ * player who is already gone, with no further event coming to correct it.
  */
-const othersOnline = () => Math.max(0, (io.engine?.clientsCount ?? 1) - 1);
+const othersOnline = (socketId) =>
+    Math.max(0, (io.sockets?.sockets?.size ?? 0) - (isConnected(socketId) ? 1 : 0));
 
-/** Whether this socket is still connected to THIS process. */
-const isConnected = (socketId) => Boolean(io.sockets?.sockets?.get(socketId));
+/**
+ * Re-sends the count to everyone still waiting.
+ *
+ * Called on every connect and disconnect, because the number moves while the
+ * dialog showing it stands still: `matchSearching` fires once, at the moment of
+ * queueing, and a player can then sit there for minutes watching a waiting
+ * timer tick beside a count from when they clicked.
+ *
+ * Cheap by construction — the queue holds at most one waiting player, and this
+ * only reaches sockets belonging to this process.
+ *
+ * Never throws: it sits on the connect and disconnect paths, and a count that
+ * fails to refresh must not cost either of them their real work.
+ */
+const broadcastOnlineCount = async () => {
+    try {
+        for (const entry of await matchRepo.listWaiting()) {
+            if (!isConnected(entry.socketId)) continue;
+            io.to(entry.socketId).emit(SERVER_EVENTS.MATCH_ONLINE_COUNT, {
+                othersOnline: othersOnline(entry.socketId),
+            });
+        }
+    } catch (error) {
+        console.error('Error broadcasting the online count:', error);
+    }
+};
 
 /**
  * Whether a queued player can still be paired with.
@@ -197,7 +231,7 @@ const findMatch = async ({ socket, name }) => {
         });
 
         if (!partner) {
-            socket.emit(SERVER_EVENTS.MATCH_SEARCHING, { othersOnline: othersOnline() });
+            socket.emit(SERVER_EVENTS.MATCH_SEARCHING, { othersOnline: othersOnline(socket.id) });
             return;
         }
 
@@ -206,7 +240,7 @@ const findMatch = async ({ socket, name }) => {
             // They dropped in the window between the liveness check and here.
             // Rare enough to just retry as a fresh search rather than loop.
             await matchRepo.enqueue(socket.id, { name: displayName, sessionId, queuedAt: Date.now() });
-            socket.emit(SERVER_EVENTS.MATCH_SEARCHING, { othersOnline: othersOnline() });
+            socket.emit(SERVER_EVENTS.MATCH_SEARCHING, { othersOnline: othersOnline(socket.id) });
             return;
         }
 
@@ -323,4 +357,4 @@ const leaveQueue = async (socket) => {
     }
 };
 
-module.exports = { findMatch, cancelMatch, startPracticeRace, leaveQueue };
+module.exports = { findMatch, cancelMatch, startPracticeRace, leaveQueue, broadcastOnlineCount };

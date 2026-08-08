@@ -14,7 +14,8 @@ export interface RoomSlice {
      *  Lives here rather than in its own slice because the only thing it
      *  produces is a room, and it ends the moment `playerJoined` begins. */
     matchSearching: boolean;
-    /** Connected players other than you, as of the last `matchSearching`. */
+    /** Connected players other than you — everyone on the site, not everyone
+     *  queued. Kept current while the search runs by `matchOnlineCount`. */
     matchOthersOnline: number;
     /**
      * The time this run is racing, in ms, or null when it is not a practice

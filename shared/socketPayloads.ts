@@ -258,6 +258,18 @@ export interface ServerToClientEvents {
      * changes what the player should do next.
      */
     matchSearching: (payload: { othersOnline: number }) => void;
+    /**
+     * The same count again, because it moved: pushed to everyone still queued
+     * whenever a socket connects or disconnects. The searching dialog can sit
+     * open for minutes, and `matchSearching` fires once, so without this the
+     * number ages next to a waiting timer that does not.
+     *
+     * A separate event rather than a repeat of `matchSearching` because it must
+     * carry no verdict about the search itself: a cancel and a re-broadcast can
+     * cross, and re-asserting "you are searching" after the dialog has closed
+     * would strand the client in a search it has already left.
+     */
+    matchOnlineCount: (payload: { othersOnline: number }) => void;
     /** Removed from the queue — the player's own cancel, or a leave/disconnect. */
     matchCancelled: () => void;
     /** The search could not proceed. Ends the wait rather than spinning forever. */
