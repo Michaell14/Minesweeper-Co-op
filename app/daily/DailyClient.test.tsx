@@ -4,6 +4,7 @@ import { describe, expect, test, vi, beforeEach } from 'vitest';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import DailyClient from './DailyClient';
 import { useMinesweeperStore } from '@/app/store';
+import { consumePlayIntent, markPlayIntent } from '@/lib/dailyIntent';
 
 /**
  * The socket is the whole point of `useGameSession` and none of it is what this
@@ -37,13 +38,18 @@ const intro = <h1>Minesweeper Daily Challenge</h1>;
 
 const playButton = () => screen.getByRole('button', { name: /daily challenge/i });
 
-/** The two arrivals /daily has to tell apart. */
-const arriveVia = (url: string) => window.history.replaceState(null, '', url);
+/**
+ * The two arrivals /daily has to tell apart. Pressing the front page's button
+ * is a gesture in this tab; everything else is a cold arrival.
+ */
+const pressedPlay = () =>
+    markPlayIntent({ button: 0, metaKey: false, ctrlKey: false, shiftKey: false, altKey: false });
 
 beforeEach(() => {
     [startDaily, leaveDaily, leaveRoom, cancelMatch, push].forEach((m) => m.mockClear());
     mockSocket = { id: 'test-socket' };
-    arriveVia('/daily');
+    consumePlayIntent(); // drop anything a previous test left pending
+    vi.useRealTimers();
     act(() => {
         const store = useMinesweeperStore.getState();
         store.setDailyActive(false);
@@ -107,9 +113,9 @@ describe('/daily before the player opts in', () => {
  * treated alike: pressing "Play Today's Puzzle" is a decision, landing on the
  * page from a search result is not.
  */
-describe('/daily arrived at with the play intent', () => {
+describe('/daily arrived at by pressing play', () => {
     test('starts the attempt without a second click', () => {
-        arriveVia('/daily?play=1');
+        pressedPlay();
 
         render(<DailyClient intro={intro} />);
 
@@ -117,7 +123,7 @@ describe('/daily arrived at with the play intent', () => {
     });
 
     test('does not show the intro copy while the board is on its way', () => {
-        arriveVia('/daily?play=1');
+        pressedPlay();
 
         render(<DailyClient intro={intro} />);
 
@@ -128,16 +134,8 @@ describe('/daily arrived at with the play intent', () => {
         expect(screen.getByRole('status')).toBeTruthy();
     });
 
-    test('strips the param, so a refresh is not a second start', () => {
-        arriveVia('/daily?play=1');
-
-        render(<DailyClient intro={intro} />);
-
-        expect(window.location.search).toBe('');
-    });
-
     test('still starts when the socket lands after the intent is read', () => {
-        arriveVia('/daily?play=1');
+        pressedPlay();
         mockSocket = null;
         const { rerender } = render(<DailyClient intro={intro} />);
         expect(startDaily).not.toHaveBeenCalled();
@@ -146,6 +144,84 @@ describe('/daily arrived at with the play intent', () => {
         rerender(<DailyClient intro={intro} />);
 
         expect(startDaily).toHaveBeenCalledTimes(1);
+    });
+
+    /*
+     * The intent is consumed on read, so a second visit in the same tab is a
+     * cold arrival again. Otherwise one press would keep starting attempts.
+     */
+    test('does not start again on a later visit in the same tab', () => {
+        pressedPlay();
+        const { unmount } = render(<DailyClient intro={intro} />);
+        expect(startDaily).toHaveBeenCalledTimes(1);
+        unmount();
+        startDaily.mockClear();
+
+        render(<DailyClient intro={intro} />);
+
+        expect(startDaily).not.toHaveBeenCalled();
+        expect(screen.getByRole('heading', { name: 'Minesweeper Daily Challenge' })).toBeTruthy();
+    });
+
+    /*
+     * `startDaily`'s server handler emits nothing when it fails, so a dropped
+     * socket or a Redis blip leaves the page with nothing to wait for. It has
+     * to hand the button back rather than sit on a loading line forever.
+     */
+    test('falls back to the intro when the server never answers', () => {
+        vi.useFakeTimers();
+        pressedPlay();
+
+        render(<DailyClient intro={intro} />);
+        expect(screen.queryByRole('heading', { name: 'Minesweeper Daily Challenge' })).toBeNull();
+
+        act(() => {
+            vi.advanceTimersByTime(20_000);
+        });
+
+        expect(screen.getByRole('heading', { name: 'Minesweeper Daily Challenge' })).toBeTruthy();
+        expect(screen.getByRole('button', { name: /daily challenge/i })).toBeTruthy();
+    });
+
+    test('does not fall back once the board has arrived', () => {
+        vi.useFakeTimers();
+        pressedPlay();
+
+        render(<DailyClient intro={intro} />);
+        act(() => {
+            useMinesweeperStore.getState().setDailyStatus('ready');
+            vi.advanceTimersByTime(20_000);
+        });
+
+        expect(screen.queryByRole('heading', { name: 'Minesweeper Daily Challenge' })).toBeNull();
+    });
+});
+
+/*
+ * The intent must come from a gesture in this tab, never from a URL. A public
+ * `?play=1` link would spend the reader's one attempt for the day on arrival.
+ */
+describe('the play intent cannot be forged', () => {
+    test('a query parameter does not start anything', () => {
+        window.history.replaceState(null, '', '/daily?play=1');
+
+        render(<DailyClient intro={intro} />);
+
+        expect(startDaily).not.toHaveBeenCalled();
+        expect(screen.getByRole('heading', { name: 'Minesweeper Daily Challenge' })).toBeTruthy();
+
+        window.history.replaceState(null, '', '/daily');
+    });
+
+    test('a modified click does not record intent for this tab', () => {
+        // Cmd-click opens a new tab, whose module state is fresh; recording it
+        // here would arm THIS tab for some later unrelated visit.
+        markPlayIntent({ button: 0, metaKey: true, ctrlKey: false, shiftKey: false, altKey: false });
+
+        render(<DailyClient intro={intro} />);
+
+        expect(startDaily).not.toHaveBeenCalled();
+        expect(screen.getByRole('heading', { name: 'Minesweeper Daily Challenge' })).toBeTruthy();
     });
 });
 
