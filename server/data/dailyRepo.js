@@ -83,13 +83,17 @@ const setAttemptFields = async (date, token, fields) => {
 const markStarted = (date, token, startedAt) =>
     setAttemptFields(date, token, { status: 'in_progress', startedAt: startedAt.toString() });
 
-/** Persists this player's mutating board copy, mirrors roomRepo.setPvpBoard. */
-const setAttemptBoard = (date, token, board) =>
-    setAttemptFields(date, token, { board: JSON.stringify(board) });
-
-/** Pace milestones (see domain/pace.js), stored as a JSON array of elapsedMs. */
-const setAttemptMilestones = (date, token, milestones) =>
-    setAttemptFields(date, token, { milestones: JSON.stringify(milestones) });
+/**
+ * Persists this player's mutating board copy, mirrors roomRepo.setPvpBoard.
+ * Pace milestones ride the SAME hSet when a move crossed any (one atomic
+ * write): stored separately, a board write failing after a milestone write
+ * left durable pace stamps from a move that never completed.
+ */
+const setAttemptBoard = (date, token, board, milestones = null) =>
+    setAttemptFields(date, token, {
+        board: JSON.stringify(board),
+        ...(milestones ? { milestones: JSON.stringify(milestones) } : {}),
+    });
 
 /** Hit a mine: run over for the day, no leaderboard entry. */
 const markFailed = (date, token, finishedAt, elapsedMs) =>
@@ -198,7 +202,6 @@ module.exports = {
     createAttempt,
     markStarted,
     setAttemptBoard,
-    setAttemptMilestones,
     markFailed,
     markWon,
     submitScore,

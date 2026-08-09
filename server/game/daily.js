@@ -125,21 +125,16 @@ const markStartedIfNeeded = async (date, token, attempt) => {
 };
 
 /**
- * Records any pace deciles this move crossed (see shared/pace.js). Persisted
- * BEFORE the win check: finishAttempt re-reads the attempt, and the winning
- * move's own crossings — always at least the run to 100% — must be there for
- * the terminal emit to carry them.
- *
- * A failure here rejects the move rather than being swallowed — deliberate:
- * the board write right after it shares the same Redis and lock, so a blip
- * would doom the move anyway.
+ * The pace deciles this move crossed (see shared/pace.js), or null when it
+ * crossed none. Pure — the caller hands the result to setAttemptBoard so the
+ * milestones land in the SAME write as the board they describe: written
+ * separately, a board write failing after a milestone write left durable
+ * pace stamps from a move that never completed.
  */
-const recordPaceIfCrossed = async (date, token, attempt, board, startedAt) => {
+const newlyCrossedPace = (attempt, board, startedAt) => {
     const before = parseMilestones(attempt.milestones);
     const milestones = withCrossedMilestones(before, board, Date.now() - startedAt);
-    if (milestones.length > before.length) {
-        await dailyRepo.setAttemptMilestones(date, token, milestones);
-    }
+    return milestones.length > before.length ? milestones : null;
 };
 
 /**
@@ -235,8 +230,9 @@ const openCell = async (date, token, socketId, row, col) =>
             return;
         }
 
-        await recordPaceIfCrossed(date, token, attempt, board, startedAt);
-        await dailyRepo.setAttemptBoard(date, token, board);
+        // Written BEFORE the win check: finishAttempt re-reads the attempt,
+        // and the winning move's own crossings must be there to emit.
+        await dailyRepo.setAttemptBoard(date, token, board, newlyCrossedPace(attempt, board, startedAt));
 
         const won = await checkDailyWin(date, token, socketId, board);
         if (!won) {
@@ -276,8 +272,7 @@ const chordCell = async (date, token, socketId, row, col) =>
             return;
         }
 
-        await recordPaceIfCrossed(date, token, attempt, board, startedAt);
-        await dailyRepo.setAttemptBoard(date, token, board);
+        await dailyRepo.setAttemptBoard(date, token, board, newlyCrossedPace(attempt, board, startedAt));
 
         const won = await checkDailyWin(date, token, socketId, board);
         if (!won) {
