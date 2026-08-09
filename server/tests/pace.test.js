@@ -1,12 +1,14 @@
 /**
- * domain/pace.js: the share text's pace milestones. Pure functions, no infra.
+ * shared/pace.js (the maths, used by both halves) and domain/pace.js (the
+ * stored-field parse). Pure functions, no infra.
  *
  * The invariant that matters: milestones record WHEN progress happened, never
  * WHERE — and once stamped, an entry is immutable ("first reached"), so a
  * cascade that re-crosses nothing must change nothing.
  */
 
-const { PACE_DECILES, safeProgress, withCrossedMilestones, parseMilestones } = require('../domain/pace');
+const { PACE_DECILES, safeProgress, withCrossedMilestones } = require('../../shared/pace');
+const { parseMilestones } = require('../domain/pace');
 
 /** rows x cols all-safe board with `open` cells opened row-major. */
 const boardWith = (rows, cols, open, mines = 0) => {

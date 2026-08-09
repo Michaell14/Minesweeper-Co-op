@@ -367,7 +367,7 @@ const dailyHandlers = (): SocketHandlers => ({
         // Backfills a result this browser never saw finish (an attempt from
         // before history existed). First-write-wins inside, so a plain resume
         // of an already-filed day changes nothing.
-        recordDailyResult(date, { won: status !== "failed", elapsedMs: elapsedMs ?? null });
+        recordDailyResult(date, { won: status !== "failed" });
 
         if (board && board.length > 0) {
             // The attempt's final board, for a VIEW-ONLY replay. Mounting it
@@ -414,7 +414,7 @@ const dailyHandlers = (): SocketHandlers => ({
         store.setDailyStatus("failed");
         store.setDailyElapsedMs(elapsedMs);
         store.setDailyMilestones(milestones ?? null);
-        recordDailyResult(store.dailyDate, { won: false, elapsedMs });
+        recordDailyResult(store.dailyDate, { won: false });
         // startedAt is kept live by DAILY_STARTED and by
         // markDailyStartedOptimistically; freezing endedAt stops <Timer> at the
         // elapsedMs this event just reported.
@@ -430,7 +430,7 @@ const dailyHandlers = (): SocketHandlers => ({
         store.setDailyStatus("won_pending_submit");
         store.setDailyElapsedMs(elapsedMs);
         store.setDailyMilestones(milestones ?? null);
-        recordDailyResult(store.dailyDate, { won: true, elapsedMs });
+        recordDailyResult(store.dailyDate, { won: true });
         store.setClock({ startedAt: store.startedAt, endedAt: (store.startedAt ?? 0) + elapsedMs });
         openDialog(DIALOGS.dailySubmit);
     },

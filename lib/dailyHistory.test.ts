@@ -10,22 +10,18 @@ afterEach(() => {
 
 describe("recording and reading", () => {
     test("round-trips a result under its puzzle date", () => {
-        recordDailyResult("2026-08-08", { won: true, elapsedMs: 90_000 });
+        recordDailyResult("2026-08-08", { won: true });
 
-        expect(readDailyHistory()).toEqual({ "2026-08-08": { won: true, elapsedMs: 90_000 } });
+        expect(readDailyHistory()).toEqual({ "2026-08-08": { won: true } });
     });
 
-    /*
-     * An attempt is one per day and immutable once terminal, so a second write
-     * for the same date is always a re-delivery (a resume, a second tab) —
-     * never new information. Last-write-wins would let a resume with a missing
-     * elapsedMs erase the real one.
-     */
+    /* A terminal attempt is immutable, so a second write is a re-delivery
+     * (resume, second tab) — never new information. */
     test("first write wins for a date", () => {
-        recordDailyResult("2026-08-08", { won: true, elapsedMs: 90_000 });
-        recordDailyResult("2026-08-08", { won: false, elapsedMs: null });
+        recordDailyResult("2026-08-08", { won: true });
+        recordDailyResult("2026-08-08", { won: false });
 
-        expect(readDailyHistory()["2026-08-08"]).toEqual({ won: true, elapsedMs: 90_000 });
+        expect(readDailyHistory()["2026-08-08"]).toEqual({ won: true });
     });
 
     test("a corrupt blob reads as empty rather than throwing", () => {
@@ -38,9 +34,9 @@ describe("recording and reading", () => {
         window.localStorage.setItem(
             STORAGE_KEY,
             JSON.stringify({
-                "2026-08-08": { won: true, elapsedMs: 90_000 },
-                "2026-08-07": { won: "yes" },          // not a boolean
-                "not-a-date": { won: true, elapsedMs: 1 },
+                "2026-08-08": { won: true },
+                "2026-08-07": { won: "yes" },   // not a boolean
+                "not-a-date": { won: true },
                 "2026-08-06": null,
             }),
         );
@@ -48,16 +44,18 @@ describe("recording and reading", () => {
         expect(Object.keys(readDailyHistory())).toEqual(["2026-08-08"]);
     });
 
-    test("a bad elapsedMs is kept as a result with no time, not dropped", () => {
-        window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ "2026-08-08": { won: true, elapsedMs: "fast" } }));
+    /* Entries written by the schema's first version carried an elapsedMs;
+     * they must still read as results, minus the field nothing consumed. */
+    test("tolerates extra fields from older entries", () => {
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ "2026-08-08": { won: true, elapsedMs: 90_000 } }));
 
-        expect(readDailyHistory()["2026-08-08"]).toEqual({ won: true, elapsedMs: null });
+        expect(readDailyHistory()["2026-08-08"]).toEqual({ won: true });
     });
 });
 
 describe("dailyWinStreak", () => {
-    const win = { won: true, elapsedMs: 60_000 };
-    const loss = { won: false, elapsedMs: 30_000 };
+    const win = { won: true };
+    const loss = { won: false };
 
     test("counts consecutive wins walking back from the end date", () => {
         const history = { "2026-08-06": win, "2026-08-07": win, "2026-08-08": win };

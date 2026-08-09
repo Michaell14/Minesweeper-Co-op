@@ -2,45 +2,31 @@ import { dayBefore } from "@/lib/dailyCalendar";
 
 /**
  * This browser's daily-challenge results, one per puzzle date, kept for the
- * share text's streak line ("🔥 5-day streak").
- *
- * localStorage for the same reason bestTimes.ts uses it: a result should
- * outlive its tab. Local-first deliberately — it works for guests and needs no
- * network at share time. The tradeoff is that it is per-device, so a signed-in
- * player alternating devices can see a shorter streak here than their profile
- * shows; acceptable for share flair.
+ * share text's streak line. Local-first on purpose: works for guests, no
+ * network at share time — the tradeoff is that a signed-in player alternating
+ * devices can see a shorter streak here than their profile shows.
  *
  * Keys are the PUZZLE date (the server-issued `dailyDate`), never a
- * client-derived "today" — an attempt finished just after UTC midnight belongs
- * to the day it was set, the same rule game/daily.js applies to stats.
+ * client-derived "today" — an attempt finished just after UTC midnight
+ * belongs to the day it was set, the same rule game/daily.js applies to stats.
  */
 
 export interface DailyResult {
     won: boolean;
-    /** Null for results recorded without a time (a resumed pre-replay attempt). */
-    elapsedMs: number | null;
 }
 
 const STORAGE_KEY = "minesweeper_daily_history";
 
 const isDayKey = (key: string) => /^\d{4}-\d{2}-\d{2}$/.test(key);
 
-/** A stored entry, or null if it is missing or has been corrupted. */
 const parseEntry = (value: unknown): DailyResult | null => {
     if (typeof value !== "object" || value === null) return null;
-    const { won, elapsedMs } = value as Record<string, unknown>;
-    if (typeof won !== "boolean") return null;
-    return {
-        won,
-        elapsedMs: typeof elapsedMs === "number" && Number.isFinite(elapsedMs) && elapsedMs >= 0 ? elapsedMs : null,
-    };
+    const { won } = value as Record<string, unknown>;
+    return typeof won === "boolean" ? { won } : null;
 };
 
-/**
- * Everything stored, with anything unreadable dropped. localStorage is
- * untrusted input — a corrupt blob loses the history rather than throwing on a
- * page with a game running in it (bestTimes.ts's rule).
- */
+/** Everything stored, with anything unreadable dropped — localStorage is
+ * untrusted input (bestTimes.ts's rule). */
 export const readDailyHistory = (): Record<string, DailyResult> => {
     if (typeof window === "undefined") return {};
 
@@ -71,8 +57,8 @@ export const readDailyHistory = (): Record<string, DailyResult> => {
 
 /**
  * Files a terminal result under its puzzle date. First write wins: an attempt
- * is one per day and immutable once terminal, so a re-delivery of the same
- * outcome (a resume, a second tab) must not overwrite what is already filed.
+ * is immutable once terminal, so a second write for the same date is always a
+ * re-delivery (a resume, a second tab), never new information.
  */
 export const recordDailyResult = (date: string, result: DailyResult): void => {
     if (typeof window === "undefined" || !isDayKey(date)) return;
@@ -87,11 +73,8 @@ export const recordDailyResult = (date: string, result: DailyResult): void => {
     }
 };
 
-/**
- * Consecutive daily WINS ending on `endDate`, walking back a day at a time.
- * A loss or missing day on `endDate` itself is a streak of 0 — the share for
- * a loss never brags about a streak that run just ended.
- */
+/** Consecutive daily WINS ending on `endDate` — a loss or missing day there
+ * is 0, so a loss's share never brags about the streak it just ended. */
 export const dailyWinStreak = (history: Record<string, DailyResult>, endDate: string): number => {
     let streak = 0;
     let day = endDate;

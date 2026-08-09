@@ -560,6 +560,16 @@ describe('pace milestones ride the terminal payloads', () => {
         expect(payload.milestones).toEqual([]);
     });
 
+    test('a chord records the deciles its reveals cross', async () => {
+        const socket = socketFor('sock-1');
+        await startDaily({ socket, dailyAttemptToken: 'tok-1' });
+        await dailyGame.toggleFlag(DATE, 'tok-1', 'sock-1', 0, 1); // flag the mine
+        await dailyGame.chordCell(DATE, 'tok-1', 'sock-1', 0, 0); // opens [1][1]: 60%
+
+        const attempt = await dailyRepo.getAttempt(DATE, 'tok-1');
+        expect(JSON.parse(attempt.milestones)).toEqual([0, 0, 0, 0, 0, 0]);
+    });
+
     test('a flag toggle records no pace', async () => {
         const socket = socketFor('sock-1');
         await startDaily({ socket, dailyAttemptToken: 'tok-1' });

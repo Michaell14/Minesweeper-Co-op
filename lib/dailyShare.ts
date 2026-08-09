@@ -1,4 +1,5 @@
 import type { Cell, DailyAttemptStatus } from "@/shared/socketPayloads";
+import { PACE_DECILES, safeProgress } from "@/shared/pace";
 import { formatElapsed } from "@/lib/gameClock";
 
 export interface ShareableDailyResult {
@@ -16,18 +17,13 @@ export interface ShareableDailyResult {
     milestones?: number[] | null;
 }
 
-const PACE_DECILES = 10;
-
 /**
- * The pace bar: one emoji per tenth of the board's safe cells, colored by
- * whether that stretch beat the run's own average pace — 🟩 on pace or
- * faster, 🟨 slower. A loss truncates at the decile the run died in (💥) and
- * pads the rest ⬜. Same spoiler rule as everything here: pacing is about
- * WHEN, so it is shareable; the board is about WHERE, so it never is.
+ * The pace bar: one emoji per tenth of the board's safe cells — 🟩 on pace or
+ * faster, 🟨 slower than the run's average, a loss truncated with 💥 and ⬜.
+ * Same spoiler rule as everything here: pacing is about WHEN, so it is
+ * shareable; the board is about WHERE, so it never is.
  *
- * Null rather than a wrong bar when the data can't support one: no
- * milestones at all (a pre-pace attempt), a "win" missing deciles, or
- * timestamps out of order (garbage in storage).
+ * Null whenever the data can't honestly support a bar.
  */
 export function buildPaceBar(milestones: number[], won: boolean): string | null {
     const ms = milestones
@@ -38,8 +34,17 @@ export function buildPaceBar(milestones: number[], won: boolean): string | null 
     if (!won && ms.length === PACE_DECILES) return null; // 100% open IS the win
     if (!won && ms.length === 0) return null; // died inside the first decile — no pace to show
 
-    const average = ms[ms.length - 1] / ms.length;
-    const bar: string[] = ms.map((stamp, i) => (stamp - (i > 0 ? ms[i - 1] : 0) <= average ? "🟩" : "🟨"));
+    /*
+     * The board's free opening stamps its deciles at elapsed 0, so a plain
+     * mean over ALL deciles is dragged low enough that a perfectly steady run
+     * reads as slow everywhere. Average over the deciles that took real time;
+     * the free ones are trivially on-pace.
+     */
+    const durations = ms.map((stamp, i) => stamp - (i > 0 ? ms[i - 1] : 0));
+    const paced = durations.filter((d) => d > 0).length;
+    const average = paced > 0 ? ms[ms.length - 1] / paced : 0;
+
+    const bar: string[] = durations.map((d) => (d <= average ? "🟩" : "🟨"));
     if (!won) {
         bar.push("💥");
         while (bar.length < PACE_DECILES) bar.push("⬜");
@@ -50,23 +55,14 @@ export function buildPaceBar(milestones: number[], won: boolean): string | null 
 /**
  * Percentage of safe cells opened, from a TERMINAL board — one delivered with
  * `revealMines: true`, so closed cells carry a truthful `isMine`. On a live
- * projected board the projection zeroes that flag and this would overcount the
- * denominator; terminal states are the only place a share happens, so that
- * board is the only kind this ever sees. Null when there is no board to read
- * (an attempt from before final boards were stored).
+ * projected board the projection zeroes that flag and this would overcount
+ * the denominator; terminal states are the only place a share happens. Null
+ * when there is no board to read.
  */
 export function percentCleared(board: Cell[][]): number | null {
-    let safeOpened = 0;
-    let safeTotal = 0;
-    for (const row of board) {
-        for (const cell of row) {
-            if (cell.isMine) continue;
-            safeTotal++;
-            if (cell.isOpen) safeOpened++;
-        }
-    }
-    if (safeTotal === 0) return null;
-    return Math.round((100 * safeOpened) / safeTotal);
+    const { opened, total } = safeProgress(board);
+    if (total === 0) return null;
+    return Math.round((100 * opened) / total);
 }
 
 /**

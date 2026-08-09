@@ -337,8 +337,8 @@ describe("sharing a result", () => {
     });
 
     test("a win brags about a live local streak", async () => {
-        recordDailyResult("2026-07-31", { won: true, elapsedMs: 80_000 });
-        recordDailyResult("2026-08-01", { won: true, elapsedMs: 92_000 });
+        recordDailyResult("2026-07-31", { won: true });
+        recordDailyResult("2026-08-01", { won: true });
         useMinesweeperStore.getState().setDailyStatus("completed");
 
         expect(await shareAndCapture(DIALOGS.dailyLeaderboard)).toContain("🔥 2-day streak");

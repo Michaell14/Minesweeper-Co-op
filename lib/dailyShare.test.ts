@@ -96,6 +96,27 @@ describe("buildPaceBar", () => {
         expect(buildPaceBar(ms, true)).toBe("🟩🟩🟩🟩🟨🟩🟩🟩🟩🟩");
     });
 
+    /*
+     * The board's free opening stamps its deciles at elapsed 0. A mean over
+     * ALL deciles would make every real decile of a perfectly steady run read
+     * as "slower than average" — the bar's one job done exactly backwards —
+     * so the average must exclude the instant ones.
+     */
+    test("the free opening's instant deciles don't drag the average", () => {
+        // One free decile, then nine perfectly steady seconds.
+        const oneFree = [0, ...Array.from({ length: 9 }, (_, i) => (i + 1) * 1_000)];
+        expect(buildPaceBar(oneFree, true)).toBe("🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩");
+
+        // Two free deciles, then eight steady.
+        const twoFree = [0, 0, ...Array.from({ length: 8 }, (_, i) => (i + 1) * 1_000)];
+        expect(buildPaceBar(twoFree, true)).toBe("🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩");
+    });
+
+    test("a loss with a free decile stays honest about the paced ones", () => {
+        // Free decile, one 1s decile, one 3s decile -> avg of paced = 2s.
+        expect(buildPaceBar([0, 1_000, 4_000], false)).toBe("🟩🟩🟨💥⬜⬜⬜⬜⬜⬜");
+    });
+
     test("a loss truncates with a boom and pads the unreached deciles", () => {
         expect(buildPaceBar([1_000, 2_000, 3_000, 4_000], false)).toBe("🟩🟩🟩🟩💥⬜⬜⬜⬜⬜");
     });

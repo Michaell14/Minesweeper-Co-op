@@ -11,7 +11,8 @@
 const { generateSingleCandidateBoard } = require('../domain/boardGen');
 const { solveWithStats } = require('../domain/solverUtils');
 const { revealFrom, getAdjacentCells, projectBoard, projectCells } = require('../domain/board');
-const { withCrossedMilestones, parseMilestones } = require('../domain/pace');
+const { withCrossedMilestones } = require('../../shared/pace');
+const { parseMilestones } = require('../domain/pace');
 const { hashStringToSeed, mulberry32 } = require('../domain/seededRandom');
 const { io } = require('../utils/initializeClient');
 const { recordForSockets, boardKeyOf } = require('../utils/statsRecorder');
@@ -117,14 +118,21 @@ const markStartedIfNeeded = async (date, token, attempt) => {
         await dailyRepo.markStarted(date, token, startedAt);
         return startedAt;
     }
-    return parseInt(attempt.startedAt, 10);
+    const startedAt = parseInt(attempt.startedAt, 10);
+    // A blank stamp shouldn't exist alongside in_progress (markStarted writes
+    // both in one hSet), but NaN here would poison every later milestone.
+    return Number.isFinite(startedAt) ? startedAt : Date.now();
 };
 
 /**
- * Records any pace deciles this move crossed (see domain/pace.js). Persisted
+ * Records any pace deciles this move crossed (see shared/pace.js). Persisted
  * BEFORE the win check: finishAttempt re-reads the attempt, and the winning
  * move's own crossings — always at least the run to 100% — must be there for
  * the terminal emit to carry them.
+ *
+ * A failure here rejects the move rather than being swallowed — deliberate:
+ * the board write right after it shares the same Redis and lock, so a blip
+ * would doom the move anyway.
  */
 const recordPaceIfCrossed = async (date, token, attempt, board, startedAt) => {
     const before = parseMilestones(attempt.milestones);
