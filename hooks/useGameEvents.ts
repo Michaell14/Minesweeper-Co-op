@@ -6,6 +6,7 @@ import { playSound } from "@/lib/sound";
 import { cursorColorForId } from "@/lib/theme";
 import { DIALOGS, openDialog, closeDialog } from "@/lib/dialogs";
 import { boardKey, playersForClear, recordBestTime } from "@/lib/bestTimes";
+import { recordDailyResult } from "@/lib/dailyHistory";
 import { elapsedSeconds } from "@/lib/gameClock";
 import { practiceTargetFor } from "@/lib/practice";
 import { CLIENT_EVENTS, SERVER_EVENTS } from "@/shared/events";
@@ -350,6 +351,7 @@ const dailyHandlers = (): SocketHandlers => ({
         store.setDailyElapsedMs(null);
         store.setDailyRank(null);
         store.setDailyTotalEntries(null);
+        store.setDailyMilestones(null);
         store.setGameOver(false);
         store.setGameWon(false);
         // Feeds gameSlice's shared run clock, so <Timer> works here unchanged.
@@ -365,7 +367,7 @@ const dailyHandlers = (): SocketHandlers => ({
      * never submitted a name (closed the tab before the dialog) -- reopen it
      * rather than show a dead end.
      */
-    [SERVER_EVENTS.DAILY_ALREADY_ATTEMPTED]: ({ date, status, elapsedMs, rank, totalEntries, board, numRows, numCols, numMines }) => {
+    [SERVER_EVENTS.DAILY_ALREADY_ATTEMPTED]: ({ date, status, elapsedMs, rank, totalEntries, board, milestones, numRows, numCols, numMines }) => {
         const store = useMinesweeperStore.getState();
         store.setDailyActive(true);
         store.setDailyDate(date);
@@ -373,6 +375,11 @@ const dailyHandlers = (): SocketHandlers => ({
         store.setDailyElapsedMs(elapsedMs ?? null);
         store.setDailyRank(rank ?? null);
         store.setDailyTotalEntries(totalEntries ?? null);
+        store.setDailyMilestones(milestones ?? null);
+        // Backfills a result this browser never saw finish (an attempt from
+        // before history existed). First-write-wins inside, so a plain resume
+        // of an already-filed day changes nothing.
+        recordDailyResult(date, { won: status !== "failed" });
 
         if (board && board.length > 0) {
             // The attempt's final board, for a VIEW-ONLY replay. Mounting it
@@ -412,12 +419,14 @@ const dailyHandlers = (): SocketHandlers => ({
     /** Terminal states only -- the full board, with mines revealed/flagged. */
     [SERVER_EVENTS.DAILY_BOARD_UPDATE]: ({ board }) => useMinesweeperStore.getState().setBoard(board),
 
-    [SERVER_EVENTS.DAILY_GAME_OVER]: ({ elapsedMs }) => {
+    [SERVER_EVENTS.DAILY_GAME_OVER]: ({ elapsedMs, milestones }) => {
         playSound('lose');
         const store = useMinesweeperStore.getState();
         store.setGameOver(true); // lets Cell.tsx reveal every mine, same as coop/PVP
         store.setDailyStatus("failed");
         store.setDailyElapsedMs(elapsedMs);
+        store.setDailyMilestones(milestones ?? null);
+        recordDailyResult(store.dailyDate, { won: false });
         // startedAt is kept live by DAILY_STARTED and by
         // markDailyStartedOptimistically; freezing endedAt stops <Timer> at the
         // elapsedMs this event just reported.
@@ -425,13 +434,15 @@ const dailyHandlers = (): SocketHandlers => ({
         openDialog(DIALOGS.dailyGameOver);
     },
 
-    [SERVER_EVENTS.DAILY_WON]: ({ elapsedMs }) => {
+    [SERVER_EVENTS.DAILY_WON]: ({ elapsedMs, milestones }) => {
         playSound('win');
         const store = useMinesweeperStore.getState();
         shootConfetti();
         store.setGameWon(true);
         store.setDailyStatus("won_pending_submit");
         store.setDailyElapsedMs(elapsedMs);
+        store.setDailyMilestones(milestones ?? null);
+        recordDailyResult(store.dailyDate, { won: true });
         store.setClock({ startedAt: store.startedAt, endedAt: (store.startedAt ?? 0) + elapsedMs });
         openDialog(DIALOGS.dailySubmit);
     },

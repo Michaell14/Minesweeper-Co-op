@@ -5,6 +5,7 @@
  */
 
 const { projectBoard } = require('../domain/board');
+const { parseMilestones } = require('../domain/pace');
 const { generateDailyBoardForDate } = require('../game/daily');
 const dailyRepo = require('../data/dailyRepo');
 const userRepo = require('../data/userRepo');
@@ -90,6 +91,10 @@ const emitStartResult = async ({ socket, date, boardState, numRows, numCols, num
             rank: rank === null ? undefined : rank,
             totalEntries: totalEntries === null ? undefined : totalEntries,
             board: finalBoard ? projectBoard(finalBoard, { revealMines: true }) : undefined,
+            // For the share text's pace bar on a resumed session. Attempts
+            // from before pace existed parse to [], which the client treats
+            // as "no bar" rather than a flat one.
+            milestones: parseMilestones(attempt.milestones),
             numRows,
             numCols,
             numMines,

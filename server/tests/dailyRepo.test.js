@@ -81,6 +81,7 @@ describe('attempts', () => {
             startedAt: '',
             finishedAt: '',
             elapsedMs: '',
+            milestones: '[]',
             socketId: 'sock-1',
         });
         expect(client.expire).toHaveBeenCalledWith('daily:2026-07-30:attempt:tok-1', 172800);
@@ -109,6 +110,23 @@ describe('attempts', () => {
 
         expect(client.hSet).toHaveBeenCalledWith('daily:2026-07-30:attempt:tok-1', {
             board: JSON.stringify(board),
+        });
+    });
+
+    /*
+     * ONE hSet, both fields: milestones stored in a separate write could land
+     * while the board write failed, leaving durable pace stamps from a move
+     * that never completed. The single call is the invariant, not a detail.
+     */
+    test('setAttemptBoard writes crossed milestones atomically with the board', async () => {
+        const board = [[{ isMine: false, isOpen: true, isFlagged: false, nearbyMines: 0 }]];
+
+        await dailyRepo.setAttemptBoard('2026-07-30', 'tok-1', board, [0, 500, 1200]);
+
+        expect(client.hSet).toHaveBeenCalledTimes(1);
+        expect(client.hSet).toHaveBeenCalledWith('daily:2026-07-30:attempt:tok-1', {
+            board: JSON.stringify(board),
+            milestones: '[0,500,1200]',
         });
     });
 

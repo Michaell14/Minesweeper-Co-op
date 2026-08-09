@@ -408,7 +408,9 @@ describe('elapsedMs is always finishedAt - startedAt, both server timestamps', (
         const attempt = await dailyRepo.getAttempt(DATE, 'tok-1');
         expect(attempt.status).toBe('failed');
         expect(attempt.elapsedMs).toBe('3500');
-        expect(lastEmitted('dailyGameOver')).toEqual({ elapsedMs: 3500 });
+        // The first open put 3 of 5 safe cells up (60% -> six deciles), all at
+        // elapsed 0 since the clock started on that same move.
+        expect(lastEmitted('dailyGameOver')).toEqual({ elapsedMs: 3500, milestones: [0, 0, 0, 0, 0, 0] });
     });
 
     test('dailyOpenCell and dailyChordCell accept no elapsed-time argument -- the', () => {
@@ -504,6 +506,78 @@ describe('submitDailyScore and the leaderboard', () => {
 
         expect(mockJoin).toHaveBeenCalledWith('daily-lb:2026-07-30');
         expect(socket.emit).toHaveBeenCalledWith('dailyLeaderboardUpdate', { entries: [] });
+    });
+});
+
+describe('pace milestones ride the terminal payloads', () => {
+    /*
+     * tinyBoard has 5 safe cells with 2 pre-opened (40%), so decile crossings
+     * are chunky and exact: the free opening's four deciles stamp at elapsed 0
+     * on the first real move, the same rule as the real board's fixed-center
+     * opening. Timing only, never positions -- the client's bar depends on it.
+     */
+    test('a win emits all 10, stamped from server time', async () => {
+        const socket = socketFor('sock-1');
+        nowSpy.mockReturnValue(BASE_TIME + 1_000);
+        await startDaily({ socket, dailyAttemptToken: 'tok-1' });
+        await dailyGame.openCell(DATE, 'tok-1', 'sock-1', 1, 1); // 60% at elapsed 0
+        await dailyGame.openCell(DATE, 'tok-1', 'sock-1', 2, 0); // 80% at elapsed 0
+
+        nowSpy.mockReturnValue(BASE_TIME + 3_000);
+        await dailyGame.openCell(DATE, 'tok-1', 'sock-1', 2, 1); // 100% -> win
+
+        expect(lastEmitted('dailyWon')).toEqual({
+            elapsedMs: 2_000,
+            milestones: [0, 0, 0, 0, 0, 0, 0, 0, 2_000, 2_000],
+        });
+    });
+
+    test('a resumed terminal attempt carries its milestones for the share text', async () => {
+        const socket = socketFor('sock-1');
+        await startDaily({ socket, dailyAttemptToken: 'tok-1' });
+        await dailyGame.openCell(DATE, 'tok-1', 'sock-1', 1, 1); // 60%
+        await dailyGame.openCell(DATE, 'tok-1', 'sock-1', 0, 1); // mine -> failed
+
+        socket.emit.mockClear();
+        await startDaily({ socket, dailyAttemptToken: 'tok-1' });
+
+        const [, payload] = socket.emit.mock.calls.find(([event]) => event === 'dailyAlreadyAttempted');
+        expect(payload.milestones).toEqual([0, 0, 0, 0, 0, 0]);
+    });
+
+    test('an attempt from before pace existed resumes with no milestones, not a crash', async () => {
+        const socket = socketFor('sock-1');
+        await startDaily({ socket, dailyAttemptToken: 'tok-1' });
+        await dailyGame.openCell(DATE, 'tok-1', 'sock-1', 0, 1); // mine -> failed
+
+        // Simulate the old attempt shape: field never written.
+        await mockRedisSingleton.hSet(`daily:${DATE}:attempt:tok-1`, { milestones: '' });
+
+        socket.emit.mockClear();
+        await startDaily({ socket, dailyAttemptToken: 'tok-1' });
+
+        const [, payload] = socket.emit.mock.calls.find(([event]) => event === 'dailyAlreadyAttempted');
+        expect(payload.milestones).toEqual([]);
+    });
+
+    test('a chord records the deciles its reveals cross', async () => {
+        const socket = socketFor('sock-1');
+        await startDaily({ socket, dailyAttemptToken: 'tok-1' });
+        await dailyGame.toggleFlag(DATE, 'tok-1', 'sock-1', 0, 1); // flag the mine
+        await dailyGame.chordCell(DATE, 'tok-1', 'sock-1', 0, 0); // opens [1][1]: 60%
+
+        const attempt = await dailyRepo.getAttempt(DATE, 'tok-1');
+        expect(JSON.parse(attempt.milestones)).toEqual([0, 0, 0, 0, 0, 0]);
+    });
+
+    test('a flag toggle records no pace', async () => {
+        const socket = socketFor('sock-1');
+        await startDaily({ socket, dailyAttemptToken: 'tok-1' });
+
+        await dailyGame.toggleFlag(DATE, 'tok-1', 'sock-1', 0, 1);
+
+        const attempt = await dailyRepo.getAttempt(DATE, 'tok-1');
+        expect(attempt.milestones).toBe('[]');
     });
 });
 

@@ -308,6 +308,9 @@ export interface ServerToClientEvents {
          * Optional: attempts recorded before this field existed have none.
          */
         board?: Cell[][];
+        /** Pace milestones for the share text's bar (see below on dailyWon).
+         * Optional: attempts recorded before pace existed have none. */
+        milestones?: number[];
         numRows?: number;
         numCols?: number;
         numMines?: number;
@@ -315,8 +318,14 @@ export interface ServerToClientEvents {
     dailyUpdateCells: (updates: CellUpdate[]) => void;
     /** Terminal states only (loss or win) -- the full board, mines revealed. */
     dailyBoardUpdate: (payload: { board: Cell[][] }) => void;
-    dailyGameOver: (payload: { elapsedMs: number }) => void;
-    dailyWon: (payload: { elapsedMs: number }) => void;
+    dailyGameOver: (payload: { elapsedMs: number; milestones?: number[] }) => void;
+    /**
+     * `milestones[i]` is the server-stamped elapsedMs when the run first had
+     * (i+1)/10 of the safe cells open — a win carries all 10, a loss however
+     * many deciles it survived. Timing only, deliberately nothing positional:
+     * the board is identical for everyone today (see lib/dailyShare.ts).
+     */
+    dailyWon: (payload: { elapsedMs: number; milestones?: number[] }) => void;
     dailyScoreSubmitted: (payload: { rank: number; elapsedMs: number; totalEntries: number }) => void;
     dailyLeaderboardUpdate: (payload: { entries: DailyLeaderboardEntry[] }) => void;
 }

@@ -2,7 +2,8 @@ import React from 'react';
 import { useMinesweeperStore } from '@/app/store';
 import { Button, DialogClose, Dialog, Field, Input, Table } from '@/components/ds';
 import { DIALOGS, openDialog, closeDialog } from '@/lib/dialogs';
-import { buildDailyShareText, shareDailyResult } from '@/lib/dailyShare';
+import { buildDailyShareText, percentCleared, shareDailyResult } from '@/lib/dailyShare';
+import { dailyWinStreak, readDailyHistory } from '@/lib/dailyHistory';
 import { formatElapsed } from '@/lib/gameClock';
 
 interface DailyDialogsParams {
@@ -93,12 +94,20 @@ export default function DailyDialogs({ submitDailyScore, getDailyLeaderboard }: 
     const shareFeedbackTimeout = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const handleShare = React.useCallback(async () => {
+        const won = dailyStatus === 'completed';
+        // Read at click time via getState(), not subscribed: the board changes
+        // on every opened cell, and these dialogs must not re-render with it.
+        // Same reason the streak reads localStorage here rather than in state.
+        const { board, dailyMilestones } = useMinesweeperStore.getState();
         const text = buildDailyShareText({
             date: dailyDate,
-            status: dailyStatus === 'completed' ? 'completed' : 'failed',
+            status: won ? 'completed' : 'failed',
             elapsedMs: dailyElapsedMs,
             rank: dailyRank,
             totalEntries: dailyTotalEntries,
+            streak: won ? dailyWinStreak(readDailyHistory(), dailyDate) : 0,
+            progressPercent: won ? null : percentCleared(board),
+            milestones: dailyMilestones,
         });
 
         const outcome = await shareDailyResult(text);

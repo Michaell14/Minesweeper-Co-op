@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { useMinesweeperStore } from "@/app/store";
 import { DIALOGS } from "@/lib/dialogs";
+import { clearDailyHistory, recordDailyResult } from "@/lib/dailyHistory";
 import DailyDialogs from "./DailyDialogs";
 
 /**
@@ -296,18 +297,66 @@ describe("sharing a result", () => {
     const stubClipboard = (writeText: () => Promise<void>) =>
         Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
 
-    test("falls back to the clipboard and shows feedback when there is no native share sheet", async () => {
+    const shareAndCapture = async (dialogId: string) => {
         const writeText = vi.fn().mockResolvedValue(undefined);
         stubClipboard(writeText);
-        renderOpen(DIALOGS.dailyGameOver);
+        renderOpen(dialogId);
 
         fireEvent.click(screen.getByRole("button", { name: "Share your daily challenge result" }));
         await vi.waitFor(() => expect(writeText).toHaveBeenCalled());
+        return writeText.mock.calls[0][0] as string;
+    };
 
-        const shared = writeText.mock.calls[0][0] as string;
+    /* The share reads the store's board at click time, so leaving one behind
+     * would quietly change what a later test's share text contains. */
+    afterEach(() => {
+        useMinesweeperStore.getState().setBoard([]);
+        clearDailyHistory();
+    });
+
+    test("falls back to the clipboard and shows feedback when there is no native share sheet", async () => {
+        const shared = await shareAndCapture(DIALOGS.dailyGameOver);
+
         expect(shared).toContain("2026-08-01");
         expect(shared).toContain("💥");
         expect(shared).not.toMatch(/isMine|isOpen|nearbyMines/); // never the board
+    });
+
+    test("a loss measures its progress from the revealed board", async () => {
+        // Terminal loss board, as DAILY_BOARD_UPDATE delivers it: mines
+        // truthful everywhere, isOpen only where the player got to. 3 of 4
+        // safe cells open.
+        const safe = (isOpen: boolean) => ({ isMine: false, isOpen, isFlagged: false, nearbyMines: 1 });
+        const mine = { isMine: true, isOpen: true, isFlagged: false, nearbyMines: 0 };
+        useMinesweeperStore.getState().setBoard([
+            [safe(true), safe(true), mine],
+            [safe(true), safe(false), mine],
+        ]);
+
+        expect(await shareAndCapture(DIALOGS.dailyGameOver)).toContain("75% cleared");
+    });
+
+    test("a win brags about a live local streak", async () => {
+        recordDailyResult("2026-07-31", { won: true });
+        recordDailyResult("2026-08-01", { won: true });
+        useMinesweeperStore.getState().setDailyStatus("completed");
+
+        expect(await shareAndCapture(DIALOGS.dailyLeaderboard)).toContain("🔥 2-day streak");
+    });
+
+    test("the pace bar rides the share when the server delivered milestones", async () => {
+        useMinesweeperStore.getState().setDailyMilestones([1_000, 2_000]);
+
+        expect(await shareAndCapture(DIALOGS.dailyGameOver)).toContain("🟩🟩💥⬜⬜⬜⬜⬜⬜⬜");
+    });
+
+    /* Pins lib/dailyIntent.ts's rule at the integration level: the pasted link
+     * must land on the intro, never spend the reader's attempt. */
+    test("links to /daily with no auto-start parameter", async () => {
+        const shared = await shareAndCapture(DIALOGS.dailyGameOver);
+
+        expect(shared).toContain(`${window.location.origin}/daily`);
+        expect(shared).not.toContain("?");
     });
 });
 
