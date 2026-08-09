@@ -141,17 +141,25 @@ export function useGameActions(socket: AppSocket | null) {
         store.setPracticeTarget(null);
         // A stale keyboard cursor must not reappear on the next room's board.
         store.setKbCursor(null);
+        // A pending join belongs to the attempt being abandoned.
+        store.setJoinPending(null);
     }, [socket]);
 
     const createRoom = useCallback(() => {
-        const { room, numRows, numCols, numMines, name, mode } = useMinesweeperStore.getState();
+        const store = useMinesweeperStore.getState();
+        const { room, numRows, numCols, numMines, name, mode } = store;
         if (!room || !socket) return;
+        // Landing shows "Creating room…" until the server answers; cleared by
+        // joinRoomSuccess or any of the error handlers (useGameEvents).
+        store.setJoinPending('create');
         socket.emit(CLIENT_EVENTS.CREATE_ROOM, { room, numRows, numCols, numMines, name, mode });
     }, [socket]);
 
     const joinRoom = useCallback(() => {
-        const { room, name } = useMinesweeperStore.getState();
+        const store = useMinesweeperStore.getState();
+        const { room, name } = store;
         if (!room || !socket) return;
+        store.setJoinPending('join');
         socket.emit(CLIENT_EVENTS.JOIN_ROOM, { room, name });
     }, [socket]);
 

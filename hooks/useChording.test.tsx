@@ -67,6 +67,25 @@ describe("firing the chord", () => {
         expect(chordCell).not.toHaveBeenCalled();
         expect(state().bothPressed).toBe(false);
     });
+
+    /*
+     * The detection subscribes to the whole store now (so a press costs no
+     * component a render), which means it runs on EVERY write — a hover, a
+     * clock tick, anything. Only the rising edge of the pair may chord.
+     */
+    test("unrelated store writes while both are held do not chord again", () => {
+        const chordCell = vi.fn();
+        render(<Probe chordCell={chordCell} />);
+        press({ left: true, right: true });
+        expect(chordCell).toHaveBeenCalledTimes(1);
+
+        act(() => {
+            state().setKbCursor({ r: 1, c: 1 });
+            state().setKbCursor(null);
+        });
+
+        expect(chordCell).toHaveBeenCalledTimes(1);
+    });
 });
 
 describe("letting go somewhere that is not a cell", () => {

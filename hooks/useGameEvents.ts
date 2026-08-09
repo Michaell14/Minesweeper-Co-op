@@ -112,6 +112,8 @@ const coopHandlers = (socket: AppSocket, leaveRoom: () => void): SocketHandlers 
         // Both calls are no-ops for an ordinary join.
         store.setMatchSearching(false);
         closeDialog(DIALOGS.matchSearching);
+        // The reply the pending indicator on Landing has been waiting for.
+        store.setJoinPending(null);
         store.setRoom(data.room);
         if (data.mode) store.setMode(data.mode);
         if (data.isHost !== undefined) store.setPvpIsHost(data.isHost);
@@ -166,11 +168,17 @@ const coopHandlers = (socket: AppSocket, leaveRoom: () => void): SocketHandlers 
         socket.emit(CLIENT_EVENTS.JOIN_ROOM, { room, name });
     },
 
-    [SERVER_EVENTS.JOIN_ROOM_ERROR]: () => openDialog(DIALOGS.joinRoomError),
-    [SERVER_EVENTS.CREATE_ROOM_ERROR]: () => openDialog(DIALOGS.createRoomError),
+    [SERVER_EVENTS.JOIN_ROOM_ERROR]: () => {
+        useMinesweeperStore.getState().setJoinPending(null);
+        openDialog(DIALOGS.joinRoomError);
+    },
+    [SERVER_EVENTS.CREATE_ROOM_ERROR]: () => {
+        useMinesweeperStore.getState().setJoinPending(null);
+        openDialog(DIALOGS.createRoomError);
+    },
 
     [SERVER_EVENTS.ROOM_DOES_NOT_EXIST_ERROR]: () => {
-        leaveRoom();
+        leaveRoom(); // also clears joinPending
         openDialog(DIALOGS.roomDoesNotExist);
     },
 
@@ -199,7 +207,11 @@ const coopHandlers = (socket: AppSocket, leaveRoom: () => void): SocketHandlers 
 
 /** PVP events. `socket` is needed to tell "I won" from "they won". */
 const pvpHandlers = (socket: AppSocket): SocketHandlers => ({
-    [SERVER_EVENTS.PVP_ROOM_FULL]: () => openDialog(DIALOGS.pvpRoomFull),
+    [SERVER_EVENTS.PVP_ROOM_FULL]: () => {
+        // A refused join ends the wait just as surely as an accepted one.
+        useMinesweeperStore.getState().setJoinPending(null);
+        openDialog(DIALOGS.pvpRoomFull);
+    },
 
     [SERVER_EVENTS.PVP_ROOM_READY]: (data) => {
         const store = useMinesweeperStore.getState();

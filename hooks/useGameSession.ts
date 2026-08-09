@@ -5,6 +5,7 @@ import { useSocketEvents } from "@/hooks/useSocketEvents";
 import { useGameActions } from "@/hooks/useGameActions";
 import { useGameEvents } from "@/hooks/useGameEvents";
 import { useMatchReconnect } from "@/hooks/useMatchReconnect";
+import { useConnectionStatus } from "@/hooks/useConnectionStatus";
 import type { AppSocket } from "@/lib/initSocket";
 
 /**
@@ -34,6 +35,7 @@ export function useGameSession(): {
     const actions = useGameActions(socket);
     useSocketEvents(socket, useGameEvents(socket, actions.leaveRoom));
     useMatchReconnect(socket, actions.findMatch);
+    useConnectionStatus(socket);
 
     return { socket, actions };
 }

@@ -17,39 +17,40 @@ import { useMinesweeperStore } from "@/app/store";
  * outside the window, or by alt-tabbing away — and the button state stayed
  * pressed forever, leaving `bothPressed` latched so the next plain left-click on
  * a number chorded instead of opening it.
+ *
+ * The store is watched with `subscribe`, not hook selectors: nothing here
+ * renders, and a selector would re-render the host — Grid, the whole layout —
+ * on every press and release of an open cell (the useKeyboardControls pattern).
  */
 export function useChording(chordCell: (row: number, col: number) => void): void {
-    const r = useMinesweeperStore((state) => state.r);
-    const c = useMinesweeperStore((state) => state.c);
-    const leftClick = useMinesweeperStore((state) => state.leftClick);
-    const rightClick = useMinesweeperStore((state) => state.rightClick);
-    const chordingEnabled = useMinesweeperStore((state) => state.settings.chording);
-    const setBothPressed = useMinesweeperStore((state) => state.setBothPressed);
-    const setLeftClick = useMinesweeperStore((state) => state.setLeftClick);
-    const setRightClick = useMinesweeperStore((state) => state.setRightClick);
-
     useEffect(() => {
-        if (leftClick && rightClick) {
-            /*
-             * The latch is set even with chording OFF: without it, releasing
-             * a both-buttons press would fire the open AND the flag the two
-             * buttons mean alone. Disabled chording means the pair does
-             * nothing — not two accidents.
-             */
-            setBothPressed(true);
-            if (chordingEnabled && r >= 0 && c >= 0) {
-                chordCell(r, c);
+        const unsubscribe = useMinesweeperStore.subscribe((state, prev) => {
+            const both = state.leftClick && state.rightClick;
+            const prevBoth = prev.leftClick && prev.rightClick;
+
+            if (both && !prevBoth) {
+                /*
+                 * The latch is set even with chording OFF: without it, releasing
+                 * a both-buttons press would fire the open AND the flag the two
+                 * buttons mean alone. Disabled chording means the pair does
+                 * nothing — not two accidents.
+                 */
+                state.setBothPressed(true);
+                if (state.settings.chording && state.r >= 0 && state.c >= 0) {
+                    chordCell(state.r, state.c);
+                }
+                return;
             }
-            return;
-        }
 
-        if (!leftClick && !rightClick) {
-            setBothPressed(false);
-        }
-    }, [leftClick, rightClick, r, c, chordCell, chordingEnabled, setBothPressed]);
+            // The bothPressed check skips a store write on the release of every
+            // PLAIN click — only a pair that actually latched needs unlatching.
+            if (state.bothPressed && !state.leftClick && !state.rightClick) {
+                state.setBothPressed(false);
+            }
+        });
 
-    useEffect(() => {
         const clear = () => {
+            const { setLeftClick, setRightClick } = useMinesweeperStore.getState();
             setLeftClick(false);
             setRightClick(false);
         };
@@ -67,8 +68,9 @@ export function useChording(chordCell: (row: number, col: number) => void): void
         window.addEventListener("mouseup", onMouseUp);
         window.addEventListener("blur", clear);
         return () => {
+            unsubscribe();
             window.removeEventListener("mouseup", onMouseUp);
             window.removeEventListener("blur", clear);
         };
-    }, [setLeftClick, setRightClick]);
+    }, [chordCell]);
 }

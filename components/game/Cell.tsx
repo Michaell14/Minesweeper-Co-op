@@ -34,18 +34,15 @@ const Cell = ({ cell, row, col, cascadeOrigin, toggleFlag, openCell, chordCell, 
         return null;
     });
 
-    // One selector per value, so an unrelated write does not re-render the board.
-    const bothPressed = useMinesweeperStore((state) => state.bothPressed);
-    const isChecked = useMinesweeperStore((state) => state.isChecked);
-    const swapButtons = useMinesweeperStore((state) => state.settings.swapMouseButtons);
-    const chordingEnabled = useMinesweeperStore((state) => state.settings.chording);
+    // One selector per value, so an unrelated write does not re-render the
+    // board. Only state that changes what the cell LOOKS like is subscribed;
+    // anything read purely by an event handler (bothPressed, isChecked, the
+    // swap and chording settings) comes from getState() at event time instead —
+    // subscribed, those re-rendered every mounted cell twice per chord.
     const gameOver = useMinesweeperStore((state) => state.gameOver);
     const mode = useMinesweeperStore((state) => state.mode);
     const pvpStarted = useMinesweeperStore((state) => state.pvpStarted);
     const pvpWinner = useMinesweeperStore((state) => state.pvpWinner);
-    const setLeftClick = useMinesweeperStore((state) => state.setLeftClick);
-    const setRightClick = useMinesweeperStore((state) => state.setRightClick);
-    const setCoord = useMinesweeperStore((state) => state.setCoord);
 
     const isDisabled = mode === 'pvp' && !pvpStarted;
 
@@ -89,8 +86,14 @@ const Cell = ({ cell, row, col, cascadeOrigin, toggleFlag, openCell, chordCell, 
      * latch, so mousedown keeps recording physical buttons and only the
      * action each release fires is swapped.
      */
-    const primaryAction = swapButtons ? toggleFlag : openCell;   // left button
-    const secondaryAction = swapButtons ? openCell : toggleFlag; // right button
+    const primaryAction = (r: number, c: number) => {   // left button
+        if (useMinesweeperStore.getState().settings.swapMouseButtons) toggleFlag(r, c);
+        else openCell(r, c);
+    };
+    const secondaryAction = (r: number, c: number) => { // right button
+        if (useMinesweeperStore.getState().settings.swapMouseButtons) openCell(r, c);
+        else toggleFlag(r, c);
+    };
 
     /*
      * The button that OPENS. The press affordance follows the action rather than
@@ -102,7 +105,8 @@ const Cell = ({ cell, row, col, cascadeOrigin, toggleFlag, openCell, chordCell, 
      * is down, so `:active` covers all three: it depressed the cell for a flag
      * and for a chord as readily as for an open.
      */
-    const openButton = swapButtons ? 2 : 0;
+    const isOpenButton = (button: number) =>
+        button === (useMinesweeperStore.getState().settings.swapMouseButtons ? 2 : 0);
 
     /*
      * Written straight to the DOM, not held in state. A press must not cost a
@@ -131,14 +135,15 @@ const Cell = ({ cell, row, col, cascadeOrigin, toggleFlag, openCell, chordCell, 
     const handleMouseDown = (event: React.MouseEvent) => {
         if (isDisabled) return;
 
-        setCoord(row, col);
+        const state = useMinesweeperStore.getState();
+        state.setCoord(row, col);
         if (event.button === 0) {
-            setLeftClick(true);
+            state.setLeftClick(true);
         } else if (event.button === 1) {
             event.preventDefault(); // middle-click otherwise starts autoscroll
-            if (chordingEnabled) chordCell(row, col);
+            if (state.settings.chording) chordCell(row, col);
         } else if (event.button === 2) {
-            setRightClick(true);
+            state.setRightClick(true);
         }
     };
 
@@ -147,27 +152,28 @@ const Cell = ({ cell, row, col, cascadeOrigin, toggleFlag, openCell, chordCell, 
     const handleMouseUp = (event: React.MouseEvent) => {
         if (isDisabled) return;
 
+        const state = useMinesweeperStore.getState();
         if (event.button === 0) {
-            if (!bothPressed) {
+            if (!state.bothPressed) {
                 primaryAction(row, col);
             }
-            setLeftClick(false);
+            state.setLeftClick(false);
 
         } else if (event.button === 2) {
-            if (!bothPressed) {
+            if (!state.bothPressed) {
                 /*
                  * The only chord gesture a trackpad can make — it has neither a
                  * second button nor a middle one. On release, not `contextmenu`:
                  * macOS raises that on mousedown, so a right-then-left chord
                  * would fire here and again off the bothPressed latch.
                  */
-                if (chordingEnabled) {
+                if (state.settings.chording) {
                     chordCell(row, col);
                 } else {
                     secondaryAction(row, col);
                 }
             }
-            setRightClick(false);
+            state.setRightClick(false);
         }
     };
 
@@ -241,7 +247,9 @@ const Cell = ({ cell, row, col, cascadeOrigin, toggleFlag, openCell, chordCell, 
                 }}>
 
                 <Sprite kind="flag" className={styles.cellSprite} />
-                <div className="h-full w-full xl:hidden" onClick={() => { if (!isDisabled) { !isChecked ? toggleFlag(row, col) : {} } }} />
+                <div className="h-full w-full xl:hidden" onClick={() => {
+                    if (!isDisabled && !useMinesweeperStore.getState().isChecked) toggleFlag(row, col);
+                }} />
                 <div
                     className="h-full w-full hidden xl:block"
                     onClick={() => { if (!isDisabled) primaryAction(row, col); }} />
@@ -269,11 +277,15 @@ const Cell = ({ cell, row, col, cascadeOrigin, toggleFlag, openCell, chordCell, 
             onMouseLeave={handleMouseLeave}
             onMouseDown={(e) => {
                 if (e.button === 1) e.preventDefault(); // middle-click starts autoscroll
-                if (e.button === openButton && !isDisabled) e.currentTarget.dataset.pressed = '';
+                if (isOpenButton(e.button) && !isDisabled) e.currentTarget.dataset.pressed = '';
             }}
             onMouseUp={releasePress}>
             {/* Mobile taps follow the flag-mode toggle, never the swap setting. */}
-            <div className="h-full w-full xl:hidden" onClick={() => { if (!isDisabled) { isChecked ? openCell(row, col) : toggleFlag(row, col) } }} />
+            <div className="h-full w-full xl:hidden" onClick={() => {
+                if (isDisabled) return;
+                if (useMinesweeperStore.getState().isChecked) openCell(row, col);
+                else toggleFlag(row, col);
+            }} />
             <div className="h-full w-full hidden xl:block" onClick={() => {
                 if (!isDisabled) primaryAction(row, col);
             }} />

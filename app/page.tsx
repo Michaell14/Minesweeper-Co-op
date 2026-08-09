@@ -4,6 +4,7 @@ import { useMinesweeperStore } from './store';
 import Landing from "@/components/Landing";
 import Grid from "@/components/Grid";
 import GameDialogs from "@/components/dialogs/GameDialogs";
+import ConnectionBanner from "@/components/ConnectionBanner";
 import { useGameSession } from "@/hooks/useGameSession";
 
 /**
@@ -23,6 +24,7 @@ export default function Home() {
 
     return (
         <>
+            <ConnectionBanner />
             {!playerJoined ? (
                 <Landing
                     createRoom={actions.createRoom}
