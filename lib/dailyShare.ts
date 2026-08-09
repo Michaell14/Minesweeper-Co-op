@@ -1,4 +1,4 @@
-import type { DailyAttemptStatus } from "@/shared/socketPayloads";
+import type { Cell, DailyAttemptStatus } from "@/shared/socketPayloads";
 import { formatElapsed } from "@/lib/gameClock";
 
 export interface ShareableDailyResult {
@@ -7,25 +7,70 @@ export interface ShareableDailyResult {
     elapsedMs: number | null;
     rank: number | null;
     totalEntries: number | null;
+    /** Consecutive daily wins ending on `date`. Only shown from 2 up — a
+     * one-day "streak" is just the win the line above already reports. */
+    streak?: number | null;
+    /** How much of the board a LOSS cleared. Ignored on a win (it is 100%). */
+    progressPercent?: number | null;
 }
 
 /**
- * Wordle-style share text: outcome and time only, never the board. Everyone
- * plays the identical seeded board today, so printing mine positions would
- * spoil the puzzle for whoever reads it.
+ * Percentage of safe cells opened, from a TERMINAL board — one delivered with
+ * `revealMines: true`, so closed cells carry a truthful `isMine`. On a live
+ * projected board the projection zeroes that flag and this would overcount the
+ * denominator; terminal states are the only place a share happens, so that
+ * board is the only kind this ever sees. Null when there is no board to read
+ * (an attempt from before final boards were stored).
  */
-export function buildDailyShareText({ date, status, elapsedMs, rank, totalEntries }: ShareableDailyResult): string {
+export function percentCleared(board: Cell[][]): number | null {
+    let safeOpened = 0;
+    let safeTotal = 0;
+    for (const row of board) {
+        for (const cell of row) {
+            if (cell.isMine) continue;
+            safeTotal++;
+            if (cell.isOpen) safeOpened++;
+        }
+    }
+    if (safeTotal === 0) return null;
+    return Math.round((100 * safeOpened) / safeTotal);
+}
+
+/**
+ * Wordle-style share text: outcome, time and pace only, never the board.
+ * Everyone plays the identical seeded board today, so printing anything
+ * POSITIONAL — opened cells, flag placements — would spoil the puzzle for
+ * whoever reads it. Progress and streak are about when, not where, which is
+ * what keeps them shareable.
+ *
+ * The link is plain /daily, never an auto-start parameter: starting consumes
+ * the reader's one attempt for the day (see lib/dailyIntent.ts).
+ */
+export function buildDailyShareText({ date, status, elapsedMs, rank, totalEntries, streak, progressPercent }: ShareableDailyResult): string {
     const origin = typeof window !== "undefined" ? window.location.origin : "";
     const timeLabel = elapsedMs !== null ? formatElapsed(elapsedMs) : "?";
 
-    const resultLine =
-        status === "completed"
-            ? rank !== null && totalEntries !== null
-                ? `✅ Solved in ${timeLabel} — Rank #${rank} of ${totalEntries}`
-                : `✅ Solved in ${timeLabel}`
-            : `💥 Hit a mine at ${timeLabel}`;
+    const lines = [`🧩 Minesweeper Daily Challenge — ${date}`];
 
-    return [`🧩 Minesweeper Daily Challenge — ${date}`, resultLine, `Play today's puzzle: ${origin}`].join("\n");
+    if (status === "completed") {
+        lines.push(
+            rank !== null && totalEntries !== null
+                ? `✅ Solved in ${timeLabel} — Rank #${rank} of ${totalEntries}`
+                : `✅ Solved in ${timeLabel}`,
+        );
+        if (typeof streak === "number" && streak >= 2) {
+            lines.push(`🔥 ${streak}-day streak`);
+        }
+    } else {
+        lines.push(
+            typeof progressPercent === "number"
+                ? `💥 Hit a mine at ${timeLabel} — ${progressPercent}% cleared`
+                : `💥 Hit a mine at ${timeLabel}`,
+        );
+    }
+
+    lines.push(`Play today's puzzle: ${origin}/daily`);
+    return lines.join("\n");
 }
 
 /**
