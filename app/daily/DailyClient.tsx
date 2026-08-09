@@ -4,6 +4,7 @@ import React from "react";
 import { useRouter } from "next/navigation";
 import { useMinesweeperStore } from "@/app/store";
 import { Button, CalendarIcon } from "@/components/ds";
+import ConnectionBanner from "@/components/ConnectionBanner";
 import DailyChallenge from "@/components/DailyChallenge";
 import DailyDialogs from "@/components/dialogs/DailyDialogs";
 import { useGameSession } from "@/hooks/useGameSession";
@@ -158,6 +159,7 @@ export default function DailyClient({ intro }: { intro: React.ReactNode }) {
 
     return (
         <>
+            <ConnectionBanner />
             {attemptLoaded ? (
                 <DailyChallenge
                     leaveDaily={leaveDaily}

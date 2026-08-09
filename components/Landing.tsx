@@ -7,6 +7,7 @@ import { DIALOGS, openDialog } from "@/lib/dialogs";
 import AnnouncementBanner from '@/components/landing/AnnouncementBanner';
 import JoinRoomForm from '@/components/landing/JoinRoomForm';
 import CreateRoomForm from '@/components/landing/CreateRoomForm';
+import JoinPendingIndicator from '@/components/landing/JoinPendingIndicator';
 import NameDialog from '@/components/landing/NameDialog';
 import MatchSearchingDialog from '@/components/landing/MatchSearchingDialog';
 import CustomBoardDialog from '@/components/landing/CustomBoardDialog';
@@ -77,6 +78,8 @@ export default function Landing({ createRoom, joinRoom, findMatch, cancelMatch, 
                     </Button>
                 </div>
             </div>
+
+            <JoinPendingIndicator />
 
             <div className="flex justify-center pb-12">
                 <div className="w-full max-w-2xl mx-auto px-4">

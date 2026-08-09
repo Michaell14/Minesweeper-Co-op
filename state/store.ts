@@ -17,6 +17,7 @@ import { createInputSlice, type InputSlice } from './inputSlice';
 import { createDailySlice, type DailySlice } from './dailySlice';
 import { createSettingsSlice, type SettingsSlice } from './settingsSlice';
 import { createAchievementsSlice, type AchievementsSlice } from './achievementsSlice';
+import { createConnectionSlice, type ConnectionSlice } from './connectionSlice';
 
 export type MinesweeperState =
     GameSlice &
@@ -26,7 +27,8 @@ export type MinesweeperState =
     InputSlice &
     DailySlice &
     SettingsSlice &
-    AchievementsSlice;
+    AchievementsSlice &
+    ConnectionSlice;
 
 export const useMinesweeperStore = create<MinesweeperState>()((...a) => ({
     ...createGameSlice(...a),
@@ -37,4 +39,5 @@ export const useMinesweeperStore = create<MinesweeperState>()((...a) => ({
     ...createDailySlice(...a),
     ...createSettingsSlice(...a),
     ...createAchievementsSlice(...a),
+    ...createConnectionSlice(...a),
 }));
