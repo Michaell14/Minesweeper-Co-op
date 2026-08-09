@@ -98,7 +98,7 @@ export default function DailyDialogs({ submitDailyScore, getDailyLeaderboard }: 
         // Read at click time via getState(), not subscribed: the board changes
         // on every opened cell, and these dialogs must not re-render with it.
         // Same reason the streak reads localStorage here rather than in state.
-        const { board } = useMinesweeperStore.getState();
+        const { board, dailyMilestones } = useMinesweeperStore.getState();
         const text = buildDailyShareText({
             date: dailyDate,
             status: won ? 'completed' : 'failed',
@@ -107,6 +107,7 @@ export default function DailyDialogs({ submitDailyScore, getDailyLeaderboard }: 
             totalEntries: dailyTotalEntries,
             streak: won ? dailyWinStreak(readDailyHistory(), dailyDate) : 0,
             progressPercent: won ? null : percentCleared(board),
+            milestones: dailyMilestones,
         });
 
         const outcome = await shareDailyResult(text);

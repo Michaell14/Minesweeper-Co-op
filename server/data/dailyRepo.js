@@ -68,6 +68,7 @@ const createAttempt = async (date, token, { board, socketId }) => {
         startedAt: '',
         finishedAt: '',
         elapsedMs: '',
+        milestones: '[]',
         socketId: socketId || '',
     });
     await client.expire(dailyAttemptKey(date, token), DAILY_TTL_SECONDS);
@@ -85,6 +86,10 @@ const markStarted = (date, token, startedAt) =>
 /** Persists this player's mutating board copy, mirrors roomRepo.setPvpBoard. */
 const setAttemptBoard = (date, token, board) =>
     setAttemptFields(date, token, { board: JSON.stringify(board) });
+
+/** Pace milestones (see domain/pace.js), stored as a JSON array of elapsedMs. */
+const setAttemptMilestones = (date, token, milestones) =>
+    setAttemptFields(date, token, { milestones: JSON.stringify(milestones) });
 
 /** Hit a mine: run over for the day, no leaderboard entry. */
 const markFailed = (date, token, finishedAt, elapsedMs) =>
@@ -193,6 +198,7 @@ module.exports = {
     createAttempt,
     markStarted,
     setAttemptBoard,
+    setAttemptMilestones,
     markFailed,
     markWon,
     submitScore,

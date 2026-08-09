@@ -12,6 +12,39 @@ export interface ShareableDailyResult {
     streak?: number | null;
     /** How much of the board a LOSS cleared. Ignored on a win (it is 100%). */
     progressPercent?: number | null;
+    /** Server-stamped pace milestones (see `dailyWon` in socketPayloads.ts). */
+    milestones?: number[] | null;
+}
+
+const PACE_DECILES = 10;
+
+/**
+ * The pace bar: one emoji per tenth of the board's safe cells, colored by
+ * whether that stretch beat the run's own average pace — 🟩 on pace or
+ * faster, 🟨 slower. A loss truncates at the decile the run died in (💥) and
+ * pads the rest ⬜. Same spoiler rule as everything here: pacing is about
+ * WHEN, so it is shareable; the board is about WHERE, so it never is.
+ *
+ * Null rather than a wrong bar when the data can't support one: no
+ * milestones at all (a pre-pace attempt), a "win" missing deciles, or
+ * timestamps out of order (garbage in storage).
+ */
+export function buildPaceBar(milestones: number[], won: boolean): string | null {
+    const ms = milestones
+        .filter((n) => typeof n === "number" && Number.isFinite(n) && n >= 0)
+        .slice(0, PACE_DECILES);
+    if (ms.some((n, i) => i > 0 && n < ms[i - 1])) return null;
+    if (won && ms.length !== PACE_DECILES) return null;
+    if (!won && ms.length === PACE_DECILES) return null; // 100% open IS the win
+    if (!won && ms.length === 0) return null; // died inside the first decile — no pace to show
+
+    const average = ms[ms.length - 1] / ms.length;
+    const bar: string[] = ms.map((stamp, i) => (stamp - (i > 0 ? ms[i - 1] : 0) <= average ? "🟩" : "🟨"));
+    if (!won) {
+        bar.push("💥");
+        while (bar.length < PACE_DECILES) bar.push("⬜");
+    }
+    return bar.join("");
 }
 
 /**
@@ -46,13 +79,14 @@ export function percentCleared(board: Cell[][]): number | null {
  * The link is plain /daily, never an auto-start parameter: starting consumes
  * the reader's one attempt for the day (see lib/dailyIntent.ts).
  */
-export function buildDailyShareText({ date, status, elapsedMs, rank, totalEntries, streak, progressPercent }: ShareableDailyResult): string {
+export function buildDailyShareText({ date, status, elapsedMs, rank, totalEntries, streak, progressPercent, milestones }: ShareableDailyResult): string {
     const origin = typeof window !== "undefined" ? window.location.origin : "";
     const timeLabel = elapsedMs !== null ? formatElapsed(elapsedMs) : "?";
+    const won = status === "completed";
 
     const lines = [`🧩 Minesweeper Daily Challenge — ${date}`];
 
-    if (status === "completed") {
+    if (won) {
         lines.push(
             rank !== null && totalEntries !== null
                 ? `✅ Solved in ${timeLabel} — Rank #${rank} of ${totalEntries}`
@@ -68,6 +102,9 @@ export function buildDailyShareText({ date, status, elapsedMs, rank, totalEntrie
                 : `💥 Hit a mine at ${timeLabel}`,
         );
     }
+
+    const paceBar = milestones ? buildPaceBar(milestones, won) : null;
+    if (paceBar) lines.push(paceBar);
 
     lines.push(`Play today's puzzle: ${origin}/daily`);
     return lines.join("\n");

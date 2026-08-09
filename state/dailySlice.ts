@@ -21,6 +21,9 @@ export interface DailySlice {
     /** Leaderboard size at the time of this rank. Only the share text uses it
      * ("beat 44 others"), so null is fine when unknown -- a loss, say. */
     dailyTotalEntries: number | null;
+    /** Server-stamped pace milestones for the share text's bar; null until a
+     * terminal event delivers them (older attempts never do). */
+    dailyMilestones: number[] | null;
     dailyLeaderboard: DailyLeaderboardEntry[];
 
     setDailyActive: (active: boolean) => void;
@@ -30,6 +33,7 @@ export interface DailySlice {
     setDailyTotalSafeCells: (total: number) => void;
     setDailyRank: (rank: number | null) => void;
     setDailyTotalEntries: (total: number | null) => void;
+    setDailyMilestones: (milestones: number[] | null) => void;
     setDailyLeaderboard: (entries: DailyLeaderboardEntry[]) => void;
     resetDailyState: () => void;
 }
@@ -42,6 +46,7 @@ const initialDailyState = {
     dailyTotalSafeCells: 0,
     dailyRank: null,
     dailyTotalEntries: null,
+    dailyMilestones: null,
     dailyLeaderboard: [],
 };
 
@@ -55,6 +60,7 @@ export const createDailySlice: StateCreator<MinesweeperState, [], [], DailySlice
     setDailyTotalSafeCells: (total) => set({ dailyTotalSafeCells: total }),
     setDailyRank: (rank) => set({ dailyRank: rank }),
     setDailyTotalEntries: (total) => set({ dailyTotalEntries: total }),
+    setDailyMilestones: (milestones) => set({ dailyMilestones: milestones }),
     setDailyLeaderboard: (entries) => set({ dailyLeaderboard: entries }),
 
     /** Leaving the daily view (entering a room, or returning to Landing). */

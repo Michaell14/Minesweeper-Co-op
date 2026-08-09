@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, test } from "vitest";
 import type { Cell } from "@/shared/socketPayloads";
-import { buildDailyShareText, percentCleared } from "./dailyShare";
+import { buildDailyShareText, buildPaceBar, percentCleared } from "./dailyShare";
 
 /**
  * The share text is the one piece of this app pasted into places we cannot
@@ -79,6 +79,69 @@ describe("buildDailyShareText: the link", () => {
 
         expect(url).toContain("/daily");
         expect(url).not.toContain("?");
+    });
+});
+
+describe("buildPaceBar", () => {
+    /* Even 1s-per-decile pace: every decile matches the average exactly. */
+    const steady = Array.from({ length: 10 }, (_, i) => (i + 1) * 1_000);
+
+    test("a steady win is ten on-pace squares", () => {
+        expect(buildPaceBar(steady, true)).toBe("🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩");
+    });
+
+    test("a slow stretch shows against the run's own average", () => {
+        // Deciles of 1s except the fifth, which took 11s -> avg 2s.
+        const ms = [1_000, 2_000, 3_000, 4_000, 15_000, 16_000, 17_000, 18_000, 19_000, 20_000];
+        expect(buildPaceBar(ms, true)).toBe("🟩🟩🟩🟩🟨🟩🟩🟩🟩🟩");
+    });
+
+    test("a loss truncates with a boom and pads the unreached deciles", () => {
+        expect(buildPaceBar([1_000, 2_000, 3_000, 4_000], false)).toBe("🟩🟩🟩🟩💥⬜⬜⬜⬜⬜");
+    });
+
+    test("a loss that survived nine deciles has no padding left", () => {
+        expect(buildPaceBar(steady.slice(0, 9), false)).toBe("🟩🟩🟩🟩🟩🟩🟩🟩🟩💥");
+    });
+
+    test("the bar is always exactly ten characters", () => {
+        for (const [ms, won] of [[steady, true], [[500], false], [steady.slice(0, 7), false]] as const) {
+            expect(Array.from(buildPaceBar(ms as number[], won)!)).toHaveLength(10);
+        }
+    });
+
+    /* Better no bar than a wrong one: each of these is data the bar's maths
+     * cannot honestly draw. */
+    test("refuses data it cannot draw", () => {
+        expect(buildPaceBar([], true)).toBeNull(); // pre-pace attempt
+        expect(buildPaceBar(steady.slice(0, 5), true)).toBeNull(); // a "win" missing deciles
+        expect(buildPaceBar(steady, false)).toBeNull(); // 100% open IS the win
+        expect(buildPaceBar([], false)).toBeNull(); // died inside the first decile
+        expect(buildPaceBar([5_000, 3_000], false)).toBeNull(); // time went backwards
+    });
+});
+
+describe("buildDailyShareText: the pace bar line", () => {
+    const steady = Array.from({ length: 10 }, (_, i) => (i + 1) * 1_000);
+
+    test("a win with milestones carries the bar between result and link", () => {
+        const lines = buildDailyShareText({ ...base, milestones: steady }).split("\n");
+
+        expect(lines[2]).toBe("🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩");
+        expect(lines.at(-1)).toContain("/daily");
+    });
+
+    test("a loss's bar ends in the boom", () => {
+        const text = buildDailyShareText({ ...base, status: "failed", milestones: [1_000, 2_000] });
+
+        expect(text).toContain("🟩🟩💥⬜⬜⬜⬜⬜⬜⬜");
+    });
+
+    test("no milestones, no bar line — the text falls back to Phase 1 shape", () => {
+        const text = buildDailyShareText({ ...base, milestones: null });
+
+        expect(text).not.toContain("🟩");
+        expect(text.split("\n")).toHaveLength(3);
     });
 });
 

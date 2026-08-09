@@ -11,6 +11,7 @@
 const { generateSingleCandidateBoard } = require('../domain/boardGen');
 const { solveWithStats } = require('../domain/solverUtils');
 const { revealFrom, getAdjacentCells, projectBoard, projectCells } = require('../domain/board');
+const { withCrossedMilestones, parseMilestones } = require('../domain/pace');
 const { hashStringToSeed, mulberry32 } = require('../domain/seededRandom');
 const { io } = require('../utils/initializeClient');
 const { recordForSockets, boardKeyOf } = require('../utils/statsRecorder');
@@ -105,10 +106,31 @@ const generateDailyBoardForDate = (date) => {
  * attempt sees a real move (open or chord) rather than at attempt-creation.
  * Idempotent: once `in_progress`, this is a no-op and the ORIGINAL startedAt
  * is what a refresh resumes from, never a fresh one.
+ *
+ * Returns the effective startedAt either way — on the first move the stamp it
+ * just wrote, after that the stored one — so callers can compute an elapsed
+ * time for pace milestones without re-reading the attempt.
  */
 const markStartedIfNeeded = async (date, token, attempt) => {
     if (attempt.status === 'ready') {
-        await dailyRepo.markStarted(date, token, Date.now());
+        const startedAt = Date.now();
+        await dailyRepo.markStarted(date, token, startedAt);
+        return startedAt;
+    }
+    return parseInt(attempt.startedAt, 10);
+};
+
+/**
+ * Records any pace deciles this move crossed (see domain/pace.js). Persisted
+ * BEFORE the win check: finishAttempt re-reads the attempt, and the winning
+ * move's own crossings — always at least the run to 100% — must be there for
+ * the terminal emit to carry them.
+ */
+const recordPaceIfCrossed = async (date, token, attempt, board, startedAt) => {
+    const before = parseMilestones(attempt.milestones);
+    const milestones = withCrossedMilestones(before, board, Date.now() - startedAt);
+    if (milestones.length > before.length) {
+        await dailyRepo.setAttemptMilestones(date, token, milestones);
     }
 };
 
@@ -143,7 +165,10 @@ const finishAttempt = async (date, token, socketId, board, { won }) => {
     await dailyRepo.setAttemptBoard(date, token, board);
 
     io.to(socketId).emit(SERVER_EVENTS.DAILY_BOARD_UPDATE, { board: projectBoard(board, { revealMines: true }) });
-    io.to(socketId).emit(won ? SERVER_EVENTS.DAILY_WON : SERVER_EVENTS.DAILY_GAME_OVER, { elapsedMs });
+    // The re-read above already holds the final move's pace crossings — its
+    // caller wrote them before running the win check.
+    const milestones = parseMilestones(attempt.milestones);
+    io.to(socketId).emit(won ? SERVER_EVENTS.DAILY_WON : SERVER_EVENTS.DAILY_GAME_OVER, { elapsedMs, milestones });
 
     // Stats record at the FINISH, not at leaderboard submit: the private
     // profile counts the game whether or not the player publishes a score.
@@ -191,16 +216,18 @@ const openCell = async (date, token, socketId, row, col) =>
         if (!board || row < 0 || row >= board.length || col < 0 || col >= board[0].length) return;
         if (board[row][col] === undefined || !board[row][col] || board[row][col].isOpen || board[row][col].isFlagged) return;
 
-        await markStartedIfNeeded(date, token, attempt);
+        const startedAt = await markStartedIfNeeded(date, token, attempt);
 
         const toUpdate = [];
         const { hitMine } = revealFrom(board, row, col, toUpdate);
 
         if (hitMine) {
+            // No pace to record: a mine reveal opens no safe cells.
             await finishAttempt(date, token, socketId, board, { won: false });
             return;
         }
 
+        await recordPaceIfCrossed(date, token, attempt, board, startedAt);
         await dailyRepo.setAttemptBoard(date, token, board);
 
         const won = await checkDailyWin(date, token, socketId, board);
@@ -218,7 +245,7 @@ const chordCell = async (date, token, socketId, row, col) =>
         if (!board || row < 0 || row >= board.length || col < 0 || col >= board[0].length) return;
         if (!board[row][col] || !board[row][col].isOpen) return;
 
-        await markStartedIfNeeded(date, token, attempt);
+        const startedAt = await markStartedIfNeeded(date, token, attempt);
 
         const adjacentCells = getAdjacentCells(row, col, board);
         const flaggedCells = adjacentCells.filter((adj) => adj.isFlagged).length;
@@ -234,10 +261,14 @@ const chordCell = async (date, token, socketId, row, col) =>
         }
 
         if (hitMine) {
+            // A chord that booms may still have opened safe cells before the
+            // mine, but the run is over — the bar ends at the last decile the
+            // player SURVIVED crossing, so those part-crossings don't record.
             await finishAttempt(date, token, socketId, board, { won: false });
             return;
         }
 
+        await recordPaceIfCrossed(date, token, attempt, board, startedAt);
         await dailyRepo.setAttemptBoard(date, token, board);
 
         const won = await checkDailyWin(date, token, socketId, board);

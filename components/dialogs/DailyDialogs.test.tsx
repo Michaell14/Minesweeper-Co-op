@@ -344,6 +344,12 @@ describe("sharing a result", () => {
         expect(await shareAndCapture(DIALOGS.dailyLeaderboard)).toContain("🔥 2-day streak");
     });
 
+    test("the pace bar rides the share when the server delivered milestones", async () => {
+        useMinesweeperStore.getState().setDailyMilestones([1_000, 2_000]);
+
+        expect(await shareAndCapture(DIALOGS.dailyGameOver)).toContain("🟩🟩💥⬜⬜⬜⬜⬜⬜⬜");
+    });
+
     /* Pins lib/dailyIntent.ts's rule at the integration level: the pasted link
      * must land on the intro, never spend the reader's attempt. */
     test("links to /daily with no auto-start parameter", async () => {
