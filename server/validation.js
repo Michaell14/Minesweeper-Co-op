@@ -137,9 +137,14 @@ const isValidThemeBlob = (blob) => {
     }
 };
 
-/** `rows x cols / mines` — lib/bestTimes.ts's boardKey shape, bounded sanely. */
+/**
+ * `rows x cols / mines`, with lib/bestTimes.ts's optional `@players` suffix
+ * for group clears (`16x16/40@3`) — the client's whole key shape, bounded
+ * sanely. The server re-derives the suffix from the entry's own player count
+ * anyway (statsRepo.bestKeyOf), so this only bounds what a key may look like.
+ */
 const isValidBoardKey = (key) =>
-    typeof key === 'string' && /^\d{1,3}x\d{1,3}\/\d{1,4}$/.test(key);
+    typeof key === 'string' && /^\d{1,3}x\d{1,3}\/\d{1,4}(@\d{1,3})?$/.test(key);
 
 /**
  * The guest best-times import: an array of client-reported records. Bounded

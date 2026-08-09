@@ -27,6 +27,9 @@ export function useBestTime(refreshKey: unknown = null): { best: BestTime | null
     const numMines = useMinesweeperStore((state) => state.numMines);
     const mode = useMinesweeperStore((state) => state.mode);
     const playersInRoom = useMinesweeperStore((state) => state.playerStatsInRoom.length);
+    // The sign-in sync's "look again" signal — a server record landing in
+    // localStorage is invisible to the tab that wrote it otherwise.
+    const bestTimesVersion = useMinesweeperStore((state) => state.bestTimesVersion);
 
     // The same derivation the win handler files under. Two spellings of it is
     // how a record gets written where nothing will ever look for it.
@@ -36,7 +39,7 @@ export function useBestTime(refreshKey: unknown = null): { best: BestTime | null
 
     useEffect(() => {
         setBest(readBestTime(boardKey(numRows, numCols, numMines, players)));
-    }, [numRows, numCols, numMines, players, refreshKey]);
+    }, [numRows, numCols, numMines, players, refreshKey, bestTimesVersion]);
 
     return { best, label: boardLabel(numRows, numCols, numMines) };
 }

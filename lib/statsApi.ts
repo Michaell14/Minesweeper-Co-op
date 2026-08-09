@@ -6,6 +6,7 @@
 
 import { serverURL } from "@/lib/initSocket";
 import { getBridgeToken } from "@/lib/authBridge";
+import type { SyncedBest } from "@/lib/bestTimes";
 
 /**
  * How many recent games a profile keeps. Kept in step BY HAND with
@@ -100,10 +101,77 @@ export async function fetchStats(): Promise<ProfilePayload | null> {
     return (await res.json().catch(() => null)) as ProfilePayload | null;
 }
 
-/** Folds this browser's localStorage bests into the account, keep-if-faster. */
-export async function importBests(
-    bests: { boardKey: string; seconds: number; players: number; achievedAt: number }[],
-): Promise<boolean> {
-    const res = await request("/api/stats/import-bests", "POST", { bests });
+/**
+ * The account's board bests alone — the sign-in sync's read, light enough to
+ * hit on every page load. Null when unavailable, and the sync waits.
+ *
+ * Timestamps arrive as ISO strings and leave here as epoch ms: the wire shape
+ * stops at this file, so the rest of the client only ever speaks
+ * lib/bestTimes.ts's `SyncedBest`.
+ */
+export async function fetchBests(): Promise<SyncedBest[] | null> {
+    const res = await request("/api/stats/bests", "GET");
+    if (!res || !res.ok) return null;
+    const data = await res.json().catch(() => null);
+    if (!data || !Array.isArray(data.bests)) return null;
+    return (data.bests as BoardBest[]).map((best) => ({
+        boardKey: best.boardKey,
+        seconds: best.seconds,
+        players: best.players,
+        at: Date.parse(best.achievedAt) || 0,
+    }));
+}
+
+/**
+ * How many records one push may carry — kept in step BY HAND with
+ * `MAX_BEST_IMPORT_ENTRIES` in server/validation.js, the same trade as
+ * RECENT_WINDOW above.
+ */
+export const MAX_BEST_PUSH = 100;
+
+/**
+ * Whether one record fits the server's import contract (`isValidBestImport`
+ * in server/validation.js, kept in step by hand like the cap above).
+ *
+ * Checked per entry BEFORE pushing because the server rejects the whole
+ * payload on one bad record, and localStorage legally holds entries the
+ * contract refuses — a co-op board left open past a day clears with
+ * seconds > 86400, and storage is user-editable. Unfiltered, one such entry
+ * would silently disable the push half of the sync for good.
+ */
+export function isPushableBest(best: SyncedBest): boolean {
+    return (
+        /^\d{1,3}x\d{1,3}\/\d{1,4}(@\d{1,3})?$/.test(best.boardKey) &&
+        Number.isFinite(best.seconds) &&
+        best.seconds >= 0 &&
+        best.seconds <= 86400 &&
+        Number.isInteger(best.players) &&
+        best.players >= 1 &&
+        best.players <= 100 &&
+        Number.isFinite(best.at)
+    );
+}
+
+/**
+ * Folds this browser's localStorage bests into the account, keep-if-faster.
+ *
+ * Entries outside the server's contract are left behind (`isPushableBest`)
+ * and the payload is capped at MAX_BEST_PUSH — one bad or excess entry
+ * otherwise 400s the whole push. Anything sliced off is picked up by a later
+ * pass, once the entries ahead of it have landed and left `toPush`. True when
+ * there was nothing to send.
+ */
+export async function importBests(bests: SyncedBest[]): Promise<boolean> {
+    const payload = bests
+        .filter(isPushableBest)
+        .slice(0, MAX_BEST_PUSH)
+        .map(({ boardKey, seconds, players, at }) => ({
+            boardKey,
+            seconds,
+            players,
+            achievedAt: at,
+        }));
+    if (payload.length === 0) return true;
+    const res = await request("/api/stats/import-bests", "POST", { bests: payload });
     return !!res && (res.status === 204 || res.ok);
 }

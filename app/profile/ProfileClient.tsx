@@ -4,8 +4,8 @@ import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 import { Button, Panel, Table } from '@/components/ds';
 import { DIALOGS, openDialog } from '@/lib/dialogs';
-import { RECENT_WINDOW, fetchStats, importBests, type ProfilePayload } from '@/lib/statsApi';
-import { boardLabel, readBestTimes } from '@/lib/bestTimes';
+import { RECENT_WINDOW, fetchStats, type ProfilePayload } from '@/lib/statsApi';
+import { labelForBestKey } from '@/lib/bestTimes';
 import { formatClock } from '@/lib/gameClock';
 import { formatDate } from '@/lib/formatDate';
 import { markAchievementsSeen, newlyEarned } from '@/lib/achievementsSeen';
@@ -15,17 +15,10 @@ import DailyHistoryPanel from './DailyHistoryPanel';
 
 /**
  * The private dashboard over what the SERVER recorded — the page has no way
- * to add a game, which is the whole server-authoritative point. The one
- * write it offers is the guest import: this browser's localStorage bests,
- * folded in keep-if-faster.
+ * to add a game, which is the whole server-authoritative point. This
+ * browser's localStorage bests need no import button: SettingsSync merges
+ * them with the account, keep-if-faster both ways, on every signed-in load.
  */
-
-/** "16x16/40" → the same display name the rest of the app derives. */
-const labelForKey = (key: string): string => {
-    const match = key.match(/^(\d+)x(\d+)\/(\d+)$/);
-    if (!match) return key;
-    return boardLabel(Number(match[1]), Number(match[2]), Number(match[3]));
-};
 
 const MODE_LABELS = { 'co-op': 'Co-op', pvp: 'PVP', daily: 'Daily' } as const;
 
@@ -43,8 +36,8 @@ export default function ProfileClient() {
      * it during render instead would clear the badges on the first re-render,
      * before anyone had a chance to see them.
      *
-     * Once per VISIT, not once per fetch. `load` runs again after the guest
-     * import, and a second pass would compare against the watermark it just
+     * Once per VISIT, not once per fetch. `load` runs again from the Retry
+     * button, and a second pass would compare against the watermark it just
      * wrote and blank the badges while the player was still reading them.
      */
     const [freshAchievements, setFreshAchievements] = React.useState<Set<string>>(new Set());
@@ -67,26 +60,6 @@ export default function ProfileClient() {
     React.useEffect(() => {
         if (status === 'authenticated') load();
     }, [status, load]);
-
-    // The guest import offer: only when this browser actually holds records.
-    const [localBestCount, setLocalBestCount] = React.useState(0);
-    const [importState, setImportState] = React.useState<'idle' | 'busy' | 'done' | 'failed'>('idle');
-    React.useEffect(() => {
-        setLocalBestCount(Object.keys(readBestTimes()).length);
-    }, []);
-
-    const runImport = async () => {
-        setImportState('busy');
-        const bests = Object.entries(readBestTimes()).map(([boardKey, best]) => ({
-            boardKey,
-            seconds: best.seconds,
-            players: best.players,
-            achievedAt: best.at,
-        }));
-        const ok = await importBests(bests);
-        setImportState(ok ? 'done' : 'failed');
-        if (ok) load();
-    };
 
     return (
         <main className="max-w-3xl mx-auto px-6 pt-10 pb-24">
@@ -193,7 +166,7 @@ export default function ProfileClient() {
                                     <tbody>
                                         {profile.boardBests.map((best) => (
                                             <tr key={best.boardKey}>
-                                                <td>{labelForKey(best.boardKey)}</td>
+                                                <td>{labelForBestKey(best.boardKey)}</td>
                                                 <td>{formatClock(best.seconds)}</td>
                                                 <td>{best.players}</td>
                                                 <td>{formatDate(best.achievedAt)}</td>
@@ -201,28 +174,6 @@ export default function ProfileClient() {
                                         ))}
                                     </tbody>
                                 </Table>
-                            )}
-                            {localBestCount > 0 && (
-                                <div className="mt-4">
-                                    <Button
-                                        size="sm"
-                                        onClick={() => void runImport()}
-                                        disabled={importState === 'busy'}>
-                                        {importState === 'busy'
-                                            ? 'Importing…'
-                                            : `Import this browser's bests (${localBestCount})`}
-                                    </Button>
-                                    {importState === 'done' && (
-                                        <p className="text-pixel-xs text-ink-muted mt-2" role="status">
-                                            Imported — kept wherever they were faster.
-                                        </p>
-                                    )}
-                                    {importState === 'failed' && (
-                                        <p className="text-pixel-xs mt-2" role="alert">
-                                            Import failed — try again in a minute.
-                                        </p>
-                                    )}
-                                </div>
                             )}
                         </Panel>
                     </section>
@@ -254,7 +205,7 @@ export default function ProfileClient() {
                                             {profile.recentGames.map((game, i) => (
                                                 <tr key={i}>
                                                     <td>{MODE_LABELS[game.mode] ?? game.mode}</td>
-                                                    <td>{labelForKey(game.boardKey)}</td>
+                                                    <td>{labelForBestKey(game.boardKey)}</td>
                                                     <td>{game.won ? 'Won' : 'Lost'}</td>
                                                     <td>
                                                         {game.durationMs === null

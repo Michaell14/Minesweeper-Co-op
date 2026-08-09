@@ -5,6 +5,8 @@ import { useMinesweeperStore } from '@/app/store';
 import { fetchSettings, saveSettings } from '@/lib/settingsApi';
 import { deleteThemeRemote, fetchThemes, saveThemeRemote } from '@/lib/themesApi';
 import { clearPendingThemeDeletion, readPendingThemeDeletions } from '@/lib/customThemes';
+import { fetchBests, importBests } from '@/lib/statsApi';
+import { mergeServerBests } from '@/lib/bestTimes';
 import { installSoundUnlock } from '@/lib/sound';
 import { msUntilLocalMidnight } from '@/lib/holidays';
 
@@ -123,6 +125,23 @@ export default function SettingsSync() {
             const localOnly = state.customThemes.filter((t) => !serverIds.has(t.id));
             state.replaceCustomThemes([...survivors, ...localOnly]);
             for (const theme of localOnly) void saveThemeRemote(theme);
+        });
+
+        // Best times: keep-if-faster in BOTH directions, like the themes merge
+        // but symmetric — a record is a fact about a run, so neither side can
+        // "win" a conflict; the faster time simply is the record. Server times
+        // this browser lacks land in localStorage; local records the account
+        // lacks are pushed up. New records DURING play need no push here: the
+        // server records signed-in wins itself (utils/statsRecorder), from its
+        // own clock.
+        fetchBests().then((serverBests) => {
+            if (cancelled || serverBests === null) return;
+            const { pulled, toPush } = mergeServerBests(serverBests);
+            if (pulled) useMinesweeperStore.getState().bumpBestTimesVersion();
+            // Best-effort, like every push in this file: a miss is retried on
+            // the next sign-in pass. importBests itself filters and caps to
+            // the server's contract.
+            if (toPush.length > 0) void importBests(toPush);
         });
 
         return () => { cancelled = true; };

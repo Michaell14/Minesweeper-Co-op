@@ -16,6 +16,8 @@ const {
     isValidCoordinate,
     isValidHoverCoordinate,
     isPlayerInRoom,
+    isValidBoardKey,
+    isValidBestImport,
 } = require('../validation');
 
 describe('isValidRoomCode', () => {
@@ -188,5 +190,41 @@ describe('isPlayerInRoom', () => {
         // and get swallowed by the handler's try/catch.
         expect(() => isPlayerInRoom({ players: 'not json' }, 'a')).not.toThrow();
         expect(isPlayerInRoom({ players: 'not json' }, 'a')).toBe(false);
+    });
+});
+
+describe('isValidBoardKey', () => {
+    test.each([
+        ['a bare board key', '16x16/40', true],
+        // The client keys group clears with the count as part of the identity
+        // (lib/bestTimes.ts) — rejecting the suffix 400s the WHOLE sync push
+        // of anyone holding a co-op record.
+        ['a group clear with the @players suffix', '16x16/40@3', true],
+        ['a suffix with no count', '16x16/40@', false],
+        ['a doubled suffix', '16x16/40@3@3', false],
+        ['dimensions past the bound', '1000x16/40', false],
+        ['not a key at all', 'sixteen', false],
+        ['a non-string', 40, false],
+    ])('%s → %p', (_label, key, valid) => {
+        expect(isValidBoardKey(key)).toBe(valid);
+    });
+});
+
+describe('isValidBestImport', () => {
+    const entry = { boardKey: '9x9/10', seconds: 30, players: 1, achievedAt: 1 };
+
+    test('accepts a well-formed payload, suffixed keys included', () => {
+        expect(isValidBestImport([entry, { ...entry, boardKey: '16x16/40@3', players: 3 }])).toBe(true);
+    });
+
+    test.each([
+        ['not an array', { entry }],
+        ['an oversized payload', Array.from({ length: 101 }, () => entry)],
+        ['a negative time', [{ ...entry, seconds: -1 }]],
+        ['a time past a day', [{ ...entry, seconds: 90000 }]],
+        ['a fractional player count', [{ ...entry, players: 2.5 }]],
+        ['a malformed key', [{ ...entry, boardKey: 'junk' }]],
+    ])('rejects %s', (_label, bests) => {
+        expect(isValidBestImport(bests)).toBe(false);
     });
 });

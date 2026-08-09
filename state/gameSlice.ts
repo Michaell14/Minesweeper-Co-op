@@ -35,6 +35,14 @@ export interface GameSlice {
     bestTimeResult: BestTimeResult | null;
 
     /*
+     * Bumped when the sign-in sync rewrites the localStorage bests
+     * (SettingsSync). localStorage has no change event of its own in the tab
+     * that wrote it, so without this a mounted useBestTime would keep showing
+     * the record from before the account's times arrived.
+     */
+    bestTimesVersion: number;
+
+    /*
      * The cell the last batch of reveals started from — read only by the cascade
      * animation, which measures each cell's delay from it. Board-level rather
      * than per-cell because a `Cell` is `{ isMine, isOpen, isFlagged,
@@ -50,6 +58,7 @@ export interface GameSlice {
     setGameWon: (isGameWon: boolean) => void;
     setClock: (clock: { startedAt: number | null; endedAt: number | null }) => void;
     setBestTimeResult: (result: BestTimeResult | null) => void;
+    bumpBestTimesVersion: () => void;
 }
 
 export const createGameSlice: StateCreator<MinesweeperState, [], [], GameSlice> = (set) => ({
@@ -59,6 +68,7 @@ export const createGameSlice: StateCreator<MinesweeperState, [], [], GameSlice> 
     startedAt: null,
     endedAt: null,
     bestTimeResult: null,
+    bestTimesVersion: 0,
     cascadeOrigin: null,
 
     setBoard: (newBoard) => set({ board: newBoard }),
@@ -139,4 +149,7 @@ export const createGameSlice: StateCreator<MinesweeperState, [], [], GameSlice> 
         set(endedAt === null ? { startedAt, endedAt, bestTimeResult: null } : { startedAt, endedAt }),
 
     setBestTimeResult: (bestTimeResult) => set({ bestTimeResult }),
+
+    bumpBestTimesVersion: () =>
+        set((state) => ({ bestTimesVersion: state.bestTimesVersion + 1 })),
 });

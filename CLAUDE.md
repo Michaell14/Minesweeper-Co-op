@@ -81,7 +81,7 @@ Backend deps install separately: `npm --prefix server install`.
 | Board/controls UI | `components/game/` (Board, StatusBanner, ProgressBar, ScoreTable, FlagCounter, Timer, RoomPanel, GameSummary); `components/Grid.tsx` is layout only |
 | Daily challenge UI | `components/DailyChallenge.tsx`, `components/dialogs/DailyDialogs.tsx`, `state/dailySlice.ts` |
 | The run clock | `server/domain/clock.js` (server), `lib/gameClock.ts` (the one reading), `components/game/Timer.tsx` |
-| Personal best times | `lib/bestTimes.ts` (localStorage, keyed by board dimensions), `hooks/useBestTime.ts` |
+| Personal best times | `lib/bestTimes.ts` (localStorage, keyed by board dimensions), `hooks/useBestTime.ts`; signed in they merge with the account keep-if-faster (`mergeServerBests`, wired in `components/SettingsSync.tsx`; server `statsRepo.getBests`/`importBests`) |
 | Account stats (server-recorded results, streak, profile page) | `server/data/statsRepo.js` (one transaction per result), `server/utils/statsRecorder.js` (socket→user bridge, best-effort), `server/domain/streak.js` (pure UTC day maths), `server/controllers/statsController.js`; client `lib/statsApi.ts`, `app/profile/` |
 | Achievements | catalog in `shared/achievements.js` (imported by both halves, declarative so the client can draw progress); moment predicates + evaluator in `server/domain/achievements.js` (pure); awarded inside `statsRepo.recordResult`'s transaction, announced by `utils/statsRecorder` on `achievementsUnlocked`; shelf at `app/profile/AchievementsPanel.tsx`, watermark in `lib/achievementsSeen.ts`, toast in `components/AchievementToast.tsx` + `state/achievementsSlice.ts`; one-shot `npm run backfill:achievements` |
 | Cell interaction | `components/game/Cell.tsx` |

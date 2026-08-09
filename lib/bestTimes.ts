@@ -5,9 +5,11 @@ import type { GameMode } from "@/shared/socketPayloads";
  * Your best clear of each board, kept in this browser.
  *
  * localStorage, not the sessionStorage the session id uses: a personal best
- * should outlive the tab it was set in. Nothing is sent to the server — with no
- * accounts to authenticate against, a server-side table would be a scoreboard of
- * whoever edited a socket payload last.
+ * should outlive the tab it was set in. This browser's copy stays the one the
+ * game reads; signing in additionally MERGES it with the account's server-side
+ * records, keep-if-faster in both directions (`mergeServerBests`, wired up in
+ * SettingsSync) — so records follow the account across devices without the
+ * signed-out game ever needing a server.
  *
  * Boards are keyed by DIMENSIONS, MINE COUNT AND HOW MANY PLAYERS CLEARED IT —
  * never the size/difficulty labels: `setDimensions` gives a joiner the room's
@@ -83,6 +85,18 @@ export const boardLabel = (rows: number, cols: number, mines: number) => {
         (p) => p.rows === rows && p.cols === cols && p.mines === mines,
     );
     return preset ? preset.title : `${rows}x${cols}, ${mines} mines`;
+};
+
+/**
+ * `boardLabel` for a STORED key ("16x16/40@3" → "Medium"). Lives here so the
+ * key grammar has one client-side owner; the player count has its own column
+ * wherever these are shown, so the label ignores the suffix. Anything that is
+ * not a key passes through as itself rather than losing the row.
+ */
+export const labelForBestKey = (key: string): string => {
+    const match = boardPartOf(key).match(/^(\d+)x(\d+)\/(\d+)$/);
+    if (!match) return key;
+    return boardLabel(Number(match[1]), Number(match[2]), Number(match[3]));
 };
 
 /** A stored entry, or null if it is missing or has been corrupted. */
@@ -194,6 +208,80 @@ export const recordBestTime = (
     }
 
     return { improved, previous };
+};
+
+/** A record as the sync speaks it: a keyed BestTime, flattened. */
+export interface SyncedBest {
+    boardKey: string;
+    seconds: number;
+    players: number;
+    at: number;
+}
+
+/**
+ * Folds the account's server-side records into this browser's, keep-if-faster,
+ * and reports what should flow the other way.
+ *
+ * Returns `pulled` — whether any server record landed locally, so the caller
+ * knows mounted readers need a reason to look again — and `toPush`: the local
+ * records the server lacks or holds slower, ready for `importBests`.
+ *
+ * Every incoming entry goes through the same canonicalisation as a local
+ * write: the key's player suffix is derived from the record's OWN count, and
+ * anything unparseable is dropped rather than trusted. The server applies the
+ * identical rule (statsRepo.bestKeyOf), which is what lets the two sides
+ * compare keys as plain strings.
+ *
+ * Daily-challenge clears recorded server-side flow in with everything else,
+ * DELIBERATELY: the daily board is a real solo clear of those dimensions, so
+ * it may become "your best" for a room of the same size.
+ */
+export const mergeServerBests = (
+    server: SyncedBest[],
+): { pulled: boolean; toPush: SyncedBest[] } => {
+    const local = readBestTimes();
+
+    // The server's view, canonically keyed, fastest per slot.
+    const serverBySlot = new Map<string, BestTime>();
+    for (const record of server) {
+        const entry = parseEntry(record);
+        if (!entry) continue;
+        const key = withPlayers(boardPartOf(record.boardKey), entry.players);
+        const existing = serverBySlot.get(key);
+        if (!existing || entry.seconds < existing.seconds) serverBySlot.set(key, entry);
+    }
+
+    const merged: Record<string, BestTime> = { ...local };
+    let pulled = false;
+    for (const [key, entry] of serverBySlot) {
+        const existing = merged[key];
+        if (!existing || entry.seconds < existing.seconds) {
+            merged[key] = entry;
+            pulled = true;
+        }
+    }
+
+    if (pulled && typeof window !== "undefined") {
+        try {
+            window.localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+        } catch {
+            // Full or blocked. The pull is lost, but the next sign-in retries.
+        }
+    }
+
+    const toPush = Object.entries(local)
+        .filter(([key, entry]) => {
+            const known = serverBySlot.get(key);
+            return !known || entry.seconds < known.seconds;
+        })
+        .map(([key, entry]) => ({
+            boardKey: key,
+            seconds: entry.seconds,
+            players: entry.players,
+            at: entry.at,
+        }));
+
+    return { pulled, toPush };
 };
 
 /** Forgets every record. Used by tests to reset between cases. */

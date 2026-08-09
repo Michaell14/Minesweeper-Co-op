@@ -3,8 +3,10 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 import {
     boardKey,
     boardLabel,
+    labelForBestKey,
     playersForClear,
     clearBestTimes,
+    mergeServerBests,
     readBestTime,
     readBestTimes,
     recordBestTime,
@@ -90,6 +92,17 @@ describe("naming a board", () => {
 
     test("falls back to the raw shape for a custom board", () => {
         expect(boardLabel(12, 11, 17)).toBe("12x11, 17 mines");
+    });
+
+    /* The player count has its own column wherever keys are shown, so the
+     * label reads the same with or without the suffix. */
+    test("a stored key labels the same, suffixed or not", () => {
+        expect(labelForBestKey("9x9/10")).toBe("Small / Easy");
+        expect(labelForBestKey("9x9/10@3")).toBe("Small / Easy");
+    });
+
+    test("something that is not a key passes through as itself", () => {
+        expect(labelForBestKey("junk")).toBe("junk");
     });
 });
 
@@ -217,6 +230,82 @@ describe("records written before the count was part of the key", () => {
 describe("reading a board never cleared", () => {
     test("is null rather than a zero that looks like a record", () => {
         expect(readBestTime(KEY)).toBeNull();
+    });
+});
+
+/*
+ * The sign-in sync. Both directions are keep-if-faster: a record is a fact
+ * about a run, so neither side can "win" a conflict — the faster time simply
+ * is the record.
+ */
+describe("merging the account's server-side records", () => {
+    test("a faster server time lands locally and reports the pull", () => {
+        recordBestTime(KEY, { seconds: 90, players: 1, at: 1 });
+
+        const { pulled, toPush } = mergeServerBests([
+            { boardKey: KEY, seconds: 45, players: 1, at: 2 },
+        ]);
+
+        expect(pulled).toBe(true);
+        expect(readBestTime(KEY)?.seconds).toBe(45);
+        expect(toPush).toEqual([]);
+    });
+
+    test("a slower server time changes nothing and is offered the local one", () => {
+        recordBestTime(KEY, { seconds: 45, players: 1, at: 1 });
+
+        const { pulled, toPush } = mergeServerBests([
+            { boardKey: KEY, seconds: 90, players: 1, at: 2 },
+        ]);
+
+        expect(pulled).toBe(false);
+        expect(readBestTime(KEY)?.seconds).toBe(45);
+        expect(toPush).toEqual([{ boardKey: KEY, seconds: 45, players: 1, at: 1 }]);
+    });
+
+    test("a board only one side knows flows to the other", () => {
+        recordBestTime(boardKey(9, 9, 10), { seconds: 30, players: 1, at: 1 });
+
+        const { pulled, toPush } = mergeServerBests([
+            { boardKey: KEY, seconds: 45, players: 1, at: 2 },
+        ]);
+
+        expect(pulled).toBe(true);
+        expect(readBestTime(KEY)?.seconds).toBe(45);
+        expect(readBestTime(boardKey(9, 9, 10))?.seconds).toBe(30);
+        expect(toPush).toEqual([{ boardKey: "9x9/10", seconds: 30, players: 1, at: 1 }]);
+    });
+
+    /* The identity rule holds across the wire: a group clear files under its
+     * own suffixed slot, whatever the key claimed. */
+    test("a server record is filed by ITS player count, not its key", () => {
+        const { pulled } = mergeServerBests([
+            { boardKey: "16x16/40", seconds: 41, players: 3, at: 2 },
+        ]);
+
+        expect(pulled).toBe(true);
+        expect(readBestTime(boardKey(16, 16, 40, 3))?.seconds).toBe(41);
+        expect(readBestTime(boardKey(16, 16, 40))).toBeNull();
+    });
+
+    test("an unparseable server entry is dropped, the others land", () => {
+        const { pulled } = mergeServerBests([
+            { boardKey: KEY, seconds: Number.NaN, players: 1, at: 2 },
+            { boardKey: "9x9/10", seconds: 30, players: 1, at: 2 },
+        ]);
+
+        expect(pulled).toBe(true);
+        expect(readBestTime(KEY)).toBeNull();
+        expect(readBestTime(boardKey(9, 9, 10))?.seconds).toBe(30);
+    });
+
+    test("an empty server answer pushes everything local and pulls nothing", () => {
+        recordBestTime(KEY, { seconds: 90, players: 1, at: 1 });
+
+        const { pulled, toPush } = mergeServerBests([]);
+
+        expect(pulled).toBe(false);
+        expect(toPush).toHaveLength(1);
     });
 });
 

@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 /**
  * The profile page's states by accessible name: signed out, unavailable, and
- * the populated dashboard — plus the guest import appearing only when this
- * browser actually holds local bests.
+ * the populated dashboard. Local bests need no UI here — SettingsSync merges
+ * them with the account in the background.
  */
 import React from 'react';
 import { render, screen, waitFor, fireEvent, cleanup } from '@testing-library/react';
@@ -15,10 +15,8 @@ vi.mock('next-auth/react', () => ({
 }));
 
 const mockFetchStats = vi.fn();
-const mockImportBests = vi.fn();
 vi.mock('@/lib/statsApi', () => ({
     fetchStats: (...args: unknown[]) => mockFetchStats(...args),
-    importBests: (...args: unknown[]) => mockImportBests(...args),
 }));
 
 // The page mounts AccountPanel (its own tests live beside it); its fetch
@@ -33,7 +31,6 @@ vi.mock('@/lib/profileApi', async () => {
 });
 
 import ProfileClient from './ProfileClient';
-import { clearBestTimes, recordBestTime, boardKey } from '@/lib/bestTimes';
 
 const PAYLOAD = {
     stats: {
@@ -47,6 +44,8 @@ const PAYLOAD = {
     },
     boardBests: [
         { boardKey: '16x16/40', seconds: 92, players: 1, achievedAt: '2026-08-01T12:00:00Z' },
+        // A group clear, keyed with the `@players` suffix the sync files under.
+        { boardKey: '16x16/40@3', seconds: 41, players: 3, achievedAt: '2026-08-02T12:00:00Z' },
     ],
     recentGames: [
         { mode: 'co-op', boardKey: '16x16/40', won: true, durationMs: 92500, players: 3, finishedAt: '2026-08-02T10:00:00Z' },
@@ -61,7 +60,6 @@ beforeEach(() => {
     localStorage.clear();
     mockUseSession.mockReset();
     mockFetchStats.mockReset();
-    mockImportBests.mockReset();
     mockFetchProfile.mockReset();
     mockFetchProfile.mockResolvedValue({
         id: 'uuid-1',
@@ -103,8 +101,11 @@ describe('signed in', () => {
         // Best time renders through the shared clock formatting (92s → 01:32);
         // the recent-games row shows the same run, so it appears twice.
         expect(screen.getAllByText('01:32').length).toBeGreaterThan(0);
-        // Board keys render as display names, never raw keys.
+        // Board keys render as display names, never raw keys — including a
+        // group clear's `@players`-suffixed key.
         expect(screen.queryByText('16x16/40')).toBeNull();
+        expect(screen.queryByText('16x16/40@3')).toBeNull();
+        expect(screen.getAllByText('00:41').length).toBeGreaterThan(0);
         expect(screen.getByRole('table', { name: 'Recent games' })).toBeTruthy();
         expect(screen.getByText('Lost')).toBeTruthy();
         // Account management follows the stats, deletion last and low-key.
@@ -142,24 +143,7 @@ describe('signed in', () => {
         );
     });
 
-    it('offers the guest import only when this browser holds local bests', async () => {
-        mockFetchStats.mockResolvedValue(PAYLOAD);
-        recordBestTime(boardKey(9, 9, 10), { seconds: 30, players: 1, at: 1 });
-        mockImportBests.mockResolvedValue(true);
-
-        render(<ProfileClient />);
-        const button = await screen.findByRole('button', { name: /Import this browser's bests \(1\)/ });
-        fireEvent.click(button);
-
-        await waitFor(() => expect(mockImportBests).toHaveBeenCalled());
-        expect(mockImportBests.mock.calls[0][0]).toEqual([
-            { boardKey: '9x9/10', seconds: 30, players: 1, achievedAt: 1 },
-        ]);
-        await waitFor(() => expect(screen.getByText(/Imported — kept wherever/)).toBeTruthy());
-        clearBestTimes();
-    });
-
-    it('shows no import offer on a browser with no records', async () => {
+    it('offers no import button — the sync owns local bests now', async () => {
         mockFetchStats.mockResolvedValue(PAYLOAD);
         render(<ProfileClient />);
         await screen.findByRole('table', { name: 'Games and wins by mode' });

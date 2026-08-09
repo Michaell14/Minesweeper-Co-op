@@ -204,11 +204,13 @@ const recordResult = async (userId, { mode, boardKey, won, durationMs, players, 
         const unlocked = await awardAchievements(client, userId, earned);
 
         // A board best is a WIN with a measured time; keep only if faster.
+        // A PVP race counts as SOLO work for the record — the opponent never
+        // touches your board — matching lib/bestTimes.ts's playersForClear.
         if (won && typeof durationMs === 'number' && durationMs >= 0) {
             await upsertBest(client, userId, {
                 boardKey,
                 seconds: Math.floor(durationMs / 1000),
-                players,
+                players: mode === 'pvp' ? 1 : players,
                 achievedAt: finishedAt,
             });
         }
@@ -274,6 +276,18 @@ const backfillAchievements = async () => {
     return { players: players.rows.length, awarded };
 };
 
+/**
+ * The canonical bests key: the board part plus a `@players` suffix for group
+ * clears — the identity lib/bestTimes.ts files under, so both sides of the
+ * sync agree on which record is "the" record. Derived from the entry's OWN
+ * player count, never trusted from the key handed in — the same rule the
+ * client applies on read and write.
+ */
+const bestKeyOf = (boardKey, players) => {
+    const boardPart = String(boardKey).split('@')[0];
+    return players > 1 ? `${boardPart}@${players}` : boardPart;
+};
+
 /** Keep-if-faster upsert. `client` may be a pool or a transaction client. */
 const upsertBest = (client, userId, { boardKey, seconds, players, achievedAt }) =>
     client.query(
@@ -284,8 +298,26 @@ const upsertBest = (client, userId, { boardKey, seconds, players, achievedAt }) 
              players = EXCLUDED.players,
              achieved_at = EXCLUDED.achieved_at
          WHERE EXCLUDED.seconds < user_board_bests.seconds`,
-        [userId, boardKey, seconds, players, achievedAt],
+        [userId, bestKeyOf(boardKey, players), seconds, players, achievedAt],
     );
+
+/**
+ * Just the bests, for the sign-in sync — getProfile reads five tables the
+ * sync has no use for.
+ */
+const getBests = async (userId) => {
+    if (!pgPool) throw new Error('Postgres is not configured (DATABASE_URL is unset)');
+    const result = await pgPool.query(
+        'SELECT board_key, seconds, players, achieved_at FROM user_board_bests WHERE user_id = $1',
+        [userId],
+    );
+    return result.rows.map((b) => ({
+        boardKey: b.board_key,
+        seconds: b.seconds,
+        players: b.players,
+        achievedAt: b.achieved_at,
+    }));
+};
 
 /** Everything the profile page shows, in one read. */
 const getProfile = async (userId) => {
@@ -346,10 +378,10 @@ const getProfile = async (userId) => {
 };
 
 /**
- * The one-time guest import: this browser's localStorage bests folded in,
- * keep-if-faster — so importing can only improve a profile, never damage it,
- * and re-importing is harmless. Client-reported numbers, accepted knowingly
- * (recorded in the PRD): they seed a private profile, not a leaderboard.
+ * The sync's push: a browser's localStorage bests folded in, keep-if-faster —
+ * so a push can only improve a profile, never damage it, and re-pushing is
+ * harmless. Client-reported numbers, accepted knowingly (recorded in the
+ * PRD): they seed a private profile, not a leaderboard.
  */
 const importBests = async (userId, bests) => {
     if (!pgPool) throw new Error('Postgres is not configured (DATABASE_URL is unset)');
@@ -368,4 +400,4 @@ const importBests = async (userId, bests) => {
     }
 };
 
-module.exports = { recordResult, getProfile, importBests, backfillAchievements, RECENT_WINDOW };
+module.exports = { recordResult, getProfile, getBests, importBests, backfillAchievements, RECENT_WINDOW };

@@ -21,6 +21,17 @@ const registerStatsRoutes = (app) => {
         }
     });
 
+    // The sync's read half: bests alone, light enough to hit on every
+    // sign-in. /api/stats stays the profile page's five-table payload.
+    app.get('/api/stats/bests', requireUser, async (req, res) => {
+        try {
+            res.json({ bests: await statsRepo.getBests(req.user.id) });
+        } catch (error) {
+            console.error('Postgres error reading bests:', error.message);
+            res.status(503).json({ error: 'Stats are temporarily unavailable' });
+        }
+    });
+
     app.post('/api/stats/import-bests', requireUser, async (req, res) => {
         const bests = req.body && req.body.bests;
         if (!isValidBestImport(bests)) {

@@ -116,6 +116,40 @@ describe('recordResult', () => {
         expect(client.calls.some((c) => c.sql.includes('user_board_bests'))).toBe(false);
     });
 
+    /*
+     * The bests key is the CLIENT's identity — lib/bestTimes.ts keys a record
+     * by board AND group size, because two people finish a board faster than
+     * one more or less by construction. game_results keeps the bare key; only
+     * the bests slot takes the suffix.
+     */
+    test('a group clear files its best under the @players slot', async () => {
+        const client = makeClient();
+        mockConnect.mockResolvedValue(client);
+
+        await statsRepo.recordResult('uuid-1', RESULT); // 3 players, co-op
+
+        const best = client.calls.find((c) => c.sql.includes('user_board_bests'));
+        expect(best.params[1]).toBe('16x16/40@3');
+        const result = client.calls.find((c) => c.sql.includes('INSERT INTO game_results'));
+        expect(result.params[2]).toBe('16x16/40');
+    });
+
+    /* A race is SOLO work for the record — the opponent never touches your
+     * board — matching lib/bestTimes.ts's playersForClear. */
+    test('a PVP win files its best as a solo clear', async () => {
+        const client = makeClient();
+        mockConnect.mockResolvedValue(client);
+
+        await statsRepo.recordResult('uuid-1', { ...RESULT, mode: 'pvp', players: 2 });
+
+        const best = client.calls.find((c) => c.sql.includes('user_board_bests'));
+        expect(best.params[1]).toBe('16x16/40');
+        expect(best.params[3]).toBe(1);
+        // The game row still says two were in the room.
+        const result = client.calls.find((c) => c.sql.includes('INSERT INTO game_results'));
+        expect(result.params[5]).toBe(2);
+    });
+
     test('extends the streak read under lock', async () => {
         const client = makeClient();
         client.query.mockImplementation(async (sql, params) => {
@@ -490,5 +524,24 @@ describe('importBests', () => {
         expect(sqls[0]).toBe('BEGIN');
         expect(sqls.filter((s) => s.includes('user_board_bests'))).toHaveLength(2);
         expect(sqls[sqls.length - 1]).toBe('COMMIT');
+    });
+
+    /* The suffix comes from the entry's own count, never from the key handed
+     * in — a client cannot file a group clear on the solo slot by spelling
+     * the key one way and the record another. Same rule as the client's own
+     * writes (lib/bestTimes.ts recordBestTime). */
+    test('files each entry under the key its own player count implies', async () => {
+        const client = makeClient();
+        mockConnect.mockResolvedValue(client);
+
+        await statsRepo.importBests('uuid-1', [
+            { boardKey: '16x16/40', seconds: 99, players: 2, achievedAt: 2 },
+            { boardKey: '9x9/10@4', seconds: 30, players: 1, achievedAt: 1 },
+        ]);
+
+        const keys = client.calls
+            .filter((c) => c.sql.includes('user_board_bests'))
+            .map((c) => c.params[1]);
+        expect(keys).toEqual(['16x16/40@2', '9x9/10']);
     });
 });
