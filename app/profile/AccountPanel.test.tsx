@@ -132,49 +132,28 @@ describe('overlapping saves across fields', () => {
         expect((screen.getByRole('radio', { name: 'Fox' }) as HTMLInputElement).checked).toBe(true);
     });
 
-    it('the re-sync never regresses a save that completed while its fetch was in flight', async () => {
-        const { ProfileApiError, PROFILE_UPDATED_EVENT } = await vi.importActual<
-            typeof import('@/lib/profileApi')
-        >('@/lib/profileApi');
-        // The pick fails and its re-sync GET reads a snapshot from BEFORE the
-        // rename persists; the rename then applies while the fetch is still
-        // in flight. The stale snapshot must not overwrite it — on the panel
-        // or the event channel.
+    it('a failed pick reverts to the last CONFIRMED profile, not a click-time snapshot', async () => {
+        const { ProfileApiError } = await vi.importActual<typeof import('@/lib/profileApi')>(
+            '@/lib/profileApi',
+        );
+        // A rename persists before the pick fails. The revert must land on
+        // the renamed profile — a snapshot taken when the pick was clicked
+        // would resurrect the pre-rename name.
+        mockUpdateDisplayName.mockResolvedValue({ ...PROFILE, displayName: 'Renamed' });
         mockUpdateAvatar.mockRejectedValueOnce(new ProfileApiError('Invalid avatar', 400));
-        let resolveRename!: (value: unknown) => void;
-        mockUpdateDisplayName.mockImplementationOnce(
-            () => new Promise((resolve) => { resolveRename = resolve; }),
-        );
         await renderReady();
-        // Queued only AFTER the initial load consumed its fetch — this
-        // deferred one belongs to the re-sync.
-        let resolveFetch!: (value: unknown) => void;
-        mockFetchProfile.mockImplementationOnce(
-            () => new Promise((resolve) => { resolveFetch = resolve; }),
-        );
-
-        const announced: string[] = [];
-        const listener = (event: Event) =>
-            announced.push((event as CustomEvent).detail.displayName);
-        window.addEventListener(PROFILE_UPDATED_EVENT, listener);
-
-        fireEvent.click(screen.getByRole('radio', { name: 'Fox' }));
-        await waitFor(() => expect(mockFetchProfile).toHaveBeenCalledTimes(2)); // load + re-sync
 
         fireEvent.click(screen.getByRole('button', { name: /Save|Saving…/ }));
-        resolveRename({ ...PROFILE, displayName: 'Renamed' });
         await waitFor(() => expect(screen.getByRole('status').textContent).toBe('Saved!'));
 
-        resolveFetch(PROFILE); // the pre-rename snapshot arrives last
+        fireEvent.click(screen.getByRole('radio', { name: 'Fox' }));
         await waitFor(() =>
             expect(screen.getByRole('alert').textContent).toBe('Invalid avatar'),
         );
-        window.removeEventListener(PROFILE_UPDATED_EVENT, listener);
 
-        // The rename survives: the delete-confirm label reads off profile
-        // state, and the stale snapshot never reached the event channel.
+        // The rename survives the revert, and the pick rolled back.
         expect(screen.getByText(/Type your display name \(Renamed\)/)).toBeTruthy();
-        expect(announced).not.toContain('Michael');
+        expect((screen.getByRole('radio', { name: 'Smiley' }) as HTMLInputElement).checked).toBe(true);
     });
 
     it('an avatar failure is still reported after a rename follows it', async () => {
@@ -192,8 +171,6 @@ describe('overlapping saves across fields', () => {
         fireEvent.click(screen.getByRole('button', { name: /Save|Saving…/ }));
         await waitFor(() => expect(mockUpdateDisplayName).toHaveBeenCalled());
 
-        // The re-sync answers with what the server holds: the rename, no fox.
-        mockFetchProfile.mockResolvedValue({ ...PROFILE, displayName: 'Miguel' });
         rejectPick(new ProfileApiError('Invalid avatar', 400));
 
         await waitFor(() =>
@@ -251,14 +228,14 @@ describe('the avatar picker', () => {
         expect((screen.getByRole('radio', { name: 'Fox' }) as HTMLInputElement).checked).toBe(false);
     });
 
-    it('a failed save re-syncs from the server instead of restoring a stale snapshot', async () => {
+    it('a failed pick reverts to a confirmed EARLIER pick, not the original avatar', async () => {
         const { ProfileApiError } = await vi.importActual<typeof import('@/lib/profileApi')>(
             '@/lib/profileApi',
         );
-        // Fox is picked first and persists server-side, but its response is
-        // dropped by the ticket guard once penguin is picked. Penguin then
-        // fails — the snapshot it captured predates fox, so restoring it
-        // would show an avatar the server no longer holds.
+        // Fox persists server-side; its display is superseded by penguin,
+        // but it is still the last CONFIRMED state. When penguin fails, the
+        // revert must land on fox — Smiley is an avatar the server no
+        // longer holds.
         let resolveFox!: (value: unknown) => void;
         mockUpdateAvatar.mockImplementationOnce(
             () => new Promise((resolve) => { resolveFox = resolve; }),
@@ -273,29 +250,13 @@ describe('the avatar picker', () => {
         fireEvent.click(screen.getByRole('radio', { name: 'Penguin' }));
 
         resolveFox({ ...PROFILE, avatar: 'fox' });
-        // The re-sync must answer with what the server actually holds now.
-        mockFetchProfile.mockResolvedValue({ ...PROFILE, avatar: 'fox' });
-
-        // The truth must also be ANNOUNCED: the overlapping success was
-        // suppressed from the event channel, so without this the Footer
-        // never hears about the avatar the server kept.
-        const { PROFILE_UPDATED_EVENT } = await vi.importActual<typeof import('@/lib/profileApi')>(
-            '@/lib/profileApi',
-        );
-        const announced: string[] = [];
-        const listener = (event: Event) =>
-            announced.push((event as CustomEvent).detail.avatar);
-        window.addEventListener(PROFILE_UPDATED_EVENT, listener);
-
         rejectPenguin(new ProfileApiError('Invalid avatar', 400));
 
         await waitFor(() =>
             expect(screen.getByRole('alert').textContent).toBe('Invalid avatar'),
         );
-        window.removeEventListener(PROFILE_UPDATED_EVENT, listener);
         expect((screen.getByRole('radio', { name: 'Fox' }) as HTMLInputElement).checked).toBe(true);
         expect((screen.getByRole('radio', { name: 'Smiley' }) as HTMLInputElement).checked).toBe(false);
-        expect(announced).toEqual(['fox']);
     });
 
     it('reverts the pick and says why when the save is refused', async () => {

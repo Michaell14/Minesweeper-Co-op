@@ -85,48 +85,33 @@ export async function fetchProfile(): Promise<ProfileUser | null> {
 }
 
 /**
- * Save ordering for the event channel. `saveSeq` stamps each save at issue;
- * `announcedSeq` records the newest save whose response has broadcast. A
- * response announces only if nothing NEWER has announced already — comparing
- * against issued saves instead would let a newer save that FAILED (and so
- * wrote nothing) suppress an older success whose user is still the truth.
+ * Profile saves run strictly ONE AT A TIME, in call order. The queue is the
+ * correctness mechanism, not a nicety: when saves could overlap, ordering
+ * bugs arrived in five flavours — responses racing, failed saves suppressing
+ * successes, recovery snapshots regressing newer writes — each patched with
+ * another rank guard, and review kept finding more, because issue order and
+ * server processing order are not reconcilable from the client. Serialised,
+ * a response IS the newest server state when it arrives, so it applies and
+ * announces unconditionally and every guard went away.
  */
-let saveSeq = 0;
-let announcedSeq = 0;
-
-/**
- * Announces a fresh ProfileUser to event listeners (the Footer's avatar).
- * Exported for the one caller outside this module: AccountPanel's failed-save
- * re-sync, which fetches the server's truth and must let listeners converge
- * on it — the overlapping success it corrects for was suppressed below.
- *
- * A re-synced truth claims the CURRENT high-water mark: it was fetched after
- * every save issued so far, so an older save resolving later must not
- * re-announce over it — the panel blocks that with appliedTicket, and without
- * the matching claim here the footer would split from the panel.
- */
-export const announceProfileUpdated = (user: ProfileUser): void => {
-    announcedSeq = saveSeq;
-    window.dispatchEvent(new CustomEvent(PROFILE_UPDATED_EVENT, { detail: user }));
-};
+let saveChain: Promise<unknown> = Promise.resolve();
 
 /** One PUT for every profile edit; each caller sends only its own field. */
-async function updateProfile(body: { displayName?: string; avatar?: string }): Promise<ProfileUser> {
-    const seq = ++saveSeq;
-    const res = await request("PUT", body);
-    if (!res) throw new ProfileApiError("Accounts are not available right now", 0);
-    if (!res.ok) throw await errorFrom(res);
-    const data = await res.json();
-    const user = data.user as ProfileUser;
-    // Listeners apply these events unconditionally, so an older save's
-    // response must not broadcast over a newer one's. If a newer save is
-    // still in flight, announcing now is fine: its own response (or its
-    // failure re-sync) will re-announce, and the last event wins.
-    if (seq > announcedSeq) {
-        announcedSeq = seq;
-        announceProfileUpdated(user);
-    }
-    return user;
+function updateProfile(body: { displayName?: string; avatar?: string }): Promise<ProfileUser> {
+    const run = async (): Promise<ProfileUser> => {
+        const res = await request("PUT", body);
+        if (!res) throw new ProfileApiError("Accounts are not available right now", 0);
+        if (!res.ok) throw await errorFrom(res);
+        const data = await res.json();
+        const user = data.user as ProfileUser;
+        window.dispatchEvent(new CustomEvent(PROFILE_UPDATED_EVENT, { detail: user }));
+        return user;
+    };
+    // Start after the previous save settles — success or failure — and keep
+    // the chain itself from ever rejecting.
+    const next = saveChain.then(run, run);
+    saveChain = next.catch(() => {});
+    return next;
 }
 
 /** Renames the account. Throws ProfileApiError on refusal (e.g. bad name). */

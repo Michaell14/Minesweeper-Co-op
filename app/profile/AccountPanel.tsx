@@ -6,7 +6,6 @@ import { AVATARS } from '@/shared/avatars';
 import { DIALOGS, openDialog } from '@/lib/dialogs';
 import { clearBridgeToken } from '@/lib/authBridge';
 import {
-    announceProfileUpdated,
     deleteAccount,
     fetchProfile,
     ProfileApiError,
@@ -39,7 +38,10 @@ export default function AccountPanel() {
             if (cancelled) return;
             setProfile(user);
             setProfileState(user ? 'ready' : 'unavailable');
-            if (user) setNameDraft(user.displayName);
+            if (user) {
+                lastConfirmed.current = user;
+                setNameDraft(user.displayName);
+            }
         });
         return () => { cancelled = true; };
     }, []);
@@ -49,39 +51,27 @@ export default function AccountPanel() {
     const [saveError, setSaveError] = React.useState<string | null>(null);
 
     /*
-     * Two tickets with different jobs. `profileTicket` orders whole-profile
-     * applications across BOTH save paths: each response carries the full
-     * user, and a response applies only if nothing NEWER has applied already
-     * (`appliedTicket`) — comparing against issued requests instead would let
-     * a newer save that FAILED, and so wrote nothing, suppress an older
-     * success. `avatarTicket` orders the avatar FIELD's failure handling
-     * (revert, error, re-sync): only a newer avatar pick may supersede it. A
-     * rename must not — each field's outcome is reported regardless of what
-     * the other field is doing, or a failure vanishes without a trace and
-     * looks like a success.
+     * Saves are SERIALISED by profileApi — one request at a time, in click
+     * order — so a response is always the newest server state when it
+     * arrives and applies unconditionally. What survives here is per-field
+     * bookkeeping: `lastConfirmed` is the newest server-confirmed profile,
+     * which is what a failed pick reverts to (a snapshot taken at click time
+     * could predate a queued rename that succeeded meanwhile), and
+     * `latestPick` lets a superseded pick's outcome yield to the newer
+     * pick's — that pick's own response settles the display.
      */
-    const profileTicket = React.useRef(0);
-    const appliedTicket = React.useRef(0);
-    const avatarTicket = React.useRef(0);
-    const applyIfNewest = (ticket: number, user: ProfileUser): boolean => {
-        if (ticket <= appliedTicket.current) return false;
-        appliedTicket.current = ticket;
-        setProfile(user);
-        return true;
-    };
+    const lastConfirmed = React.useRef<ProfileUser | null>(null);
+    const latestPick = React.useRef(0);
 
     const saveName = async () => {
         if (saving) return;
-        const ticket = ++profileTicket.current;
         setSaved(false);
         setSaveError(null);
         setSaving(true);
         try {
             const user = await updateDisplayName(nameDraft);
-            applyIfNewest(ticket, user);
-            // Field UI is single-flight (the button disables while saving),
-            // so the outcome is always reported — even when an avatar pick
-            // has taken the profile ticket in the meantime.
+            lastConfirmed.current = user;
+            setProfile(user);
             setNameDraft(user.displayName);
             setSaved(true);
         } catch (error) {
@@ -101,39 +91,23 @@ export default function AccountPanel() {
     const [avatarError, setAvatarError] = React.useState<string | null>(null);
     const saveAvatar = async (id: string) => {
         if (!profile || id === profile.avatar) return;
-        const ticket = ++profileTicket.current;
-        const myPick = ++avatarTicket.current;
-        const previous = profile;
+        const myPick = ++latestPick.current;
         setProfile({ ...profile, avatar: id });
         setAvatarError(null);
         try {
             const user = await updateAvatar(id);
-            applyIfNewest(ticket, user);
+            // Server-confirmed either way; shown only while this is still
+            // the latest pick — a newer one's optimistic state stands until
+            // its own response settles it.
+            lastConfirmed.current = user;
+            if (latestPick.current === myPick) setProfile(user);
         } catch (error) {
-            // Only a NEWER PICK supersedes this failure — its own outcome
-            // governs the field then. A concurrent rename does not: this
-            // pick's failure must still be handled and reported.
-            if (avatarTicket.current !== myPick) return;
-            /*
-             * The snapshot can be STALE: an overlapping save may have
-             * persisted after it was taken (its response dropped as
-             * out-of-date by the ticket guard). No local snapshot can know
-             * that, so ask the server for the truth and keep the snapshot
-             * only as the fallback when even that fails — accounts are
-             * likely down at that point and it is the best guess left.
-             */
-            const fresh = await fetchProfile();
-            if (avatarTicket.current !== myPick) return;
-            /*
-             * Through the same ordering guard as a response, ranked at this
-             * pick's ticket: a save that completed while the fetch was in
-             * flight is newer than this snapshot, and neither the panel nor
-             * the footer may regress to it. The announce rides the
-             * application — if a newer save applied, it announced too.
-             */
-            if (applyIfNewest(ticket, fresh ?? previous) && fresh) {
-                announceProfileUpdated(fresh);
-            }
+            // A newer pick owns the field; its own outcome governs.
+            if (latestPick.current !== myPick) return;
+            // The failed write changed nothing server-side, so the last
+            // confirmed profile IS the truth — and the footer already heard
+            // it announced when it was confirmed.
+            if (lastConfirmed.current) setProfile(lastConfirmed.current);
             setAvatarError(
                 error instanceof ProfileApiError ? error.message : 'Could not save right now',
             );
