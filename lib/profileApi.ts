@@ -17,8 +17,18 @@ export interface ProfileUser {
     provider: string;
     email: string | null;
     displayName: string;
+    /** A catalog id from shared/avatars.js. */
+    avatar: string;
     createdAt: string;
 }
+
+/**
+ * Fired on window with the fresh ProfileUser as detail whenever a profile
+ * save answers. The Footer's avatar icon listens: it is mounted once in the
+ * layout, so without a signal it would show a stale avatar until a full
+ * reload after the picker on /profile changed it.
+ */
+export const PROFILE_UPDATED_EVENT = "ms:profile-updated";
 
 /** Provider ids rendered for humans. Falls back to the raw id. */
 const PROVIDER_LABELS: Record<string, string> = {
@@ -74,14 +84,24 @@ export async function fetchProfile(): Promise<ProfileUser | null> {
     return (data?.user as ProfileUser) ?? null;
 }
 
-/** Renames the account. Throws ProfileApiError on refusal (e.g. bad name). */
-export async function updateDisplayName(displayName: string): Promise<ProfileUser> {
-    const res = await request("PUT", { displayName });
+/** One PUT for every profile edit; each caller sends only its own field. */
+async function updateProfile(body: { displayName?: string; avatar?: string }): Promise<ProfileUser> {
+    const res = await request("PUT", body);
     if (!res) throw new ProfileApiError("Accounts are not available right now", 0);
     if (!res.ok) throw await errorFrom(res);
     const data = await res.json();
-    return data.user as ProfileUser;
+    const user = data.user as ProfileUser;
+    window.dispatchEvent(new CustomEvent(PROFILE_UPDATED_EVENT, { detail: user }));
+    return user;
 }
+
+/** Renames the account. Throws ProfileApiError on refusal (e.g. bad name). */
+export const updateDisplayName = (displayName: string): Promise<ProfileUser> =>
+    updateProfile({ displayName });
+
+/** Stores a new avatar id. Throws ProfileApiError on refusal (unknown id). */
+export const updateAvatar = (avatar: string): Promise<ProfileUser> =>
+    updateProfile({ avatar });
 
 /**
  * Deletes the account, hard. Returns whether the server confirmed it; the

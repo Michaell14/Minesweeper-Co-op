@@ -1,7 +1,8 @@
 'use client'
 import React from 'react';
 import { signOut } from 'next-auth/react';
-import { Button, Dialog, DialogClose, Field, Input, Panel } from '@/components/ds';
+import { Avatar, Button, Dialog, DialogClose, Field, Input, Panel, RadioCard, RadioCardGroup } from '@/components/ds';
+import { AVATARS } from '@/shared/avatars';
 import { DIALOGS, openDialog } from '@/lib/dialogs';
 import { clearBridgeToken } from '@/lib/authBridge';
 import {
@@ -9,6 +10,7 @@ import {
     fetchProfile,
     ProfileApiError,
     providerLabel,
+    updateAvatar,
     updateDisplayName,
     type ProfileUser,
 } from '@/lib/profileApi';
@@ -64,6 +66,27 @@ export default function AccountPanel() {
         }
     };
 
+    /*
+     * The avatar saves on selection, optimistically: the card lights at once,
+     * and a refused/failed save puts the old one back and says why. A "Save"
+     * button here would demote picking a face to a two-step form.
+     */
+    const [avatarError, setAvatarError] = React.useState<string | null>(null);
+    const saveAvatar = async (id: string) => {
+        if (!profile || id === profile.avatar) return;
+        const previous = profile;
+        setProfile({ ...profile, avatar: id });
+        setAvatarError(null);
+        try {
+            setProfile(await updateAvatar(id));
+        } catch (error) {
+            setProfile(previous);
+            setAvatarError(
+                error instanceof ProfileApiError ? error.message : 'Could not save right now',
+            );
+        }
+    };
+
     const [deleting, setDeleting] = React.useState(false);
     const [deleteError, setDeleteError] = React.useState<string | null>(null);
     const [confirmDraft, setConfirmDraft] = React.useState('');
@@ -112,10 +135,13 @@ export default function AccountPanel() {
 
                     {profileState === 'ready' && profile && (
                         <>
-                            <p className="text-pixel-sm text-ink-muted">
-                                Signed in with {providerLabel(profile.provider)}
-                                {profile.email ? ` as ${profile.email}` : ''}
-                            </p>
+                            <div className="flex items-center gap-3">
+                                <Avatar id={profile.avatar} size={48} />
+                                <p className="text-pixel-sm text-ink-muted">
+                                    Signed in with {providerLabel(profile.provider)}
+                                    {profile.email ? ` as ${profile.email}` : ''}
+                                </p>
+                            </div>
 
                             <Field
                                 label="Display name"
@@ -147,6 +173,32 @@ export default function AccountPanel() {
                                     <p role="status" className="text-pixel-sm text-ink-muted">Saved!</p>
                                 )}
                             </Field>
+
+                            <div className="mt-4">
+                                <p className="text-pixel-sm mb-2">Avatar</p>
+                                <RadioCardGroup
+                                    name="avatar"
+                                    ariaLabel="Avatar"
+                                    value={profile.avatar}
+                                    onChange={(id) => void saveAvatar(id)}
+                                    wrap>
+                                    {AVATARS.map(({ id, label }) => (
+                                        <RadioCard
+                                            key={id}
+                                            value={id}
+                                            label={label}
+                                            description={
+                                                <span aria-hidden="true">
+                                                    <Avatar id={id} size={40} />
+                                                </span>
+                                            }
+                                        />
+                                    ))}
+                                </RadioCardGroup>
+                                {avatarError && (
+                                    <p role="alert" className="text-pixel-sm mt-2">{avatarError}</p>
+                                )}
+                            </div>
 
                             <div className="flex gap-3 mt-4">
                                 <Button size="sm" onClick={handleSignOut}>Sign out</Button>

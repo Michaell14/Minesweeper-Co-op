@@ -20,6 +20,7 @@ const ROW = {
     provider_account_id: '42',
     email: 'm@example.com',
     display_name: 'Michael',
+    avatar: 'classic',
     created_at: new Date('2026-08-02T00:00:00Z'),
 };
 
@@ -29,6 +30,7 @@ const USER = {
     providerAccountId: '42',
     email: 'm@example.com',
     displayName: 'Michael',
+    avatar: 'classic',
     createdAt: new Date('2026-08-02T00:00:00Z'),
 };
 
@@ -79,17 +81,29 @@ describe('getUserById', () => {
     });
 });
 
-describe('updateDisplayName', () => {
+describe('updateUser', () => {
     test('returns the updated user', async () => {
         mockQuery.mockResolvedValue({ rows: [{ ...ROW, display_name: 'Miguel' }] });
-        const user = await userRepo.updateDisplayName('uuid-1', 'Miguel');
+        const user = await userRepo.updateUser('uuid-1', { displayName: 'Miguel' });
         expect(user).toEqual({ ...USER, displayName: 'Miguel' });
-        expect(mockQuery.mock.calls[0][1]).toEqual(['uuid-1', 'Miguel']);
+        expect(mockQuery.mock.calls[0][1]).toEqual(['uuid-1', 'Miguel', null]);
+    });
+
+    test('an omitted field keeps its stored value — null rides COALESCE', async () => {
+        mockQuery.mockResolvedValue({ rows: [{ ...ROW, avatar: 'fox' }] });
+        const user = await userRepo.updateUser('uuid-1', { avatar: 'fox' });
+        expect(user).toEqual({ ...USER, avatar: 'fox' });
+        // displayName was not provided, so its parameter must be null (kept),
+        // and the SQL must coalesce both columns onto themselves.
+        const [sql, params] = mockQuery.mock.calls[0];
+        expect(params).toEqual(['uuid-1', null, 'fox']);
+        expect(sql).toMatch(/display_name = COALESCE\(\$2, display_name\)/);
+        expect(sql).toMatch(/avatar = COALESCE\(\$3, avatar\)/);
     });
 
     test('returns null when the account no longer exists', async () => {
         mockQuery.mockResolvedValue({ rows: [] });
-        expect(await userRepo.updateDisplayName('uuid-gone', 'Miguel')).toBeNull();
+        expect(await userRepo.updateUser('uuid-gone', { displayName: 'Miguel' })).toBeNull();
     });
 });
 

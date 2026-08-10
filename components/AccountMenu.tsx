@@ -117,9 +117,9 @@ export default function AccountMenu() {
                 </p>
                 <p className="text-pixel-sm">
                     Signing in stores the id your OAuth provider gives us, the email
-                    address it reports, your display name — and, as you play, your
-                    settings, saved themes and the game results behind your private
-                    stats. Nothing is shared with anyone else, and there is no
+                    address it reports, your display name, your chosen avatar — and,
+                    as you play, your settings, saved themes and the game results
+                    behind your private stats. Nothing is shared with anyone else, and there is no
                     advertising or tracking attached to any of it.
                 </p>
                 <p className="text-pixel-sm">

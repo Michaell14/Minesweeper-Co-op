@@ -8,6 +8,7 @@
  * Two border treatments, and the distinction is deliberate (see
  * pixel.module.css): controls are notched, regions are boxed.
  */
+export { default as Avatar } from "./Avatar";
 export { default as Badge } from "./Badge";
 export { default as Button } from "./Button";
 export { default as ButtonLink } from "./ButtonLink";
@@ -27,6 +28,7 @@ export { CalendarIcon, CoinIcon, GearIcon, GithubIcon, StarIcon, SwordsIcon, Tro
 export type { PixelIconProps } from "./icons";
 export { pointerClass } from "./pointer";
 
+export type { AvatarProps } from "./Avatar";
 export type { BadgeIntent, BadgeProps, BadgeSize } from "./Badge";
 export type { ButtonIntent, ButtonProps, ButtonSize } from "./Button";
 export type { ButtonLinkProps } from "./ButtonLink";

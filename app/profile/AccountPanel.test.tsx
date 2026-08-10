@@ -16,6 +16,7 @@ vi.mock('next-auth/react', () => ({
 
 const mockFetchProfile = vi.fn();
 const mockUpdateDisplayName = vi.fn();
+const mockUpdateAvatar = vi.fn();
 const mockDeleteAccount = vi.fn();
 vi.mock('@/lib/profileApi', async () => {
     const actual = await vi.importActual<typeof import('@/lib/profileApi')>('@/lib/profileApi');
@@ -23,6 +24,7 @@ vi.mock('@/lib/profileApi', async () => {
         ...actual,
         fetchProfile: (...args: unknown[]) => mockFetchProfile(...args),
         updateDisplayName: (...args: unknown[]) => mockUpdateDisplayName(...args),
+        updateAvatar: (...args: unknown[]) => mockUpdateAvatar(...args),
         deleteAccount: (...args: unknown[]) => mockDeleteAccount(...args),
     };
 });
@@ -40,6 +42,7 @@ const PROFILE = {
     provider: 'github',
     email: 'm@example.com',
     displayName: 'Michael',
+    avatar: 'classic',
     createdAt: '2026-08-02',
 };
 
@@ -57,6 +60,7 @@ beforeEach(() => {
     mockSignOut.mockReset();
     mockFetchProfile.mockReset();
     mockUpdateDisplayName.mockReset();
+    mockUpdateAvatar.mockReset();
     mockDeleteAccount.mockReset();
 });
 
@@ -97,6 +101,47 @@ it('surfaces a refused rename without closing anything', async () => {
     await waitFor(() =>
         expect(screen.getByRole('alert').textContent).toBe('Invalid display name'),
     );
+});
+
+describe('the avatar picker', () => {
+    it('offers every catalog avatar as a radio, with the stored one selected', async () => {
+        await renderReady();
+
+        const group = screen.getByRole('radiogroup', { name: 'Avatar' });
+        expect(group).toBeTruthy();
+        const selected = screen.getByRole('radio', { name: 'Smiley' }) as HTMLInputElement;
+        expect(selected.checked).toBe(true);
+        // A sample of the rest — by accessible name, which is what breaks
+        // silently if a label stops resolving.
+        for (const name of ['Fox', 'Penguin', 'Mushroom', 'Robot']) {
+            expect(screen.getByRole('radio', { name })).toBeTruthy();
+        }
+    });
+
+    it('saves a pick and keeps it selected', async () => {
+        mockUpdateAvatar.mockResolvedValue({ ...PROFILE, avatar: 'fox' });
+        await renderReady();
+
+        fireEvent.click(screen.getByRole('radio', { name: 'Fox' }));
+
+        await waitFor(() => expect(mockUpdateAvatar).toHaveBeenCalledWith('fox'));
+        expect((screen.getByRole('radio', { name: 'Fox' }) as HTMLInputElement).checked).toBe(true);
+    });
+
+    it('reverts the pick and says why when the save is refused', async () => {
+        const { ProfileApiError } = await vi.importActual<typeof import('@/lib/profileApi')>(
+            '@/lib/profileApi',
+        );
+        mockUpdateAvatar.mockRejectedValue(new ProfileApiError('Invalid avatar', 400));
+        await renderReady();
+
+        fireEvent.click(screen.getByRole('radio', { name: 'Fox' }));
+
+        await waitFor(() =>
+            expect(screen.getByRole('alert').textContent).toBe('Invalid avatar'),
+        );
+        expect((screen.getByRole('radio', { name: 'Smiley' }) as HTMLInputElement).checked).toBe(true);
+    });
 });
 
 it('degrades to the unavailable message with sign-out still reachable', async () => {

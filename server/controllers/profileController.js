@@ -12,7 +12,7 @@
 const { verifyBridgeToken } = require('../utils/authToken');
 const { isDbEnabled } = require('../utils/initializePgClient');
 const userRepo = require('../data/userRepo');
-const { isValidPlayerName, normalizePlayerName } = require('../validation');
+const { isValidAvatarId, isValidPlayerName, normalizePlayerName } = require('../validation');
 
 /** What a fresh account is called when the OAuth profile carries no name. */
 const DEFAULT_DISPLAY_NAME = 'Player';
@@ -117,6 +117,7 @@ const publicUser = (user) => ({
     provider: user.provider,
     email: user.email,
     displayName: user.displayName,
+    avatar: user.avatar,
     createdAt: user.createdAt,
 });
 
@@ -131,26 +132,47 @@ const registerProfileRoutes = (app) => {
     });
 
     app.put('/api/me', requireUser, async (req, res) => {
-        // Same rules as a room name: validate what will be STORED.
-        const displayName = normalizePlayerName(req.body && req.body.displayName);
-        if (!isValidPlayerName(displayName)) {
-            res.status(400).json({ error: 'Invalid display name' });
+        // Field-by-field: each is validated only when present, so the rename
+        // form and the avatar picker can each send just their own field.
+        const body = req.body || {};
+        const fields = {};
+
+        if (body.displayName !== undefined) {
+            // Same rules as a room name: validate what will be STORED.
+            const displayName = normalizePlayerName(body.displayName);
+            if (!isValidPlayerName(displayName)) {
+                res.status(400).json({ error: 'Invalid display name' });
+                return;
+            }
+            fields.displayName = displayName;
+        }
+
+        if (body.avatar !== undefined) {
+            if (!isValidAvatarId(body.avatar)) {
+                res.status(400).json({ error: 'Invalid avatar' });
+                return;
+            }
+            fields.avatar = body.avatar;
+        }
+
+        if (Object.keys(fields).length === 0) {
+            res.status(400).json({ error: 'Nothing to update' });
             return;
         }
 
         try {
-            const updated = await userRepo.updateDisplayName(req.user.id, displayName);
+            const updated = await userRepo.updateUser(req.user.id, fields);
             if (!updated) {
                 // The row vanished between auth and update — deleted elsewhere.
                 identityCache.delete(cacheKey(req.user));
                 res.status(404).json({ error: 'Account no longer exists' });
                 return;
             }
-            // The rename the player is watching must not serve stale for a TTL.
+            // The edit the player is watching must not serve stale for a TTL.
             cacheUser(updated);
             res.json({ user: publicUser(updated) });
         } catch (error) {
-            console.error('Postgres error renaming user:', error.message);
+            console.error('Postgres error updating user:', error.message);
             res.status(503).json({ error: 'Accounts are temporarily unavailable' });
         }
     });
