@@ -63,11 +63,11 @@ export default function AccountPanel() {
     const profileTicket = React.useRef(0);
     const appliedTicket = React.useRef(0);
     const avatarTicket = React.useRef(0);
-    const applyIfNewest = (ticket: number, user: ProfileUser) => {
-        if (ticket > appliedTicket.current) {
-            appliedTicket.current = ticket;
-            setProfile(user);
-        }
+    const applyIfNewest = (ticket: number, user: ProfileUser): boolean => {
+        if (ticket <= appliedTicket.current) return false;
+        appliedTicket.current = ticket;
+        setProfile(user);
+        return true;
     };
 
     const saveName = async () => {
@@ -124,10 +124,16 @@ export default function AccountPanel() {
              */
             const fresh = await fetchProfile();
             if (avatarTicket.current !== myPick) return;
-            setProfile(fresh ?? previous);
-            // An overlapping success this corrects for was suppressed from the
-            // event channel — announce the truth so listeners converge too.
-            if (fresh) announceProfileUpdated(fresh);
+            /*
+             * Through the same ordering guard as a response, ranked at this
+             * pick's ticket: a save that completed while the fetch was in
+             * flight is newer than this snapshot, and neither the panel nor
+             * the footer may regress to it. The announce rides the
+             * application — if a newer save applied, it announced too.
+             */
+            if (applyIfNewest(ticket, fresh ?? previous) && fresh) {
+                announceProfileUpdated(fresh);
+            }
             setAvatarError(
                 error instanceof ProfileApiError ? error.message : 'Could not save right now',
             );

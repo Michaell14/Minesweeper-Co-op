@@ -132,6 +132,51 @@ describe('overlapping saves across fields', () => {
         expect((screen.getByRole('radio', { name: 'Fox' }) as HTMLInputElement).checked).toBe(true);
     });
 
+    it('the re-sync never regresses a save that completed while its fetch was in flight', async () => {
+        const { ProfileApiError, PROFILE_UPDATED_EVENT } = await vi.importActual<
+            typeof import('@/lib/profileApi')
+        >('@/lib/profileApi');
+        // The pick fails and its re-sync GET reads a snapshot from BEFORE the
+        // rename persists; the rename then applies while the fetch is still
+        // in flight. The stale snapshot must not overwrite it — on the panel
+        // or the event channel.
+        mockUpdateAvatar.mockRejectedValueOnce(new ProfileApiError('Invalid avatar', 400));
+        let resolveRename!: (value: unknown) => void;
+        mockUpdateDisplayName.mockImplementationOnce(
+            () => new Promise((resolve) => { resolveRename = resolve; }),
+        );
+        await renderReady();
+        // Queued only AFTER the initial load consumed its fetch — this
+        // deferred one belongs to the re-sync.
+        let resolveFetch!: (value: unknown) => void;
+        mockFetchProfile.mockImplementationOnce(
+            () => new Promise((resolve) => { resolveFetch = resolve; }),
+        );
+
+        const announced: string[] = [];
+        const listener = (event: Event) =>
+            announced.push((event as CustomEvent).detail.displayName);
+        window.addEventListener(PROFILE_UPDATED_EVENT, listener);
+
+        fireEvent.click(screen.getByRole('radio', { name: 'Fox' }));
+        await waitFor(() => expect(mockFetchProfile).toHaveBeenCalledTimes(2)); // load + re-sync
+
+        fireEvent.click(screen.getByRole('button', { name: /Save|Saving…/ }));
+        resolveRename({ ...PROFILE, displayName: 'Renamed' });
+        await waitFor(() => expect(screen.getByRole('status').textContent).toBe('Saved!'));
+
+        resolveFetch(PROFILE); // the pre-rename snapshot arrives last
+        await waitFor(() =>
+            expect(screen.getByRole('alert').textContent).toBe('Invalid avatar'),
+        );
+        window.removeEventListener(PROFILE_UPDATED_EVENT, listener);
+
+        // The rename survives: the delete-confirm label reads off profile
+        // state, and the stale snapshot never reached the event channel.
+        expect(screen.getByText(/Type your display name \(Renamed\)/)).toBeTruthy();
+        expect(announced).not.toContain('Michael');
+    });
+
     it('an avatar failure is still reported after a rename follows it', async () => {
         const { ProfileApiError } = await vi.importActual<typeof import('@/lib/profileApi')>(
             '@/lib/profileApi',

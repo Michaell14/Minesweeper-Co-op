@@ -85,16 +85,6 @@ export async function fetchProfile(): Promise<ProfileUser | null> {
 }
 
 /**
- * Announces a fresh ProfileUser to event listeners (the Footer's avatar).
- * Exported for the one caller outside this module: AccountPanel's failed-save
- * re-sync, which fetches the server's truth and must let listeners converge
- * on it — the overlapping success it corrects for was suppressed below.
- */
-export const announceProfileUpdated = (user: ProfileUser): void => {
-    window.dispatchEvent(new CustomEvent(PROFILE_UPDATED_EVENT, { detail: user }));
-};
-
-/**
  * Save ordering for the event channel. `saveSeq` stamps each save at issue;
  * `announcedSeq` records the newest save whose response has broadcast. A
  * response announces only if nothing NEWER has announced already — comparing
@@ -103,6 +93,22 @@ export const announceProfileUpdated = (user: ProfileUser): void => {
  */
 let saveSeq = 0;
 let announcedSeq = 0;
+
+/**
+ * Announces a fresh ProfileUser to event listeners (the Footer's avatar).
+ * Exported for the one caller outside this module: AccountPanel's failed-save
+ * re-sync, which fetches the server's truth and must let listeners converge
+ * on it — the overlapping success it corrects for was suppressed below.
+ *
+ * A re-synced truth claims the CURRENT high-water mark: it was fetched after
+ * every save issued so far, so an older save resolving later must not
+ * re-announce over it — the panel blocks that with appliedTicket, and without
+ * the matching claim here the footer would split from the panel.
+ */
+export const announceProfileUpdated = (user: ProfileUser): void => {
+    announcedSeq = saveSeq;
+    window.dispatchEvent(new CustomEvent(PROFILE_UPDATED_EVENT, { detail: user }));
+};
 
 /** One PUT for every profile edit; each caller sends only its own field. */
 async function updateProfile(body: { displayName?: string; avatar?: string }): Promise<ProfileUser> {
