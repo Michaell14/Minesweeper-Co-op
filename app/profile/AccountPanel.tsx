@@ -6,6 +6,7 @@ import { AVATARS } from '@/shared/avatars';
 import { DIALOGS, openDialog } from '@/lib/dialogs';
 import { clearBridgeToken } from '@/lib/authBridge';
 import {
+    announceProfileUpdated,
     deleteAccount,
     fetchProfile,
     ProfileApiError,
@@ -108,6 +109,9 @@ export default function AccountPanel() {
             const fresh = await fetchProfile();
             if (saveTicket.current !== ticket) return;
             setProfile(fresh ?? previous);
+            // An overlapping success this corrects for was suppressed from the
+            // event channel — announce the truth so listeners converge too.
+            if (fresh) announceProfileUpdated(fresh);
             setAvatarError(
                 error instanceof ProfileApiError ? error.message : 'Could not save right now',
             );

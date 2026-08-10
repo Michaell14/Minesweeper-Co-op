@@ -174,13 +174,27 @@ describe('the avatar picker', () => {
         resolveFox({ ...PROFILE, avatar: 'fox' });
         // The re-sync must answer with what the server actually holds now.
         mockFetchProfile.mockResolvedValue({ ...PROFILE, avatar: 'fox' });
+
+        // The truth must also be ANNOUNCED: the overlapping success was
+        // suppressed from the event channel, so without this the Footer
+        // never hears about the avatar the server kept.
+        const { PROFILE_UPDATED_EVENT } = await vi.importActual<typeof import('@/lib/profileApi')>(
+            '@/lib/profileApi',
+        );
+        const announced: string[] = [];
+        const listener = (event: Event) =>
+            announced.push((event as CustomEvent).detail.avatar);
+        window.addEventListener(PROFILE_UPDATED_EVENT, listener);
+
         rejectPenguin(new ProfileApiError('Invalid avatar', 400));
 
         await waitFor(() =>
             expect(screen.getByRole('alert').textContent).toBe('Invalid avatar'),
         );
+        window.removeEventListener(PROFILE_UPDATED_EVENT, listener);
         expect((screen.getByRole('radio', { name: 'Fox' }) as HTMLInputElement).checked).toBe(true);
         expect((screen.getByRole('radio', { name: 'Smiley' }) as HTMLInputElement).checked).toBe(false);
+        expect(announced).toEqual(['fox']);
     });
 
     it('reverts the pick and says why when the save is refused', async () => {

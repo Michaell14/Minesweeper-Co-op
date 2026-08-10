@@ -84,14 +84,31 @@ export async function fetchProfile(): Promise<ProfileUser | null> {
     return (data?.user as ProfileUser) ?? null;
 }
 
+/**
+ * Announces a fresh ProfileUser to event listeners (the Footer's avatar).
+ * Exported for the one caller outside this module: AccountPanel's failed-save
+ * re-sync, which fetches the server's truth and must let listeners converge
+ * on it — the overlapping success it corrects for was suppressed below.
+ */
+export const announceProfileUpdated = (user: ProfileUser): void => {
+    window.dispatchEvent(new CustomEvent(PROFILE_UPDATED_EVENT, { detail: user }));
+};
+
+/** Stamps each save so only the LATEST one's response may broadcast. */
+let saveSeq = 0;
+
 /** One PUT for every profile edit; each caller sends only its own field. */
 async function updateProfile(body: { displayName?: string; avatar?: string }): Promise<ProfileUser> {
+    const seq = ++saveSeq;
     const res = await request("PUT", body);
     if (!res) throw new ProfileApiError("Accounts are not available right now", 0);
     if (!res.ok) throw await errorFrom(res);
     const data = await res.json();
     const user = data.user as ProfileUser;
-    window.dispatchEvent(new CustomEvent(PROFILE_UPDATED_EVENT, { detail: user }));
+    // Listeners apply these events unconditionally, so an older save's
+    // response arriving last would park them on a stale avatar. The caller's
+    // own ticket guard covers its local state; this covers everyone else's.
+    if (seq === saveSeq) announceProfileUpdated(user);
     return user;
 }
 
