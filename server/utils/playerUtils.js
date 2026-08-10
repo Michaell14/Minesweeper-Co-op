@@ -7,7 +7,7 @@ const { clockOf } = require('../domain/clock');
 const playerRepo = require('../data/playerRepo');
 const sessionRepo = require('../data/sessionRepo');
 const { sessionHolder } = require('./sessionGuard');
-const { isValidSessionId } = require('../validation');
+const { isValidAvatarId, isValidSessionId } = require('../validation');
 const { SERVER_EVENTS } = require('../../shared/events');
 
 /** Rebroadcasts the score table. Called on join, leave and every score change. */
@@ -24,6 +24,8 @@ const updatePlayerStatsInRoom = async (room) => {
         .filter(playerState => playerState && playerState.name)
         .map(playerState => ({
             name: playerState.name,
+            // '' is how the record stores "anonymous" — the payload says null.
+            avatar: playerState.avatar || null,
             score: parseInt(playerState.score || '0', 10) || 0
         }));
 
@@ -66,6 +68,7 @@ const restorePvpRacer = async (room, socketId, roomState, previousSocketId) => {
 
     const opponent = pvpPlayerFields(slot === 0 ? 1 : 0);
     const opponentName = (await playerRepo.getName(roomState[opponent.socketKey])) || 'Opponent';
+    const opponentAvatar = await playerRepo.getAvatar(roomState[opponent.socketKey]);
     const opponentProgress = parseInt(roomState[opponent.progressKey], 10) || 0;
 
     /*
@@ -80,6 +83,7 @@ const restorePvpRacer = async (room, socketId, roomState, previousSocketId) => {
     await playerRepo.setFields(socketId, {
         pvpPlayerIndex: slot.toString(),
         opponentName,
+        opponentAvatar: opponentAvatar || '',
     });
     const totalSafeCells = parseInt(roomState.totalSafeCells, 10) || 0;
     const ownGameOver = roomState[gameOverKey] === 'true';
@@ -103,6 +107,7 @@ const restorePvpRacer = async (room, socketId, roomState, previousSocketId) => {
         }),
         playerIndex: slot,
         opponentName,
+        opponentAvatar,
         opponentProgress,
         totalSafeCells,
     });
@@ -128,7 +133,12 @@ const restorePvpRacer = async (room, socketId, roomState, previousSocketId) => {
  * the old socket's record is dropped and its place in the room is handed to the
  * new socket, so a reload does not leave a ghost behind or lose the host.
  */
-const addPlayerToRoom = async (room, socketId, name, sessionId) => {
+const addPlayerToRoom = async (room, socketId, name, sessionId, avatar) => {
+    // The avatar arrives from socket.data.user (a connect-time snapshot) —
+    // good for the lifetime of a room, and validated here so only catalog ids
+    // are ever stored on a player record.
+    const storedAvatar = isValidAvatarId(avatar) ? avatar : '';
+
     // Rejoining cancels any grace period the room was counting down.
     await roomRepo.touch(room);
 
@@ -159,10 +169,16 @@ const addPlayerToRoom = async (room, socketId, name, sessionId) => {
 
     const playerExists = await playerRepo.exists(socketId);
     if (!playerExists) {
-        await playerRepo.create(socketId, { room, name, sessionId });
+        await playerRepo.create(socketId, { room, name, sessionId, avatar: storedAvatar });
     } else {
-        // Rejoining under a different name is allowed.
-        await playerRepo.setFields(socketId, { room, name, sessionId: sessionId || '' });
+        // Rejoining under a different name is allowed. The avatar overwrites
+        // too — '' included, so signing out between joins clears it.
+        await playerRepo.setFields(socketId, {
+            room,
+            name,
+            avatar: storedAvatar,
+            sessionId: sessionId || '',
+        });
     }
 
     const roomState = await roomRepo.getState(room);

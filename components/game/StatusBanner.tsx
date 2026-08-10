@@ -1,6 +1,6 @@
 import React from 'react';
 import { useMinesweeperStore } from '@/app/store';
-import { Badge, Button } from '@/components/ds';
+import { Badge, Button, NameWithAvatar } from '@/components/ds';
 
 export interface StatusBannerProps {
     startPvpGame: () => void;
@@ -22,12 +22,18 @@ export default function StatusBanner({ startPvpGame, emitConfetti, variant }: St
     const pvpRoomReady = useMinesweeperStore((state) => state.pvpRoomReady);
     const pvpIsHost = useMinesweeperStore((state) => state.pvpIsHost);
     const pvpOpponentName = useMinesweeperStore((state) => state.pvpOpponentName);
+    const pvpOpponentAvatar = useMinesweeperStore((state) => state.pvpOpponentAvatar);
     const pvpWinner = useMinesweeperStore((state) => state.pvpWinner);
 
     const isDesktop = variant === 'desktop';
+    const opponentWithAvatar = (
+        <NameWithAvatar avatar={pvpOpponentAvatar} size={24}>
+            <strong>{pvpOpponentName}</strong>
+        </NameWithAvatar>
+    );
     const opponentLine = isDesktop
-        ? <p className="text-pixel-md mb-2">Opponent: <strong>{pvpOpponentName}</strong></p>
-        : <p className="text-pixel-md mb-2">vs <strong>{pvpOpponentName}</strong></p>;
+        ? <p className="text-pixel-md mb-2">Opponent: {opponentWithAvatar}</p>
+        : <p className="text-pixel-md mb-2">vs {opponentWithAvatar}</p>;
 
     return (
         <div className="flex items-center justify-center">

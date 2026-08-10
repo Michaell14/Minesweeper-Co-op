@@ -15,11 +15,11 @@ jest.mock('../utils/authToken', () => ({
 }));
 
 const mockGetOrCreate = jest.fn();
-const mockUpdateName = jest.fn();
+const mockUpdateUser = jest.fn();
 const mockDelete = jest.fn();
 jest.mock('../data/userRepo', () => ({
     getOrCreateUser: (...args) => mockGetOrCreate(...args),
-    updateDisplayName: (...args) => mockUpdateName(...args),
+    updateUser: (...args) => mockUpdateUser(...args),
     deleteUser: (...args) => mockDelete(...args),
 }));
 
@@ -33,14 +33,14 @@ jest.mock('../utils/initializePgClient', () => ({
 const { resolveSocketUser, requireUser, registerProfileRoutes, clearIdentityCache } = require('../controllers/profileController');
 
 const IDENTITY = { provider: 'github', providerAccountId: '42', email: 'm@example.com', name: 'Michael' };
-const USER = { id: 'uuid-1', provider: 'github', providerAccountId: '42', email: 'm@example.com', displayName: 'Michael', createdAt: 'now' };
+const USER = { id: 'uuid-1', provider: 'github', providerAccountId: '42', email: 'm@example.com', displayName: 'Michael', avatar: 'classic', createdAt: 'now' };
 
 beforeEach(() => {
     // The identity cache would otherwise serve one test's user to the next.
     clearIdentityCache();
     mockVerify.mockReset();
     mockGetOrCreate.mockReset();
-    mockUpdateName.mockReset();
+    mockUpdateUser.mockReset();
     mockDelete.mockReset();
     mockDbState.enabled = true;
 });
@@ -155,6 +155,7 @@ describe('the /api/me routes', () => {
             provider: 'github',
             email: 'm@example.com',
             displayName: 'Michael',
+            avatar: 'classic',
             createdAt: 'now',
         });
         expect(res.body.user.providerAccountId).toBeUndefined();
@@ -164,19 +165,44 @@ describe('the /api/me routes', () => {
         const res = makeRes();
         await routes['PUT /api/me']({ user: USER, body: { displayName: '   ' } }, res);
         expect(res.statusCode).toBe(400);
-        expect(mockUpdateName).not.toHaveBeenCalled();
+        expect(mockUpdateUser).not.toHaveBeenCalled();
     });
 
     test('PUT trims and stores a valid rename', async () => {
-        mockUpdateName.mockResolvedValue({ ...USER, displayName: 'Miguel' });
+        mockUpdateUser.mockResolvedValue({ ...USER, displayName: 'Miguel' });
         const res = makeRes();
         await routes['PUT /api/me']({ user: USER, body: { displayName: '  Miguel  ' } }, res);
-        expect(mockUpdateName).toHaveBeenCalledWith('uuid-1', 'Miguel');
+        expect(mockUpdateUser).toHaveBeenCalledWith('uuid-1', { displayName: 'Miguel' });
         expect(res.body.user.displayName).toBe('Miguel');
     });
 
+    test('PUT stores a catalog avatar id', async () => {
+        mockUpdateUser.mockResolvedValue({ ...USER, avatar: 'fox' });
+        const res = makeRes();
+        await routes['PUT /api/me']({ user: USER, body: { avatar: 'fox' } }, res);
+        expect(mockUpdateUser).toHaveBeenCalledWith('uuid-1', { avatar: 'fox' });
+        expect(res.body.user.avatar).toBe('fox');
+    });
+
+    test.each([
+        ['an unknown id', 'sasquatch'],
+        ['a non-string', 42],
+    ])('PUT rejects %s as an avatar', async (_label, avatar) => {
+        const res = makeRes();
+        await routes['PUT /api/me']({ user: USER, body: { avatar } }, res);
+        expect(res.statusCode).toBe(400);
+        expect(mockUpdateUser).not.toHaveBeenCalled();
+    });
+
+    test('PUT with neither field is a refusal, not a silent no-op', async () => {
+        const res = makeRes();
+        await routes['PUT /api/me']({ user: USER, body: {} }, res);
+        expect(res.statusCode).toBe(400);
+        expect(mockUpdateUser).not.toHaveBeenCalled();
+    });
+
     test('PUT answers 404 when the account vanished between auth and update', async () => {
-        mockUpdateName.mockResolvedValue(null);
+        mockUpdateUser.mockResolvedValue(null);
         const res = makeRes();
         await routes['PUT /api/me']({ user: USER, body: { displayName: 'Miguel' } }, res);
         expect(res.statusCode).toBe(404);

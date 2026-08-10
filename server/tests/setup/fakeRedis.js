@@ -57,6 +57,14 @@ const createFakeRedis = () => {
             return hash && hash[field] !== undefined ? hash[field] : null;
         },
 
+        hmGet: async (key, fields) => {
+            await tick();
+            const hash = store.get(key);
+            return fields.map((field) =>
+                hash && hash[field] !== undefined ? hash[field] : null,
+            );
+        },
+
         hSet: async (key, fields) => {
             await tick();
             const hash = hashAt(key);

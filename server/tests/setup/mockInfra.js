@@ -14,6 +14,7 @@
 jest.mock('../../utils/initializeRedisClient', () => ({
     redisClient: Promise.resolve({
         hGet: jest.fn(),
+        hmGet: jest.fn(),
         hGetAll: jest.fn(),
         hSet: jest.fn(),
         hDel: jest.fn(),

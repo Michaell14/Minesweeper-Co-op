@@ -16,6 +16,7 @@ vi.mock('next-auth/react', () => ({
 
 const mockFetchProfile = vi.fn();
 const mockUpdateDisplayName = vi.fn();
+const mockUpdateAvatar = vi.fn();
 const mockDeleteAccount = vi.fn();
 vi.mock('@/lib/profileApi', async () => {
     const actual = await vi.importActual<typeof import('@/lib/profileApi')>('@/lib/profileApi');
@@ -23,6 +24,7 @@ vi.mock('@/lib/profileApi', async () => {
         ...actual,
         fetchProfile: (...args: unknown[]) => mockFetchProfile(...args),
         updateDisplayName: (...args: unknown[]) => mockUpdateDisplayName(...args),
+        updateAvatar: (...args: unknown[]) => mockUpdateAvatar(...args),
         deleteAccount: (...args: unknown[]) => mockDeleteAccount(...args),
     };
 });
@@ -40,6 +42,7 @@ const PROFILE = {
     provider: 'github',
     email: 'm@example.com',
     displayName: 'Michael',
+    avatar: 'classic',
     createdAt: '2026-08-02',
 };
 
@@ -57,6 +60,7 @@ beforeEach(() => {
     mockSignOut.mockReset();
     mockFetchProfile.mockReset();
     mockUpdateDisplayName.mockReset();
+    mockUpdateAvatar.mockReset();
     mockDeleteAccount.mockReset();
 });
 
@@ -97,6 +101,178 @@ it('surfaces a refused rename without closing anything', async () => {
     await waitFor(() =>
         expect(screen.getByRole('alert').textContent).toBe('Invalid display name'),
     );
+});
+
+describe('overlapping saves across fields', () => {
+    it('a rename failure is still reported after an avatar pick follows it', async () => {
+        const { ProfileApiError } = await vi.importActual<typeof import('@/lib/profileApi')>(
+            '@/lib/profileApi',
+        );
+        let rejectRename!: (error: unknown) => void;
+        mockUpdateDisplayName.mockImplementationOnce(
+            () => new Promise((_resolve, reject) => { rejectRename = reject; }),
+        );
+        mockUpdateAvatar.mockResolvedValue({ ...PROFILE, avatar: 'fox' });
+        await renderReady();
+
+        fireEvent.change(screen.getByRole('textbox', { name: 'Display name' }), {
+            target: { value: 'Miguel' },
+        });
+        fireEvent.click(screen.getByRole('button', { name: /Save|Saving…/ }));
+        fireEvent.click(screen.getByRole('radio', { name: 'Fox' }));
+        await waitFor(() => expect(mockUpdateAvatar).toHaveBeenCalled());
+
+        // The rename fails AFTER the pick took the profile ticket — the
+        // failure must not vanish and masquerade as a successful save.
+        rejectRename(new ProfileApiError('Invalid display name', 400));
+        await waitFor(() =>
+            expect(screen.getByRole('alert').textContent).toBe('Invalid display name'),
+        );
+        // …and the pick that superseded it still landed.
+        expect((screen.getByRole('radio', { name: 'Fox' }) as HTMLInputElement).checked).toBe(true);
+    });
+
+    it('a failed pick reverts to the last CONFIRMED profile, not a click-time snapshot', async () => {
+        const { ProfileApiError } = await vi.importActual<typeof import('@/lib/profileApi')>(
+            '@/lib/profileApi',
+        );
+        // A rename persists before the pick fails. The revert must land on
+        // the renamed profile — a snapshot taken when the pick was clicked
+        // would resurrect the pre-rename name.
+        mockUpdateDisplayName.mockResolvedValue({ ...PROFILE, displayName: 'Renamed' });
+        mockUpdateAvatar.mockRejectedValueOnce(new ProfileApiError('Invalid avatar', 400));
+        await renderReady();
+
+        fireEvent.click(screen.getByRole('button', { name: /Save|Saving…/ }));
+        await waitFor(() => expect(screen.getByRole('status').textContent).toBe('Saved!'));
+
+        fireEvent.click(screen.getByRole('radio', { name: 'Fox' }));
+        await waitFor(() =>
+            expect(screen.getByRole('alert').textContent).toBe('Invalid avatar'),
+        );
+
+        // The rename survives the revert, and the pick rolled back.
+        expect(screen.getByText(/Type your display name \(Renamed\)/)).toBeTruthy();
+        expect((screen.getByRole('radio', { name: 'Smiley' }) as HTMLInputElement).checked).toBe(true);
+    });
+
+    it('an avatar failure is still reported after a rename follows it', async () => {
+        const { ProfileApiError } = await vi.importActual<typeof import('@/lib/profileApi')>(
+            '@/lib/profileApi',
+        );
+        let rejectPick!: (error: unknown) => void;
+        mockUpdateAvatar.mockImplementationOnce(
+            () => new Promise((_resolve, reject) => { rejectPick = reject; }),
+        );
+        mockUpdateDisplayName.mockResolvedValue({ ...PROFILE, displayName: 'Miguel' });
+        await renderReady();
+
+        fireEvent.click(screen.getByRole('radio', { name: 'Fox' }));
+        fireEvent.click(screen.getByRole('button', { name: /Save|Saving…/ }));
+        await waitFor(() => expect(mockUpdateDisplayName).toHaveBeenCalled());
+
+        rejectPick(new ProfileApiError('Invalid avatar', 400));
+
+        await waitFor(() =>
+            expect(screen.getByRole('alert').textContent).toBe('Invalid avatar'),
+        );
+        // The optimistic pick was rolled back to the server's truth.
+        expect((screen.getByRole('radio', { name: 'Smiley' }) as HTMLInputElement).checked).toBe(true);
+    });
+});
+
+describe('the avatar picker', () => {
+    it('offers every catalog avatar as a radio, with the stored one selected', async () => {
+        await renderReady();
+
+        const group = screen.getByRole('radiogroup', { name: 'Avatar' });
+        expect(group).toBeTruthy();
+        const selected = screen.getByRole('radio', { name: 'Smiley' }) as HTMLInputElement;
+        expect(selected.checked).toBe(true);
+        // A sample of the rest — by accessible name, which is what breaks
+        // silently if a label stops resolving.
+        for (const name of ['Fox', 'Penguin', 'Mushroom', 'Robot']) {
+            expect(screen.getByRole('radio', { name })).toBeTruthy();
+        }
+    });
+
+    it('saves a pick and keeps it selected', async () => {
+        mockUpdateAvatar.mockResolvedValue({ ...PROFILE, avatar: 'fox' });
+        await renderReady();
+
+        fireEvent.click(screen.getByRole('radio', { name: 'Fox' }));
+
+        await waitFor(() => expect(mockUpdateAvatar).toHaveBeenCalledWith('fox'));
+        expect((screen.getByRole('radio', { name: 'Fox' }) as HTMLInputElement).checked).toBe(true);
+    });
+
+    it('applies only the LATEST save when responses come back out of order', async () => {
+        // First pick (fox) answers slowly; second pick (penguin) answers first.
+        let resolveFox!: (value: unknown) => void;
+        mockUpdateAvatar.mockImplementationOnce(
+            () => new Promise((resolve) => { resolveFox = resolve; }),
+        );
+        mockUpdateAvatar.mockResolvedValueOnce({ ...PROFILE, avatar: 'penguin' });
+        await renderReady();
+
+        fireEvent.click(screen.getByRole('radio', { name: 'Fox' }));
+        fireEvent.click(screen.getByRole('radio', { name: 'Penguin' }));
+        await waitFor(() =>
+            expect((screen.getByRole('radio', { name: 'Penguin' }) as HTMLInputElement).checked).toBe(true),
+        );
+
+        // The stale fox response lands last — it must be ignored.
+        resolveFox({ ...PROFILE, avatar: 'fox' });
+        await waitFor(() => expect(mockUpdateAvatar).toHaveBeenCalledTimes(2));
+        expect((screen.getByRole('radio', { name: 'Penguin' }) as HTMLInputElement).checked).toBe(true);
+        expect((screen.getByRole('radio', { name: 'Fox' }) as HTMLInputElement).checked).toBe(false);
+    });
+
+    it('a failed pick reverts to a confirmed EARLIER pick, not the original avatar', async () => {
+        const { ProfileApiError } = await vi.importActual<typeof import('@/lib/profileApi')>(
+            '@/lib/profileApi',
+        );
+        // Fox persists server-side; its display is superseded by penguin,
+        // but it is still the last CONFIRMED state. When penguin fails, the
+        // revert must land on fox — Smiley is an avatar the server no
+        // longer holds.
+        let resolveFox!: (value: unknown) => void;
+        mockUpdateAvatar.mockImplementationOnce(
+            () => new Promise((resolve) => { resolveFox = resolve; }),
+        );
+        let rejectPenguin!: (error: unknown) => void;
+        mockUpdateAvatar.mockImplementationOnce(
+            () => new Promise((_resolve, reject) => { rejectPenguin = reject; }),
+        );
+        await renderReady();
+
+        fireEvent.click(screen.getByRole('radio', { name: 'Fox' }));
+        fireEvent.click(screen.getByRole('radio', { name: 'Penguin' }));
+
+        resolveFox({ ...PROFILE, avatar: 'fox' });
+        rejectPenguin(new ProfileApiError('Invalid avatar', 400));
+
+        await waitFor(() =>
+            expect(screen.getByRole('alert').textContent).toBe('Invalid avatar'),
+        );
+        expect((screen.getByRole('radio', { name: 'Fox' }) as HTMLInputElement).checked).toBe(true);
+        expect((screen.getByRole('radio', { name: 'Smiley' }) as HTMLInputElement).checked).toBe(false);
+    });
+
+    it('reverts the pick and says why when the save is refused', async () => {
+        const { ProfileApiError } = await vi.importActual<typeof import('@/lib/profileApi')>(
+            '@/lib/profileApi',
+        );
+        mockUpdateAvatar.mockRejectedValue(new ProfileApiError('Invalid avatar', 400));
+        await renderReady();
+
+        fireEvent.click(screen.getByRole('radio', { name: 'Fox' }));
+
+        await waitFor(() =>
+            expect(screen.getByRole('alert').textContent).toBe('Invalid avatar'),
+        );
+        expect((screen.getByRole('radio', { name: 'Smiley' }) as HTMLInputElement).checked).toBe(true);
+    });
 });
 
 it('degrades to the unavailable message with sign-out still reachable', async () => {

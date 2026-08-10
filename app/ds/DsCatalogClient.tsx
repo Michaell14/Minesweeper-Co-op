@@ -2,6 +2,7 @@
 
 import React from "react";
 import {
+    Avatar,
     Badge,
     Button,
     CalendarIcon,
@@ -26,6 +27,7 @@ import type { ButtonIntent } from "@/components/ds";
 // stylesheet: the art table is a design-system internal, and the catalog is the
 // one page whose job is to show internals.
 import { DEFAULT_SET, GENERAL_SPRITE_SETS, PixelRects, SPRITE_SETS, type SpriteSet } from "@/components/ds/sprites";
+import { AVATARS } from "@/shared/avatars";
 import board from "@/components/game/board.module.css";
 import { readPaletteEntries } from "@/lib/theme";
 import { THEMES, applyTheme, coverageOf, type ThemeCoverage } from "./themes";
@@ -269,6 +271,20 @@ export default function DsCatalogClient() {
                 note="The mine and the flag, drawn as 16x16 pixel art like the icons (components/ds/sprites.tsx). The general sets are pinnable from Settings and paint in tokens, so they read on every palette; each seasonal pair belongs to its holiday's palette alone, arrives with its window, and is not pickable. Shown here on the cell fill each one actually sits on."
             >
                 <SpriteSheet />
+            </Section>
+
+            <Section
+                title="Avatars"
+                note="The profile pictures (components/ds/avatarArt.ts), one per id in shared/avatars.js. All of them paint in tokens — outline and features in the page ink, faces in the opened-cell fill, one accent in the mine colour — so a stored avatar reads on every palette; on Game Boy the accent and the ink are the same colour by design."
+            >
+                <div className="flex flex-wrap gap-4">
+                    {AVATARS.map(({ id, label }) => (
+                        <div key={id} className="flex flex-col items-center gap-1" data-avatar={id}>
+                            <Avatar id={id} size={48} />
+                            <span className="text-pixel-xs text-ink-muted">{label}</span>
+                        </div>
+                    ))}
+                </div>
             </Section>
 
             <Section

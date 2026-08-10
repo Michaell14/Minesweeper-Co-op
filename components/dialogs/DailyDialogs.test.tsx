@@ -288,6 +288,22 @@ describe("dailyLeaderboard: today's standings", () => {
         expect(table.textContent).toContain("Slowpoke");
         expect(table.textContent).toContain("2:05");
     });
+
+    test("a signed-in entry shows its avatar; anonymous and pre-avatar rows just the name", () => {
+        useMinesweeperStore.getState().setDailyLeaderboard([
+            { name: "Speedy", avatar: "fox", elapsedMs: 61_000, rank: 1 },
+            { name: "Slowpoke", avatar: null, elapsedMs: 125_000, rank: 2 },
+            // A payload from a pre-avatar server lacks the field entirely.
+            { name: "Oldtimer", elapsedMs: 180_000, rank: 3 },
+        ]);
+        renderOpen(DIALOGS.dailyLeaderboard);
+
+        const rows = screen.getAllByRole("row").slice(1); // drop the header row
+        expect(rows[0].querySelector("svg")).not.toBeNull();
+        expect(rows[1].querySelector("svg")).toBeNull();
+        expect(rows[2].querySelector("svg")).toBeNull();
+        expect(rows[2].textContent).toContain("Oldtimer");
+    });
 });
 
 describe("sharing a result", () => {

@@ -7,6 +7,8 @@ export type PvpOpponentStatus = 'waiting' | 'playing' | 'won' | 'failed' | 'disc
 export interface PvpSlice {
     pvpStarted: boolean;
     pvpOpponentName: string;
+    /** Opponent's avatar id, null while unknown or anonymous. */
+    pvpOpponentAvatar: string | null;
     pvpOpponentStatus: PvpOpponentStatus;
     pvpWinner: string | null;
     pvpRoomReady: boolean;              // true once two players are present
@@ -16,6 +18,7 @@ export interface PvpSlice {
 
     setPvpStarted: (started: boolean) => void;
     setPvpOpponentName: (name: string) => void;
+    setPvpOpponentAvatar: (avatar: string | null) => void;
     setPvpOpponentStatus: (status: PvpOpponentStatus) => void;
     setPvpWinner: (winner: string | null) => void;
     setPvpRoomReady: (ready: boolean) => void;
@@ -28,6 +31,7 @@ export interface PvpSlice {
 const initialPvpState = {
     pvpStarted: false,
     pvpOpponentName: '',
+    pvpOpponentAvatar: null,
     pvpOpponentStatus: 'waiting' as PvpOpponentStatus,
     pvpWinner: null,
     pvpRoomReady: false,
@@ -41,6 +45,7 @@ export const createPvpSlice: StateCreator<MinesweeperState, [], [], PvpSlice> = 
 
     setPvpStarted: (started) => set({ pvpStarted: started }),
     setPvpOpponentName: (name) => set({ pvpOpponentName: name }),
+    setPvpOpponentAvatar: (avatar) => set({ pvpOpponentAvatar: avatar }),
     setPvpOpponentStatus: (status) => set({ pvpOpponentStatus: status }),
     setPvpWinner: (winner) => set({ pvpWinner: winner }),
     setPvpRoomReady: (ready) => set({ pvpRoomReady: ready }),

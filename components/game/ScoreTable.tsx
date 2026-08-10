@@ -1,6 +1,6 @@
 import React from 'react';
 import { useMinesweeperStore } from '@/app/store';
-import { Table } from '@/components/ds';
+import { NameWithAvatar, Table } from '@/components/ds';
 
 export interface ScoreTableProps {
     /** Desktop caps names narrower than the mobile dialog does. */
@@ -22,7 +22,9 @@ export default function ScoreTable({ nameWidthClass = 'max-w-40' }: ScoreTablePr
             <tbody>
                 {playerStatsInRoom.map((item, index) => (
                     <tr key={index}>
-                        <td className={`text-pixel-md ${nameWidthClass}`}>{item.name}</td>
+                        <td className={`text-pixel-md ${nameWidthClass}`}>
+                            <NameWithAvatar avatar={item.avatar}>{item.name}</NameWithAvatar>
+                        </td>
                         <td className="text-pixel-md">{item.score}</td>
                     </tr>
                 ))}

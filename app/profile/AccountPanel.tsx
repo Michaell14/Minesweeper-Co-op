@@ -1,7 +1,8 @@
 'use client'
 import React from 'react';
 import { signOut } from 'next-auth/react';
-import { Button, Dialog, DialogClose, Field, Input, Panel } from '@/components/ds';
+import { Avatar, Button, Dialog, DialogClose, Field, Input, Panel, RadioCard, RadioCardGroup } from '@/components/ds';
+import { AVATARS } from '@/shared/avatars';
 import { DIALOGS, openDialog } from '@/lib/dialogs';
 import { clearBridgeToken } from '@/lib/authBridge';
 import {
@@ -9,6 +10,7 @@ import {
     fetchProfile,
     ProfileApiError,
     providerLabel,
+    updateAvatar,
     updateDisplayName,
     type ProfileUser,
 } from '@/lib/profileApi';
@@ -36,7 +38,10 @@ export default function AccountPanel() {
             if (cancelled) return;
             setProfile(user);
             setProfileState(user ? 'ready' : 'unavailable');
-            if (user) setNameDraft(user.displayName);
+            if (user) {
+                lastConfirmed.current = user;
+                setNameDraft(user.displayName);
+            }
         });
         return () => { cancelled = true; };
     }, []);
@@ -45,6 +50,19 @@ export default function AccountPanel() {
     const [saved, setSaved] = React.useState(false);
     const [saveError, setSaveError] = React.useState<string | null>(null);
 
+    /*
+     * Saves are SERIALISED by profileApi — one request at a time, in click
+     * order — so a response is always the newest server state when it
+     * arrives and applies unconditionally. What survives here is per-field
+     * bookkeeping: `lastConfirmed` is the newest server-confirmed profile,
+     * which is what a failed pick reverts to (a snapshot taken at click time
+     * could predate a queued rename that succeeded meanwhile), and
+     * `latestPick` lets a superseded pick's outcome yield to the newer
+     * pick's — that pick's own response settles the display.
+     */
+    const lastConfirmed = React.useRef<ProfileUser | null>(null);
+    const latestPick = React.useRef(0);
+
     const saveName = async () => {
         if (saving) return;
         setSaved(false);
@@ -52,6 +70,7 @@ export default function AccountPanel() {
         setSaving(true);
         try {
             const user = await updateDisplayName(nameDraft);
+            lastConfirmed.current = user;
             setProfile(user);
             setNameDraft(user.displayName);
             setSaved(true);
@@ -61,6 +80,37 @@ export default function AccountPanel() {
             );
         } finally {
             setSaving(false);
+        }
+    };
+
+    /*
+     * The avatar saves on selection, optimistically: the card lights at once,
+     * and a refused/failed save puts the old one back and says why. A "Save"
+     * button here would demote picking a face to a two-step form.
+     */
+    const [avatarError, setAvatarError] = React.useState<string | null>(null);
+    const saveAvatar = async (id: string) => {
+        if (!profile || id === profile.avatar) return;
+        const myPick = ++latestPick.current;
+        setProfile({ ...profile, avatar: id });
+        setAvatarError(null);
+        try {
+            const user = await updateAvatar(id);
+            // Server-confirmed either way; shown only while this is still
+            // the latest pick — a newer one's optimistic state stands until
+            // its own response settles it.
+            lastConfirmed.current = user;
+            if (latestPick.current === myPick) setProfile(user);
+        } catch (error) {
+            // A newer pick owns the field; its own outcome governs.
+            if (latestPick.current !== myPick) return;
+            // The failed write changed nothing server-side, so the last
+            // confirmed profile IS the truth — and the footer already heard
+            // it announced when it was confirmed.
+            if (lastConfirmed.current) setProfile(lastConfirmed.current);
+            setAvatarError(
+                error instanceof ProfileApiError ? error.message : 'Could not save right now',
+            );
         }
     };
 
@@ -112,10 +162,13 @@ export default function AccountPanel() {
 
                     {profileState === 'ready' && profile && (
                         <>
-                            <p className="text-pixel-sm text-ink-muted">
-                                Signed in with {providerLabel(profile.provider)}
-                                {profile.email ? ` as ${profile.email}` : ''}
-                            </p>
+                            <div className="flex items-center gap-3">
+                                <Avatar id={profile.avatar} size={48} />
+                                <p className="text-pixel-sm text-ink-muted">
+                                    Signed in with {providerLabel(profile.provider)}
+                                    {profile.email ? ` as ${profile.email}` : ''}
+                                </p>
+                            </div>
 
                             <Field
                                 label="Display name"
@@ -147,6 +200,32 @@ export default function AccountPanel() {
                                     <p role="status" className="text-pixel-sm text-ink-muted">Saved!</p>
                                 )}
                             </Field>
+
+                            <div className="mt-4">
+                                <p className="text-pixel-sm mb-2">Avatar</p>
+                                <RadioCardGroup
+                                    name="avatar"
+                                    ariaLabel="Avatar"
+                                    value={profile.avatar}
+                                    onChange={(id) => void saveAvatar(id)}
+                                    wrap>
+                                    {AVATARS.map(({ id, label }) => (
+                                        <RadioCard
+                                            key={id}
+                                            value={id}
+                                            label={label}
+                                            description={
+                                                <span aria-hidden="true">
+                                                    <Avatar id={id} size={40} />
+                                                </span>
+                                            }
+                                        />
+                                    ))}
+                                </RadioCardGroup>
+                                {avatarError && (
+                                    <p role="alert" className="text-pixel-sm mt-2">{avatarError}</p>
+                                )}
+                            </div>
 
                             <div className="flex gap-3 mt-4">
                                 <Button size="sm" onClick={handleSignOut}>Sign out</Button>

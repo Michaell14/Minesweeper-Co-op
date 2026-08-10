@@ -158,6 +158,8 @@ describe('attempts', () => {
         const elapsedMs = await dailyRepo.submitScore('2026-07-30', 'tok-1', 'Alex');
 
         expect(client.hGet).toHaveBeenCalledWith('daily:2026-07-30:attempt:tok-1', 'elapsedMs');
+        // No avatar argument → no avatar field: a Redis hash cannot hold null,
+        // so absence is how an anonymous entry stores it.
         expect(client.hSet).toHaveBeenCalledWith('daily:2026-07-30:attempt:tok-1', {
             name: 'Alex',
             status: 'completed',
@@ -165,24 +167,38 @@ describe('attempts', () => {
         expect(client.zAdd).toHaveBeenCalledWith('daily:2026-07-30:leaderboard', { score: 4200, value: 'tok-1' });
         expect(elapsedMs).toBe(4200);
     });
+
+    test('submitScore stores an account avatar alongside the name', async () => {
+        client.hGet.mockResolvedValue('4200');
+
+        await dailyRepo.submitScore('2026-07-30', 'tok-1', 'Alex', 'fox');
+
+        expect(client.hSet).toHaveBeenCalledWith('daily:2026-07-30:attempt:tok-1', {
+            name: 'Alex',
+            status: 'completed',
+            avatar: 'fox',
+        });
+    });
 });
 
 describe('leaderboard reads', () => {
-    test('getLeaderboardTop batches names onto the ranked scores, fastest first', async () => {
+    test('getLeaderboardTop batches names and avatars onto the ranked scores, fastest first', async () => {
         client.zRangeWithScores.mockResolvedValue([
             { value: 'tok-fast', score: 3000 },
             { value: 'tok-slow', score: 9000 },
         ]);
-        client.hGet.mockImplementation((key) =>
-            Promise.resolve(key.includes('tok-fast') ? 'Speedy' : 'Slowpoke')
+        // tok-fast is a signed-in entry with an avatar; tok-slow is anonymous —
+        // its avatar field is absent, which Redis reports as null.
+        client.hmGet.mockImplementation((key) =>
+            Promise.resolve(key.includes('tok-fast') ? ['Speedy', 'fox'] : ['Slowpoke', null])
         );
 
         const entries = await dailyRepo.getLeaderboardTop('2026-07-30', 50);
 
         expect(client.zRangeWithScores).toHaveBeenCalledWith('daily:2026-07-30:leaderboard', 0, 49);
         expect(entries).toEqual([
-            { name: 'Speedy', elapsedMs: 3000, rank: 1 },
-            { name: 'Slowpoke', elapsedMs: 9000, rank: 2 },
+            { name: 'Speedy', avatar: 'fox', elapsedMs: 3000, rank: 1 },
+            { name: 'Slowpoke', avatar: null, elapsedMs: 9000, rank: 2 },
         ]);
     });
 

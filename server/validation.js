@@ -9,6 +9,7 @@
 // Re-exported below: the board rule lives in shared/ so the client checks the
 // same thing before it ever emits.
 const { isValidBoardConfig } = require('../shared/boardConfig');
+const { AVATAR_IDS } = require('../shared/avatars');
 
 const MAX_ROOM_CODE_LENGTH = 100;
 const MAX_PLAYER_NAME_LENGTH = 50;
@@ -38,6 +39,9 @@ const isValidPlayerName = (name) =>
 const normalizePlayerName = (name) => (typeof name === 'string' ? name.trim() : '');
 
 const isValidMode = (mode) => mode === 'co-op' || mode === 'pvp';
+
+/** An avatar as STORED: one id from the shared catalog, nothing free-form. */
+const isValidAvatarId = (avatar) => AVATAR_IDS.includes(avatar);
 
 /** Opaque client-generated id for a daily attempt -- same shape as a room code. */
 const isValidDailyToken = (token) =>
@@ -171,6 +175,7 @@ module.exports = {
     isValidPlayerName,
     normalizePlayerName,
     isValidMode,
+    isValidAvatarId,
     isValidBoardConfig,
     isValidCoordinate,
     isValidHoverCoordinate,

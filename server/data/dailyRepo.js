@@ -115,11 +115,20 @@ const markWon = (date, token, finishedAt, elapsedMs) =>
  * Records the player's chosen name and adds them to the leaderboard, keyed by
  * the elapsedMs markWon already stored — never a value from the caller, since
  * the score has to come from the server's own timestamps.
+ *
+ * `avatar` is the account's avatar id, denormalised here at submit exactly
+ * like the name: the leaderboard is read for many days after the account
+ * could rename, repick, or vanish. Anonymous entries have none — Redis
+ * hashes hold strings only, so absence IS the null.
  */
-const submitScore = async (date, token, name) => {
+const submitScore = async (date, token, name, avatar = null) => {
     const client = await redisClient;
     const elapsedMs = await client.hGet(dailyAttemptKey(date, token), 'elapsedMs');
-    await client.hSet(dailyAttemptKey(date, token), { name, status: 'completed' });
+    await client.hSet(dailyAttemptKey(date, token), {
+        name,
+        status: 'completed',
+        ...(avatar ? { avatar } : {}),
+    });
     await client.zAdd(dailyLeaderboardKey(date), { score: parseInt(elapsedMs, 10), value: token });
     await client.expire(dailyLeaderboardKey(date), DAILY_TTL_SECONDS);
     return parseInt(elapsedMs, 10);
@@ -129,17 +138,17 @@ const submitScore = async (date, token, name) => {
 
 /**
  * Top N entries, fastest first. The ZSET stores tokens (names aren't unique),
- * so this batch-reads each entry's display name off its attempt hash.
+ * so this batch-reads each entry's display name and avatar off its attempt
+ * hash. An entry with no avatar field (anonymous, or pre-avatar) emits null.
  */
 const getLeaderboardTop = async (date, limit = 50) => {
     const client = await redisClient;
     const ranked = await client.zRangeWithScores(dailyLeaderboardKey(date), 0, limit - 1);
     const entries = await Promise.all(
-        ranked.map(async ({ value: token, score }, index) => ({
-            name: await client.hGet(dailyAttemptKey(date, token), 'name'),
-            elapsedMs: score,
-            rank: index + 1,
-        }))
+        ranked.map(async ({ value: token, score }, index) => {
+            const [name, avatar] = await client.hmGet(dailyAttemptKey(date, token), ['name', 'avatar']);
+            return { name, avatar: avatar || null, elapsedMs: score, rank: index + 1 };
+        })
     );
     return entries;
 };

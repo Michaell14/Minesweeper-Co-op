@@ -128,10 +128,10 @@ describe('a PVP host who reloads in the lobby', () => {
         await rejoinAsHost();
 
         expect(payloadsFor(NEW_HOST, 'pvpRoomReady')).toEqual([
-            { opponentName: 'Guest', isHost: true },
+            { opponentName: 'Guest', opponentAvatar: null, isHost: true },
         ]);
         expect(payloadsFor(GUEST, 'pvpRoomReady')).toEqual([
-            { opponentName: 'Host', isHost: false },
+            { opponentName: 'Host', opponentAvatar: null, isHost: false },
         ]);
     });
 

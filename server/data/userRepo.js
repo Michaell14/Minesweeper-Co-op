@@ -19,6 +19,7 @@ const rowToUser = (row) => ({
     providerAccountId: row.provider_account_id,
     email: row.email,
     displayName: row.display_name,
+    avatar: row.avatar,
     createdAt: row.created_at,
 });
 
@@ -53,13 +54,18 @@ const getUserById = async (id) => {
 };
 
 /**
- * Renames a user. Returns the updated user, or null if the id matched nothing
- * — which the caller treats as the account having been deleted under them.
+ * Updates the profile fields a player may edit — only those provided; a field
+ * left undefined keeps its stored value (COALESCE, one statement either way).
+ * Returns the updated user, or null if the id matched nothing — which the
+ * caller treats as the account having been deleted under them.
  */
-const updateDisplayName = async (id, displayName) => {
+const updateUser = async (id, { displayName, avatar }) => {
     const result = await query(
-        'UPDATE users SET display_name = $2 WHERE id = $1 RETURNING *',
-        [id, displayName],
+        `UPDATE users SET
+            display_name = COALESCE($2, display_name),
+            avatar = COALESCE($3, avatar)
+         WHERE id = $1 RETURNING *`,
+        [id, displayName ?? null, avatar ?? null],
     );
     return result.rows[0] ? rowToUser(result.rows[0]) : null;
 };
@@ -74,4 +80,4 @@ const deleteUser = async (id) => {
     return result.rowCount > 0;
 };
 
-module.exports = { getOrCreateUser, getUserById, updateDisplayName, deleteUser };
+module.exports = { getOrCreateUser, getUserById, updateUser, deleteUser };

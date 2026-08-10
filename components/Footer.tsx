@@ -4,10 +4,11 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { DIALOGS, openDialog } from '@/lib/dialogs';
-import { CoinIcon, Dialog, DialogClose, GearIcon, GithubIcon, StarIcon, UserIcon, UserSignedInIcon, pointerClass } from '@/components/ds';
+import { Avatar, CoinIcon, Dialog, DialogClose, GearIcon, GithubIcon, StarIcon, UserIcon, UserSignedInIcon, pointerClass } from '@/components/ds';
 import AccountMenu from '@/components/AccountMenu';
 import { useMinesweeperStore } from '@/app/store';
 import { hasUnseenEntries, markChangelogSeen } from '@/lib/changelog';
+import { PROFILE_UPDATED_EVENT, fetchProfile, type ProfileUser } from '@/lib/profileApi';
 
 const KEY_BINDINGS: [string, string][] = [
     ['Arrows / WASD', 'Move the cursor'],
@@ -44,6 +45,42 @@ export default function Footer() {
      */
     const pathname = usePathname();
     const showCluster = pathname === '/' || pathname === '/daily';
+
+    /*
+     * The signed-in icon is the player's avatar. Fetched once per load, then
+     * kept fresh by the profile-updated event — the Footer is mounted once in
+     * the layout, so without the event a new pick on /profile would show the
+     * old face here until a full reload. Until it resolves (or when the
+     * account API is down) the generic signed-in icon stands in.
+     */
+    const [avatarId, setAvatarId] = useState<string | null>(null);
+    useEffect(() => {
+        if (status !== 'authenticated') {
+            setAvatarId(null);
+            return;
+        }
+        let cancelled = false;
+        /*
+         * The initial GET is not part of the save queue, so it can resolve
+         * AFTER a save's update event with a snapshot read before that save.
+         * Any event heard while the fetch is in flight is strictly fresher —
+         * the save it reports was issued after the fetch began — so once one
+         * arrives, the fetch result is stale and must not apply.
+         */
+        let heardUpdate = false;
+        fetchProfile().then((user) => {
+            if (!cancelled && !heardUpdate && user) setAvatarId(user.avatar);
+        });
+        const onProfileUpdated = (event: Event) => {
+            heardUpdate = true;
+            setAvatarId((event as CustomEvent<ProfileUser>).detail.avatar);
+        };
+        window.addEventListener(PROFILE_UPDATED_EVENT, onProfileUpdated);
+        return () => {
+            cancelled = true;
+            window.removeEventListener(PROFILE_UPDATED_EVENT, onProfileUpdated);
+        };
+    }, [status]);
 
     useEffect(() => {
         const refreshUnseenState = () => {
@@ -131,7 +168,9 @@ export default function Footer() {
                         aria-label={status === 'authenticated' ? 'Profile' : 'Account'}
                         className={pointerClass}>
                         {status === 'authenticated'
-                            ? <UserSignedInIcon size={48} />
+                            ? (avatarId
+                                ? <Avatar id={avatarId} size={48} />
+                                : <UserSignedInIcon size={48} />)
                             : <UserIcon size={48} />}
                     </Link>
                 )}
