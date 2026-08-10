@@ -82,6 +82,10 @@ export default function SettingsSync() {
     }, []);
 
     React.useEffect(() => {
+        // Mirrored for the win handlers, which are not components and cannot
+        // ask useSession — see gameSlice.signedIn.
+        useMinesweeperStore.getState().setSignedIn(status === 'authenticated');
+
         if (status !== 'authenticated') {
             lastSynced.current = null;
             return;

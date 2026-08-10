@@ -145,6 +145,7 @@ describe("filing a clear as a personal best", () => {
         const store = useMinesweeperStore.getState();
         store.setMode("co-op");
         store.setPlayerStatsInRoom([]);
+        store.setSignedIn(false);
     });
 
     test("a co-op clear is filed under the size of the room", () => {
@@ -175,6 +176,28 @@ describe("filing a clear as a personal best", () => {
         expect(solo?.seconds).toBe(200);
         expect(solo?.players).toBe(1);
         expect(readBestTime(boardKey(BOARD.rows, BOARD.cols, BOARD.mines, 2))).toBeNull();
+    });
+
+    /*
+     * A run made under an account belongs to it. The stamp is what lets the
+     * sync evict it when a DIFFERENT account signs in on this browser, instead
+     * of pushing one account's clear into the next (lib/bestTimes.ts).
+     */
+    test("a clear made signed in is stamped as the account's", () => {
+        useMinesweeperStore.getState().setSignedIn(true);
+        finishAt(120);
+
+        win(fakeSocket(), "gameWon");
+
+        expect(readBestTime(boardKey(BOARD.rows, BOARD.cols, BOARD.mines))?.synced).toBe(true);
+    });
+
+    test("a guest clear carries no account stamp and stays the browser's", () => {
+        finishAt(120);
+
+        win(fakeSocket(), "gameWon");
+
+        expect(readBestTime(boardKey(BOARD.rows, BOARD.cols, BOARD.mines))?.synced).toBeUndefined();
     });
 
     /* The whole point: one no longer takes the other's slot. */

@@ -43,6 +43,16 @@ export interface GameSlice {
     bestTimesVersion: number;
 
     /*
+     * Whether a session is signed in right now — mirrored from next-auth by
+     * SettingsSync, the account-lifecycle owner. In the store because the win
+     * handlers are not components and cannot ask useSession: a clear made
+     * while signed in is stamped as the account's (recordClear in
+     * hooks/useGameEvents.ts), which is what keeps it from being pushed into
+     * the next account to sign in on this browser.
+     */
+    signedIn: boolean;
+
+    /*
      * The cell the last batch of reveals started from — read only by the cascade
      * animation, which measures each cell's delay from it. Board-level rather
      * than per-cell because a `Cell` is `{ isMine, isOpen, isFlagged,
@@ -59,6 +69,7 @@ export interface GameSlice {
     setClock: (clock: { startedAt: number | null; endedAt: number | null }) => void;
     setBestTimeResult: (result: BestTimeResult | null) => void;
     bumpBestTimesVersion: () => void;
+    setSignedIn: (signedIn: boolean) => void;
 }
 
 export const createGameSlice: StateCreator<MinesweeperState, [], [], GameSlice> = (set) => ({
@@ -69,6 +80,7 @@ export const createGameSlice: StateCreator<MinesweeperState, [], [], GameSlice> 
     endedAt: null,
     bestTimeResult: null,
     bestTimesVersion: 0,
+    signedIn: false,
     cascadeOrigin: null,
 
     setBoard: (newBoard) => set({ board: newBoard }),
@@ -152,4 +164,6 @@ export const createGameSlice: StateCreator<MinesweeperState, [], [], GameSlice> 
 
     bumpBestTimesVersion: () =>
         set((state) => ({ bestTimesVersion: state.bestTimesVersion + 1 })),
+
+    setSignedIn: (signedIn) => set({ signedIn }),
 });

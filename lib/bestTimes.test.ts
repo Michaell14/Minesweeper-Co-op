@@ -236,9 +236,9 @@ describe("reading a board never cleared", () => {
 /*
  * The sign-in sync. Both directions are keep-if-faster: a record is a fact
  * about a run, so neither side can "win" a conflict — the faster time simply
- * is the record. Pulled records are scoped to the ACCOUNT they came from,
- * which is what keeps two accounts sharing a browser from trading records
- * through its localStorage.
+ * is the record. Synced records — pulled from an account, or made while
+ * signed in to one — are scoped to that account, which is what keeps two
+ * accounts sharing a browser from trading records through its localStorage.
  */
 describe("merging the account's server-side records", () => {
     test("a faster server time lands locally and reports the change", () => {
@@ -352,9 +352,9 @@ describe("merging the account's server-side records", () => {
         expect(toPush).toEqual([{ boardKey: "9x9/10", seconds: 30, players: 1, at: 1 }]);
     });
 
-    /* A browser-earned run that beats a pulled record replaces it wholesale —
-     * the slot is this browser's again, and travels like any local record. */
-    test("beating a pulled record makes the slot browser-earned again", () => {
+    /* A guest run that beats a synced record replaces it wholesale — the
+     * slot is this browser's again, and travels like any local record. */
+    test("beating a synced record as a guest makes the slot browser-earned again", () => {
         mergeServerBests([{ boardKey: KEY, seconds: 45, players: 1, at: 2 }], "acct-1");
         recordBestTime(KEY, { seconds: 30, players: 1, at: 3 });
 
@@ -362,6 +362,30 @@ describe("merging the account's server-side records", () => {
 
         expect(readBestTime(KEY)?.seconds).toBe(30);
         expect(toPush).toEqual([{ boardKey: KEY, seconds: 30, players: 1, at: 3 }]);
+    });
+
+    /* A run recorded while signed in is stamped at the win with the same mark
+     * a pull writes (hooks/useGameEvents.ts recordClear) — the account's
+     * server recorded it too, so it belongs to the account, not the browser. */
+    test("a signed-in run leaves with its account instead of crossing", () => {
+        mergeServerBests([], "acct-1"); // the sign-in sync stakes the account
+        recordBestTime(KEY, { seconds: 45, players: 1, at: 1, synced: true });
+
+        const { changed, toPush } = mergeServerBests([], "acct-2");
+
+        expect(changed).toBe(true);
+        expect(readBestTime(KEY)).toBeNull();
+        expect(toPush).toEqual([]);
+    });
+
+    test("a signed-in run stays for its own account without being re-offered", () => {
+        mergeServerBests([], "acct-1");
+        recordBestTime(KEY, { seconds: 45, players: 1, at: 1, synced: true });
+
+        const { toPush } = mergeServerBests([], "acct-1");
+
+        expect(readBestTime(KEY)?.seconds).toBe(45);
+        expect(toPush).toEqual([]);
     });
 });
 

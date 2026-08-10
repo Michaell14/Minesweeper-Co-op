@@ -29,14 +29,15 @@ export interface BestTime {
     /** When it was set, so the display can say how old a record is. */
     at: number;
     /**
-     * Present when this record arrived from an account pull rather than a run
-     * made on this browser. Pulled records belong to the ACCOUNT: they leave
-     * when a different account signs in and are never pushed onward — without
-     * the mark, two accounts sharing a browser would permanently trade records
-     * through it. Absent means browser-earned, which seeds whoever signs in,
-     * the semantic local records have always had.
+     * Present when this record belongs to the synced account (ACCOUNT_KEY):
+     * pulled from it, or recorded while signed in to it — in both cases the
+     * account's server already holds the record. Marked records leave when a
+     * different account signs in and are never pushed onward; without the
+     * mark, two accounts sharing a browser would permanently trade records
+     * through it. Absent means an ownerless guest run, which seeds whoever
+     * signs in — the semantic local records have always had.
      */
-    pulled?: true;
+    synced?: true;
 }
 
 const STORAGE_KEY = "minesweeper_best_times";
@@ -114,7 +115,7 @@ export const labelForBestKey = (key: string): string => {
 /** A stored entry, or null if it is missing or has been corrupted. */
 const parseEntry = (value: unknown): BestTime | null => {
     if (typeof value !== "object" || value === null) return null;
-    const { seconds, players, at, pulled } = value as Record<string, unknown>;
+    const { seconds, players, at, synced } = value as Record<string, unknown>;
     if (typeof seconds !== "number" || !Number.isFinite(seconds) || seconds < 0) return null;
     return {
         seconds,
@@ -123,7 +124,7 @@ const parseEntry = (value: unknown): BestTime | null => {
         // a slot nothing ever looks up.
         players: Number.isInteger(players) && (players as number) > 0 ? (players as number) : 1,
         at: typeof at === "number" && Number.isFinite(at) ? at : 0,
-        ...(pulled === true ? { pulled: true as const } : {}),
+        ...(synced === true ? { synced: true as const } : {}),
     };
 };
 
@@ -201,7 +202,7 @@ export const readBestTime = (key: string): BestTime | null => readBestTimes()[ke
  */
 export const recordBestTime = (
     givenKey: string,
-    run: { seconds: number; players: number; at: number },
+    run: { seconds: number; players: number; at: number; synced?: true },
 ): { improved: boolean; previous: BestTime | null } => {
     const key = withPlayers(boardPartOf(givenKey), run.players);
     const times = readBestTimes();
@@ -249,13 +250,15 @@ const readSyncedAccount = (): string | null => {
  * knows mounted readers need a reason to look again — and `toPush`: the local
  * records the server lacks or holds slower, ready for `importBests`.
  *
- * The account boundary: entries this merge writes are marked `pulled`, and a
- * pull for a DIFFERENT account than last time evicts the previous account's
- * marked entries first — they describe that account's play, possibly on other
- * devices, and letting them stay would display them as this browser's and
- * push them onward into the next account. Only unmarked, browser-earned runs
- * are ever pushed, seeding whoever signs in — the semantic local records have
- * always had.
+ * The account boundary: entries this merge writes are marked `synced` (as are
+ * runs recorded while signed in — see recordClear in hooks/useGameEvents.ts),
+ * and a pull for a DIFFERENT account than last time evicts the previous
+ * account's marked entries first — they describe that account's play, and
+ * letting them stay would display them as this browser's and push them onward
+ * into the next account. Only unmarked guest runs are ever pushed, seeding
+ * whoever signs in — the semantic local records have always had. A marked
+ * entry evicted by mistake (a stale stamp) heals here too: if the account's
+ * server really holds it, the same pass pulls it straight back.
  *
  * Every incoming entry goes through the same canonicalisation as a local
  * write: the key's player suffix is derived from the record's OWN count, and
@@ -277,7 +280,7 @@ export const mergeServerBests = (
     const sameAccount = readSyncedAccount() === accountId;
     const kept: Record<string, BestTime> = {};
     for (const [key, entry] of Object.entries(local)) {
-        if (entry.pulled && !sameAccount) {
+        if (entry.synced && !sameAccount) {
             changed = true;
             continue;
         }
@@ -298,7 +301,7 @@ export const mergeServerBests = (
     for (const [key, entry] of serverBySlot) {
         const existing = merged[key];
         if (!existing || entry.seconds < existing.seconds) {
-            merged[key] = { ...entry, pulled: true };
+            merged[key] = { ...entry, synced: true };
             changed = true;
         }
     }
@@ -314,7 +317,7 @@ export const mergeServerBests = (
 
     const toPush = Object.entries(kept)
         .filter(([key, entry]) => {
-            if (entry.pulled) return false;
+            if (entry.synced) return false;
             const known = serverBySlot.get(key);
             return !known || entry.seconds < known.seconds;
         })
