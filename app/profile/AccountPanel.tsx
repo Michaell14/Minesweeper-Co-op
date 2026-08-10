@@ -49,33 +49,36 @@ export default function AccountPanel() {
     const [saveError, setSaveError] = React.useState<string | null>(null);
 
     /*
-     * One ticket counter across BOTH save paths (rename and avatar): each
-     * response carries the whole user, so only the latest request may apply
-     * its answer. Without this, two quick picks race — the older response can
-     * land last and overwrite the newer one, or a failed older save "revert"
-     * a newer one to a stale snapshot.
+     * Two tickets with different jobs. `profileTicket` orders whole-profile
+     * applications across BOTH save paths: each response carries the full
+     * user, so only the newest request may write it — otherwise an older
+     * response landing last overwrites a newer one. `avatarTicket` orders the
+     * avatar FIELD's failure handling (revert, error, re-sync): only a newer
+     * avatar pick may supersede it. A rename must not — each field's outcome
+     * is reported regardless of what the other field is doing, or a failure
+     * vanishes without a trace and looks like a success.
      */
-    const saveTicket = React.useRef(0);
+    const profileTicket = React.useRef(0);
+    const avatarTicket = React.useRef(0);
 
     const saveName = async () => {
         if (saving) return;
-        const ticket = ++saveTicket.current;
+        const ticket = ++profileTicket.current;
         setSaved(false);
         setSaveError(null);
         setSaving(true);
         try {
             const user = await updateDisplayName(nameDraft);
-            if (saveTicket.current === ticket) {
-                setProfile(user);
-                setNameDraft(user.displayName);
-                setSaved(true);
-            }
+            if (profileTicket.current === ticket) setProfile(user);
+            // Field UI is single-flight (the button disables while saving),
+            // so the outcome is always reported — even when an avatar pick
+            // has taken the profile ticket in the meantime.
+            setNameDraft(user.displayName);
+            setSaved(true);
         } catch (error) {
-            if (saveTicket.current === ticket) {
-                setSaveError(
-                    error instanceof ProfileApiError ? error.message : 'Could not save right now',
-                );
-            }
+            setSaveError(
+                error instanceof ProfileApiError ? error.message : 'Could not save right now',
+            );
         } finally {
             setSaving(false);
         }
@@ -89,15 +92,19 @@ export default function AccountPanel() {
     const [avatarError, setAvatarError] = React.useState<string | null>(null);
     const saveAvatar = async (id: string) => {
         if (!profile || id === profile.avatar) return;
-        const ticket = ++saveTicket.current;
+        const ticket = ++profileTicket.current;
+        const myPick = ++avatarTicket.current;
         const previous = profile;
         setProfile({ ...profile, avatar: id });
         setAvatarError(null);
         try {
             const user = await updateAvatar(id);
-            if (saveTicket.current === ticket) setProfile(user);
+            if (profileTicket.current === ticket) setProfile(user);
         } catch (error) {
-            if (saveTicket.current !== ticket) return;
+            // Only a NEWER PICK supersedes this failure — its own outcome
+            // governs the field then. A concurrent rename does not: this
+            // pick's failure must still be handled and reported.
+            if (avatarTicket.current !== myPick) return;
             /*
              * The snapshot can be STALE: an overlapping save may have
              * persisted after it was taken (its response dropped as
@@ -107,7 +114,7 @@ export default function AccountPanel() {
              * likely down at that point and it is the best guess left.
              */
             const fresh = await fetchProfile();
-            if (saveTicket.current !== ticket) return;
+            if (avatarTicket.current !== myPick) return;
             setProfile(fresh ?? previous);
             // An overlapping success this corrects for was suppressed from the
             // event channel — announce the truth so listeners converge too.

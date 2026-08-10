@@ -103,6 +103,62 @@ it('surfaces a refused rename without closing anything', async () => {
     );
 });
 
+describe('overlapping saves across fields', () => {
+    it('a rename failure is still reported after an avatar pick follows it', async () => {
+        const { ProfileApiError } = await vi.importActual<typeof import('@/lib/profileApi')>(
+            '@/lib/profileApi',
+        );
+        let rejectRename!: (error: unknown) => void;
+        mockUpdateDisplayName.mockImplementationOnce(
+            () => new Promise((_resolve, reject) => { rejectRename = reject; }),
+        );
+        mockUpdateAvatar.mockResolvedValue({ ...PROFILE, avatar: 'fox' });
+        await renderReady();
+
+        fireEvent.change(screen.getByRole('textbox', { name: 'Display name' }), {
+            target: { value: 'Miguel' },
+        });
+        fireEvent.click(screen.getByRole('button', { name: /Save|Saving…/ }));
+        fireEvent.click(screen.getByRole('radio', { name: 'Fox' }));
+        await waitFor(() => expect(mockUpdateAvatar).toHaveBeenCalled());
+
+        // The rename fails AFTER the pick took the profile ticket — the
+        // failure must not vanish and masquerade as a successful save.
+        rejectRename(new ProfileApiError('Invalid display name', 400));
+        await waitFor(() =>
+            expect(screen.getByRole('alert').textContent).toBe('Invalid display name'),
+        );
+        // …and the pick that superseded it still landed.
+        expect((screen.getByRole('radio', { name: 'Fox' }) as HTMLInputElement).checked).toBe(true);
+    });
+
+    it('an avatar failure is still reported after a rename follows it', async () => {
+        const { ProfileApiError } = await vi.importActual<typeof import('@/lib/profileApi')>(
+            '@/lib/profileApi',
+        );
+        let rejectPick!: (error: unknown) => void;
+        mockUpdateAvatar.mockImplementationOnce(
+            () => new Promise((_resolve, reject) => { rejectPick = reject; }),
+        );
+        mockUpdateDisplayName.mockResolvedValue({ ...PROFILE, displayName: 'Miguel' });
+        await renderReady();
+
+        fireEvent.click(screen.getByRole('radio', { name: 'Fox' }));
+        fireEvent.click(screen.getByRole('button', { name: /Save|Saving…/ }));
+        await waitFor(() => expect(mockUpdateDisplayName).toHaveBeenCalled());
+
+        // The re-sync answers with what the server holds: the rename, no fox.
+        mockFetchProfile.mockResolvedValue({ ...PROFILE, displayName: 'Miguel' });
+        rejectPick(new ProfileApiError('Invalid avatar', 400));
+
+        await waitFor(() =>
+            expect(screen.getByRole('alert').textContent).toBe('Invalid avatar'),
+        );
+        // The optimistic pick was rolled back to the server's truth.
+        expect((screen.getByRole('radio', { name: 'Smiley' }) as HTMLInputElement).checked).toBe(true);
+    });
+});
+
 describe('the avatar picker', () => {
     it('offers every catalog avatar as a radio, with the stored one selected', async () => {
         await renderReady();
