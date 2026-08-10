@@ -1,6 +1,6 @@
 import React from 'react';
 import { useMinesweeperStore } from '@/app/store';
-import { Button, DialogClose, Dialog, Field, Input, Table } from '@/components/ds';
+import { Avatar, Button, DialogClose, Dialog, Field, Input, Table } from '@/components/ds';
 import { DIALOGS, openDialog, closeDialog } from '@/lib/dialogs';
 import { buildDailyShareText, percentCleared, shareDailyResult } from '@/lib/dailyShare';
 import { dailyWinStreak, readDailyHistory } from '@/lib/dailyHistory';
@@ -272,7 +272,14 @@ export default function DailyDialogs({ submitDailyScore, getDailyLeaderboard }: 
                                 {dailyLeaderboard.map((entry) => (
                                     <tr key={entry.rank}>
                                         <td className="text-pixel-md">{entry.rank}</td>
-                                        <td className="text-pixel-md">{entry.name}</td>
+                                        <td className="text-pixel-md">
+                                            {/* Anonymous rows have no avatar — the
+                                                name renders alone, no placeholder. */}
+                                            <span className="inline-flex items-center gap-2 align-middle">
+                                                {entry.avatar && <Avatar id={entry.avatar} size={20} />}
+                                                {entry.name}
+                                            </span>
+                                        </td>
                                         <td className="text-pixel-md">{formatElapsed(entry.elapsedMs)}</td>
                                     </tr>
                                 ))}

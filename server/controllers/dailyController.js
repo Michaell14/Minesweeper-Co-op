@@ -10,7 +10,7 @@ const { generateDailyBoardForDate } = require('../game/daily');
 const dailyRepo = require('../data/dailyRepo');
 const userRepo = require('../data/userRepo');
 const { TERMINAL_STATUSES } = dailyRepo;
-const { isValidDailyToken, isValidPlayerName, normalizePlayerName } = require('../validation');
+const { isValidAvatarId, isValidDailyToken, isValidPlayerName, normalizePlayerName } = require('../validation');
 const { SERVER_EVENTS } = require('../../shared/events');
 
 /**
@@ -189,10 +189,12 @@ const submitDailyScore = async ({ socket, io, dailyAttemptToken, date, name }) =
         // the same gate as a typed one either way — an OAuth-seeded name is
         // still arbitrary input.
         let accountName = socket.data?.user?.displayName;
+        let accountAvatar = socket.data?.user?.avatar;
         if (socket.data?.user?.id) {
             try {
                 const fresh = await userRepo.getUserById(socket.data.user.id);
                 accountName = fresh ? fresh.displayName : null;
+                accountAvatar = fresh ? fresh.avatar : null;
             } catch {
                 // Best-effort: the snapshot is better than blocking a submit.
             }
@@ -200,10 +202,16 @@ const submitDailyScore = async ({ socket, io, dailyAttemptToken, date, name }) =
         const displayName = normalizePlayerName(accountName || name);
         if (!isValidDailyToken(dailyAttemptToken) || !isValidPlayerName(displayName)) return;
 
+        // The avatar rides only with an ACCOUNT entry — a deleted account fell
+        // through to the typed name above, and its avatar must not outlive it.
+        // isValidAvatarId also drops an id the catalog no longer knows, so a
+        // stale value is never carved into the day's public list.
+        const avatar = accountName && isValidAvatarId(accountAvatar) ? accountAvatar : null;
+
         const attempt = await dailyRepo.getAttempt(date, dailyAttemptToken);
         if (!attempt || attempt.status !== 'won_pending_submit') return;
 
-        const elapsedMs = await dailyRepo.submitScore(date, dailyAttemptToken, displayName);
+        const elapsedMs = await dailyRepo.submitScore(date, dailyAttemptToken, displayName, avatar);
         const rank = await dailyRepo.getRank(date, dailyAttemptToken);
         const totalEntries = await dailyRepo.getEntryCount(date);
 

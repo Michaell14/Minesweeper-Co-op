@@ -38,6 +38,13 @@ export type CellUpdate = Cell & { row: number; col: number };
 /** One row of the daily challenge leaderboard, fastest first. */
 export interface DailyLeaderboardEntry {
     name: string;
+    /**
+     * The submitter's avatar id (shared/avatars.js), null for anonymous
+     * entries. Optional because the two halves deploy from the same trunk but
+     * never land atomically — a payload from a pre-avatar server simply lacks
+     * the field.
+     */
+    avatar?: string | null;
     elapsedMs: number;
     rank: number;
 }
