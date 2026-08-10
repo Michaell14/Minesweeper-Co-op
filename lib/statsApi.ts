@@ -103,23 +103,28 @@ export async function fetchStats(): Promise<ProfilePayload | null> {
 
 /**
  * The account's board bests alone — the sign-in sync's read, light enough to
- * hit on every page load. Null when unavailable, and the sync waits.
+ * hit on every page load. Null when unavailable, and the sync waits; a
+ * backend that predates the userId field reads as unavailable too, since a
+ * pull whose account is unknown cannot be scoped to it.
  *
  * Timestamps arrive as ISO strings and leave here as epoch ms: the wire shape
  * stops at this file, so the rest of the client only ever speaks
  * lib/bestTimes.ts's `SyncedBest`.
  */
-export async function fetchBests(): Promise<SyncedBest[] | null> {
+export async function fetchBests(): Promise<{ userId: string; bests: SyncedBest[] } | null> {
     const res = await request("/api/stats/bests", "GET");
     if (!res || !res.ok) return null;
     const data = await res.json().catch(() => null);
-    if (!data || !Array.isArray(data.bests)) return null;
-    return (data.bests as BoardBest[]).map((best) => ({
-        boardKey: best.boardKey,
-        seconds: best.seconds,
-        players: best.players,
-        at: Date.parse(best.achievedAt) || 0,
-    }));
+    if (!data || typeof data.userId !== "string" || !Array.isArray(data.bests)) return null;
+    return {
+        userId: data.userId,
+        bests: (data.bests as BoardBest[]).map((best) => ({
+            boardKey: best.boardKey,
+            seconds: best.seconds,
+            players: best.players,
+            at: Date.parse(best.achievedAt) || 0,
+        })),
+    };
 }
 
 /**

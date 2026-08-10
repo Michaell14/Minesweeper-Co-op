@@ -62,26 +62,41 @@ describe("isPushableBest", () => {
 });
 
 describe("fetchBests", () => {
-    test("hands back epoch-ms records, not the wire's ISO strings", async () => {
+    test("hands back the account and epoch-ms records, not the wire's ISO strings", async () => {
         vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({
+            userId: "acct-1",
             bests: [{ boardKey: "9x9/10", seconds: 30, players: 1, achievedAt: "2026-08-01T12:00:00Z" }],
         })));
 
-        expect(await fetchBests()).toEqual([
-            { boardKey: "9x9/10", seconds: 30, players: 1, at: Date.parse("2026-08-01T12:00:00Z") },
-        ]);
+        expect(await fetchBests()).toEqual({
+            userId: "acct-1",
+            bests: [
+                { boardKey: "9x9/10", seconds: 30, players: 1, at: Date.parse("2026-08-01T12:00:00Z") },
+            ],
+        });
     });
 
     test("an unreadable timestamp becomes 0 rather than NaN", async () => {
         vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({
+            userId: "acct-1",
             bests: [{ boardKey: "9x9/10", seconds: 30, players: 1, achievedAt: "not a date" }],
         })));
 
-        expect((await fetchBests())?.[0]?.at).toBe(0);
+        expect((await fetchBests())?.bests[0]?.at).toBe(0);
     });
 
     test("a malformed body reads as unavailable, not as empty", async () => {
         vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ unexpected: true })));
+
+        expect(await fetchBests()).toBeNull();
+    });
+
+    /* A pull whose account is unknown cannot be scoped to it, so a backend
+     * that predates the field reads as unavailable and the sync waits. */
+    test("a body without the account reads as unavailable", async () => {
+        vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({
+            bests: [{ boardKey: "9x9/10", seconds: 30, players: 1, achievedAt: "2026-08-01T12:00:00Z" }],
+        })));
 
         expect(await fetchBests()).toBeNull();
     });

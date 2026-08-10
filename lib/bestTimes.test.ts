@@ -236,17 +236,20 @@ describe("reading a board never cleared", () => {
 /*
  * The sign-in sync. Both directions are keep-if-faster: a record is a fact
  * about a run, so neither side can "win" a conflict — the faster time simply
- * is the record.
+ * is the record. Pulled records are scoped to the ACCOUNT they came from,
+ * which is what keeps two accounts sharing a browser from trading records
+ * through its localStorage.
  */
 describe("merging the account's server-side records", () => {
-    test("a faster server time lands locally and reports the pull", () => {
+    test("a faster server time lands locally and reports the change", () => {
         recordBestTime(KEY, { seconds: 90, players: 1, at: 1 });
 
-        const { pulled, toPush } = mergeServerBests([
-            { boardKey: KEY, seconds: 45, players: 1, at: 2 },
-        ]);
+        const { changed, toPush } = mergeServerBests(
+            [{ boardKey: KEY, seconds: 45, players: 1, at: 2 }],
+            "acct-1",
+        );
 
-        expect(pulled).toBe(true);
+        expect(changed).toBe(true);
         expect(readBestTime(KEY)?.seconds).toBe(45);
         expect(toPush).toEqual([]);
     });
@@ -254,11 +257,12 @@ describe("merging the account's server-side records", () => {
     test("a slower server time changes nothing and is offered the local one", () => {
         recordBestTime(KEY, { seconds: 45, players: 1, at: 1 });
 
-        const { pulled, toPush } = mergeServerBests([
-            { boardKey: KEY, seconds: 90, players: 1, at: 2 },
-        ]);
+        const { changed, toPush } = mergeServerBests(
+            [{ boardKey: KEY, seconds: 90, players: 1, at: 2 }],
+            "acct-1",
+        );
 
-        expect(pulled).toBe(false);
+        expect(changed).toBe(false);
         expect(readBestTime(KEY)?.seconds).toBe(45);
         expect(toPush).toEqual([{ boardKey: KEY, seconds: 45, players: 1, at: 1 }]);
     });
@@ -266,11 +270,12 @@ describe("merging the account's server-side records", () => {
     test("a board only one side knows flows to the other", () => {
         recordBestTime(boardKey(9, 9, 10), { seconds: 30, players: 1, at: 1 });
 
-        const { pulled, toPush } = mergeServerBests([
-            { boardKey: KEY, seconds: 45, players: 1, at: 2 },
-        ]);
+        const { changed, toPush } = mergeServerBests(
+            [{ boardKey: KEY, seconds: 45, players: 1, at: 2 }],
+            "acct-1",
+        );
 
-        expect(pulled).toBe(true);
+        expect(changed).toBe(true);
         expect(readBestTime(KEY)?.seconds).toBe(45);
         expect(readBestTime(boardKey(9, 9, 10))?.seconds).toBe(30);
         expect(toPush).toEqual([{ boardKey: "9x9/10", seconds: 30, players: 1, at: 1 }]);
@@ -279,22 +284,26 @@ describe("merging the account's server-side records", () => {
     /* The identity rule holds across the wire: a group clear files under its
      * own suffixed slot, whatever the key claimed. */
     test("a server record is filed by ITS player count, not its key", () => {
-        const { pulled } = mergeServerBests([
-            { boardKey: "16x16/40", seconds: 41, players: 3, at: 2 },
-        ]);
+        const { changed } = mergeServerBests(
+            [{ boardKey: "16x16/40", seconds: 41, players: 3, at: 2 }],
+            "acct-1",
+        );
 
-        expect(pulled).toBe(true);
+        expect(changed).toBe(true);
         expect(readBestTime(boardKey(16, 16, 40, 3))?.seconds).toBe(41);
         expect(readBestTime(boardKey(16, 16, 40))).toBeNull();
     });
 
     test("an unparseable server entry is dropped, the others land", () => {
-        const { pulled } = mergeServerBests([
-            { boardKey: KEY, seconds: Number.NaN, players: 1, at: 2 },
-            { boardKey: "9x9/10", seconds: 30, players: 1, at: 2 },
-        ]);
+        const { changed } = mergeServerBests(
+            [
+                { boardKey: KEY, seconds: Number.NaN, players: 1, at: 2 },
+                { boardKey: "9x9/10", seconds: 30, players: 1, at: 2 },
+            ],
+            "acct-1",
+        );
 
-        expect(pulled).toBe(true);
+        expect(changed).toBe(true);
         expect(readBestTime(KEY)).toBeNull();
         expect(readBestTime(boardKey(9, 9, 10))?.seconds).toBe(30);
     });
@@ -302,10 +311,57 @@ describe("merging the account's server-side records", () => {
     test("an empty server answer pushes everything local and pulls nothing", () => {
         recordBestTime(KEY, { seconds: 90, players: 1, at: 1 });
 
-        const { pulled, toPush } = mergeServerBests([]);
+        const { changed, toPush } = mergeServerBests([], "acct-1");
 
-        expect(pulled).toBe(false);
+        expect(changed).toBe(false);
         expect(toPush).toHaveLength(1);
+    });
+
+    /* The account boundary. Without it, whoever signs in next inherits — and
+     * is credited with — the previous account's records. */
+    test("one account's pulled records leave when another account signs in", () => {
+        mergeServerBests([{ boardKey: KEY, seconds: 45, players: 1, at: 2 }], "acct-1");
+
+        const { changed, toPush } = mergeServerBests([], "acct-2");
+
+        expect(changed).toBe(true);
+        expect(readBestTime(KEY)).toBeNull();
+        expect(toPush).toEqual([]); // never pushed onward, either
+    });
+
+    test("the same account's pulled records stay put and are not re-offered", () => {
+        mergeServerBests([{ boardKey: KEY, seconds: 45, players: 1, at: 2 }], "acct-1");
+
+        const { changed, toPush } = mergeServerBests(
+            [{ boardKey: KEY, seconds: 45, players: 1, at: 2 }],
+            "acct-1",
+        );
+
+        expect(changed).toBe(false);
+        expect(readBestTime(KEY)?.seconds).toBe(45);
+        expect(toPush).toEqual([]);
+    });
+
+    test("browser-earned runs still seed the next account", () => {
+        recordBestTime(boardKey(9, 9, 10), { seconds: 30, players: 1, at: 1 });
+        mergeServerBests([{ boardKey: KEY, seconds: 45, players: 1, at: 2 }], "acct-1");
+
+        const { toPush } = mergeServerBests([], "acct-2");
+
+        expect(readBestTime(boardKey(9, 9, 10))?.seconds).toBe(30);
+        expect(toPush).toEqual([{ boardKey: "9x9/10", seconds: 30, players: 1, at: 1 }]);
+    });
+
+    /* A browser-earned run that beats a pulled record replaces it wholesale —
+     * the slot is this browser's again, and travels like any local record. */
+    test("beating a pulled record makes the slot browser-earned again", () => {
+        mergeServerBests([{ boardKey: KEY, seconds: 45, players: 1, at: 2 }], "acct-1");
+        recordBestTime(KEY, { seconds: 30, players: 1, at: 3 });
+
+        const { toPush } = mergeServerBests([], "acct-2");
+
+        expect(readBestTime(KEY)?.seconds).toBe(30);
+        expect(toPush).toEqual([{ boardKey: KEY, seconds: 30, players: 1, at: 3 }]);
     });
 });
 

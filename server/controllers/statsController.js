@@ -23,9 +23,12 @@ const registerStatsRoutes = (app) => {
 
     // The sync's read half: bests alone, light enough to hit on every
     // sign-in. /api/stats stays the profile page's five-table payload.
+    // userId rides along so the client can scope pulled records to the
+    // account they came from — two accounts sharing a browser must not
+    // trade records through its localStorage.
     app.get('/api/stats/bests', requireUser, async (req, res) => {
         try {
-            res.json({ bests: await statsRepo.getBests(req.user.id) });
+            res.json({ userId: req.user.id, bests: await statsRepo.getBests(req.user.id) });
         } catch (error) {
             console.error('Postgres error reading bests:', error.message);
             res.status(503).json({ error: 'Stats are temporarily unavailable' });

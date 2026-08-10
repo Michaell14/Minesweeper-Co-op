@@ -130,14 +130,15 @@ export default function SettingsSync() {
         // Best times: keep-if-faster in BOTH directions, like the themes merge
         // but symmetric — a record is a fact about a run, so neither side can
         // "win" a conflict; the faster time simply is the record. Server times
-        // this browser lacks land in localStorage; local records the account
-        // lacks are pushed up. New records DURING play need no push here: the
-        // server records signed-in wins itself (utils/statsRecorder), from its
-        // own clock.
-        fetchBests().then((serverBests) => {
-            if (cancelled || serverBests === null) return;
-            const { pulled, toPush } = mergeServerBests(serverBests);
-            if (pulled) useMinesweeperStore.getState().bumpBestTimesVersion();
+        // this browser lacks land in localStorage, scoped to the account they
+        // came from (mergeServerBests evicts another account's on switch);
+        // browser-earned records the account lacks are pushed up. New records
+        // DURING play need no push here: the server records signed-in wins
+        // itself (utils/statsRecorder), from its own clock.
+        fetchBests().then((account) => {
+            if (cancelled || account === null) return;
+            const { changed, toPush } = mergeServerBests(account.bests, account.userId);
+            if (changed) useMinesweeperStore.getState().bumpBestTimesVersion();
             // Best-effort, like every push in this file: a miss is retried on
             // the next sign-in pass. importBests itself filters and caps to
             // the server's contract.

@@ -28,9 +28,21 @@ export interface BestTime {
     players: number;
     /** When it was set, so the display can say how old a record is. */
     at: number;
+    /**
+     * Present when this record arrived from an account pull rather than a run
+     * made on this browser. Pulled records belong to the ACCOUNT: they leave
+     * when a different account signs in and are never pushed onward — without
+     * the mark, two accounts sharing a browser would permanently trade records
+     * through it. Absent means browser-earned, which seeds whoever signs in,
+     * the semantic local records have always had.
+     */
+    pulled?: true;
 }
 
 const STORAGE_KEY = "minesweeper_best_times";
+
+/** Which account the pulled records in STORAGE_KEY came from. */
+const ACCOUNT_KEY = "minesweeper_best_times_account";
 
 /**
  * Separates the board from the size of the group that cleared it. Never appears
@@ -102,7 +114,7 @@ export const labelForBestKey = (key: string): string => {
 /** A stored entry, or null if it is missing or has been corrupted. */
 const parseEntry = (value: unknown): BestTime | null => {
     if (typeof value !== "object" || value === null) return null;
-    const { seconds, players, at } = value as Record<string, unknown>;
+    const { seconds, players, at, pulled } = value as Record<string, unknown>;
     if (typeof seconds !== "number" || !Number.isFinite(seconds) || seconds < 0) return null;
     return {
         seconds,
@@ -111,6 +123,7 @@ const parseEntry = (value: unknown): BestTime | null => {
         // a slot nothing ever looks up.
         players: Number.isInteger(players) && (players as number) > 0 ? (players as number) : 1,
         at: typeof at === "number" && Number.isFinite(at) ? at : 0,
+        ...(pulled === true ? { pulled: true as const } : {}),
     };
 };
 
@@ -218,13 +231,31 @@ export interface SyncedBest {
     at: number;
 }
 
+/** The account the pulled records currently in storage came from. */
+const readSyncedAccount = (): string | null => {
+    if (typeof window === "undefined") return null;
+    try {
+        return window.localStorage.getItem(ACCOUNT_KEY);
+    } catch {
+        return null;
+    }
+};
+
 /**
- * Folds the account's server-side records into this browser's, keep-if-faster,
+ * Folds ONE account's server-side records into this browser's, keep-if-faster,
  * and reports what should flow the other way.
  *
- * Returns `pulled` — whether any server record landed locally, so the caller
+ * Returns `changed` — whether the stored records moved at all, so the caller
  * knows mounted readers need a reason to look again — and `toPush`: the local
  * records the server lacks or holds slower, ready for `importBests`.
+ *
+ * The account boundary: entries this merge writes are marked `pulled`, and a
+ * pull for a DIFFERENT account than last time evicts the previous account's
+ * marked entries first — they describe that account's play, possibly on other
+ * devices, and letting them stay would display them as this browser's and
+ * push them onward into the next account. Only unmarked, browser-earned runs
+ * are ever pushed, seeding whoever signs in — the semantic local records have
+ * always had.
  *
  * Every incoming entry goes through the same canonicalisation as a local
  * write: the key's player suffix is derived from the record's OWN count, and
@@ -238,8 +269,20 @@ export interface SyncedBest {
  */
 export const mergeServerBests = (
     server: SyncedBest[],
-): { pulled: boolean; toPush: SyncedBest[] } => {
+    accountId: string,
+): { changed: boolean; toPush: SyncedBest[] } => {
     const local = readBestTimes();
+    let changed = false;
+
+    const sameAccount = readSyncedAccount() === accountId;
+    const kept: Record<string, BestTime> = {};
+    for (const [key, entry] of Object.entries(local)) {
+        if (entry.pulled && !sameAccount) {
+            changed = true;
+            continue;
+        }
+        kept[key] = entry;
+    }
 
     // The server's view, canonically keyed, fastest per slot.
     const serverBySlot = new Map<string, BestTime>();
@@ -251,26 +294,27 @@ export const mergeServerBests = (
         if (!existing || entry.seconds < existing.seconds) serverBySlot.set(key, entry);
     }
 
-    const merged: Record<string, BestTime> = { ...local };
-    let pulled = false;
+    const merged: Record<string, BestTime> = { ...kept };
     for (const [key, entry] of serverBySlot) {
         const existing = merged[key];
         if (!existing || entry.seconds < existing.seconds) {
-            merged[key] = entry;
-            pulled = true;
+            merged[key] = { ...entry, pulled: true };
+            changed = true;
         }
     }
 
-    if (pulled && typeof window !== "undefined") {
+    if (typeof window !== "undefined") {
         try {
-            window.localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+            if (changed) window.localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+            window.localStorage.setItem(ACCOUNT_KEY, accountId);
         } catch {
             // Full or blocked. The pull is lost, but the next sign-in retries.
         }
     }
 
-    const toPush = Object.entries(local)
+    const toPush = Object.entries(kept)
         .filter(([key, entry]) => {
+            if (entry.pulled) return false;
             const known = serverBySlot.get(key);
             return !known || entry.seconds < known.seconds;
         })
@@ -281,14 +325,15 @@ export const mergeServerBests = (
             at: entry.at,
         }));
 
-    return { pulled, toPush };
+    return { changed, toPush };
 };
 
-/** Forgets every record. Used by tests to reset between cases. */
+/** Forgets every record and whose pull they came from. Used by tests. */
 export const clearBestTimes = () => {
     if (typeof window === "undefined") return;
     try {
         window.localStorage.removeItem(STORAGE_KEY);
+        window.localStorage.removeItem(ACCOUNT_KEY);
     } catch {
         // Nothing to do; the records were never persisted anyway.
     }
