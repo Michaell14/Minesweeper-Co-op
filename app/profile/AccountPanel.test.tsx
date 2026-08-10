@@ -150,6 +150,39 @@ describe('the avatar picker', () => {
         expect((screen.getByRole('radio', { name: 'Fox' }) as HTMLInputElement).checked).toBe(false);
     });
 
+    it('a failed save re-syncs from the server instead of restoring a stale snapshot', async () => {
+        const { ProfileApiError } = await vi.importActual<typeof import('@/lib/profileApi')>(
+            '@/lib/profileApi',
+        );
+        // Fox is picked first and persists server-side, but its response is
+        // dropped by the ticket guard once penguin is picked. Penguin then
+        // fails — the snapshot it captured predates fox, so restoring it
+        // would show an avatar the server no longer holds.
+        let resolveFox!: (value: unknown) => void;
+        mockUpdateAvatar.mockImplementationOnce(
+            () => new Promise((resolve) => { resolveFox = resolve; }),
+        );
+        let rejectPenguin!: (error: unknown) => void;
+        mockUpdateAvatar.mockImplementationOnce(
+            () => new Promise((_resolve, reject) => { rejectPenguin = reject; }),
+        );
+        await renderReady();
+
+        fireEvent.click(screen.getByRole('radio', { name: 'Fox' }));
+        fireEvent.click(screen.getByRole('radio', { name: 'Penguin' }));
+
+        resolveFox({ ...PROFILE, avatar: 'fox' });
+        // The re-sync must answer with what the server actually holds now.
+        mockFetchProfile.mockResolvedValue({ ...PROFILE, avatar: 'fox' });
+        rejectPenguin(new ProfileApiError('Invalid avatar', 400));
+
+        await waitFor(() =>
+            expect(screen.getByRole('alert').textContent).toBe('Invalid avatar'),
+        );
+        expect((screen.getByRole('radio', { name: 'Fox' }) as HTMLInputElement).checked).toBe(true);
+        expect((screen.getByRole('radio', { name: 'Smiley' }) as HTMLInputElement).checked).toBe(false);
+    });
+
     it('reverts the pick and says why when the save is refused', async () => {
         const { ProfileApiError } = await vi.importActual<typeof import('@/lib/profileApi')>(
             '@/lib/profileApi',

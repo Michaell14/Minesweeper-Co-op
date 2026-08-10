@@ -97,7 +97,17 @@ export default function AccountPanel() {
             if (saveTicket.current === ticket) setProfile(user);
         } catch (error) {
             if (saveTicket.current !== ticket) return;
-            setProfile(previous);
+            /*
+             * The snapshot can be STALE: an overlapping save may have
+             * persisted after it was taken (its response dropped as
+             * out-of-date by the ticket guard). No local snapshot can know
+             * that, so ask the server for the truth and keep the snapshot
+             * only as the fallback when even that fails — accounts are
+             * likely down at that point and it is the best guess left.
+             */
+            const fresh = await fetchProfile();
+            if (saveTicket.current !== ticket) return;
+            setProfile(fresh ?? previous);
             setAvatarError(
                 error instanceof ProfileApiError ? error.message : 'Could not save right now',
             );
