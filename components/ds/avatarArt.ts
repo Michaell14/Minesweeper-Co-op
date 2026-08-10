@@ -316,9 +316,13 @@ export const AVATAR_ART: Readonly<Record<string, PixelArt>> = {
 };
 
 /**
- * The art for a stored id. Unknown ids — an avatar removed from the catalog,
- * a hand-edited value — fall back to the default rather than rendering blank,
+ * The id whose art actually draws: unknown ids — an avatar removed from the
+ * catalog, a hand-edited value — resolve to the default rather than blank,
  * the same defensive shape as spriteSetById.
  */
+export const resolvedAvatarId = (id: string | null | undefined): string =>
+    id && AVATAR_ART[id] ? id : DEFAULT_AVATAR;
+
+/** The art for a stored id, through the same fallback. */
 export const avatarArtById = (id: string | null | undefined): PixelArt =>
-    (id && AVATAR_ART[id]) || AVATAR_ART[DEFAULT_AVATAR];
+    AVATAR_ART[resolvedAvatarId(id)];

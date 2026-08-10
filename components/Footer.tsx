@@ -60,11 +60,21 @@ export default function Footer() {
             return;
         }
         let cancelled = false;
+        /*
+         * The initial GET is not part of the save queue, so it can resolve
+         * AFTER a save's update event with a snapshot read before that save.
+         * Any event heard while the fetch is in flight is strictly fresher —
+         * the save it reports was issued after the fetch began — so once one
+         * arrives, the fetch result is stale and must not apply.
+         */
+        let heardUpdate = false;
         fetchProfile().then((user) => {
-            if (!cancelled && user) setAvatarId(user.avatar);
+            if (!cancelled && !heardUpdate && user) setAvatarId(user.avatar);
         });
-        const onProfileUpdated = (event: Event) =>
+        const onProfileUpdated = (event: Event) => {
+            heardUpdate = true;
             setAvatarId((event as CustomEvent<ProfileUser>).detail.avatar);
+        };
         window.addEventListener(PROFILE_UPDATED_EVENT, onProfileUpdated);
         return () => {
             cancelled = true;

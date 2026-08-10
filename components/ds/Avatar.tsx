@@ -1,6 +1,6 @@
 import React from "react";
 import { rectsOf } from "./pixelArt";
-import { avatarArtById } from "./avatarArt";
+import { avatarArtById, resolvedAvatarId } from "./avatarArt";
 
 export interface AvatarProps {
     /** A catalog id from shared/avatars.js; unknown/null falls back to the default. */
@@ -27,6 +27,9 @@ export default function Avatar({ id, size = 32, className }: AvatarProps) {
             aria-hidden="true"
             focusable="false"
             className={className}
+            // Which face actually drew — the board cells' data-sprite pattern.
+            // The art is otherwise indistinguishable to tests and tooling.
+            data-avatar={resolvedAvatarId(id)}
         >
             {rectsOf(avatarArtById(id)).map(({ x, y, w, fill }, i) => (
                 <rect key={i} x={x} y={y} width={w} height={1} fill={fill} />

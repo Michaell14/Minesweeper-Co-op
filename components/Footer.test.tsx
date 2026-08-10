@@ -30,7 +30,17 @@ vi.mock('@/app/store', () => ({
         selector({ playerJoined: false, dailyActive: false }),
 }));
 
+const mockFetchProfile = vi.fn();
+vi.mock('@/lib/profileApi', async () => {
+    const actual = await vi.importActual<typeof import('@/lib/profileApi')>('@/lib/profileApi');
+    return {
+        ...actual,
+        fetchProfile: (...args: unknown[]) => mockFetchProfile(...args),
+    };
+});
+
 import Footer from './Footer';
+import { PROFILE_UPDATED_EVENT } from '@/lib/profileApi';
 import { LATEST_ENTRY_DATE } from '@/lib/changelog';
 import { DIALOGS } from '@/lib/dialogs';
 
@@ -39,6 +49,10 @@ beforeEach(() => {
     mockUseSession.mockReturnValue({ data: null, status: 'unauthenticated' });
     mockUsePathname.mockReset();
     mockUsePathname.mockReturnValue('/');
+    mockFetchProfile.mockReset();
+    // "Accounts unavailable" by default — signed-in tests that care about the
+    // avatar set up their own answer.
+    mockFetchProfile.mockResolvedValue(null);
     localStorage.clear();
 });
 
@@ -147,5 +161,61 @@ describe('the user icon', () => {
         const link = screen.getByRole('link', { name: 'Account' }) as HTMLAnchorElement;
         expect(link.getAttribute('href')).toBe('/profile');
         expect(screen.queryByRole('button', { name: 'Sign in' })).toBeNull();
+    });
+});
+
+/**
+ * The signed-in icon's avatar and its one ordering rule: the initial GET is
+ * not part of the profile-save queue, so an update event heard while it is
+ * in flight is strictly fresher — the fetch result must not apply over it.
+ * The failure is silent (the icon just shows the wrong face until reload).
+ */
+describe('the avatar icon', () => {
+    const PROFILE = {
+        id: 'uuid-1',
+        provider: 'github',
+        email: null,
+        displayName: 'Michael',
+        avatar: 'classic',
+        createdAt: '2026-08-02',
+    };
+
+    const profileLink = () => screen.getByRole('link', { name: 'Profile' });
+    const shownAvatar = () =>
+        profileLink().querySelector('svg[data-avatar]')?.getAttribute('data-avatar') ?? null;
+
+    beforeEach(() => {
+        mockUseSession.mockReturnValue({ data: { user: {} }, status: 'authenticated' });
+    });
+
+    it('shows the fetched avatar once the initial load answers', async () => {
+        mockFetchProfile.mockResolvedValue({ ...PROFILE, avatar: 'robot' });
+        render(<Footer />);
+
+        await screen.findByRole('link', { name: 'Profile' });
+        await vi.waitFor(() => expect(shownAvatar()).toBe('robot'));
+    });
+
+    it('an update event during the initial fetch wins over the stale result', async () => {
+        let resolveFetch!: (value: unknown) => void;
+        mockFetchProfile.mockImplementation(
+            () => new Promise((resolve) => { resolveFetch = resolve; }),
+        );
+        render(<Footer />);
+        await vi.waitFor(() => expect(mockFetchProfile).toHaveBeenCalled());
+
+        // A save lands while the fetch is still open.
+        act(() => {
+            window.dispatchEvent(
+                new CustomEvent(PROFILE_UPDATED_EVENT, { detail: { ...PROFILE, avatar: 'fox' } }),
+            );
+        });
+        await vi.waitFor(() => expect(shownAvatar()).toBe('fox'));
+
+        // The pre-save snapshot arrives last — it must not regress the icon.
+        await act(async () => {
+            resolveFetch(PROFILE);
+        });
+        expect(shownAvatar()).toBe('fox');
     });
 });
