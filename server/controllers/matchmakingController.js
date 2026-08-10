@@ -165,8 +165,8 @@ const startMatch = async ({ host, hostSocket, guestSocket, guestName, guestSessi
         hostSocket.join(room);
         guestSocket.join(room);
 
-        await addPlayerToRoom(room, hostSocket.id, host.name, host.sessionId);
-        await addPlayerToRoom(room, guestSocket.id, guestName, guestSessionId);
+        await addPlayerToRoom(room, hostSocket.id, host.name, host.sessionId, hostSocket.data?.user?.avatar);
+        await addPlayerToRoom(room, guestSocket.id, guestName, guestSessionId, guestSocket.data?.user?.avatar);
 
         // The dimensions travel for the same reason a manual join carries them: the
         // flag counter is client-side and has nothing else to size itself from.
@@ -174,8 +174,12 @@ const startMatch = async ({ host, hostSocket, guestSocket, guestName, guestSessi
         io.to(hostSocket.id).emit(SERVER_EVENTS.JOIN_ROOM_SUCCESS, { ...joined, isHost: true });
         io.to(guestSocket.id).emit(SERVER_EVENTS.JOIN_ROOM_SUCCESS, { ...joined, isHost: false });
 
-        io.to(hostSocket.id).emit(SERVER_EVENTS.PVP_ROOM_READY, { opponentName: guestName, isHost: true });
-        io.to(guestSocket.id).emit(SERVER_EVENTS.PVP_ROOM_READY, { opponentName: host.name, isHost: false });
+        // Read back from the records addPlayerToRoom just wrote, so the avatar
+        // the opponent sees is the validated stored one, same as the join path.
+        const hostAvatar = await playerRepo.getAvatar(hostSocket.id);
+        const guestAvatar = await playerRepo.getAvatar(guestSocket.id);
+        io.to(hostSocket.id).emit(SERVER_EVENTS.PVP_ROOM_READY, { opponentName: guestName, opponentAvatar: guestAvatar, isHost: true });
+        io.to(guestSocket.id).emit(SERVER_EVENTS.PVP_ROOM_READY, { opponentName: host.name, opponentAvatar: hostAvatar, isHost: false });
 
         return room;
     } catch (error) {

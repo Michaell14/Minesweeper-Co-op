@@ -304,8 +304,18 @@ describe('playerRepo', () => {
     test('create seeds a zero score and starts the 24h expiry', async () => {
         await playerRepo.create('sock-1', { room: 'r1', name: 'Mike' });
 
-        expect(client.hSet).toHaveBeenCalledWith('player:sock-1', { room: 'r1', name: 'Mike', score: '0', sessionId: '' });
+        // avatar '' is the stored form of "anonymous" — the hash holds strings.
+        expect(client.hSet).toHaveBeenCalledWith('player:sock-1', { room: 'r1', name: 'Mike', avatar: '', score: '0', sessionId: '' });
         expect(client.expire).toHaveBeenCalledWith('player:sock-1', 86400);
+    });
+
+    test('create stores a signed-in player\'s avatar', async () => {
+        await playerRepo.create('sock-1', { room: 'r1', name: 'Mike', avatar: 'fox' });
+
+        expect(client.hSet).toHaveBeenCalledWith(
+            'player:sock-1',
+            expect.objectContaining({ avatar: 'fox' }),
+        );
     });
 
     test('create records the session id when one is supplied', async () => {

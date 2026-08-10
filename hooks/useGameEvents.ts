@@ -218,6 +218,7 @@ const pvpHandlers = (socket: AppSocket): SocketHandlers => ({
         const store = useMinesweeperStore.getState();
         store.setPvpRoomReady(true);
         if (data?.opponentName) store.setPvpOpponentName(data.opponentName);
+        if (data?.opponentAvatar !== undefined) store.setPvpOpponentAvatar(data.opponentAvatar);
         if (data?.isHost !== undefined) store.setPvpIsHost(data.isHost);
     },
 
@@ -229,10 +230,11 @@ const pvpHandlers = (socket: AppSocket): SocketHandlers => ({
         store.setPvpOpponentProgress(0);
     },
 
-    [SERVER_EVENTS.PVP_BOARD_UPDATE]: ({ board, opponentName, opponentProgress, totalSafeCells }) => {
+    [SERVER_EVENTS.PVP_BOARD_UPDATE]: ({ board, opponentName, opponentAvatar, opponentProgress, totalSafeCells }) => {
         const store = useMinesweeperStore.getState();
         store.setBoard(board);
         if (opponentName) store.setPvpOpponentName(opponentName);
+        if (opponentAvatar !== undefined) store.setPvpOpponentAvatar(opponentAvatar);
         if (opponentProgress !== undefined) store.setPvpOpponentProgress(opponentProgress);
         if (totalSafeCells !== undefined) store.setPvpTotalSafeCells(totalSafeCells);
     },

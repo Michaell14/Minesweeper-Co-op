@@ -176,8 +176,9 @@ describe('two searchers', () => {
         expect(bob.rooms.has(aliceJoin.room)).toBe(true);
 
         // The lobby, announced exactly as a hand-made PVP room announces it.
-        expect(payloadOf('alice', SERVER_EVENTS.PVP_ROOM_READY)).toEqual({ opponentName: 'Bob', isHost: true });
-        expect(payloadOf('bob', SERVER_EVENTS.PVP_ROOM_READY)).toEqual({ opponentName: 'Alice', isHost: false });
+        // Anonymous searchers, so opponentAvatar is null on both sides.
+        expect(payloadOf('alice', SERVER_EVENTS.PVP_ROOM_READY)).toEqual({ opponentName: 'Bob', opponentAvatar: null, isHost: true });
+        expect(payloadOf('bob', SERVER_EVENTS.PVP_ROOM_READY)).toEqual({ opponentName: 'Alice', opponentAvatar: null, isHost: false });
 
         // Nobody is left waiting.
         expect(await matchRepo.listWaiting()).toEqual([]);

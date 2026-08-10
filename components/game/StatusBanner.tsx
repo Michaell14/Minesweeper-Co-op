@@ -1,6 +1,6 @@
 import React from 'react';
 import { useMinesweeperStore } from '@/app/store';
-import { Badge, Button } from '@/components/ds';
+import { Avatar, Badge, Button } from '@/components/ds';
 
 export interface StatusBannerProps {
     startPvpGame: () => void;
@@ -22,12 +22,20 @@ export default function StatusBanner({ startPvpGame, emitConfetti, variant }: St
     const pvpRoomReady = useMinesweeperStore((state) => state.pvpRoomReady);
     const pvpIsHost = useMinesweeperStore((state) => state.pvpIsHost);
     const pvpOpponentName = useMinesweeperStore((state) => state.pvpOpponentName);
+    const pvpOpponentAvatar = useMinesweeperStore((state) => state.pvpOpponentAvatar);
     const pvpWinner = useMinesweeperStore((state) => state.pvpWinner);
 
     const isDesktop = variant === 'desktop';
+    // A signed-in opponent brings their avatar; anonymous shows the name alone.
+    const opponentWithAvatar = (
+        <span className="inline-flex items-center gap-2 align-middle">
+            {pvpOpponentAvatar && <Avatar id={pvpOpponentAvatar} size={24} />}
+            <strong>{pvpOpponentName}</strong>
+        </span>
+    );
     const opponentLine = isDesktop
-        ? <p className="text-pixel-md mb-2">Opponent: <strong>{pvpOpponentName}</strong></p>
-        : <p className="text-pixel-md mb-2">vs <strong>{pvpOpponentName}</strong></p>;
+        ? <p className="text-pixel-md mb-2">Opponent: {opponentWithAvatar}</p>
+        : <p className="text-pixel-md mb-2">vs {opponentWithAvatar}</p>;
 
     return (
         <div className="flex items-center justify-center">

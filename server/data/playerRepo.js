@@ -34,15 +34,25 @@ const remove = async (socketId) => {
     return await client.del(playerKey(socketId));
 };
 
-/** Creates the record and starts its 24h expiry. */
-const create = async (socketId, { room, name, sessionId }) => {
+/** Creates the record and starts its 24h expiry. `avatar` is '' for an
+ * anonymous player — the hash holds strings, so '' is how "none" is stored. */
+const create = async (socketId, { room, name, sessionId, avatar }) => {
     const client = await redisClient;
-    await client.hSet(playerKey(socketId), { room, name, score: '0', sessionId: sessionId || '' });
+    await client.hSet(playerKey(socketId), {
+        room,
+        name,
+        avatar: avatar || '',
+        score: '0',
+        sessionId: sessionId || '',
+    });
     await client.expire(playerKey(socketId), PLAYER_TTL_SECONDS);
 };
 
 const getName = (socketId) => getField(socketId, 'name');
 const getRoom = (socketId) => getField(socketId, 'room');
+
+/** Avatar id, or null — '' (anonymous) and a missing record both read as null. */
+const getAvatar = async (socketId) => (await getField(socketId, 'avatar')) || null;
 
 /** Score as a number; anything unparseable reads as 0. */
 const getScore = async (socketId) => parseInt((await getField(socketId, 'score')) || '0', 10) || 0;
@@ -60,6 +70,7 @@ module.exports = {
     create,
     getName,
     getRoom,
+    getAvatar,
     getScore,
     setScore,
     resetScore,

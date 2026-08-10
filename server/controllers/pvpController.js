@@ -83,14 +83,21 @@ const startPvpGame = async ({ socket, room, isValid, io }) => {
 
         const player1Name = await playerRepo.getName(player1Socket);
         const player2Name = await playerRepo.getName(player2Socket);
+        const player1Avatar = await playerRepo.getAvatar(player1Socket);
+        const player2Avatar = await playerRepo.getAvatar(player2Socket);
 
+        // opponentAvatar rides beside opponentName on the player record for
+        // the same reason the name does: resetMyBoard re-emits identity from
+        // this record, long after the opponent's own record could be gone.
         await playerRepo.setFields(player1Socket, {
             pvpPlayerIndex: '0',
-            opponentName: player2Name
+            opponentName: player2Name,
+            opponentAvatar: player2Avatar || ''
         });
         await playerRepo.setFields(player2Socket, {
             pvpPlayerIndex: '1',
-            opponentName: player1Name
+            opponentName: player1Name,
+            opponentAvatar: player1Avatar || ''
         });
 
         io.to(room).emit(SERVER_EVENTS.GAME_CLOCK, { startedAt, endedAt: null });
@@ -102,6 +109,7 @@ const startPvpGame = async ({ socket, room, isValid, io }) => {
             board: visibleBoard,
             playerIndex: 0,
             opponentName: player2Name,
+            opponentAvatar: player2Avatar,
             opponentProgress: openedCells,
             totalSafeCells
         });
@@ -110,6 +118,7 @@ const startPvpGame = async ({ socket, room, isValid, io }) => {
             board: visibleBoard,
             playerIndex: 1,
             opponentName: player1Name,
+            opponentAvatar: player1Avatar,
             opponentProgress: openedCells,
             totalSafeCells
         });
@@ -172,7 +181,8 @@ const resetMyBoard = async ({ socket, room, isValid, io }) => {
         io.to(socket.id).emit(SERVER_EVENTS.PVP_BOARD_UPDATE, {
             board: projectBoard(JSON.parse(sharedBoard)),
             playerIndex,
-            opponentName: playerData.opponentName || 'Opponent'
+            opponentName: playerData.opponentName || 'Opponent',
+            opponentAvatar: playerData.opponentAvatar || null
         });
 
         const players = roomRepo.playersFrom(roomState);
@@ -270,6 +280,8 @@ const pvpRematch = async ({ socket, room, isValid, io }) => {
 
         const player1Name = await playerRepo.getName(player1Socket);
         const player2Name = await playerRepo.getName(player2Socket);
+        const player1Avatar = await playerRepo.getAvatar(player1Socket);
+        const player2Avatar = await playerRepo.getAvatar(player2Socket);
 
         io.to(room).emit(SERVER_EVENTS.GAME_CLOCK, { startedAt, endedAt: null });
         io.to(player1Socket).emit(SERVER_EVENTS.PVP_REMATCH_STARTED, { totalSafeCells, isHost: true });
@@ -281,6 +293,7 @@ const pvpRematch = async ({ socket, room, isValid, io }) => {
             board: visibleBoard,
             playerIndex: 0,
             opponentName: player2Name,
+            opponentAvatar: player2Avatar,
             opponentProgress: openedCells,
             totalSafeCells
         });
@@ -289,6 +302,7 @@ const pvpRematch = async ({ socket, room, isValid, io }) => {
             board: visibleBoard,
             playerIndex: 1,
             opponentName: player1Name,
+            opponentAvatar: player1Avatar,
             opponentProgress: openedCells,
             totalSafeCells
         });

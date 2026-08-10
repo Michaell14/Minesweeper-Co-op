@@ -116,7 +116,7 @@ io.on('connection', async (socket) => {
                 await roomRepo.setFields(room, { hostSocket: socket.id });
             }
 
-            await addPlayerToRoom(room, socket.id, displayName, socket.handshake.auth?.sessionId);
+            await addPlayerToRoom(room, socket.id, displayName, socket.handshake.auth?.sessionId, socket.data?.user?.avatar);
             io.to(room).emit(SERVER_EVENTS.JOIN_ROOM_SUCCESS, { room, mode, isHost: mode === 'pvp' });
         } catch (error) {
             console.error('Error in createRoom:', error);
@@ -175,7 +175,7 @@ io.on('connection', async (socket) => {
 
                     if (!isReconnecting && players.length >= 2) return false;
 
-                    await addPlayerToRoom(room, socket.id, displayName, sessionId);
+                    await addPlayerToRoom(room, socket.id, displayName, sessionId, socket.data?.user?.avatar);
                     return true;
                 });
 
@@ -185,7 +185,7 @@ io.on('connection', async (socket) => {
                     return;
                 }
             } else {
-                await addPlayerToRoom(room, socket.id, displayName, sessionId);
+                await addPlayerToRoom(room, socket.id, displayName, sessionId, socket.data?.user?.avatar);
             }
 
             /*
@@ -220,13 +220,17 @@ io.on('connection', async (socket) => {
                     const guestSocket = updatedPlayers.find(p => p !== hostSocket);
                     const hostName = await playerRepo.getName(hostSocket);
                     const guestName = await playerRepo.getName(guestSocket);
+                    const hostAvatar = await playerRepo.getAvatar(hostSocket);
+                    const guestAvatar = await playerRepo.getAvatar(guestSocket);
 
                     io.to(hostSocket).emit(SERVER_EVENTS.PVP_ROOM_READY, {
                         opponentName: guestName,
+                        opponentAvatar: guestAvatar,
                         isHost: true
                     });
                     io.to(guestSocket).emit(SERVER_EVENTS.PVP_ROOM_READY, {
                         opponentName: hostName,
+                        opponentAvatar: hostAvatar,
                         isHost: false
                     });
                 }

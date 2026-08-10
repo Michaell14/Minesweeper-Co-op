@@ -55,6 +55,8 @@ export type DailyAttemptStatus = 'failed' | 'won_pending_submit' | 'completed';
 /** One row of the co-op leaderboard. */
 export interface PlayerStats {
     name: string;
+    /** Avatar id, null for anonymous players. Optional across deploy skew. */
+    avatar?: string | null;
     score: number;
 }
 
@@ -229,7 +231,12 @@ export interface ServerToClientEvents {
 
     // --- PVP ---
     pvpRoomFull: () => void;
-    pvpRoomReady: (payload: { opponentName?: string; isHost?: boolean }) => void;
+    pvpRoomReady: (payload: {
+        opponentName?: string;
+        /** Opponent's avatar id, null for anonymous. Optional across deploy skew. */
+        opponentAvatar?: string | null;
+        isHost?: boolean;
+    }) => void;
     pvpGameStarted: (payload: { totalSafeCells?: number }) => void;
     /**
      * Both players get the SAME board — see ARCHITECTURE.md §5. `playerIndex`
@@ -239,6 +246,7 @@ export interface ServerToClientEvents {
         board: Cell[][];
         playerIndex: number;
         opponentName?: string;
+        opponentAvatar?: string | null;
         opponentProgress?: number;
         totalSafeCells?: number;
     }) => void;
