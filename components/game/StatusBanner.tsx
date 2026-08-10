@@ -1,6 +1,6 @@
 import React from 'react';
 import { useMinesweeperStore } from '@/app/store';
-import { Avatar, Badge, Button } from '@/components/ds';
+import { Badge, Button, NameWithAvatar } from '@/components/ds';
 
 export interface StatusBannerProps {
     startPvpGame: () => void;
@@ -26,12 +26,10 @@ export default function StatusBanner({ startPvpGame, emitConfetti, variant }: St
     const pvpWinner = useMinesweeperStore((state) => state.pvpWinner);
 
     const isDesktop = variant === 'desktop';
-    // A signed-in opponent brings their avatar; anonymous shows the name alone.
     const opponentWithAvatar = (
-        <span className="inline-flex items-center gap-2 align-middle">
-            {pvpOpponentAvatar && <Avatar id={pvpOpponentAvatar} size={24} />}
+        <NameWithAvatar avatar={pvpOpponentAvatar} size={24}>
             <strong>{pvpOpponentName}</strong>
-        </span>
+        </NameWithAvatar>
     );
     const opponentLine = isDesktop
         ? <p className="text-pixel-md mb-2">Opponent: {opponentWithAvatar}</p>

@@ -189,11 +189,9 @@ describe('leaderboard reads', () => {
         ]);
         // tok-fast is a signed-in entry with an avatar; tok-slow is anonymous —
         // its avatar field is absent, which Redis reports as null.
-        client.hGet.mockImplementation((key, field) => {
-            const fast = key.includes('tok-fast');
-            if (field === 'name') return Promise.resolve(fast ? 'Speedy' : 'Slowpoke');
-            return Promise.resolve(fast ? 'fox' : null);
-        });
+        client.hmGet.mockImplementation((key) =>
+            Promise.resolve(key.includes('tok-fast') ? ['Speedy', 'fox'] : ['Slowpoke', null])
+        );
 
         const entries = await dailyRepo.getLeaderboardTop('2026-07-30', 50);
 

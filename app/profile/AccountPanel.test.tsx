@@ -128,6 +128,28 @@ describe('the avatar picker', () => {
         expect((screen.getByRole('radio', { name: 'Fox' }) as HTMLInputElement).checked).toBe(true);
     });
 
+    it('applies only the LATEST save when responses come back out of order', async () => {
+        // First pick (fox) answers slowly; second pick (penguin) answers first.
+        let resolveFox!: (value: unknown) => void;
+        mockUpdateAvatar.mockImplementationOnce(
+            () => new Promise((resolve) => { resolveFox = resolve; }),
+        );
+        mockUpdateAvatar.mockResolvedValueOnce({ ...PROFILE, avatar: 'penguin' });
+        await renderReady();
+
+        fireEvent.click(screen.getByRole('radio', { name: 'Fox' }));
+        fireEvent.click(screen.getByRole('radio', { name: 'Penguin' }));
+        await waitFor(() =>
+            expect((screen.getByRole('radio', { name: 'Penguin' }) as HTMLInputElement).checked).toBe(true),
+        );
+
+        // The stale fox response lands last — it must be ignored.
+        resolveFox({ ...PROFILE, avatar: 'fox' });
+        await waitFor(() => expect(mockUpdateAvatar).toHaveBeenCalledTimes(2));
+        expect((screen.getByRole('radio', { name: 'Penguin' }) as HTMLInputElement).checked).toBe(true);
+        expect((screen.getByRole('radio', { name: 'Fox' }) as HTMLInputElement).checked).toBe(false);
+    });
+
     it('reverts the pick and says why when the save is refused', async () => {
         const { ProfileApiError } = await vi.importActual<typeof import('@/lib/profileApi')>(
             '@/lib/profileApi',

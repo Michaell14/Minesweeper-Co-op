@@ -148,6 +148,8 @@ const registerProfileRoutes = (app) => {
         }
 
         if (body.avatar !== undefined) {
+            // Catalog ids only — including no null-to-clear: there is no unset
+            // state, so "reset" is sending 'classic', not sending null.
             if (!isValidAvatarId(body.avatar)) {
                 res.status(400).json({ error: 'Invalid avatar' });
                 return;

@@ -10,6 +10,7 @@
  */
 export { default as Avatar } from "./Avatar";
 export { default as Badge } from "./Badge";
+export { default as NameWithAvatar } from "./NameWithAvatar";
 export { default as Button } from "./Button";
 export { default as ButtonLink } from "./ButtonLink";
 export { default as Dialog, DialogClose } from "./Dialog";
@@ -29,6 +30,7 @@ export type { PixelIconProps } from "./icons";
 export { pointerClass } from "./pointer";
 
 export type { AvatarProps } from "./Avatar";
+export type { NameWithAvatarProps } from "./NameWithAvatar";
 export type { BadgeIntent, BadgeProps, BadgeSize } from "./Badge";
 export type { ButtonIntent, ButtonProps, ButtonSize } from "./Button";
 export type { ButtonLinkProps } from "./ButtonLink";

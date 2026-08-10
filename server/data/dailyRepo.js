@@ -145,12 +145,10 @@ const getLeaderboardTop = async (date, limit = 50) => {
     const client = await redisClient;
     const ranked = await client.zRangeWithScores(dailyLeaderboardKey(date), 0, limit - 1);
     const entries = await Promise.all(
-        ranked.map(async ({ value: token, score }, index) => ({
-            name: await client.hGet(dailyAttemptKey(date, token), 'name'),
-            avatar: (await client.hGet(dailyAttemptKey(date, token), 'avatar')) || null,
-            elapsedMs: score,
-            rank: index + 1,
-        }))
+        ranked.map(async ({ value: token, score }, index) => {
+            const [name, avatar] = await client.hmGet(dailyAttemptKey(date, token), ['name', 'avatar']);
+            return { name, avatar: avatar || null, elapsedMs: score, rank: index + 1 };
+        })
     );
     return entries;
 };

@@ -40,6 +40,10 @@ const createFakeRedis = () => {
             const value = (hashes.get(key) || {})[field];
             return value === undefined ? null : value;
         }),
+        hmGet: jest.fn(async (key, fields) => {
+            const hash = hashes.get(key) || {};
+            return fields.map((field) => (hash[field] === undefined ? null : hash[field]));
+        }),
         hSet: jest.fn(async (key, fields) => {
             const h = hashes.get(key) || {};
             Object.assign(h, fields);

@@ -47,20 +47,34 @@ export default function AccountPanel() {
     const [saved, setSaved] = React.useState(false);
     const [saveError, setSaveError] = React.useState<string | null>(null);
 
+    /*
+     * One ticket counter across BOTH save paths (rename and avatar): each
+     * response carries the whole user, so only the latest request may apply
+     * its answer. Without this, two quick picks race — the older response can
+     * land last and overwrite the newer one, or a failed older save "revert"
+     * a newer one to a stale snapshot.
+     */
+    const saveTicket = React.useRef(0);
+
     const saveName = async () => {
         if (saving) return;
+        const ticket = ++saveTicket.current;
         setSaved(false);
         setSaveError(null);
         setSaving(true);
         try {
             const user = await updateDisplayName(nameDraft);
-            setProfile(user);
-            setNameDraft(user.displayName);
-            setSaved(true);
+            if (saveTicket.current === ticket) {
+                setProfile(user);
+                setNameDraft(user.displayName);
+                setSaved(true);
+            }
         } catch (error) {
-            setSaveError(
-                error instanceof ProfileApiError ? error.message : 'Could not save right now',
-            );
+            if (saveTicket.current === ticket) {
+                setSaveError(
+                    error instanceof ProfileApiError ? error.message : 'Could not save right now',
+                );
+            }
         } finally {
             setSaving(false);
         }
@@ -74,12 +88,15 @@ export default function AccountPanel() {
     const [avatarError, setAvatarError] = React.useState<string | null>(null);
     const saveAvatar = async (id: string) => {
         if (!profile || id === profile.avatar) return;
+        const ticket = ++saveTicket.current;
         const previous = profile;
         setProfile({ ...profile, avatar: id });
         setAvatarError(null);
         try {
-            setProfile(await updateAvatar(id));
+            const user = await updateAvatar(id);
+            if (saveTicket.current === ticket) setProfile(user);
         } catch (error) {
+            if (saveTicket.current !== ticket) return;
             setProfile(previous);
             setAvatarError(
                 error instanceof ProfileApiError ? error.message : 'Could not save right now',

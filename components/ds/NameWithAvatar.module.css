@@ -1,0 +1,20 @@
+.root {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    vertical-align: middle;
+    max-width: 100%;
+}
+
+.avatar {
+    flex-shrink: 0;
+}
+
+/* Text in a flex row overflows instead of wrapping, so a constrained parent
+ * (a capped table cell) gets an ellipsis rather than a blown-out layout. */
+.name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}

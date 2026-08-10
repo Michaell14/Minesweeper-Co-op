@@ -104,6 +104,23 @@ test('an id the catalog does not know is dropped at the door', async () => {
     expect(lastStats()).toEqual([{ name: 'M', avatar: null, score: 0 }]);
 });
 
+test('a rejoin overwrites the stored avatar — signing out between joins clears it', async () => {
+    await join('sock-1', { id: 'uuid-1', displayName: 'Miguel', avatar: 'fox' }, 'Miguel');
+    // Same socket joins again signed OUT: the record exists, so this exercises
+    // the setFields branch, and a stale 'fox' must not survive it.
+    await join('sock-1', null, 'Miguel');
+
+    expect(mockRedis.read('player:sock-1').avatar).toBe('');
+    expect(lastStats()).toEqual([{ name: 'Miguel', avatar: null, score: 0 }]);
+});
+
+test('a rejoin after signing IN gains the avatar the first join lacked', async () => {
+    await join('sock-1', null, 'Miguel');
+    await join('sock-1', { id: 'uuid-1', displayName: 'Miguel', avatar: 'robot' }, 'Miguel');
+
+    expect(mockRedis.read('player:sock-1').avatar).toBe('robot');
+});
+
 test('signed-in and anonymous players share one table, each row honest', async () => {
     await join('sock-1', { id: 'uuid-1', displayName: 'Miguel', avatar: 'penguin' }, 'Miguel');
     await join('sock-2', null, 'Guest');
