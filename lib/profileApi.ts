@@ -94,8 +94,15 @@ export const announceProfileUpdated = (user: ProfileUser): void => {
     window.dispatchEvent(new CustomEvent(PROFILE_UPDATED_EVENT, { detail: user }));
 };
 
-/** Stamps each save so only the LATEST one's response may broadcast. */
+/**
+ * Save ordering for the event channel. `saveSeq` stamps each save at issue;
+ * `announcedSeq` records the newest save whose response has broadcast. A
+ * response announces only if nothing NEWER has announced already — comparing
+ * against issued saves instead would let a newer save that FAILED (and so
+ * wrote nothing) suppress an older success whose user is still the truth.
+ */
 let saveSeq = 0;
+let announcedSeq = 0;
 
 /** One PUT for every profile edit; each caller sends only its own field. */
 async function updateProfile(body: { displayName?: string; avatar?: string }): Promise<ProfileUser> {
@@ -106,9 +113,13 @@ async function updateProfile(body: { displayName?: string; avatar?: string }): P
     const data = await res.json();
     const user = data.user as ProfileUser;
     // Listeners apply these events unconditionally, so an older save's
-    // response arriving last would park them on a stale avatar. The caller's
-    // own ticket guard covers its local state; this covers everyone else's.
-    if (seq === saveSeq) announceProfileUpdated(user);
+    // response must not broadcast over a newer one's. If a newer save is
+    // still in flight, announcing now is fine: its own response (or its
+    // failure re-sync) will re-announce, and the last event wins.
+    if (seq > announcedSeq) {
+        announcedSeq = seq;
+        announceProfileUpdated(user);
+    }
     return user;
 }
 

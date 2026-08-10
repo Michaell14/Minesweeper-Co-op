@@ -51,15 +51,24 @@ export default function AccountPanel() {
     /*
      * Two tickets with different jobs. `profileTicket` orders whole-profile
      * applications across BOTH save paths: each response carries the full
-     * user, so only the newest request may write it — otherwise an older
-     * response landing last overwrites a newer one. `avatarTicket` orders the
-     * avatar FIELD's failure handling (revert, error, re-sync): only a newer
-     * avatar pick may supersede it. A rename must not — each field's outcome
-     * is reported regardless of what the other field is doing, or a failure
-     * vanishes without a trace and looks like a success.
+     * user, and a response applies only if nothing NEWER has applied already
+     * (`appliedTicket`) — comparing against issued requests instead would let
+     * a newer save that FAILED, and so wrote nothing, suppress an older
+     * success. `avatarTicket` orders the avatar FIELD's failure handling
+     * (revert, error, re-sync): only a newer avatar pick may supersede it. A
+     * rename must not — each field's outcome is reported regardless of what
+     * the other field is doing, or a failure vanishes without a trace and
+     * looks like a success.
      */
     const profileTicket = React.useRef(0);
+    const appliedTicket = React.useRef(0);
     const avatarTicket = React.useRef(0);
+    const applyIfNewest = (ticket: number, user: ProfileUser) => {
+        if (ticket > appliedTicket.current) {
+            appliedTicket.current = ticket;
+            setProfile(user);
+        }
+    };
 
     const saveName = async () => {
         if (saving) return;
@@ -69,7 +78,7 @@ export default function AccountPanel() {
         setSaving(true);
         try {
             const user = await updateDisplayName(nameDraft);
-            if (profileTicket.current === ticket) setProfile(user);
+            applyIfNewest(ticket, user);
             // Field UI is single-flight (the button disables while saving),
             // so the outcome is always reported — even when an avatar pick
             // has taken the profile ticket in the meantime.
@@ -99,7 +108,7 @@ export default function AccountPanel() {
         setAvatarError(null);
         try {
             const user = await updateAvatar(id);
-            if (profileTicket.current === ticket) setProfile(user);
+            applyIfNewest(ticket, user);
         } catch (error) {
             // Only a NEWER PICK supersedes this failure — its own outcome
             // governs the field then. A concurrent rename does not: this

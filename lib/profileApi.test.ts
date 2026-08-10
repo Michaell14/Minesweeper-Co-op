@@ -14,7 +14,12 @@ vi.mock("@/lib/authBridge", () => ({
 }));
 vi.mock("@/lib/initSocket", () => ({ serverURL: "http://test" }));
 
-import { PROFILE_UPDATED_EVENT, announceProfileUpdated, updateAvatar } from "./profileApi";
+import {
+    PROFILE_UPDATED_EVENT,
+    announceProfileUpdated,
+    updateAvatar,
+    updateDisplayName,
+} from "./profileApi";
 
 const response = (avatar: string) => ({
     ok: true,
@@ -52,6 +57,31 @@ it("a stale response never broadcasts over a newer save's", async () => {
     await fox;
 
     expect(heard).toEqual(["penguin"]);
+});
+
+it("a newer save that FAILED does not suppress an older success's broadcast", async () => {
+    // The avatar save is in flight when a rename is issued and refused. The
+    // rename wrote nothing, so the avatar's response is still the server's
+    // truth and must reach listeners — comparing against ISSUED saves here
+    // would leave the footer stale until a reload.
+    let resolveFox!: (value: unknown) => void;
+    vi.stubGlobal(
+        "fetch",
+        vi.fn()
+            .mockImplementationOnce(() => new Promise((resolve) => { resolveFox = resolve; }))
+            .mockResolvedValueOnce({
+                ok: false,
+                status: 400,
+                json: async () => ({ error: "Invalid display name" }),
+            }),
+    );
+
+    const fox = updateAvatar("fox");
+    await expect(updateDisplayName("   ")).rejects.toThrow("Invalid display name");
+    resolveFox(response("fox"));
+    await fox;
+
+    expect(heard).toEqual(["fox"]);
 });
 
 it("a lone save broadcasts its response", async () => {
