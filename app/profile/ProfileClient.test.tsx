@@ -5,7 +5,7 @@
  * browser actually holds local bests.
  */
 import React from 'react';
-import { render, screen, waitFor, fireEvent, cleanup } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, cleanup, within } from '@testing-library/react';
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 
 const mockUseSession = vi.fn();
@@ -157,6 +157,46 @@ describe('signed in', () => {
         ]);
         await waitFor(() => expect(screen.getByText(/Imported — kept wherever/)).toBeTruthy());
         clearBestTimes();
+    });
+
+    it('shows five recent games, then ten more per click', async () => {
+        // 18 games: 5 shown, then 10, then the last 3.
+        const many = Array.from({ length: 18 }, (_, i) => ({
+            mode: 'co-op' as const,
+            boardKey: '16x16/40',
+            won: i % 2 === 0,
+            durationMs: 60000,
+            players: 1,
+            finishedAt: `2026-08-02T10:00:00Z`,
+        }));
+        mockFetchStats.mockResolvedValue({ ...PAYLOAD, recentGames: many });
+        render(<ProfileClient />);
+
+        const rows = () =>
+            within(screen.getByRole('table', { name: 'Recent games' })).getAllByRole('row')
+                .length - 1; // minus the header
+
+        await waitFor(() => expect(screen.getByRole('table', { name: 'Recent games' })).toBeTruthy());
+        expect(rows()).toBe(5);
+        // The strip above draws the same slice, and moves with it.
+        expect(screen.getByLabelText('Last 5 games, newest first')).toBeTruthy();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Show 10 more' }));
+        expect(rows()).toBe(15);
+        expect(screen.getByLabelText('Last 15 games, newest first')).toBeTruthy();
+
+        // The last click offers only what is left, then retires.
+        fireEvent.click(screen.getByRole('button', { name: 'Show 3 more' }));
+        expect(rows()).toBe(18);
+        expect(screen.queryByRole('button', { name: /Show \d+ more/ })).toBeNull();
+    });
+
+    it('leaves a short history alone — no expander under five games', async () => {
+        mockFetchStats.mockResolvedValue(PAYLOAD); // two games
+        render(<ProfileClient />);
+        await screen.findByRole('table', { name: 'Recent games' });
+        expect(screen.queryByRole('button', { name: /Show \d+ more/ })).toBeNull();
+        expect(screen.queryByText(/Showing \d+ of/)).toBeNull();
     });
 
     it('shows no import offer on a browser with no records', async () => {

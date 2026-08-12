@@ -29,6 +29,14 @@ const labelForKey = (key: string): string => {
 
 const MODE_LABELS = { 'co-op': 'Co-op', pvp: 'PVP', daily: 'Daily' } as const;
 
+/*
+ * How much of the recent window the panel shows before you ask for more. The
+ * server still sends all RECENT_WINDOW of them; the strip and the table draw
+ * the same slice, so expanding moves both.
+ */
+const RECENT_INITIAL = 5;
+const RECENT_STEP = 10;
+
 const winRate = (wins: number, games: number) =>
     games === 0 ? '—' : `${Math.round((wins / games) * 100)}%`;
 
@@ -49,6 +57,9 @@ export default function ProfileClient() {
      */
     const [freshAchievements, setFreshAchievements] = React.useState<Set<string>>(new Set());
     const seenMarked = React.useRef(false);
+
+    // How many recent games the table is currently showing.
+    const [recentShown, setRecentShown] = React.useState(RECENT_INITIAL);
 
     const load = React.useCallback(() => {
         setState('loading');
@@ -87,6 +98,10 @@ export default function ProfileClient() {
         setImportState(ok ? 'done' : 'failed');
         if (ok) load();
     };
+
+    const recentGames = profile?.recentGames ?? [];
+    const visibleGames = recentGames.slice(0, recentShown);
+    const moreCount = Math.min(RECENT_STEP, recentGames.length - visibleGames.length);
 
     return (
         <main className="max-w-3xl mx-auto px-6 pt-10 pb-24">
@@ -229,7 +244,7 @@ export default function ProfileClient() {
 
                     <section aria-labelledby="profile-recent">
                         <Panel title={<span id="profile-recent">Recent games</span>}>
-                            {profile.recentGames.length === 0 ? (
+                            {recentGames.length === 0 ? (
                                 <p className="text-pixel-sm text-ink-muted">
                                     Nothing yet — this fills with your last{' '}
                                     {RECENT_WINDOW} finished games.
@@ -239,8 +254,8 @@ export default function ProfileClient() {
                                     {/* The trend, at a glance: newest first. */}
                                     <p
                                         className="text-pixel-sm tracking-widest mb-3"
-                                        aria-label={`Last ${profile.recentGames.length} games, newest first`}>
-                                        {profile.recentGames.map((game, i) => (
+                                        aria-label={`Last ${visibleGames.length} games, newest first`}>
+                                        {visibleGames.map((game, i) => (
                                             <span key={i} aria-hidden="true">
                                                 {game.won ? '🟩' : '🟥'}
                                             </span>
@@ -251,7 +266,7 @@ export default function ProfileClient() {
                                             <tr><th>Mode</th><th>Board</th><th>Result</th><th>Time</th><th>When</th></tr>
                                         </thead>
                                         <tbody>
-                                            {profile.recentGames.map((game, i) => (
+                                            {visibleGames.map((game, i) => (
                                                 <tr key={i}>
                                                     <td>{MODE_LABELS[game.mode] ?? game.mode}</td>
                                                     <td>{labelForKey(game.boardKey)}</td>
@@ -266,6 +281,28 @@ export default function ProfileClient() {
                                             ))}
                                         </tbody>
                                     </Table>
+                                    {recentGames.length > RECENT_INITIAL && (
+                                        <div className="mt-4">
+                                            {/* role=status so the count is announced
+                                                after a click — the button vanishes on
+                                                the last one and takes focus with it. */}
+                                            <p
+                                                className="text-pixel-xs text-ink-muted mb-2"
+                                                role="status">
+                                                Showing {visibleGames.length} of{' '}
+                                                {recentGames.length} games
+                                            </p>
+                                            {moreCount > 0 && (
+                                                <Button
+                                                    size="sm"
+                                                    onClick={() =>
+                                                        setRecentShown((n) => n + RECENT_STEP)
+                                                    }>
+                                                    Show {moreCount} more
+                                                </Button>
+                                            )}
+                                        </div>
+                                    )}
                                 </>
                             )}
                         </Panel>
