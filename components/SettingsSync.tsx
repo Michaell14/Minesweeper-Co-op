@@ -6,7 +6,7 @@ import { fetchSettings, saveSettings } from '@/lib/settingsApi';
 import { deleteThemeRemote, fetchThemes, saveThemeRemote } from '@/lib/themesApi';
 import { clearPendingThemeDeletion, readPendingThemeDeletions } from '@/lib/customThemes';
 import { fetchBests, importBests } from '@/lib/statsApi';
-import { mergeServerBests } from '@/lib/bestTimes';
+import { markBestsSynced, mergeServerBests } from '@/lib/bestTimes';
 import { installSoundUnlock } from '@/lib/sound';
 import { msUntilLocalMidnight } from '@/lib/holidays';
 
@@ -139,14 +139,19 @@ export default function SettingsSync() {
         // browser-earned records the account lacks are pushed up. New records
         // DURING play need no push here: the server records signed-in wins
         // itself (utils/statsRecorder), from its own clock.
-        fetchBests().then((account) => {
+        fetchBests().then(async (account) => {
             if (cancelled || account === null) return;
             const { changed, toPush } = mergeServerBests(account.bests, account.userId);
             if (changed) useMinesweeperStore.getState().bumpBestTimesVersion();
+            if (toPush.length === 0) return;
             // Best-effort, like every push in this file: a miss is retried on
-            // the next sign-in pass. importBests itself filters and caps to
-            // the server's contract.
-            if (toPush.length > 0) void importBests(toPush);
+            // the next sign-in pass. importBests filters and caps to the
+            // server's contract and reports what actually landed — which the
+            // account then CLAIMS, so a guest run seeds the first account to
+            // land it rather than every account to sign in after.
+            const landed = await importBests(toPush);
+            if (cancelled || landed === null) return;
+            markBestsSynced(account.userId, landed.map((best) => best.boardKey));
         });
 
         return () => { cancelled = true; };

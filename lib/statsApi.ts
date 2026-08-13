@@ -163,20 +163,22 @@ export function isPushableBest(best: SyncedBest): boolean {
  * Entries outside the server's contract are left behind (`isPushableBest`)
  * and the payload is capped at MAX_BEST_PUSH — one bad or excess entry
  * otherwise 400s the whole push. Anything sliced off is picked up by a later
- * pass, once the entries ahead of it have landed and left `toPush`. True when
- * there was nothing to send.
+ * pass, once the entries ahead of it have landed and left `toPush`.
+ *
+ * Returns the entries that actually LANDED, so the caller can claim exactly
+ * those for the account (lib/bestTimes.ts markBestsSynced) — never the ones
+ * filtered or capped out, which no server holds. Null means the push failed;
+ * an empty array means there was nothing sendable, which is success.
  */
-export async function importBests(bests: SyncedBest[]): Promise<boolean> {
-    const payload = bests
-        .filter(isPushableBest)
-        .slice(0, MAX_BEST_PUSH)
-        .map(({ boardKey, seconds, players, at }) => ({
-            boardKey,
-            seconds,
-            players,
-            achievedAt: at,
-        }));
-    if (payload.length === 0) return true;
+export async function importBests(bests: SyncedBest[]): Promise<SyncedBest[] | null> {
+    const sendable = bests.filter(isPushableBest).slice(0, MAX_BEST_PUSH);
+    if (sendable.length === 0) return [];
+    const payload = sendable.map(({ boardKey, seconds, players, at }) => ({
+        boardKey,
+        seconds,
+        players,
+        achievedAt: at,
+    }));
     const res = await request("/api/stats/import-bests", "POST", { bests: payload });
-    return !!res && (res.status === 204 || res.ok);
+    return res && (res.status === 204 || res.ok) ? sendable : null;
 }

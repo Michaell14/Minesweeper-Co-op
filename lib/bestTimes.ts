@@ -30,12 +30,14 @@ export interface BestTime {
     at: number;
     /**
      * Present when this record belongs to the synced account (ACCOUNT_KEY):
-     * pulled from it, or recorded while signed in to it — in both cases the
-     * account's server already holds the record. Marked records leave when a
-     * different account signs in and are never pushed onward; without the
-     * mark, two accounts sharing a browser would permanently trade records
-     * through it. Absent means an ownerless guest run, which seeds whoever
-     * signs in — the semantic local records have always had.
+     * pulled from it, recorded while signed in to it, or claimed by it after
+     * a landed push (markBestsSynced) — in every case that account's server
+     * holds the record. Marked records leave when a different account signs
+     * in and are never pushed onward; without the mark, two accounts sharing
+     * a browser would permanently trade records through it. Absent means an
+     * ownerless guest run, which seeds the FIRST account whose push lands and
+     * is claimed by it — whose run it really was is unknowable, and one
+     * account holding it beats every account holding it.
      */
     synced?: true;
 }
@@ -255,10 +257,12 @@ const readSyncedAccount = (): string | null => {
  * and a pull for a DIFFERENT account than last time evicts the previous
  * account's marked entries first — they describe that account's play, and
  * letting them stay would display them as this browser's and push them onward
- * into the next account. Only unmarked guest runs are ever pushed, seeding
- * whoever signs in — the semantic local records have always had. A marked
- * entry evicted by mistake (a stale stamp) heals here too: if the account's
- * server really holds it, the same pass pulls it straight back.
+ * into the next account. Only unmarked guest runs are ever pushed, and once
+ * a push LANDS the caller claims them for the account (markBestsSynced) — a
+ * guest run seeds the first account to land it, not every account to sign in
+ * after. A marked entry evicted by mistake (a stale stamp) heals here too:
+ * if the account's server really holds it, the same pass pulls it straight
+ * back.
  *
  * Every incoming entry goes through the same canonicalisation as a local
  * write: the key's player suffix is derived from the record's OWN count, and
@@ -329,6 +333,41 @@ export const mergeServerBests = (
         }));
 
     return { changed, toPush };
+};
+
+/**
+ * Claims records for the synced account after their push has LANDED.
+ *
+ * `boardKeys` is what importBests reports it actually sent — only that is
+ * claimed, never the whole store: an entry filtered or capped out of the
+ * payload is on no server, and claiming it would evict it on the next
+ * account switch with nowhere to pull it back from. Refused outright when
+ * `accountId` is no longer the synced account: a later sync owns storage
+ * now, and a stale claim would misfile whatever landed since.
+ *
+ * No reader-refresh signal needed: a claim changes who a record belongs to,
+ * not what any display shows.
+ */
+export const markBestsSynced = (accountId: string, boardKeys: string[]) => {
+    if (typeof window === "undefined" || boardKeys.length === 0) return;
+    if (readSyncedAccount() !== accountId) return;
+
+    const times = readBestTimes();
+    let changed = false;
+    for (const key of boardKeys) {
+        const entry = times[key];
+        if (entry && !entry.synced) {
+            times[key] = { ...entry, synced: true };
+            changed = true;
+        }
+    }
+    if (!changed) return;
+
+    try {
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(times));
+    } catch {
+        // Full or blocked; the next sign-in pass pushes and claims again.
+    }
 };
 
 /** Forgets every record and whose pull they came from. Used by tests. */

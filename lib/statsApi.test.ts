@@ -103,13 +103,15 @@ describe("fetchBests", () => {
 });
 
 describe("importBests", () => {
-    test("pushes only contract-fitting entries, timestamps renamed for the wire", async () => {
+    /* The return value is the claim list — the caller marks exactly these as
+     * the account's, so it must name what was sent, never what was left out. */
+    test("pushes only contract-fitting entries and reports exactly those", async () => {
         const fetchMock = vi.fn(async () => ({ ok: true, status: 204 }) as Response);
         vi.stubGlobal("fetch", fetchMock);
 
-        const ok = await importBests([RECORD, { ...RECORD, boardKey: "9x9/10", seconds: 100_000 }]);
+        const landed = await importBests([RECORD, { ...RECORD, boardKey: "9x9/10", seconds: 100_000 }]);
 
-        expect(ok).toBe(true);
+        expect(landed).toEqual([RECORD]);
         expect(fetchMock).toHaveBeenCalledTimes(1);
         expect(sentBody(fetchMock).bests).toEqual([
             { boardKey: "16x16/40", seconds: 92, players: 1, achievedAt: RECORD.at },
@@ -120,15 +122,21 @@ describe("importBests", () => {
         const fetchMock = vi.fn();
         vi.stubGlobal("fetch", fetchMock);
 
-        expect(await importBests([{ ...RECORD, seconds: -1 }])).toBe(true);
+        expect(await importBests([{ ...RECORD, seconds: -1 }])).toEqual([]);
         expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    test("a failed push reports null, not an empty claim", async () => {
+        vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, status: 503 }) as Response));
+
+        expect(await importBests([RECORD])).toBeNull();
     });
 
     test("caps the payload at the server's bound", async () => {
         const fetchMock = vi.fn(async () => ({ ok: true, status: 204 }) as Response);
         vi.stubGlobal("fetch", fetchMock);
 
-        await importBests(
+        const landed = await importBests(
             Array.from({ length: MAX_BEST_PUSH + 5 }, (_, i) => ({
                 ...RECORD,
                 boardKey: `9x9/${i + 1}`,
@@ -136,5 +144,6 @@ describe("importBests", () => {
         );
 
         expect(sentBody(fetchMock).bests).toHaveLength(MAX_BEST_PUSH);
+        expect(landed).toHaveLength(MAX_BEST_PUSH);
     });
 });
