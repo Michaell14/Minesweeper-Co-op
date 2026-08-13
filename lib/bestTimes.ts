@@ -29,23 +29,15 @@ export interface BestTime {
     /** When it was set, so the display can say how old a record is. */
     at: number;
     /**
-     * Present when this record belongs to the synced account (ACCOUNT_KEY):
-     * pulled from it, recorded while signed in to it, or claimed by it after
-     * a landed push (markBestsSynced) — in every case that account's server
-     * holds the record. Marked records leave when a different account signs
-     * in and are never pushed onward; without the mark, two accounts sharing
-     * a browser would permanently trade records through it. Absent means an
-     * ownerless guest run, which seeds the FIRST account whose push lands and
-     * is claimed by it — whose run it really was is unknowable, and one
-     * account holding it beats every account holding it.
+     * The account this record belongs to: pulled from it, won under it, or
+     * claimed by it after a landed push. Owned records leave when a different
+     * account signs in and only travel to their owner; absent means an
+     * ownerless guest run, which seeds the first account whose push lands.
      */
-    synced?: true;
+    account?: string;
 }
 
 const STORAGE_KEY = "minesweeper_best_times";
-
-/** Which account the pulled records in STORAGE_KEY came from. */
-const ACCOUNT_KEY = "minesweeper_best_times_account";
 
 /**
  * Separates the board from the size of the group that cleared it. Never appears
@@ -117,7 +109,7 @@ export const labelForBestKey = (key: string): string => {
 /** A stored entry, or null if it is missing or has been corrupted. */
 const parseEntry = (value: unknown): BestTime | null => {
     if (typeof value !== "object" || value === null) return null;
-    const { seconds, players, at, synced } = value as Record<string, unknown>;
+    const { seconds, players, at, account } = value as Record<string, unknown>;
     if (typeof seconds !== "number" || !Number.isFinite(seconds) || seconds < 0) return null;
     return {
         seconds,
@@ -126,8 +118,18 @@ const parseEntry = (value: unknown): BestTime | null => {
         // a slot nothing ever looks up.
         players: Number.isInteger(players) && (players as number) > 0 ? (players as number) : 1,
         at: typeof at === "number" && Number.isFinite(at) ? at : 0,
-        ...(synced === true ? { synced: true as const } : {}),
+        ...(typeof account === "string" && account !== "" ? { account } : {}),
     };
+};
+
+/** The one write path; storage full or blocked loses the write, not the page. */
+const writeBestTimes = (times: Record<string, BestTime>) => {
+    if (typeof window === "undefined") return;
+    try {
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(times));
+    } catch {
+        // The next write or sync pass retries.
+    }
 };
 
 /**
@@ -204,24 +206,14 @@ export const readBestTime = (key: string): BestTime | null => readBestTimes()[ke
  */
 export const recordBestTime = (
     givenKey: string,
-    run: { seconds: number; players: number; at: number; synced?: true },
+    run: { seconds: number; players: number; at: number; account?: string },
 ): { improved: boolean; previous: BestTime | null } => {
     const key = withPlayers(boardPartOf(givenKey), run.players);
     const times = readBestTimes();
     const previous = times[key] ?? null;
     const improved = previous === null || run.seconds < previous.seconds;
 
-    if (improved && typeof window !== "undefined") {
-        try {
-            window.localStorage.setItem(
-                STORAGE_KEY,
-                JSON.stringify({ ...times, [key]: run }),
-            );
-        } catch {
-            // Full or blocked. The run still shows as a record this session;
-            // only its persistence is lost.
-        }
-    }
+    if (improved) writeBestTimes({ ...times, [key]: run });
 
     return { improved, previous };
 };
@@ -234,45 +226,14 @@ export interface SyncedBest {
     at: number;
 }
 
-/** The account the pulled records currently in storage came from. */
-const readSyncedAccount = (): string | null => {
-    if (typeof window === "undefined") return null;
-    try {
-        return window.localStorage.getItem(ACCOUNT_KEY);
-    } catch {
-        return null;
-    }
-};
-
 /**
- * Folds ONE account's server-side records into this browser's, keep-if-faster,
- * and reports what should flow the other way.
- *
- * Returns `changed` — whether the stored records moved at all, so the caller
- * knows mounted readers need a reason to look again — and `toPush`: the local
- * records the server lacks or holds slower, ready for `importBests`.
- *
- * The account boundary: entries this merge writes are marked `synced` (as are
- * runs recorded while signed in — see recordClear in hooks/useGameEvents.ts),
- * and a pull for a DIFFERENT account than last time evicts the previous
- * account's marked entries first — they describe that account's play, and
- * letting them stay would display them as this browser's and push them onward
- * into the next account. Only unmarked guest runs are ever pushed, and once
- * a push LANDS the caller claims them for the account (markBestsSynced) — a
- * guest run seeds the first account to land it, not every account to sign in
- * after. A marked entry evicted by mistake (a stale stamp) heals here too:
- * if the account's server really holds it, the same pass pulls it straight
- * back.
- *
- * Every incoming entry goes through the same canonicalisation as a local
- * write: the key's player suffix is derived from the record's OWN count, and
- * anything unparseable is dropped rather than trusted. The server applies the
- * identical rule (statsRepo.bestKeyOf), which is what lets the two sides
- * compare keys as plain strings.
- *
- * Daily-challenge clears recorded server-side flow in with everything else,
- * DELIBERATELY: the daily board is a real solo clear of those dimensions, so
- * it may become "your best" for a room of the same size.
+ * Folds one account's server records into this browser's, keep-if-faster both
+ * ways. Evicts other accounts' entries, pulls faster server times (owned by
+ * `accountId`), claims unowned entries the server already ties, and returns
+ * `toPush`: everything faster than the server's copy — owned entries
+ * included, so a record whose server-side write was dropped gets restored.
+ * Daily clears flow in deliberately: a clear of those dimensions is a clear
+ * of that board.
  */
 export const mergeServerBests = (
     server: SyncedBest[],
@@ -281,21 +242,21 @@ export const mergeServerBests = (
     const local = readBestTimes();
     let changed = false;
 
-    const sameAccount = readSyncedAccount() === accountId;
     const kept: Record<string, BestTime> = {};
     for (const [key, entry] of Object.entries(local)) {
-        if (entry.synced && !sameAccount) {
+        if (entry.account && entry.account !== accountId) {
             changed = true;
             continue;
         }
         kept[key] = entry;
     }
 
-    // The server's view, canonically keyed, fastest per slot.
+    // The server's view, canonically keyed by each record's own count —
+    // the same rule as local writes (server side: statsRepo.bestKeyOf).
     const serverBySlot = new Map<string, BestTime>();
     for (const record of server) {
         const entry = parseEntry(record);
-        if (!entry) continue;
+        if (!entry || typeof record.boardKey !== "string") continue;
         const key = withPlayers(boardPartOf(record.boardKey), entry.players);
         const existing = serverBySlot.get(key);
         if (!existing || entry.seconds < existing.seconds) serverBySlot.set(key, entry);
@@ -305,23 +266,19 @@ export const mergeServerBests = (
     for (const [key, entry] of serverBySlot) {
         const existing = merged[key];
         if (!existing || entry.seconds < existing.seconds) {
-            merged[key] = { ...entry, synced: true };
+            merged[key] = { ...entry, account: accountId };
+            changed = true;
+        } else if (!existing.account && entry.seconds === existing.seconds) {
+            // The server verifiably holds this exact time; no push needed.
+            merged[key] = { ...existing, account: accountId };
             changed = true;
         }
     }
 
-    if (typeof window !== "undefined") {
-        try {
-            if (changed) window.localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
-            window.localStorage.setItem(ACCOUNT_KEY, accountId);
-        } catch {
-            // Full or blocked. The pull is lost, but the next sign-in retries.
-        }
-    }
+    if (changed) writeBestTimes(merged);
 
-    const toPush = Object.entries(kept)
+    const toPush = Object.entries(merged)
         .filter(([key, entry]) => {
-            if (entry.synced) return false;
             const known = serverBySlot.get(key);
             return !known || entry.seconds < known.seconds;
         })
@@ -336,50 +293,33 @@ export const mergeServerBests = (
 };
 
 /**
- * Claims records for the synced account after their push has LANDED.
- *
- * `landed` is what importBests reports it actually sent — only that is
- * claimed, never the whole store: an entry filtered or capped out of the
- * payload is on no server, and claiming it would evict it on the next
- * account switch with nowhere to pull it back from. The claim also checks
- * each slot still holds the RUN that landed, not just the key — a faster
- * record set while the push was in flight is unowned too, and
- * `recordBestTime` only ever replaces with strictly faster, so equal seconds
- * identifies the pushed run. Refused outright when `accountId` is no longer
- * the synced account: a later sync owns storage now, and a stale claim
- * would misfile whatever landed since.
- *
- * No reader-refresh signal needed: a claim changes who a record belongs to,
- * not what any display shows.
+ * Claims pushed records once importBests reports them LANDED. Claim-on-land,
+ * not at merge: a claimed entry no server holds would be evicted on the next
+ * account switch with nothing to restore it. Equal seconds identifies the
+ * pushed run (recordBestTime only replaces with strictly faster), and a
+ * misclaim self-heals — an owned entry faster than its server copy re-enters
+ * toPush.
  */
-export const markBestsSynced = (accountId: string, landed: SyncedBest[]) => {
-    if (typeof window === "undefined" || landed.length === 0) return;
-    if (readSyncedAccount() !== accountId) return;
+export const claimBests = (accountId: string, landed: SyncedBest[]) => {
+    if (landed.length === 0) return;
 
     const times = readBestTimes();
     let changed = false;
     for (const record of landed) {
         const entry = times[record.boardKey];
-        if (entry && !entry.synced && entry.seconds === record.seconds) {
-            times[record.boardKey] = { ...entry, synced: true };
+        if (entry && !entry.account && entry.seconds === record.seconds) {
+            times[record.boardKey] = { ...entry, account: accountId };
             changed = true;
         }
     }
-    if (!changed) return;
-
-    try {
-        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(times));
-    } catch {
-        // Full or blocked; the next sign-in pass pushes and claims again.
-    }
+    if (changed) writeBestTimes(times);
 };
 
-/** Forgets every record and whose pull they came from. Used by tests. */
+/** Forgets every record. Used by tests to reset between cases. */
 export const clearBestTimes = () => {
     if (typeof window === "undefined") return;
     try {
         window.localStorage.removeItem(STORAGE_KEY);
-        window.localStorage.removeItem(ACCOUNT_KEY);
     } catch {
         // Nothing to do; the records were never persisted anyway.
     }

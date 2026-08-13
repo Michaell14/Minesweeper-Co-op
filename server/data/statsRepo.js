@@ -303,32 +303,55 @@ const upsertBest = (client, userId, { boardKey, seconds, players, achievedAt }) 
 
 /**
  * Just the bests, for the sign-in sync — getProfile reads five tables the
- * sync has no use for.
+ * sync has no use for. Keys are re-canonicalised on the way out, so a stale
+ * bare group row (see refileLegacyBests) never reaches a client as solo.
  */
 const getBests = async (userId) => {
     if (!pgPool) throw new Error('Postgres is not configured (DATABASE_URL is unset)');
     const result = await pgPool.query(
-        'SELECT board_key, seconds, players, achieved_at FROM user_board_bests WHERE user_id = $1',
+        'SELECT board_key, seconds, players, achieved_at FROM user_board_bests WHERE user_id = $1 ORDER BY achieved_at DESC',
         [userId],
     );
     return result.rows.map((b) => ({
-        boardKey: b.board_key,
+        boardKey: bestKeyOf(b.board_key, b.players),
         seconds: b.seconds,
         players: b.players,
         achievedAt: b.achieved_at,
     }));
 };
 
+/**
+ * Sweeps rows an old dyno wrote bare during a deploy window onto their
+ * canonical keys — the release-phase migration cannot catch writes that land
+ * after it runs, and a bare group row otherwise shadows the solo slot
+ * indefinitely (keep-if-faster never displaces it). Idempotent; run at boot.
+ */
+const refileLegacyBests = async () => {
+    if (!pgPool) return;
+    await pgPool.query(`
+        WITH moved AS (
+            DELETE FROM user_board_bests
+            WHERE players > 1 AND position('@' in board_key) = 0
+            RETURNING user_id, board_key, seconds, players, achieved_at
+        )
+        INSERT INTO user_board_bests (user_id, board_key, seconds, players, achieved_at)
+        SELECT user_id, board_key || '@' || players, seconds, players, achieved_at
+        FROM moved
+        ON CONFLICT (user_id, board_key) DO UPDATE SET
+            seconds = EXCLUDED.seconds,
+            players = EXCLUDED.players,
+            achieved_at = EXCLUDED.achieved_at
+        WHERE EXCLUDED.seconds < user_board_bests.seconds
+    `);
+};
+
 /** Everything the profile page shows, in one read. */
 const getProfile = async (userId) => {
     if (!pgPool) throw new Error('Postgres is not configured (DATABASE_URL is unset)');
 
-    const [stats, bests, recent, daily, achievements] = await Promise.all([
+    const [stats, boardBests, recent, daily, achievements] = await Promise.all([
         pgPool.query('SELECT * FROM user_stats WHERE user_id = $1', [userId]),
-        pgPool.query(
-            'SELECT board_key, seconds, players, achieved_at FROM user_board_bests WHERE user_id = $1 ORDER BY achieved_at DESC',
-            [userId],
-        ),
+        getBests(userId),
         pgPool.query(
             `SELECT mode, board_key, won, duration_ms, players, finished_at
              FROM game_results WHERE user_id = $1
@@ -351,12 +374,7 @@ const getProfile = async (userId) => {
 
     return {
         stats: snapshotOf(stats.rows[0]),
-        boardBests: bests.rows.map((b) => ({
-            boardKey: b.board_key,
-            seconds: b.seconds,
-            players: b.players,
-            achievedAt: b.achieved_at,
-        })),
+        boardBests,
         recentGames: recent.rows.map((g) => ({
             mode: g.mode,
             boardKey: g.board_key,
@@ -379,25 +397,50 @@ const getProfile = async (userId) => {
 
 /**
  * The sync's push: a browser's localStorage bests folded in, keep-if-faster —
- * so a push can only improve a profile, never damage it, and re-pushing is
- * harmless. Client-reported numbers, accepted knowingly (recorded in the
- * PRD): they seed a private profile, not a leaderboard.
+ * a push can only improve a PRIVATE profile, and re-pushing is harmless.
+ * One multi-row statement, not a loop: this runs automatically at sign-in and
+ * must not hold a pooled client for up to a hundred round-trips. Deduped by
+ * canonical key first — two client entries can collapse to one key, which a
+ * multi-row ON CONFLICT refuses to touch twice.
  */
 const importBests = async (userId, bests) => {
     if (!pgPool) throw new Error('Postgres is not configured (DATABASE_URL is unset)');
-    const client = await pgPool.connect();
-    try {
-        await client.query('BEGIN');
-        for (const best of bests) {
-            await upsertBest(client, userId, best);
-        }
-        await client.query('COMMIT');
-    } catch (error) {
-        await client.query('ROLLBACK').catch(() => {});
-        throw error;
-    } finally {
-        client.release();
+
+    const byKey = new Map();
+    for (const best of bests) {
+        const boardKey = bestKeyOf(best.boardKey, best.players);
+        const current = byKey.get(boardKey);
+        if (!current || best.seconds < current.seconds) byKey.set(boardKey, { ...best, boardKey });
     }
+    const rows = [...byKey.values()];
+    if (rows.length === 0) return;
+
+    await pgPool.query(
+        `INSERT INTO user_board_bests (user_id, board_key, seconds, players, achieved_at)
+         SELECT $1, key, secs, count, to_timestamp(achieved / 1000.0)
+         FROM unnest($2::text[], $3::int[], $4::int[], $5::double precision[])
+             AS entry(key, secs, count, achieved)
+         ON CONFLICT (user_id, board_key) DO UPDATE SET
+             seconds = EXCLUDED.seconds,
+             players = EXCLUDED.players,
+             achieved_at = EXCLUDED.achieved_at
+         WHERE EXCLUDED.seconds < user_board_bests.seconds`,
+        [
+            userId,
+            rows.map((r) => r.boardKey),
+            rows.map((r) => r.seconds),
+            rows.map((r) => r.players),
+            rows.map((r) => r.achievedAt),
+        ],
+    );
 };
 
-module.exports = { recordResult, getProfile, getBests, importBests, backfillAchievements, RECENT_WINDOW };
+module.exports = {
+    recordResult,
+    getProfile,
+    getBests,
+    importBests,
+    refileLegacyBests,
+    backfillAchievements,
+    RECENT_WINDOW,
+};

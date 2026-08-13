@@ -511,37 +511,41 @@ describe('backfillAchievements', () => {
 });
 
 describe('importBests', () => {
-    test('runs every upsert inside one transaction', async () => {
-        const client = makeClient();
-        mockConnect.mockResolvedValue(client);
+    const { pgPool } = require('../utils/initializePgClient');
 
+    beforeEach(() => pgPool.query.mockReset());
+
+    // One multi-row statement, not a held-client loop: this runs at sign-in.
+    test('lands the whole batch in a single keep-if-faster statement', async () => {
         await statsRepo.importBests('uuid-1', [
             { boardKey: '9x9/10', seconds: 30, players: 1, achievedAt: 1 },
             { boardKey: '16x16/40', seconds: 99, players: 2, achievedAt: 2 },
         ]);
 
-        const sqls = client.calls.map((c) => c.sql);
-        expect(sqls[0]).toBe('BEGIN');
-        expect(sqls.filter((s) => s.includes('user_board_bests'))).toHaveLength(2);
-        expect(sqls[sqls.length - 1]).toBe('COMMIT');
+        expect(pgPool.query).toHaveBeenCalledTimes(1);
+        const [sql, params] = pgPool.query.mock.calls[0];
+        expect(sql).toMatch(/WHERE EXCLUDED\.seconds < user_board_bests\.seconds/);
+        // The suffix comes from each entry's own count (bestKeyOf), never
+        // from the key handed in.
+        expect(params[1]).toEqual(['9x9/10', '16x16/40@2']);
+        expect(params[2]).toEqual([30, 99]);
     });
 
-    /* The suffix comes from the entry's own count, never from the key handed
-     * in — a client cannot file a group clear on the solo slot by spelling
-     * the key one way and the record another. Same rule as the client's own
-     * writes (lib/bestTimes.ts recordBestTime). */
-    test('files each entry under the key its own player count implies', async () => {
-        const client = makeClient();
-        mockConnect.mockResolvedValue(client);
-
+    // Two entries can collapse to one canonical key, which a multi-row
+    // ON CONFLICT refuses to touch twice — the fastest survives the dedupe.
+    test('dedupes colliding keys server-side, keeping the faster', async () => {
         await statsRepo.importBests('uuid-1', [
-            { boardKey: '16x16/40', seconds: 99, players: 2, achievedAt: 2 },
-            { boardKey: '9x9/10@4', seconds: 30, players: 1, achievedAt: 1 },
+            { boardKey: '9x9/10@4', seconds: 40, players: 1, achievedAt: 1 },
+            { boardKey: '9x9/10', seconds: 30, players: 1, achievedAt: 2 },
         ]);
 
-        const keys = client.calls
-            .filter((c) => c.sql.includes('user_board_bests'))
-            .map((c) => c.params[1]);
-        expect(keys).toEqual(['16x16/40@2', '9x9/10']);
+        const [, params] = pgPool.query.mock.calls[0];
+        expect(params[1]).toEqual(['9x9/10']);
+        expect(params[2]).toEqual([30]);
+    });
+
+    test('an empty batch touches nothing', async () => {
+        await statsRepo.importBests('uuid-1', []);
+        expect(pgPool.query).not.toHaveBeenCalled();
     });
 });

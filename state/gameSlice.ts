@@ -35,32 +35,18 @@ export interface GameSlice {
     bestTimeResult: BestTimeResult | null;
 
     /*
-     * Bumped when the sign-in sync rewrites the localStorage bests
-     * (SettingsSync). localStorage has no change event of its own in the tab
-     * that wrote it, so without this a mounted useBestTime would keep showing
-     * the record from before the account's times arrived.
+     * Bumped when the sign-in sync rewrites the stored bests — localStorage
+     * fires no change event in the tab that wrote it.
      */
     bestTimesVersion: number;
 
     /*
-     * True once the sign-in sync has staked the account's claim on this
-     * browser's best times — mergeServerBests ran, so the stored account
-     * marker now names the signed-in account. Set by SettingsSync, the
-     * account-lifecycle owner; in the store because the win handlers are not
-     * components and cannot ask useSession.
-     *
-     * A clear made while TRUE is stamped as the account's at the win
-     * (recordClear in hooks/useGameEvents.ts), which is what keeps it from
-     * being pushed into the next account to sign in on this browser. NOT
-     * simply "is a session signed in": a win landing between sign-in and the
-     * first merge would be stamped while the marker still names another
-     * account (or nothing), and the merge would evict it as foreign — with a
-     * pull that may predate the server's own record of the win, so nothing
-     * restores it. Left unstamped instead, that win rides the same sync:
-     * pushed to the account and claimed, keep-if-faster making the server's
-     * own duplicate write harmless.
+     * The account whose sync currently owns this browser's bests, set by
+     * SettingsSync after the merge and null until then — a win stamped before
+     * the merge would race the sync (see recordClear). In the store because
+     * win handlers are not components and cannot ask useSession.
      */
-    bestsAccountReady: boolean;
+    bestsAccountId: string | null;
 
     /*
      * The cell the last batch of reveals started from — read only by the cascade
@@ -79,7 +65,7 @@ export interface GameSlice {
     setClock: (clock: { startedAt: number | null; endedAt: number | null }) => void;
     setBestTimeResult: (result: BestTimeResult | null) => void;
     bumpBestTimesVersion: () => void;
-    setBestsAccountReady: (ready: boolean) => void;
+    setBestsAccountId: (accountId: string | null) => void;
 }
 
 export const createGameSlice: StateCreator<MinesweeperState, [], [], GameSlice> = (set) => ({
@@ -90,7 +76,7 @@ export const createGameSlice: StateCreator<MinesweeperState, [], [], GameSlice> 
     endedAt: null,
     bestTimeResult: null,
     bestTimesVersion: 0,
-    bestsAccountReady: false,
+    bestsAccountId: null,
     cascadeOrigin: null,
 
     setBoard: (newBoard) => set({ board: newBoard }),
@@ -175,5 +161,5 @@ export const createGameSlice: StateCreator<MinesweeperState, [], [], GameSlice> 
     bumpBestTimesVersion: () =>
         set((state) => ({ bestTimesVersion: state.bestTimesVersion + 1 })),
 
-    setBestsAccountReady: (bestsAccountReady) => set({ bestsAccountReady }),
+    setBestsAccountId: (bestsAccountId) => set({ bestsAccountId }),
 });

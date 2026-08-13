@@ -24,7 +24,7 @@ import type { SocketHandlers } from "./useSocketEvents";
  * component would re-run it on every render of a dialog that stays open.
  */
 const recordClear = () => {
-    const { startedAt, endedAt, numRows, numCols, numMines, playerStatsInRoom, mode, bestsAccountReady } =
+    const { startedAt, endedAt, numRows, numCols, numMines, playerStatsInRoom, mode, bestsAccountId } =
         useMinesweeperStore.getState();
     // No clock, no record. Better a missing best than an invented one.
     if (startedAt === null || endedAt === null) return;
@@ -38,14 +38,8 @@ const recordClear = () => {
             seconds: elapsedSeconds(startedAt, endedAt),
             players,
             at: endedAt,
-            // A run made under an account belongs to it: the server records
-            // the win to that account itself, and the mark keeps the local
-            // copy from being pushed into whoever signs in on this browser
-            // next (lib/bestTimes.ts, `synced`). Gated on the sync having
-            // staked the account's claim, not on being signed in — see
-            // gameSlice.bestsAccountReady for the eviction a too-early stamp
-            // invites.
-            ...(bestsAccountReady ? { synced: true as const } : {}),
+            // A win under an account is the account's (lib/bestTimes.ts).
+            ...(bestsAccountId ? { account: bestsAccountId } : {}),
         }),
     );
 };

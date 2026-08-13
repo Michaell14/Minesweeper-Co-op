@@ -51,7 +51,13 @@ describe("isPushableBest", () => {
         ["a fractional player count", { ...RECORD, players: 2.5 }],
         ["a player count past the bound", { ...RECORD, players: 101 }],
         ["a negative time", { ...RECORD, seconds: -1 }],
+        // Postgres rejects fractional text into an integer column — one such
+        // entry would roll back the whole import.
+        ["fractional seconds", { ...RECORD, seconds: 45.5 }],
         ["an unusable timestamp", { ...RECORD, at: Number.NaN }],
+        // Finite but past to_timestamp's range — same rollback.
+        ["a timestamp past the far-future bound", { ...RECORD, at: 1e16 }],
+        ["a negative timestamp", { ...RECORD, at: -1 }],
     ])("rejects %s", (_label, best) => {
         expect(isPushableBest(best)).toBe(false);
     });

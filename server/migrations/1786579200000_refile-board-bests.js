@@ -1,32 +1,15 @@
-/**
- * Re-files user_board_bests under the client's key identity: group clears
- * take a `@players` suffix (`16x16/40@3`), solo stays bare — the same
- * re-filing lib/bestTimes.ts applies to its own localStorage
- * (`byPlayerCount`), and what statsRepo.bestKeyOf writes from here on. Until
- * now the server kept ONE slot per board whatever the group size, so a
- * three-player clear could hold the slot a solo run should own.
- *
- * Where the suffixed slot already exists the faster time survives — the same
- * keep-if-faster rule as every other write to this table.
- *
- * PVP rows recorded before recordResult learned that a race is solo work
- * carry players = 2, and the mode is not stored, so they cannot be told apart
- * from co-op pairs; they re-file under `@2` with everything else. Harmless:
- * the solo slot repopulates on the next win, and the `@2` row still means
- * what it says — a clear recorded with two in the room.
- */
+// Re-files user_board_bests under the client's key identity: group clears
+// take a `@players` suffix, solo stays bare (statsRepo.bestKeyOf), faster
+// surviving on collision. One statement so a row committed mid-migration is
+// never deleted without being re-filed; rows old dynos write AFTER this runs
+// are swept by statsRepo.refileLegacyBests at every boot.
+//
+// Pre-branch PVP wins carry players = 2 with no stored mode, so they re-file
+// under @2 and the sync then shows them client-side as 2-player co-op bests
+// until a real duo clear (typically faster) displaces them. Accepted: the
+// data cannot tell a racer from a pair.
 
 exports.up = (pgm) => {
-    // One statement, not copy-then-delete: the release phase runs while the
-    // PREVIOUS dynos still serve, and with two statements a bare row committed
-    // between them would be deleted without ever being re-filed. A row the old
-    // code writes AFTER this runs still lands bare and shadows the solo slot
-    // until a faster solo win rewrites it — re-running this body by hand later
-    // is safe and would sweep such stragglers too.
-    //
-    // No two moved rows collide with each other (source keys are unique per
-    // user and the mapping only appends a suffix); ON CONFLICT is for a
-    // suffixed row the new code already wrote.
     pgm.sql(`
         WITH moved AS (
             DELETE FROM user_board_bests
@@ -45,11 +28,9 @@ exports.up = (pgm) => {
 };
 
 exports.down = (pgm) => {
-    // Folds suffixed rows back onto the bare slot. DISTINCT ON picks the
-    // fastest per slot first — several group sizes can share one board, and
-    // ON CONFLICT refuses to touch the same row twice in one statement.
-    // Lossy where a bare and a suffixed record both existed, like any
-    // contraction.
+    // DISTINCT ON keeps the fastest per bare slot — several group sizes can
+    // share one board, and ON CONFLICT refuses the same row twice. Lossy
+    // where bare and suffixed both existed, like any contraction.
     pgm.sql(`
         WITH moved AS (
             DELETE FROM user_board_bests

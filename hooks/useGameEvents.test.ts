@@ -145,7 +145,7 @@ describe("filing a clear as a personal best", () => {
         const store = useMinesweeperStore.getState();
         store.setMode("co-op");
         store.setPlayerStatsInRoom([]);
-        store.setBestsAccountReady(false);
+        store.setBestsAccountId(null);
     });
 
     test("a co-op clear is filed under the size of the room", () => {
@@ -178,33 +178,24 @@ describe("filing a clear as a personal best", () => {
         expect(readBestTime(boardKey(BOARD.rows, BOARD.cols, BOARD.mines, 2))).toBeNull();
     });
 
-    /*
-     * A run made under an account belongs to it. The stamp is what lets the
-     * sync evict it when a DIFFERENT account signs in on this browser, instead
-     * of pushing one account's clear into the next (lib/bestTimes.ts).
-     */
+    /* A run made under an account belongs to it (lib/bestTimes.ts). */
     test("a clear made once the sync owns the account is stamped as its", () => {
-        useMinesweeperStore.getState().setBestsAccountReady(true);
+        useMinesweeperStore.getState().setBestsAccountId("acct-1");
         finishAt(120);
 
         win(fakeSocket(), "gameWon");
 
-        expect(readBestTime(boardKey(BOARD.rows, BOARD.cols, BOARD.mines))?.synced).toBe(true);
+        expect(readBestTime(boardKey(BOARD.rows, BOARD.cols, BOARD.mines))?.account).toBe("acct-1");
     });
 
-    /*
-     * Covers both the guest and the signed-in-but-not-yet-synced window: a
-     * stamp before the first merge stakes the account's claim would be
-     * evicted as ANOTHER account's, with a pull that can predate the server's
-     * own record of the win — unstamped, the run rides the sync's push
-     * instead (gameSlice.bestsAccountReady).
-     */
+    /* Guest, or signed in before the sync's merge — either way unowned, so
+     * the run rides the sync's push instead of racing it. */
     test("a clear before the account is staked carries no stamp", () => {
         finishAt(120);
 
         win(fakeSocket(), "gameWon");
 
-        expect(readBestTime(boardKey(BOARD.rows, BOARD.cols, BOARD.mines))?.synced).toBeUndefined();
+        expect(readBestTime(boardKey(BOARD.rows, BOARD.cols, BOARD.mines))?.account).toBeUndefined();
     });
 
     /* The whole point: one no longer takes the other's slot. */

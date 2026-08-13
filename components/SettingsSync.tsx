@@ -6,7 +6,7 @@ import { fetchSettings, saveSettings } from '@/lib/settingsApi';
 import { deleteThemeRemote, fetchThemes, saveThemeRemote } from '@/lib/themesApi';
 import { clearPendingThemeDeletion, readPendingThemeDeletions } from '@/lib/customThemes';
 import { fetchBests, importBests } from '@/lib/statsApi';
-import { markBestsSynced, mergeServerBests } from '@/lib/bestTimes';
+import { claimBests, mergeServerBests } from '@/lib/bestTimes';
 import { installSoundUnlock } from '@/lib/sound';
 import { msUntilLocalMidnight } from '@/lib/holidays';
 
@@ -30,7 +30,10 @@ import { msUntilLocalMidnight } from '@/lib/holidays';
 const PUSH_DEBOUNCE_MS = 800;
 
 export default function SettingsSync() {
-    const { status } = useSession();
+    const { data: session, status } = useSession();
+    // Re-runs the account effects when the signed-in USER changes, even if a
+    // tab never saw an unauthenticated interlude between two sessions.
+    const sessionUser = session?.user?.email ?? null;
     const hydrateSettings = useMinesweeperStore((s) => s.hydrateSettings);
     const replaceSettings = useMinesweeperStore((s) => s.replaceSettings);
 
@@ -82,10 +85,9 @@ export default function SettingsSync() {
     }, []);
 
     React.useEffect(() => {
-        // Any auth transition voids the account's claim on local bests until
-        // the merge below re-stakes it — see gameSlice.bestsAccountReady for
-        // why a win before that must stay unstamped.
-        useMinesweeperStore.getState().setBestsAccountReady(false);
+        // Wins stamp no account until the merge below establishes whose sync
+        // owns this browser's bests (gameSlice.bestsAccountId).
+        useMinesweeperStore.getState().setBestsAccountId(null);
 
         if (status !== 'authenticated') {
             lastSynced.current = null;
@@ -132,36 +134,23 @@ export default function SettingsSync() {
             for (const theme of localOnly) void saveThemeRemote(theme);
         });
 
-        // Best times: keep-if-faster in BOTH directions, like the themes merge
-        // but symmetric — a record is a fact about a run, so neither side can
-        // "win" a conflict; the faster time simply is the record. Server times
-        // this browser lacks land in localStorage, scoped to the account they
-        // came from (mergeServerBests evicts another account's on switch);
-        // browser-earned records the account lacks are pushed up. New records
-        // DURING play need no push here: the server records signed-in wins
-        // itself (utils/statsRecorder), from its own clock.
+        // Best times: merge keep-if-faster both ways, push what the account
+        // lacks, claim what lands. Best-effort like every push in this file.
         fetchBests().then(async (account) => {
             if (cancelled || account === null) return;
             const { changed, toPush } = mergeServerBests(account.bests, account.userId);
-            // Synchronously after the merge, so no win event can land between
-            // the two: earlier wins are unmarked and ride this pass's push;
-            // later ones are stamped against a marker that now names this
-            // account (gameSlice.bestsAccountReady).
-            useMinesweeperStore.getState().setBestsAccountReady(true);
+            // Set synchronously after the merge — run-to-completion means no
+            // win event lands between the two.
+            useMinesweeperStore.getState().setBestsAccountId(account.userId);
             if (changed) useMinesweeperStore.getState().bumpBestTimesVersion();
             if (toPush.length === 0) return;
-            // Best-effort, like every push in this file: a miss is retried on
-            // the next sign-in pass. importBests filters and caps to the
-            // server's contract and reports what actually landed — which the
-            // account then CLAIMS, so a guest run seeds the first account to
-            // land it rather than every account to sign in after.
             const landed = await importBests(toPush);
             if (cancelled || landed === null) return;
-            markBestsSynced(account.userId, landed);
+            claimBests(account.userId, landed);
         });
 
         return () => { cancelled = true; };
-    }, [status, replaceSettings]);
+    }, [status, sessionUser, replaceSettings]);
 
     React.useEffect(() => {
         if (status !== 'authenticated') return;

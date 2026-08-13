@@ -222,8 +222,14 @@ describe('isValidBestImport', () => {
         ['an oversized payload', Array.from({ length: 101 }, () => entry)],
         ['a negative time', [{ ...entry, seconds: -1 }]],
         ['a time past a day', [{ ...entry, seconds: 90000 }]],
+        // The seconds column is integer; Postgres rejects fractional text
+        // rather than rounding, which would roll back the whole import.
+        ['fractional seconds', [{ ...entry, seconds: 45.5 }]],
         ['a fractional player count', [{ ...entry, players: 2.5 }]],
         ['a malformed key', [{ ...entry, boardKey: 'junk' }]],
+        // Finite but past to_timestamp's range — same rollback.
+        ['a far-future timestamp', [{ ...entry, achievedAt: 1e16 }]],
+        ['a negative timestamp', [{ ...entry, achievedAt: -1 }]],
     ])('rejects %s', (_label, bests) => {
         expect(isValidBestImport(bests)).toBe(false);
     });

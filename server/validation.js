@@ -137,39 +137,18 @@ const isValidThemeBlob = (blob) => {
     }
 };
 
-/**
- * `rows x cols / mines`, with lib/bestTimes.ts's optional `@players` suffix
- * for group clears (`16x16/40@3`) — the client's whole key shape, bounded
- * sanely. The server re-derives the suffix from the entry's own player count
- * anyway (statsRepo.bestKeyOf), so this only bounds what a key may look like.
- */
-const isValidBoardKey = (key) =>
-    typeof key === 'string' && /^\d{1,3}x\d{1,3}\/\d{1,4}(@\d{1,3})?$/.test(key);
+// Entry shape lives in shared/bestImport.js so the client's push filter
+// checks the same thing before it ever sends.
+const { MAX_BEST_IMPORT_ENTRIES, BOARD_KEY_PATTERN, isValidBestEntry } = require('../shared/bestImport');
 
-/**
- * The guest best-times import: an array of client-reported records. Bounded
- * and shape-checked here; statsRepo's keep-if-faster upsert is what makes the
- * numbers harmless — an import can only improve a PRIVATE profile.
- */
-const MAX_BEST_IMPORT_ENTRIES = 100;
+const isValidBoardKey = (key) => typeof key === 'string' && BOARD_KEY_PATTERN.test(key);
+
+// Keep-if-faster on the repo side is what makes the numbers harmless — an
+// import can only improve a PRIVATE profile.
 const isValidBestImport = (bests) =>
     Array.isArray(bests) &&
     bests.length <= MAX_BEST_IMPORT_ENTRIES &&
-    bests.every(
-        (best) =>
-            typeof best === 'object' &&
-            best !== null &&
-            isValidBoardKey(best.boardKey) &&
-            typeof best.seconds === 'number' &&
-            Number.isFinite(best.seconds) &&
-            best.seconds >= 0 &&
-            best.seconds <= 86400 &&
-            Number.isInteger(best.players) &&
-            best.players >= 1 &&
-            best.players <= 100 &&
-            typeof best.achievedAt === 'number' &&
-            Number.isFinite(best.achievedAt),
-    );
+    bests.every(isValidBestEntry);
 
 module.exports = {
     isValidRoomCode,

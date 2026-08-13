@@ -506,6 +506,12 @@ process.on('unhandledRejection', (reason) => {
     console.error('Unhandled promise rejection (server kept running):', reason);
 });
 
+// Best-effort: old dynos can write legacy-keyed best rows during the deploy
+// window after the release-phase migration ran; each boot sweeps them.
+require('./data/statsRepo').refileLegacyBests().catch((error) => {
+    console.error('Legacy bests sweep failed:', error.message);
+});
+
 server.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });
