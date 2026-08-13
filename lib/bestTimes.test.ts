@@ -361,7 +361,7 @@ describe("merging the account's server-side records", () => {
     test("a guest run, once landed, is claimed and stops crossing accounts", () => {
         recordBestTime(boardKey(9, 9, 10), { seconds: 30, players: 1, at: 1 });
         const { toPush } = mergeServerBests([], "acct-1");
-        markBestsSynced("acct-1", toPush.map((best) => best.boardKey));
+        markBestsSynced("acct-1", toPush);
 
         const next = mergeServerBests([], "acct-2");
 
@@ -372,11 +372,11 @@ describe("merging the account's server-side records", () => {
     /* The claim names only what landed: an entry the push left behind keeps
      * its guest status instead of being filed under an account no server
      * backs — claimed-but-unlanded would evict it with nowhere to return. */
-    test("a claim covers only the keys that landed", () => {
+    test("a claim covers only the entries that landed", () => {
         recordBestTime(boardKey(9, 9, 10), { seconds: 30, players: 1, at: 1 });
         recordBestTime(KEY, { seconds: 45, players: 1, at: 1 });
         mergeServerBests([], "acct-1");
-        markBestsSynced("acct-1", ["9x9/10"]);
+        markBestsSynced("acct-1", [{ boardKey: "9x9/10", seconds: 30, players: 1, at: 1 }]);
 
         const { toPush } = mergeServerBests([], "acct-2");
 
@@ -384,11 +384,26 @@ describe("merging the account's server-side records", () => {
         expect(toPush).toEqual([{ boardKey: KEY, seconds: 45, players: 1, at: 1 }]);
     });
 
+    /* The slot must still hold the RUN that landed. A faster record set while
+     * the push was in flight was never uploaded — claiming it by key alone
+     * would evict it on the next switch with no server copy to restore. */
+    test("a faster run set while the push was in flight is not claimed", () => {
+        recordBestTime(KEY, { seconds: 45, players: 1, at: 1 });
+        const { toPush } = mergeServerBests([], "acct-1");
+        recordBestTime(KEY, { seconds: 30, players: 1, at: 2 }); // lands mid-push
+        markBestsSynced("acct-1", toPush);
+
+        const next = mergeServerBests([], "acct-2");
+
+        expect(readBestTime(KEY)?.seconds).toBe(30);
+        expect(next.toPush).toEqual([{ boardKey: KEY, seconds: 30, players: 1, at: 2 }]);
+    });
+
     test("a claim for an account that is no longer synced is refused", () => {
         recordBestTime(boardKey(9, 9, 10), { seconds: 30, players: 1, at: 1 });
         mergeServerBests([], "acct-1");
 
-        markBestsSynced("acct-stale", ["9x9/10"]);
+        markBestsSynced("acct-stale", [{ boardKey: "9x9/10", seconds: 30, players: 1, at: 1 }]);
 
         expect(readBestTime(boardKey(9, 9, 10))?.synced).toBeUndefined();
     });

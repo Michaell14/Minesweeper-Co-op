@@ -151,7 +151,7 @@ export default function SettingsSync() {
             // land it rather than every account to sign in after.
             const landed = await importBests(toPush);
             if (cancelled || landed === null) return;
-            markBestsSynced(account.userId, landed.map((best) => best.boardKey));
+            markBestsSynced(account.userId, landed);
         });
 
         return () => { cancelled = true; };

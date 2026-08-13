@@ -338,26 +338,30 @@ export const mergeServerBests = (
 /**
  * Claims records for the synced account after their push has LANDED.
  *
- * `boardKeys` is what importBests reports it actually sent — only that is
+ * `landed` is what importBests reports it actually sent — only that is
  * claimed, never the whole store: an entry filtered or capped out of the
  * payload is on no server, and claiming it would evict it on the next
- * account switch with nowhere to pull it back from. Refused outright when
- * `accountId` is no longer the synced account: a later sync owns storage
- * now, and a stale claim would misfile whatever landed since.
+ * account switch with nowhere to pull it back from. The claim also checks
+ * each slot still holds the RUN that landed, not just the key — a faster
+ * record set while the push was in flight is unowned too, and
+ * `recordBestTime` only ever replaces with strictly faster, so equal seconds
+ * identifies the pushed run. Refused outright when `accountId` is no longer
+ * the synced account: a later sync owns storage now, and a stale claim
+ * would misfile whatever landed since.
  *
  * No reader-refresh signal needed: a claim changes who a record belongs to,
  * not what any display shows.
  */
-export const markBestsSynced = (accountId: string, boardKeys: string[]) => {
-    if (typeof window === "undefined" || boardKeys.length === 0) return;
+export const markBestsSynced = (accountId: string, landed: SyncedBest[]) => {
+    if (typeof window === "undefined" || landed.length === 0) return;
     if (readSyncedAccount() !== accountId) return;
 
     const times = readBestTimes();
     let changed = false;
-    for (const key of boardKeys) {
-        const entry = times[key];
-        if (entry && !entry.synced) {
-            times[key] = { ...entry, synced: true };
+    for (const record of landed) {
+        const entry = times[record.boardKey];
+        if (entry && !entry.synced && entry.seconds === record.seconds) {
+            times[record.boardKey] = { ...entry, synced: true };
             changed = true;
         }
     }
