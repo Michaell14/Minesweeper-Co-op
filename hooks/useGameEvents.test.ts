@@ -145,7 +145,7 @@ describe("filing a clear as a personal best", () => {
         const store = useMinesweeperStore.getState();
         store.setMode("co-op");
         store.setPlayerStatsInRoom([]);
-        store.setSignedIn(false);
+        store.setBestsAccountReady(false);
     });
 
     test("a co-op clear is filed under the size of the room", () => {
@@ -183,8 +183,8 @@ describe("filing a clear as a personal best", () => {
      * sync evict it when a DIFFERENT account signs in on this browser, instead
      * of pushing one account's clear into the next (lib/bestTimes.ts).
      */
-    test("a clear made signed in is stamped as the account's", () => {
-        useMinesweeperStore.getState().setSignedIn(true);
+    test("a clear made once the sync owns the account is stamped as its", () => {
+        useMinesweeperStore.getState().setBestsAccountReady(true);
         finishAt(120);
 
         win(fakeSocket(), "gameWon");
@@ -192,7 +192,14 @@ describe("filing a clear as a personal best", () => {
         expect(readBestTime(boardKey(BOARD.rows, BOARD.cols, BOARD.mines))?.synced).toBe(true);
     });
 
-    test("a guest clear carries no account stamp and stays the browser's", () => {
+    /*
+     * Covers both the guest and the signed-in-but-not-yet-synced window: a
+     * stamp before the first merge stakes the account's claim would be
+     * evicted as ANOTHER account's, with a pull that can predate the server's
+     * own record of the win — unstamped, the run rides the sync's push
+     * instead (gameSlice.bestsAccountReady).
+     */
+    test("a clear before the account is staked carries no stamp", () => {
         finishAt(120);
 
         win(fakeSocket(), "gameWon");

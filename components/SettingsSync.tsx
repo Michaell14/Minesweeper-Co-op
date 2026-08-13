@@ -82,9 +82,10 @@ export default function SettingsSync() {
     }, []);
 
     React.useEffect(() => {
-        // Mirrored for the win handlers, which are not components and cannot
-        // ask useSession — see gameSlice.signedIn.
-        useMinesweeperStore.getState().setSignedIn(status === 'authenticated');
+        // Any auth transition voids the account's claim on local bests until
+        // the merge below re-stakes it — see gameSlice.bestsAccountReady for
+        // why a win before that must stay unstamped.
+        useMinesweeperStore.getState().setBestsAccountReady(false);
 
         if (status !== 'authenticated') {
             lastSynced.current = null;
@@ -142,6 +143,11 @@ export default function SettingsSync() {
         fetchBests().then(async (account) => {
             if (cancelled || account === null) return;
             const { changed, toPush } = mergeServerBests(account.bests, account.userId);
+            // Synchronously after the merge, so no win event can land between
+            // the two: earlier wins are unmarked and ride this pass's push;
+            // later ones are stamped against a marker that now names this
+            // account (gameSlice.bestsAccountReady).
+            useMinesweeperStore.getState().setBestsAccountReady(true);
             if (changed) useMinesweeperStore.getState().bumpBestTimesVersion();
             if (toPush.length === 0) return;
             // Best-effort, like every push in this file: a miss is retried on
