@@ -298,6 +298,592 @@ const MUSHROOM: PixelArt = {
     ],
 };
 
+/* ---------------------------------------------------------------------------
+ * HOVER FRAMES
+ *
+ * Pixel art animates by SWAPPING FRAMES, not by transforming: at 16x16 a
+ * rotation or a fractional scale is mush, and `crispEdges` is what makes these
+ * read at all. So each animated avatar carries whole extra grids, played in
+ * order after its base art.
+ *
+ * A frame differs from the base by a handful of pixels and is otherwise a copy
+ * — deliberately, since a diff format would make the art unreadable in the one
+ * form it is actually edited in.
+ *
+ * The TIMING lives in Avatar.module.css, one @keyframes per frame, because
+ * how long each pose holds is a feel question rather than a drawing one.
+ * Adding a frame here without a matching rule there draws nothing.
+ * ------------------------------------------------------------------------- */
+
+/* Frog, 1: the mouth opens onto the tongue. */
+const FROG_OPEN: PixelArt = {
+    palette: PALETTE,
+    rows: [
+        "                ",
+        "   ###    ###   ",
+        "  #ooo#  #ooo#  ",
+        "  #o##o##o##o#  ",
+        "  #oooo##oooo#  ",
+        " #oooooooooooo# ",
+        " #oooooooooooo# ",
+        " #oooooooooooo# ",
+        " #o##########o# ",
+        " #oo#RRRRRR#oo# ",
+        "  #o########o#  ",
+        "   ##########   ",
+        "                ",
+        "                ",
+        "                ",
+        "                ",
+    ],
+};
+
+/* Frog, 2: the tongue lashes out past the edge and the eyes pull down into the
+ * head — the retraction is what stops the flick reading as a stuck-out tongue.
+ * Breaking the outline is how KITTY's whiskers already work. */
+const FROG_TONGUE: PixelArt = {
+    palette: PALETTE,
+    rows: [
+        "                ",
+        "                ",
+        "   ###    ###   ",
+        "  #o##o##o##o#  ",
+        "  #oooo##oooo#  ",
+        " #oooooooooooo# ",
+        " #oooooooooooo# ",
+        " #oooooooooooo# ",
+        " #o##########o# ",
+        " #oo#RRRRRRRRRRR",
+        "  #o########o#  ",
+        "   ##########   ",
+        "                ",
+        "                ",
+        "                ",
+        "                ",
+    ],
+};
+
+/* Pirate, 1: the patch rides up over the bandana, revealing a working eye. */
+const PIRATE_PEEK: PixelArt = {
+    palette: PALETTE,
+    rows: [
+        "                ",
+        "    RRRRRRRR    ",
+        "   RRRRRRRRRR   ",
+        "  RRRRRRRRRRRR  ",
+        "  R####RRRRRRR  ",
+        " #o####ooooooRR ",
+        " #o####ooooooRR ",
+        " #oo##ooo##ooo# ",
+        " #oo##ooo##ooo# ",
+        " #oooooooooooo# ",
+        " #oooooooooooo# ",
+        "  #oo######oo#  ",
+        "  #oooooooooo#  ",
+        "   ##########   ",
+        "                ",
+        "                ",
+    ],
+};
+
+/* Pirate, 2: that eye winks. Only the top row of it goes — a 2px eye has one
+ * row to spare, and taking both would read as a face with one eye. */
+const PIRATE_WINK: PixelArt = {
+    palette: PALETTE,
+    rows: [
+        "                ",
+        "    RRRRRRRR    ",
+        "   RRRRRRRRRR   ",
+        "  RRRRRRRRRRRR  ",
+        "  R####RRRRRRR  ",
+        " #o####ooooooRR ",
+        " #o####ooooooRR ",
+        " #ooooooo##ooo# ",
+        " #oo##ooo##ooo# ",
+        " #oooooooooooo# ",
+        " #oooooooooooo# ",
+        "  #oo######oo#  ",
+        "  #oooooooooo#  ",
+        "   ##########   ",
+        "                ",
+        "                ",
+    ],
+};
+
+/* Robot, 1: the sockets widen and light, pupils right, antenna beacon on. The
+ * solid ink eyes have no room for a pupil, so waking up IS the eyes opening. */
+const ROBOT_SCAN_RIGHT: PixelArt = {
+    palette: PALETTE,
+    rows: [
+        "       RR       ",
+        "       ##       ",
+        "      ####      ",
+        "   ##########   ",
+        "  #oooooooooo#  ",
+        "  #oooooooooo#  ",
+        "  #o###oo###o#  ",
+        "  #o##Roo##Ro#  ",
+        "  #oooooooooo#  ",
+        "  #o########o#  ",
+        "  #o##o##o##o#  ",
+        "  #oooooooooo#  ",
+        "   ##########   ",
+        "    ##    ##    ",
+        "                ",
+        "                ",
+    ],
+};
+
+/* Robot, 2: pupils left, beacon off — the beacon runs opposite the sweep so
+ * something is always moving. */
+const ROBOT_SCAN_LEFT: PixelArt = {
+    palette: PALETTE,
+    rows: [
+        "       ##       ",
+        "       ##       ",
+        "      ####      ",
+        "   ##########   ",
+        "  #oooooooooo#  ",
+        "  #oooooooooo#  ",
+        "  #o###oo###o#  ",
+        "  #oR##ooR##o#  ",
+        "  #oooooooooo#  ",
+        "  #o########o#  ",
+        "  #o##o##o##o#  ",
+        "  #oooooooooo#  ",
+        "   ##########   ",
+        "    ##    ##    ",
+        "                ",
+        "                ",
+    ],
+};
+
+/* Classic, 1: the smile flattens — the beat before the mouth opens. */
+const CLASSIC_FLAT: PixelArt = {
+    palette: PALETTE,
+    rows: [
+        "                ",
+        "     ######     ",
+        "   ##oooooo##   ",
+        "  #oooooooooo#  ",
+        "  #oooooooooo#  ",
+        " #oooooooooooo# ",
+        " #oo##oooo##oo# ",
+        " #oo##oooo##oo# ",
+        " #oooooooooooo# ",
+        " #oooooooooooo# ",
+        " #oooooooooooo# ",
+        "  #oo######oo#  ",
+        "  #oooooooooo#  ",
+        "   ##oooooo##   ",
+        "     ######     ",
+        "                ",
+    ],
+};
+
+/* Classic, 2: the mousedown face. The one animation here that is a
+ * Minesweeper reference rather than an idea about a face. */
+const CLASSIC_GASP: PixelArt = {
+    palette: PALETTE,
+    rows: [
+        "                ",
+        "     ######     ",
+        "   ##oooooo##   ",
+        "  #oooooooooo#  ",
+        "  #oooooooooo#  ",
+        " #oooooooooooo# ",
+        " #oo##oooo##oo# ",
+        " #oo##oooo##oo# ",
+        " #oooooooooooo# ",
+        " #ooo######ooo# ",
+        " #ooo#oooo#ooo# ",
+        "  #oo######oo#  ",
+        "  #oooooooooo#  ",
+        "   ##oooooo##   ",
+        "     ######     ",
+        "                ",
+    ],
+};
+
+/* Puppy, 1: ears up, tongue lolling a row further out. */
+const PUPPY_PANT_OUT: PixelArt = {
+    palette: PALETTE,
+    rows: [
+        "  ###      ###  ",
+        " #####    ##### ",
+        " #####    ##### ",
+        " ###o######o### ",
+        " ##oooooooooo## ",
+        " #oooooooooooo# ",
+        " #oo##oooo##oo# ",
+        " #oo##oooo##oo# ",
+        " #oooooooooooo# ",
+        " #oooo####oooo# ",
+        " #oooo####oooo# ",
+        " #oooooooooooo# ",
+        "  #oo######oo#  ",
+        "   ###RRRR###   ",
+        "      RRRR      ",
+        "      RRRR      ",
+    ],
+};
+
+/* Puppy, 2: ears drop, tongue back in. Fastest cycle of the set — panting
+ * reads as fast or not at all. */
+const PUPPY_PANT_IN: PixelArt = {
+    palette: PALETTE,
+    rows: [
+        "                ",
+        "                ",
+        " #####    ##### ",
+        " ###o######o### ",
+        " ##oooooooooo## ",
+        " #oooooooooooo# ",
+        " #oo##oooo##oo# ",
+        " #oo##oooo##oo# ",
+        " #oooooooooooo# ",
+        " #oooo####oooo# ",
+        " #oooo####oooo# ",
+        " #oooooooooooo# ",
+        "  #oo######oo#  ",
+        "   ###RRRR###   ",
+        "                ",
+        "                ",
+    ],
+};
+
+/* Kitty, 1: lids halfway, lower whiskers flicked in. */
+const KITTY_HALF: PixelArt = {
+    palette: PALETTE,
+    rows: [
+        "                ",
+        "  ##        ##  ",
+        " #o##      ##o# ",
+        " #ooo######ooo# ",
+        " #oooooooooooo# ",
+        " #oooooooooooo# ",
+        " #oooooooooooo# ",
+        " #oo##oooo##oo# ",
+        " #oooooooooooo# ",
+        "##oooo####oooo##",
+        " #oooo#oo#oooo# ",
+        " #oooooooooooo# ",
+        "  #oooooooooo#  ",
+        "   ##########   ",
+        "                ",
+        "                ",
+    ],
+};
+
+/* Kitty, 2: shut, ears swivelled back. The closed lid is WIDER than the open
+ * eye — a lid that matched it would read as the eye simply vanishing. */
+const KITTY_SHUT: PixelArt = {
+    palette: PALETTE,
+    rows: [
+        "                ",
+        " ##          ## ",
+        " #o##      ##o# ",
+        " #ooo######ooo# ",
+        " #oooooooooooo# ",
+        " #oooooooooooo# ",
+        " #oooooooooooo# ",
+        " #o####oo####o# ",
+        " #oooooooooooo# ",
+        "##oooo####oooo##",
+        " #oooo#oo#oooo# ",
+        "##oooooooooooo##",
+        "  #oooooooooo#  ",
+        "   ##########   ",
+        "                ",
+        "                ",
+    ],
+};
+
+/* Fox, 1: eyes narrowing. */
+const FOX_HALF: PixelArt = {
+    palette: PALETTE,
+    rows: [
+        "                ",
+        "  ##        ##  ",
+        " #o##      ##o# ",
+        " #oo##    ##oo# ",
+        " #RRR######RRR# ",
+        " #RRRRRRRRRRRR# ",
+        " #RRRRRRRRRRRR# ",
+        " #RR##RRRR##RR# ",
+        " #RRRRRRRRRRRR# ",
+        " #RoooRRRRoooR# ",
+        " #ooooo##ooooo# ",
+        "  #oooo##oooo#  ",
+        "  #oooooooooo#  ",
+        "   ##########   ",
+        "                ",
+        "                ",
+    ],
+};
+
+/* Fox, 2: slits and a smirk on one side of the muzzle. A fox reads as knowing
+ * rather than friendly, so it squints where the others blink — and it HOLDS
+ * the squint, which is the difference between sly and startled. */
+const FOX_SLY: PixelArt = {
+    palette: PALETTE,
+    rows: [
+        "                ",
+        "  ##        ##  ",
+        " #o##      ##o# ",
+        " #oo##    ##oo# ",
+        " #RRR######RRR# ",
+        " #RRRRRRRRRRRR# ",
+        " #RRRRRRRRRRRR# ",
+        " #R####RR####R# ",
+        " #RRRRRRRRRRRR# ",
+        " #RoooRRRRoooR# ",
+        " #ooooo##ooooo# ",
+        "  #oooo##o##o#  ",
+        "  #oooooooooo#  ",
+        "   ##########   ",
+        "                ",
+        "                ",
+    ],
+};
+
+/* Penguin, 1: flippers up, beak tip open on the squawk. */
+const PENGUIN_FLAP_UP: PixelArt = {
+    palette: PALETTE,
+    rows: [
+        "                ",
+        "     ######     ",
+        "   ##########   ",
+        "  ############  ",
+        " ############## ",
+        " ##oooo##oooo## ",
+        " #ooo##oo##ooo# ",
+        " #oooo#RR#oooo# ",
+        " #ooooRRRRoooo# ",
+        " #ooooo##ooooo# ",
+        "####oooooooo####",
+        " ###oooooooo### ",
+        "  ##oooooooo##  ",
+        "   ##########   ",
+        "                ",
+        "                ",
+    ],
+};
+
+/* Penguin, 2: flippers swung low. They stay part of the OUTLINE at every
+ * position — a flipper drawn as a free-floating block detaches from the body
+ * at this size. */
+const PENGUIN_FLAP_DOWN: PixelArt = {
+    palette: PALETTE,
+    rows: [
+        "                ",
+        "     ######     ",
+        "   ##########   ",
+        "  ############  ",
+        " ############## ",
+        " ##oooo##oooo## ",
+        " #ooo##oo##ooo# ",
+        " #oooo#RR#oooo# ",
+        " #ooooRRRRoooo# ",
+        " #oooooRRooooo# ",
+        " #oooooooooooo# ",
+        " ###oooooooo### ",
+        " ###oooooooo### ",
+        "   ##########   ",
+        "                ",
+        "                ",
+    ],
+};
+
+/* Ghost, 1: a pixel up, hem wave out of phase so the tentacles trail the
+ * body rather than moving with it. */
+const GHOST_UP: PixelArt = {
+    palette: PALETTE,
+    rows: [
+        "     ######     ",
+        "   ##oooooo##   ",
+        "  #oooooooooo#  ",
+        "  #oooooooooo#  ",
+        " #oo##oooo##oo# ",
+        " #oo##oooo##oo# ",
+        " #oooooooooooo# ",
+        " #oooooooooooo# ",
+        " #oooo####oooo# ",
+        " #oooooooooooo# ",
+        " #oooooooooooo# ",
+        " #ooo#oo#oo#oo# ",
+        "   ##  ##  ##   ",
+        "                ",
+        "                ",
+        "                ",
+    ],
+};
+
+/* Ghost, 2: a pixel down, hem back where it started. */
+const GHOST_DOWN: PixelArt = {
+    palette: PALETTE,
+    rows: [
+        "                ",
+        "                ",
+        "     ######     ",
+        "   ##oooooo##   ",
+        "  #oooooooooo#  ",
+        "  #oooooooooo#  ",
+        " #oo##oooo##oo# ",
+        " #oo##oooo##oo# ",
+        " #oooooooooooo# ",
+        " #oooooooooooo# ",
+        " #oooo####oooo# ",
+        " #oooooooooooo# ",
+        " #oooooooooooo# ",
+        " #o#oo#oo#oo#o# ",
+        " ##  ##  ##  ## ",
+        "                ",
+    ],
+};
+
+/* Alien, 1: the eyes start to fill. */
+const ALIEN_GLOW_HALF: PixelArt = {
+    palette: PALETTE,
+    rows: [
+        "                ",
+        "     ######     ",
+        "   ##oooooo##   ",
+        "  #oooooooooo#  ",
+        " #oooooooooooo# ",
+        " #o###oooo###o# ",
+        " #oRRRRooRRRRo# ",
+        " #oo##oooo##oo# ",
+        " #oooooooooooo# ",
+        "  #oooooooooo#  ",
+        "   #oooooooo#   ",
+        "    #oo##oo#    ",
+        "     #oooo#     ",
+        "      ####      ",
+        "                ",
+        "                ",
+    ],
+};
+
+/* Alien, 2: fully lit. The only avatar that animates by COLOUR alone — no
+ * shape moves, which is worth having once in a set of flipbooks. */
+const ALIEN_GLOW_FULL: PixelArt = {
+    palette: PALETTE,
+    rows: [
+        "                ",
+        "     ######     ",
+        "   ##oooooo##   ",
+        "  #oooooooooo#  ",
+        " #oooooooooooo# ",
+        " #oRRRooooRRRo# ",
+        " #oRRRRooRRRRo# ",
+        " #ooRRooooRRoo# ",
+        " #oooooooooooo# ",
+        "  #oooooooooo#  ",
+        "   #oooooooo#   ",
+        "    #oo##oo#    ",
+        "     #oooo#     ",
+        "      ####      ",
+        "                ",
+        "                ",
+    ],
+};
+
+/* Shinobi, 1: the headband tail whips up. */
+const SHINOBI_WHIP_UP: PixelArt = {
+    palette: PALETTE,
+    rows: [
+        "                ",
+        "     ######     ",
+        "   ##########   ",
+        "  ############ R",
+        " ##############R",
+        " #RRRRRRRRRRRR#R",
+        " ##oooooooooo## ",
+        " ##o##oooo##o## ",
+        " ##oooooooooo## ",
+        " ############## ",
+        " ############## ",
+        "  ############  ",
+        "  ############  ",
+        "   ##########   ",
+        "     ######     ",
+        "                ",
+    ],
+};
+
+/* Shinobi, 2: and down. The tail is the only thing that moves — a masked head
+ * has nothing else to animate, which is the point of the mask. */
+const SHINOBI_WHIP_DOWN: PixelArt = {
+    palette: PALETTE,
+    rows: [
+        "                ",
+        "     ######     ",
+        "   ##########   ",
+        "  ############  ",
+        " ############## ",
+        " #RRRRRRRRRRRR#R",
+        " ##oooooooooo##R",
+        " ##o##oooo##o##R",
+        " ##oooooooooo## ",
+        " ############## ",
+        " ############## ",
+        "  ############  ",
+        "  ############  ",
+        "   ##########   ",
+        "     ######     ",
+        "                ",
+    ],
+};
+
+/* Mushroom, 1: the cap squashes onto the stem and spreads wider than the
+ * sprite ever is at rest. */
+const MUSHROOM_SQUASH: PixelArt = {
+    palette: PALETTE,
+    rows: [
+        "                ",
+        "                ",
+        "     ######     ",
+        "   ##RRRRRR##   ",
+        "  #RRooRRooRR#  ",
+        " #RRRRRRRRRRRR# ",
+        "#RRRRRRRRRRRRRR#",
+        "################",
+        "  #oooooooooo#  ",
+        "  #o##oooo##o#  ",
+        "  #o##oooo##o#  ",
+        "  #oooooooooo#  ",
+        "   #oo####oo#   ",
+        "    ########    ",
+        "                ",
+        "                ",
+    ],
+};
+
+/* Mushroom, 2: and springs a pixel clear of the ground. The only avatar soft
+ * enough in silhouette to take squash-and-stretch. */
+const MUSHROOM_STRETCH: PixelArt = {
+    palette: PALETTE,
+    rows: [
+        "     ######     ",
+        "   ##RRRRRR##   ",
+        "  #RRRRRRRRRR#  ",
+        " #RRooRRRRooRR# ",
+        " #RRooRRRRooRR# ",
+        " #RRRRRRRRRRRR# ",
+        " ############## ",
+        "  #oooooooooo#  ",
+        "  #o##oooo##o#  ",
+        "  #o##oooo##o#  ",
+        "  #oooooooooo#  ",
+        "   #oo####oo#   ",
+        "    ########    ",
+        "                ",
+        "                ",
+        "                ",
+    ],
+};
+
 /** Art keyed by catalog id — avatarArt.test.ts fails if this drifts from
  * shared/avatars.js in either direction. */
 export const AVATAR_ART: Readonly<Record<string, PixelArt>> = {
@@ -316,6 +902,25 @@ export const AVATAR_ART: Readonly<Record<string, PixelArt>> = {
 };
 
 /**
+ * The hover frames per id, in the order they play after the base art. Only
+ * some avatars have any — an id absent here simply never animates.
+ */
+export const AVATAR_HOVER_FRAMES: Readonly<Record<string, readonly PixelArt[]>> = {
+    classic: [CLASSIC_FLAT, CLASSIC_GASP],
+    puppy: [PUPPY_PANT_OUT, PUPPY_PANT_IN],
+    kitty: [KITTY_HALF, KITTY_SHUT],
+    fox: [FOX_HALF, FOX_SLY],
+    frog: [FROG_OPEN, FROG_TONGUE],
+    penguin: [PENGUIN_FLAP_UP, PENGUIN_FLAP_DOWN],
+    robot: [ROBOT_SCAN_RIGHT, ROBOT_SCAN_LEFT],
+    ghost: [GHOST_UP, GHOST_DOWN],
+    alien: [ALIEN_GLOW_HALF, ALIEN_GLOW_FULL],
+    shinobi: [SHINOBI_WHIP_UP, SHINOBI_WHIP_DOWN],
+    pirate: [PIRATE_PEEK, PIRATE_WINK],
+    mushroom: [MUSHROOM_SQUASH, MUSHROOM_STRETCH],
+};
+
+/**
  * The id whose art actually draws: unknown ids — an avatar removed from the
  * catalog, a hand-edited value — resolve to the default rather than blank,
  * the same defensive shape as spriteSetById.
@@ -326,3 +931,12 @@ export const resolvedAvatarId = (id: string | null | undefined): string =>
 /** The art for a stored id, through the same fallback. */
 export const avatarArtById = (id: string | null | undefined): PixelArt =>
     AVATAR_ART[resolvedAvatarId(id)];
+
+/**
+ * Every frame for a stored id, base first. One entry for an avatar with no
+ * hover frames, so the caller draws the same way either way.
+ */
+export const avatarFramesById = (id: string | null | undefined): readonly PixelArt[] => {
+    const resolved = resolvedAvatarId(id);
+    return [AVATAR_ART[resolved], ...(AVATAR_HOVER_FRAMES[resolved] ?? [])];
+};

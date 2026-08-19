@@ -275,12 +275,12 @@ export default function DsCatalogClient() {
 
             <Section
                 title="Avatars"
-                note="The profile pictures (components/ds/avatarArt.ts), one per id in shared/avatars.js. All of them paint in tokens — outline and features in the page ink, faces in the opened-cell fill, one accent in the mine colour — so a stored avatar reads on every palette; on Game Boy the accent and the ink are the same colour by design."
+                note="The profile pictures (components/ds/avatarArt.ts), one per id in shared/avatars.js. All of them paint in tokens — outline and features in the page ink, faces in the opened-cell fill, one accent in the mine colour — so a stored avatar reads on every palette; on Game Boy the accent and the ink are the same colour by design. Every one carries two extra frames that flip on hover — a flipbook, not a transform, since a fractional scale at 16x16 is mush. The art is in avatarArt.ts, the timing in Avatar.module.css, and under reduced motion none of it runs."
             >
                 <div className="flex flex-wrap gap-4">
                     {AVATARS.map(({ id, label }) => (
                         <div key={id} className="flex flex-col items-center gap-1" data-avatar={id}>
-                            <Avatar id={id} size={48} />
+                            <Avatar id={id} size={48} animated />
                             <span className="text-pixel-xs text-ink-muted">{label}</span>
                         </div>
                     ))}
