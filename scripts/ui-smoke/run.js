@@ -785,6 +785,91 @@ async function themeContrast(page) {
 }
 
 /*
+ * The avatar hover animations (components/ds/avatarArt.ts + Avatar.module.css).
+ *
+ * Here rather than in a unit test because the failure this exists for is
+ * invisible to one. The frames are named by `animation-name: frogRest`, and
+ * CSS Modules HASHES `@keyframes frogRest` at build time and rewrites the
+ * references it can see. Write that name anywhere it cannot -- inside a custom
+ * property, say -- and the stylesheet still compiles, the test that reads the
+ * source still passes, and every avatar silently stops moving. Only a real
+ * browser resolving real keyframes knows the difference.
+ *
+ * So: hover each face, ask the page what is actually running.
+ */
+async function avatarHover(page) {
+    console.log('\n\x1b[1m--- AVATARS ---\x1b[0m');
+
+    await page.goto(`${CLIENT}/ds`);
+    await page.waitFor(`!!document.querySelector('svg[data-avatar]')`,
+        { timeout: 60000, label: 'the avatar catalog renders' });
+
+    const ids = await page.evaluate(`
+        return [...document.querySelectorAll('svg[data-avatar]')].map((el) => el.dataset.avatar);
+    `);
+    check(ids.length > 0, `the catalog draws ${ids.length} avatars`);
+
+    let animated = 0;
+    let stuck = null;
+    for (const id of ids) {
+        const state = await page.evaluate(`
+            const el = document.querySelector('svg[data-avatar="${id}"]');
+            el.scrollIntoView({ block: 'center' });
+            const r = el.getBoundingClientRect();
+            return JSON.stringify({
+                idle: el.getAnimations({ subtree: true }).length,
+                x: r.left + r.width / 2,
+                y: r.top + r.height / 2,
+                frames: el.querySelectorAll('g').length,
+            });
+        `);
+        const { idle, x, y, frames } = JSON.parse(state);
+        if (idle !== 0) { stuck = stuck || `${id} animates without being hovered`; continue; }
+        if (frames < 2) continue;
+
+        await page.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y });
+        // Polled rather than slept on: this suite is the flakiest thing in CI
+        // and a fixed wait for the browser to register an animation is how it
+        // earns that. A miss here still fails below, just without the wait.
+        await settles(page,
+            `document.querySelector('svg[data-avatar="${id}"]')`
+            + `.getAnimations({ subtree: true }).length === ${frames}`,
+            2000);
+        const hovered = await page.evaluate(`
+            const el = document.querySelector('svg[data-avatar="${id}"]');
+            const running = el.getAnimations({ subtree: true });
+            const lit = [...el.querySelectorAll('g')]
+                .filter((g) => getComputedStyle(g).opacity !== '0').length;
+            return JSON.stringify({ running: running.length, lit });
+        `);
+        const { running, lit } = JSON.parse(hovered);
+        // One frame lit at a time: these are opaque portraits stacked on each
+        // other, so two at once is not a blend, it is a mess.
+        if (running !== frames || lit !== 1) {
+            stuck = stuck || `${id}: ${running}/${frames} keyframes resolved, ${lit} frames visible`;
+        } else {
+            animated++;
+        }
+        await page.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 2, y: 2 });
+    }
+
+    // `animated` is ASSERTED, not just printed: `frames < 2` skips silently
+    // above, so a regression that stripped the frames off eleven faces would
+    // otherwise report (1/12) and pass.
+    check(!stuck && animated === ids.length,
+        `every avatar animates on hover (${animated}/${ids.length})`,
+        stuck || `${ids.length - animated} avatar(s) had no frames to animate`);
+
+    // And nothing keeps running once the pointer leaves.
+    const left = await page.evaluate(`
+        return [...document.querySelectorAll('svg[data-avatar]')]
+            .reduce((n, el) => n + el.getAnimations({ subtree: true }).length, 0);
+    `);
+    check(left === 0, 'the animations stop when the pointer leaves',
+        `${left} animations still running with nothing hovered`);
+}
+
+/*
  * The seasonal mine and flag (components/ds/sprites.tsx).
  *
  * The art is mounted once as two <symbol>s and swapped when `data-theme`
@@ -1201,6 +1286,7 @@ async function daily(page) {
         await themeContrast(page);
         await themeSprites(page);
         await themeSwatches(page);
+        await avatarHover(page);
 
         const host = await attach(await newTarget('about:blank'));
         const guest = await attach(await newTarget('about:blank'));

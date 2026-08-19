@@ -163,7 +163,7 @@ export default function AccountPanel() {
                     {profileState === 'ready' && profile && (
                         <>
                             <div className="flex items-center gap-3">
-                                <Avatar id={profile.avatar} size={48} />
+                                <Avatar id={profile.avatar} size={48} animated />
                                 <p className="text-pixel-sm text-ink-muted">
                                     Signed in with {providerLabel(profile.provider)}
                                     {profile.email ? ` as ${profile.email}` : ''}
@@ -216,7 +216,7 @@ export default function AccountPanel() {
                                             label={label}
                                             description={
                                                 <span aria-hidden="true">
-                                                    <Avatar id={id} size={40} />
+                                                    <Avatar id={id} size={40} animated />
                                                 </span>
                                             }
                                         />

@@ -1,0 +1,333 @@
+/*
+ * Hover animation for the avatars (frames in avatarArt.ts).
+ *
+ * Every frame is drawn, stacked, and all but one held at zero opacity; hover
+ * runs one @keyframes per frame saying when that frame is the visible one.
+ * The frames are opaque portraits, so exactly one may show at a time — this is
+ * a flipbook, not a cross-fade, which is also why every timing function is
+ * `steps(1, end)`: hold the pose, then cut.
+ *
+ * Each avatar names its keyframes DIRECTLY, three rules per face. The tidier
+ * version — one `--f1: frogRest` per avatar read by a shared
+ * `animation-name: var(--f1)` — compiles but never runs: CSS Modules hashes
+ * `@keyframes frogRest` and rewrites the names it finds in `animation-name`,
+ * and it cannot see one hiding inside a custom property. The animation then
+ * points at a name that does not exist, silently, on every avatar at once.
+ *
+ * Timing lives here rather than with the art because how long a pose holds is
+ * a feel question. Windows are percentages, so retiming a face is one number.
+ * avatarAnimation.test.ts fails if this file and the art drift apart.
+ */
+
+.frame {
+    opacity: 0;
+}
+
+/* The base art, the only frame that shows when nothing is happening. */
+.frame:first-of-type {
+    opacity: 1;
+}
+
+/*
+ * `no-preference` rather than the usual duration-token zeroing: these loop
+ * forever, and a zero-duration infinite animation is still an animation — the
+ * same reason the board's hover pulse opts out by hand. Under reduced motion
+ * none of these rules exist, which leaves the static base frame above — the
+ * zeroed --ms-duration-loop is not what stops them, this query is.
+ */
+@media (prefers-reduced-motion: no-preference) {
+    /*
+     * Hover is the only trigger, including on touch, where a tap leaves the
+     * face looping until the next one. Adding :focus-visible would mean
+     * doubling all 36 selectors below, or assigning the animations
+     * unconditionally and toggling animation-play-state — a bigger change than
+     * a decorative flourish for keyboard users justifies. Revisit together.
+     */
+    .animated:hover .frame {
+        animation-duration: var(--cycle);
+        animation-timing-function: steps(1, end);
+        animation-iteration-count: infinite;
+    }
+
+    /* ===================================================================
+     * The cast. A long rest is what makes a gag land, so most of these
+     * spend well over half the cycle on the base pose; the ambient ones
+     * (ghost, penguin, robot, shinobi) never rest, because a float or a
+     * sweep that pauses reads as broken rather than idle.
+     * ================================================================= */
+
+    /* Classic — the mouth opens to the mousedown face and shuts again. */
+    .animated[data-avatar="classic"] {
+        --cycle: calc(var(--ms-duration-loop) * 2);
+    }
+    .animated[data-avatar="classic"]:hover .frame:nth-of-type(1) { animation-name: classicRest; }
+    .animated[data-avatar="classic"]:hover .frame:nth-of-type(2) { animation-name: classicFlat; }
+    .animated[data-avatar="classic"]:hover .frame:nth-of-type(3) { animation-name: classicGasp; }
+    @keyframes classicRest {
+        0% { opacity: 1; }
+        55% { opacity: 0; }
+        90% { opacity: 1; }
+    }
+    @keyframes classicFlat {
+        0% { opacity: 0; }
+        55% { opacity: 1; }
+        63% { opacity: 0; }
+        80% { opacity: 1; }
+        90% { opacity: 0; }
+    }
+    @keyframes classicGasp {
+        0% { opacity: 0; }
+        63% { opacity: 1; }
+        80% { opacity: 0; }
+    }
+
+    /* Puppy — the fastest cycle of the set, and the only one with no rest
+     * pose at all: panting that pauses is a dog that has stopped. */
+    .animated[data-avatar="puppy"] {
+        --cycle: var(--ms-duration-loop);
+    }
+    .animated[data-avatar="puppy"]:hover .frame:nth-of-type(1) { animation-name: puppyRest; }
+    .animated[data-avatar="puppy"]:hover .frame:nth-of-type(2) { animation-name: puppyOut; }
+    .animated[data-avatar="puppy"]:hover .frame:nth-of-type(3) { animation-name: puppyIn; }
+    @keyframes puppyRest {
+        0% { opacity: 1; }
+        34% { opacity: 0; }
+    }
+    @keyframes puppyOut {
+        0% { opacity: 0; }
+        34% { opacity: 1; }
+        67% { opacity: 0; }
+    }
+    @keyframes puppyIn {
+        0% { opacity: 0; }
+        67% { opacity: 1; }
+    }
+
+    /* Kitty — the slow blink, which is what a cat does at someone it likes.
+     * The longest rest here: rushed, it is just a blink. */
+    .animated[data-avatar="kitty"] {
+        --cycle: calc(var(--ms-duration-loop) * 3);
+    }
+    .animated[data-avatar="kitty"]:hover .frame:nth-of-type(1) { animation-name: kittyRest; }
+    .animated[data-avatar="kitty"]:hover .frame:nth-of-type(2) { animation-name: kittyHalf; }
+    .animated[data-avatar="kitty"]:hover .frame:nth-of-type(3) { animation-name: kittyShut; }
+    @keyframes kittyRest {
+        0% { opacity: 1; }
+        70% { opacity: 0; }
+        95% { opacity: 1; }
+    }
+    @keyframes kittyHalf {
+        0% { opacity: 0; }
+        70% { opacity: 1; }
+        77% { opacity: 0; }
+        88% { opacity: 1; }
+        95% { opacity: 0; }
+    }
+    @keyframes kittyShut {
+        0% { opacity: 0; }
+        77% { opacity: 1; }
+        88% { opacity: 0; }
+    }
+
+    /* Fox — the squint HOLDS, a third of the cycle. That hold is the whole
+     * difference between sly and startled. */
+    .animated[data-avatar="fox"] {
+        --cycle: calc(var(--ms-duration-loop) * 2);
+    }
+    .animated[data-avatar="fox"]:hover .frame:nth-of-type(1) { animation-name: foxRest; }
+    .animated[data-avatar="fox"]:hover .frame:nth-of-type(2) { animation-name: foxHalf; }
+    .animated[data-avatar="fox"]:hover .frame:nth-of-type(3) { animation-name: foxSly; }
+    @keyframes foxRest {
+        0% { opacity: 1; }
+        45% { opacity: 0; }
+        94% { opacity: 1; }
+    }
+    @keyframes foxHalf {
+        0% { opacity: 0; }
+        45% { opacity: 1; }
+        52% { opacity: 0; }
+        88% { opacity: 1; }
+        94% { opacity: 0; }
+    }
+    @keyframes foxSly {
+        0% { opacity: 0; }
+        52% { opacity: 1; }
+        88% { opacity: 0; }
+    }
+
+    /* Frog — a long rest, then the mouth opens, the tongue lashes out past
+     * the edge, and it comes back through the open mouth. The flick is 14%
+     * of the cycle: any longer and it reads as a tongue left hanging out. */
+    .animated[data-avatar="frog"] {
+        --cycle: calc(var(--ms-duration-loop) * 2);
+    }
+    .animated[data-avatar="frog"]:hover .frame:nth-of-type(1) { animation-name: frogRest; }
+    .animated[data-avatar="frog"]:hover .frame:nth-of-type(2) { animation-name: frogOpen; }
+    .animated[data-avatar="frog"]:hover .frame:nth-of-type(3) { animation-name: frogTongue; }
+    @keyframes frogRest {
+        0% { opacity: 1; }
+        62% { opacity: 0; }
+        92% { opacity: 1; }
+    }
+    @keyframes frogOpen {
+        0% { opacity: 0; }
+        62% { opacity: 1; }
+        70% { opacity: 0; }
+        84% { opacity: 1; }
+        92% { opacity: 0; }
+    }
+    @keyframes frogTongue {
+        0% { opacity: 0; }
+        70% { opacity: 1; }
+        84% { opacity: 0; }
+    }
+
+    /* Penguin — flippers up, through the rest pose, down, and back. Passing
+     * through the middle is what makes it a flap rather than a twitch.
+     *
+     * These three windows are the AMBIENT cycle: even quarters, no rest beat,
+     * shared below with the ghost and the shinobi. What separates those three
+     * is --cycle, not the shape — so they share one definition rather than
+     * three identical ones drifting apart at the next retune. */
+    .animated[data-avatar="penguin"] {
+        --cycle: calc(var(--ms-duration-loop) * 1.5);
+    }
+    .animated[data-avatar="penguin"]:hover .frame:nth-of-type(1) { animation-name: ambientRest; }
+    .animated[data-avatar="penguin"]:hover .frame:nth-of-type(2) { animation-name: ambientUp; }
+    .animated[data-avatar="penguin"]:hover .frame:nth-of-type(3) { animation-name: ambientDown; }
+    @keyframes ambientRest {
+        0% { opacity: 1; }
+        25% { opacity: 0; }
+        50% { opacity: 1; }
+        75% { opacity: 0; }
+    }
+    @keyframes ambientUp {
+        0% { opacity: 0; }
+        25% { opacity: 1; }
+        50% { opacity: 0; }
+    }
+    @keyframes ambientDown {
+        0% { opacity: 0; }
+        75% { opacity: 1; }
+    }
+
+    /* Robot — no rest to speak of: it wakes once and then sweeps, because a
+     * machine that pauses to think reads as broken rather than idle. */
+    .animated[data-avatar="robot"] {
+        --cycle: calc(var(--ms-duration-loop) * 2);
+    }
+    .animated[data-avatar="robot"]:hover .frame:nth-of-type(1) { animation-name: robotRest; }
+    .animated[data-avatar="robot"]:hover .frame:nth-of-type(2) { animation-name: robotRight; }
+    .animated[data-avatar="robot"]:hover .frame:nth-of-type(3) { animation-name: robotLeft; }
+    @keyframes robotRest {
+        0% { opacity: 1; }
+        25% { opacity: 0; }
+    }
+    @keyframes robotRight {
+        0% { opacity: 0; }
+        25% { opacity: 1; }
+        50% { opacity: 0; }
+        75% { opacity: 1; }
+    }
+    @keyframes robotLeft {
+        0% { opacity: 0; }
+        50% { opacity: 1; }
+        75% { opacity: 0; }
+    }
+
+    /* Ghost — the ambient cycle at its slowest: a float has no accent beat to
+     * land on. */
+    .animated[data-avatar="ghost"] {
+        --cycle: calc(var(--ms-duration-loop) * 3);
+    }
+    .animated[data-avatar="ghost"]:hover .frame:nth-of-type(1) { animation-name: ambientRest; }
+    .animated[data-avatar="ghost"]:hover .frame:nth-of-type(2) { animation-name: ambientUp; }
+    .animated[data-avatar="ghost"]:hover .frame:nth-of-type(3) { animation-name: ambientDown; }
+            
+    /* Alien — slow, so the glow reads as building rather than flickering. */
+    .animated[data-avatar="alien"] {
+        --cycle: calc(var(--ms-duration-loop) * 3);
+    }
+    .animated[data-avatar="alien"]:hover .frame:nth-of-type(1) { animation-name: alienRest; }
+    .animated[data-avatar="alien"]:hover .frame:nth-of-type(2) { animation-name: alienHalf; }
+    .animated[data-avatar="alien"]:hover .frame:nth-of-type(3) { animation-name: alienFull; }
+    @keyframes alienRest {
+        0% { opacity: 1; }
+        45% { opacity: 0; }
+        88% { opacity: 1; }
+    }
+    @keyframes alienHalf {
+        0% { opacity: 0; }
+        45% { opacity: 1; }
+        53% { opacity: 0; }
+        80% { opacity: 1; }
+        88% { opacity: 0; }
+    }
+    @keyframes alienFull {
+        0% { opacity: 0; }
+        53% { opacity: 1; }
+        80% { opacity: 0; }
+    }
+
+    /* Shinobi — the ambient cycle again; the ribbon never settles, because
+     * wind does not pause. */
+    .animated[data-avatar="shinobi"] {
+        --cycle: calc(var(--ms-duration-loop) * 1.5);
+    }
+    .animated[data-avatar="shinobi"]:hover .frame:nth-of-type(1) { animation-name: ambientRest; }
+    .animated[data-avatar="shinobi"]:hover .frame:nth-of-type(2) { animation-name: ambientUp; }
+    .animated[data-avatar="shinobi"]:hover .frame:nth-of-type(3) { animation-name: ambientDown; }
+            
+    /* Pirate — the patch lifts, the eye under it winks, the patch drops.
+     * The lift holds either side of the wink so the reveal registers before
+     * the joke lands. */
+    .animated[data-avatar="pirate"] {
+        --cycle: calc(var(--ms-duration-loop) * 2);
+    }
+    .animated[data-avatar="pirate"]:hover .frame:nth-of-type(1) { animation-name: pirateRest; }
+    .animated[data-avatar="pirate"]:hover .frame:nth-of-type(2) { animation-name: piratePeek; }
+    .animated[data-avatar="pirate"]:hover .frame:nth-of-type(3) { animation-name: pirateWink; }
+    @keyframes pirateRest {
+        0% { opacity: 1; }
+        40% { opacity: 0; }
+        88% { opacity: 1; }
+    }
+    @keyframes piratePeek {
+        0% { opacity: 0; }
+        40% { opacity: 1; }
+        55% { opacity: 0; }
+        70% { opacity: 1; }
+        88% { opacity: 0; }
+    }
+    @keyframes pirateWink {
+        0% { opacity: 0; }
+        55% { opacity: 1; }
+        70% { opacity: 0; }
+    }
+
+    /* Mushroom — squash short, stretch longer: a bounce spends its time in
+     * the air, not on the ground. */
+    .animated[data-avatar="mushroom"] {
+        --cycle: calc(var(--ms-duration-loop) * 1.5);
+    }
+    .animated[data-avatar="mushroom"]:hover .frame:nth-of-type(1) { animation-name: mushroomRest; }
+    .animated[data-avatar="mushroom"]:hover .frame:nth-of-type(2) { animation-name: mushroomSquash; }
+    .animated[data-avatar="mushroom"]:hover .frame:nth-of-type(3) { animation-name: mushroomStretch; }
+    @keyframes mushroomRest {
+        0% { opacity: 1; }
+        40% { opacity: 0; }
+        82% { opacity: 1; }
+    }
+    @keyframes mushroomSquash {
+        0% { opacity: 0; }
+        40% { opacity: 1; }
+        52% { opacity: 0; }
+        72% { opacity: 1; }
+        82% { opacity: 0; }
+    }
+    @keyframes mushroomStretch {
+        0% { opacity: 0; }
+        52% { opacity: 1; }
+        72% { opacity: 0; }
+    }
+}

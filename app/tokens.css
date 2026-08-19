@@ -316,6 +316,13 @@
     --ms-duration-quick: 120ms;
     --ms-duration-slow: 300ms;
     /*
+     * One turn of a looping animation, as opposed to the three above, which are
+     * one-way transitions. Long because a loop is ambient: the avatar hover
+     * cycles (components/ds/Avatar.module.css) multiply it, and anything under
+     * about a second there reads as a twitch rather than a gesture.
+     */
+    --ms-duration-loop: 700ms;
+    /*
      * Delay per band of the cascade reveal, so a cascade sweeps rather than
      * appearing all at once. Which band a cell falls in is `cascadeBand()` in
      * lib/motion.ts; the feel is the product of the two, so change them
@@ -403,6 +410,7 @@
         --ms-duration-instant: 0ms;
         --ms-duration-quick: 0ms;
         --ms-duration-slow: 0ms;
+        --ms-duration-loop: 0ms;
         --ms-cascade-step: 0ms;
     }
 }
