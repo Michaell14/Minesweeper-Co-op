@@ -2,8 +2,8 @@
 import React from 'react';
 import { signOut } from 'next-auth/react';
 import { Avatar, Button, Dialog, DialogClose, Field, Input, Panel, RadioCard, RadioCardGroup } from '@/components/ds';
-import { AVATARS, canUseAvatar } from '@/shared/avatars';
-import { ACHIEVEMENTS, metricsFrom, progressOf } from '@/shared/achievements';
+import { AVATARS, canUseAvatar, requirementFor } from '@/shared/avatars';
+import { ACHIEVEMENTS, isPending, metricsFrom, PENDING_NOTE, progressOf } from '@/shared/achievements';
 import type { EarnedAchievement, ProfileStats } from '@/lib/statsApi';
 import { DIALOGS, openDialog } from '@/lib/dialogs';
 import { clearBridgeToken } from '@/lib/authBridge';
@@ -139,17 +139,19 @@ export default function AccountPanel({ achievements, stats }: AccountPanelProps)
         const metrics = metricsFrom(stats);
         return (id: string): string | null => {
             if (canUseAvatar(id, { earned, current: profile?.avatar ?? null })) return null;
-            const achievement = ACHIEVEMENTS.find(
-                (a) => a.id === AVATARS.find((avatar) => avatar.id === id)?.requires,
-            );
+            const achievement = ACHIEVEMENTS.find((a) => a.id === requirementFor(id));
+            // Unreachable while avatarUnlocks.test.js passes, but an
+            // achievement may be RETIRED, and a lock with no legible reason is
+            // worse than a vague one.
             if (!achievement) return 'Locked';
-            const progress = stats ? progressOf(achievement, metrics) : null;
-            // Qualified but not yet awarded: achievements land when a game
-            // finishes, so someone can pass the threshold and still be locked.
-            // The shelf words this the same way; the two must not disagree.
-            if (progress && progress.value >= progress.threshold) {
-                return `${achievement.description} Finish a game to unlock.`;
+            if (!stats) return achievement.description;
+            // The badge shelf shows this same state; both read one predicate
+            // and one sentence, or a full bar here and a different explanation
+            // there reads as two bugs rather than one.
+            if (isPending(achievement, metrics)) {
+                return `${achievement.description} ${PENDING_NOTE}`;
             }
+            const progress = progressOf(achievement, metrics);
             return progress
                 ? `${achievement.description} ${progress.value}/${progress.threshold}`
                 : achievement.description;

@@ -238,6 +238,22 @@ describe('the /api/me routes', () => {
             expect(mockUpdateUser).toHaveBeenCalledWith('uuid-1', { avatar: 'shark' });
         });
 
+        /*
+         * The entitlement read is Postgres too, and Express 4 does not catch a
+         * rejected async handler — outside the try/catch this was no response
+         * at all rather than a wrong one, so the request hung.
+         */
+        test('answers 503 when the achievement read fails', async () => {
+            mockEarned.mockRejectedValue(new Error('connection terminated'));
+
+            const res = makeRes();
+            await routes['PUT /api/me']({ user: USER, body: { avatar: 'shark' } }, res);
+
+            expect(res.statusCode).toBe(503);
+            expect(res.body.error).toBe('Accounts are temporarily unavailable');
+            expect(mockUpdateUser).not.toHaveBeenCalled();
+        });
+
         // Most saves are an ungated face; none of them should pay for a query.
         test('does not read achievements for an ungated avatar', async () => {
             mockUpdateUser.mockResolvedValue({ ...USER, avatar: 'fox' });

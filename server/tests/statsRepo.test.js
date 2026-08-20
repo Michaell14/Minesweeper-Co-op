@@ -322,6 +322,36 @@ describe('recordResult: achievements', () => {
     });
 });
 
+/*
+ * The one query the avatar gate rests on. profileController's tests mock this
+ * module wholesale, so without this nothing exercises the SQL or the row
+ * shape — a renamed column would reach production silently and lock every
+ * earned avatar for everyone.
+ */
+describe('earnedAchievementIds', () => {
+    const poolQuery = require('../utils/initializePgClient').pgPool.query;
+
+    beforeEach(() => poolQuery.mockReset());
+
+    test('reads this account\'s ids, unwrapped from their rows', async () => {
+        poolQuery.mockResolvedValue({
+            rows: [{ achievement_id: 'apex-predator' }, { achievement_id: 'veteran' }],
+        });
+
+        const earned = await statsRepo.earnedAchievementIds('uuid-1');
+
+        expect(earned).toEqual(['apex-predator', 'veteran']);
+        const [sql, params] = poolQuery.mock.calls[0];
+        expect(sql).toMatch(/FROM user_achievements/);
+        expect(params).toEqual(['uuid-1']);
+    });
+
+    test('an account with none gets an empty list, not undefined', async () => {
+        poolQuery.mockResolvedValue({ rows: [] });
+        await expect(statsRepo.earnedAchievementIds('uuid-1')).resolves.toEqual([]);
+    });
+});
+
 describe('getProfile', () => {
     const poolQuery = require('../utils/initializePgClient').pgPool.query;
 

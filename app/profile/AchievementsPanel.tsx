@@ -1,7 +1,7 @@
 'use client'
 import React from 'react';
 import { Badge, Panel, pointerClass } from '@/components/ds';
-import { ACHIEVEMENTS, metricsFrom, progressOf } from '@/shared/achievements';
+import { ACHIEVEMENTS, isPending, metricsFrom, PENDING_NOTE, progressOf } from '@/shared/achievements';
 import { formatDate } from '@/lib/formatDate';
 import type { EarnedAchievement, ProfileStats } from '@/lib/statsApi';
 
@@ -71,14 +71,10 @@ export default function AchievementsPanel({
         const progress = earned ? null : progressOf(achievement, metrics);
         const isNew = !!earned && !!highlighted?.has(achievement.id);
 
-        /*
-         * Qualified but not yet awarded. Normally impossible — the award shares
-         * a transaction with the aggregate that triggers it — but lowering a
-         * threshold puts everyone who already qualifies here until their next
-         * game. A full bar on a locked tile reads as a bug, so say what is
-         * actually happening.
-         */
-        const pending = !!progress && progress.value >= progress.threshold;
+        // Shared with the avatar picker's locks — see `isPending`. The earned
+        // guard stays here: `isPending` reads the metrics, which keep meeting
+        // the threshold long after the badge lands.
+        const pending = !earned && isPending(achievement, metrics);
 
         const name = secret ? 'Hidden achievement' : achievement.name;
         const label = earned
@@ -113,7 +109,7 @@ export default function AchievementsPanel({
 
                 {pending && (
                     <p className="text-pixel-2xs text-ink-muted mt-2 mb-0" aria-hidden="true">
-                        Lands when you next finish a game.
+                        {PENDING_NOTE}
                     </p>
                 )}
 

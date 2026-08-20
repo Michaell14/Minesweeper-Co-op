@@ -30,6 +30,7 @@ vi.mock('@/lib/profileApi', async () => {
 });
 
 import AccountPanel from './AccountPanel';
+import { PENDING_NOTE } from '@/shared/achievements';
 import { DIALOGS } from '@/lib/dialogs';
 
 /** jsdom's closed <dialog> is display:none — open it the imperative way. */
@@ -376,7 +377,10 @@ describe('locked avatars', () => {
     it('tells someone who qualifies that the award is pending', async () => {
         await renderReady({ achievements: [], stats: { ...STATS, pvpWins: 100 } });
 
-        expect(screen.getByRole('radio', { name: /^Shark.*Finish a game to unlock/ })).toBeTruthy();
+        // Against the shared constant, so the copy and this cannot drift.
+        expect(screen.getByRole('radio', {
+            name: new RegExp(`^Shark.*${PENDING_NOTE}`),
+        })).toBeTruthy();
     });
 
     it('opens once the achievement is earned', async () => {
