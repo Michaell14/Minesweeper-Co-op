@@ -12,7 +12,9 @@
 const { verifyBridgeToken } = require('../utils/authToken');
 const { isDbEnabled } = require('../utils/initializePgClient');
 const userRepo = require('../data/userRepo');
+const statsRepo = require('../data/statsRepo');
 const { isValidAvatarId, isValidPlayerName, normalizePlayerName } = require('../validation');
+const { canUseAvatar, requirementFor } = require('../../shared/avatars');
 
 /** What a fresh account is called when the OAuth profile carries no name. */
 const DEFAULT_DISPLAY_NAME = 'Player';
@@ -153,6 +155,19 @@ const registerProfileRoutes = (app) => {
             if (!isValidAvatarId(body.avatar)) {
                 res.status(400).json({ error: 'Invalid avatar' });
                 return;
+            }
+            /*
+             * Earned avatars are checked HERE, the only write path, because the
+             * picker's lock is a courtesy: it draws from a payload the client
+             * could simply not have fetched. The read is skipped entirely for
+             * the ungated majority — most saves stay one round trip.
+             */
+            if (requirementFor(body.avatar)) {
+                const earned = await statsRepo.earnedAchievementIds(req.user.id);
+                if (!canUseAvatar(body.avatar, { earned, current: req.user.avatar })) {
+                    res.status(403).json({ error: 'That avatar is still locked' });
+                    return;
+                }
             }
             fields.avatar = body.avatar;
         }

@@ -23,6 +23,11 @@ jest.mock('../data/userRepo', () => ({
     deleteUser: (...args) => mockDelete(...args),
 }));
 
+const mockEarned = jest.fn();
+jest.mock('../data/statsRepo', () => ({
+    earnedAchievementIds: (...args) => mockEarned(...args),
+}));
+
 const mockDbState = { enabled: true };
 jest.mock('../utils/initializePgClient', () => ({
     pgPool: {},
@@ -42,6 +47,8 @@ beforeEach(() => {
     mockGetOrCreate.mockReset();
     mockUpdateUser.mockReset();
     mockDelete.mockReset();
+    mockEarned.mockReset();
+    mockEarned.mockResolvedValue([]);
     mockDbState.enabled = true;
 });
 
@@ -192,6 +199,51 @@ describe('the /api/me routes', () => {
         await routes['PUT /api/me']({ user: USER, body: { avatar } }, res);
         expect(res.statusCode).toBe(400);
         expect(mockUpdateUser).not.toHaveBeenCalled();
+    });
+
+    /*
+     * The earned avatars. The picker draws its own lock from the same rule, but
+     * it draws from a payload a client could simply never fetch — so the only
+     * check that counts is this one.
+     */
+    describe('PUT and an earned avatar', () => {
+        test('refuses one the account has not earned', async () => {
+            const res = makeRes();
+            await routes['PUT /api/me']({ user: USER, body: { avatar: 'shark' } }, res);
+            expect(res.statusCode).toBe(403);
+            expect(mockUpdateUser).not.toHaveBeenCalled();
+        });
+
+        test('stores one the account has earned', async () => {
+            mockEarned.mockResolvedValue(['apex-predator']);
+            mockUpdateUser.mockResolvedValue({ ...USER, avatar: 'shark' });
+
+            const res = makeRes();
+            await routes['PUT /api/me']({ user: USER, body: { avatar: 'shark' } }, res);
+
+            expect(mockUpdateUser).toHaveBeenCalledWith('uuid-1', { avatar: 'shark' });
+            expect(res.body.user.avatar).toBe('shark');
+        });
+
+        // The clause that matters if a face is ever gated after the fact:
+        // whatever you are already wearing stays re-pickable.
+        test('lets an account keep the one it is already wearing', async () => {
+            const wearer = { ...USER, avatar: 'shark' };
+            mockUpdateUser.mockResolvedValue(wearer);
+
+            const res = makeRes();
+            await routes['PUT /api/me']({ user: wearer, body: { avatar: 'shark' } }, res);
+
+            expect(res.statusCode).toBe(200);
+            expect(mockUpdateUser).toHaveBeenCalledWith('uuid-1', { avatar: 'shark' });
+        });
+
+        // Most saves are an ungated face; none of them should pay for a query.
+        test('does not read achievements for an ungated avatar', async () => {
+            mockUpdateUser.mockResolvedValue({ ...USER, avatar: 'fox' });
+            await routes['PUT /api/me']({ user: USER, body: { avatar: 'fox' } }, makeRes());
+            expect(mockEarned).not.toHaveBeenCalled();
+        });
     });
 
     test('PUT with neither field is a refusal, not a silent no-op', async () => {

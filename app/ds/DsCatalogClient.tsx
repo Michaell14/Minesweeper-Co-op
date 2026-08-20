@@ -372,7 +372,7 @@ export default function DsCatalogClient() {
 
             <Section
                 title="RadioCard"
-                note="Real radio inputs inside labels — the smoke test reads .checked/.value off them, and keyboard navigation comes free."
+                note="Real radio inputs inside labels — the smoke test reads .checked/.value off them, and keyboard navigation comes free. A disabled card is natively disabled rather than aria-disabled: arrow keys move a radio group's SELECTION, so an aria-only card gets picked by anyone navigating past it."
             >
                 <Field label="Board Size:">
                     <RadioCardGroup
@@ -382,14 +382,16 @@ export default function DsCatalogClient() {
                         ariaLabel="Catalog board size"
                     >
                         {[
-                            ["Small", "9x9"],
-                            ["Medium", "16x16"],
-                            ["Large", "20x16"],
-                        ].map(([t, d]) => (
+                            ["Small", "9x9", false],
+                            ["Medium", "16x16", false],
+                            ["Large", "20x16", false],
+                            ["Huge", "Locked", true],
+                        ].map(([t, d, off]) => (
                             <RadioCard
-                                key={t}
-                                value={t}
+                                key={t as string}
+                                value={t as string}
                                 label={t}
+                                disabled={off as boolean}
                                 description={
                                     <span className="whitespace-nowrap text-[11px]">{d}</span>
                                 }

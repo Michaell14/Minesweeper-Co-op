@@ -884,6 +884,295 @@ const MUSHROOM_STRETCH: PixelArt = {
     ],
 };
 
+/* ---------------------------------------------------------------------------
+ * THE EARNED FOUR
+ *
+ * Unlocked by an achievement rather than picked freely — the mapping lives in
+ * shared/avatars.js, since the server enforces it. Nothing about the DRAWING
+ * differs: same three tokens, same twelve palettes, same two hover frames, so
+ * an earned face is only special in the picker.
+ * ------------------------------------------------------------------------- */
+
+/* Apex predator: a toothy grin with the maw as the accent. */
+const SHARK: PixelArt = {
+    palette: PALETTE,
+    rows: [
+        "      ##        ",
+        "     ####       ",
+        "    ######      ",
+        "   ##########   ",
+        "  #oooooooooo#  ",
+        " #oooooooooooo# ",
+        " #oo##oooo##oo# ",
+        " #oo##oooo##oo# ",
+        " #oooooooooooo# ",
+        " ############## ",
+        " #o#o#o#o#o#o## ",
+        " #RRRRRRRRRRRR# ",
+        "  #oooooooooo#  ",
+        "   ##########   ",
+        "                ",
+        "                ",
+    ],
+};
+
+/* Shark, 1: the jaw drops — teeth top and bottom, maw wide open. */
+const SHARK_OPEN: PixelArt = {
+    palette: PALETTE,
+    rows: [
+        "      ##        ",
+        "     ####       ",
+        "    ######      ",
+        "   ##########   ",
+        "  #oooooooooo#  ",
+        " #oooooooooooo# ",
+        " #oo##oooo##oo# ",
+        " ############## ",
+        " #o#o#o#o#o#o## ",
+        " #RRRRRRRRRRRR# ",
+        " #RRRRRRRRRRRR# ",
+        " #o#o#o#o#o#o## ",
+        " ############## ",
+        "  ##########    ",
+        "                ",
+        "                ",
+    ],
+};
+
+/* Shark, 2: snapped shut, nothing but a clamped line where the maw was. */
+const SHARK_SNAP: PixelArt = {
+    palette: PALETTE,
+    rows: [
+        "      ##        ",
+        "     ####       ",
+        "    ######      ",
+        "   ##########   ",
+        "  #oooooooooo#  ",
+        " #oooooooooooo# ",
+        " #oo##oooo##oo# ",
+        " #oo##oooo##oo# ",
+        " #oooooooooooo# ",
+        " #oooooooooooo# ",
+        " ############## ",
+        " #oooooooooooo# ",
+        "  #oooooooooo#  ",
+        "   ##########   ",
+        "                ",
+        "                ",
+    ],
+};
+
+/* The hive: antennae, and a banded body in the accent. */
+const BEE: PixelArt = {
+    palette: PALETTE,
+    rows: [
+        "  #          #  ",
+        "   #        #   ",
+        "    ########    ",
+        "   ##oooooo##   ",
+        "  #oooooooooo#  ",
+        "  #o##oooo##o#  ",
+        "  #o##oooo##o#  ",
+        "  #oooooooooo#  ",
+        "   ##########   ",
+        "  #RRRRRRRRRR#  ",
+        "  #oooooooooo#  ",
+        "  #RRRRRRRRRR#  ",
+        "  #oooooooooo#  ",
+        "  #RRRRRRRRRR#  ",
+        "   ##########   ",
+        "                ",
+    ],
+};
+
+/* Bee, 1: antennae snap upright and the bands shift a row — the body reads as
+ * vibrating without moving, which is what a wingbeat looks like at this size. */
+const BEE_BUZZ: PixelArt = {
+    palette: PALETTE,
+    rows: [
+        "   #        #   ",
+        "   #        #   ",
+        "    ########    ",
+        "   ##oooooo##   ",
+        "  #oooooooooo#  ",
+        "  #o##oooo##o#  ",
+        "  #o##oooo##o#  ",
+        "  #oooooooooo#  ",
+        "   ##########   ",
+        "  #oooooooooo#  ",
+        "  #RRRRRRRRRR#  ",
+        "  #oooooooooo#  ",
+        "  #RRRRRRRRRR#  ",
+        "  #oooooooooo#  ",
+        "   ##########   ",
+        "                ",
+    ],
+};
+
+/* Bee, 2: a pixel of lift, antennae flicked down. */
+const BEE_LIFT: PixelArt = {
+    palette: PALETTE,
+    rows: [
+        "   #        #   ",
+        "    ########    ",
+        "   ##oooooo##   ",
+        "  #oooooooooo#  ",
+        "  #o##oooo##o#  ",
+        "  #o##oooo##o#  ",
+        "  #oooooooooo#  ",
+        "   ##########   ",
+        "  #RRRRRRRRRR#  ",
+        "  #oooooooooo#  ",
+        "  #RRRRRRRRRR#  ",
+        "  #oooooooooo#  ",
+        "  #RRRRRRRRRR#  ",
+        "   ##########   ",
+        "                ",
+        "                ",
+    ],
+};
+
+/* Thirty days running. The face is the LIGHT fill with ink features, not an
+ * accent disc: on Game Boy an accent face merges into its own eyes. The rays
+ * carry the accent instead, where nothing depends on them. */
+const SUN: PixelArt = {
+    palette: PALETTE,
+    rows: [
+        "      R  R      ",
+        "   R        R   ",
+        "     ######     ",
+        "   ##oooooo##   ",
+        "  #oooooooooo#  ",
+        " #oooooooooooo# ",
+        " #oooooooooooo# ",
+        " #o####oo####o# ",
+        "R#oooooooooooo#R",
+        " #oooooooooooo# ",
+        " #o##oooooo##o# ",
+        "  #oo######oo#  ",
+        "  #oooooooooo#  ",
+        "   ##oooooo##   ",
+        "   R        R   ",
+        "      R  R      ",
+    ],
+};
+
+/* Sun, 1: the rays reach. */
+const SUN_FLARE: PixelArt = {
+    palette: PALETTE,
+    rows: [
+        "     R    R     ",
+        "  R          R  ",
+        "     ######     ",
+        "   ##oooooo##   ",
+        "  #oooooooooo#  ",
+        " #oooooooooooo# ",
+        " #oooooooooooo# ",
+        " #o####oo####o# ",
+        "R#oooooooooooo#R",
+        " #oooooooooooo# ",
+        " #o##oooooo##o# ",
+        "  #oo######oo#  ",
+        "  #oooooooooo#  ",
+        "   ##oooooo##   ",
+        "  R          R  ",
+        "     R    R     ",
+    ],
+};
+
+/* Sun, 2: and draw back in. The disc never moves — only the light does. */
+const SUN_EBB: PixelArt = {
+    palette: PALETTE,
+    rows: [
+        "                ",
+        "    R      R    ",
+        "     ######     ",
+        "   ##oooooo##   ",
+        "  #oooooooooo#  ",
+        " #oooooooooooo# ",
+        " #oooooooooooo# ",
+        " #o####oo####o# ",
+        " #oooooooooooo# ",
+        " #oooooooooooo# ",
+        " #o##oooooo##o# ",
+        "  #oo######oo#  ",
+        "  #oooooooooo#  ",
+        "   ##oooooo##   ",
+        "    R      R    ",
+        "                ",
+    ],
+};
+
+/* A hundred boards cleared: a helm, plume in the accent, visor open. */
+const KNIGHT: PixelArt = {
+    palette: PALETTE,
+    rows: [
+        "      RRRR      ",
+        "      RRRR      ",
+        "   ##########   ",
+        "  ############  ",
+        "  ############  ",
+        "  #oooooooooo#  ",
+        "  #####oo#####  ",
+        "  #####oo#####  ",
+        "  #####oo#####  ",
+        "  ####o##o####  ",
+        "  ############  ",
+        "  ############  ",
+        "   ##########   ",
+        "    ########    ",
+        "                ",
+        "                ",
+    ],
+};
+
+/* Knight, 1: the visor drops shut. Only the breath holes are left, which is
+ * what keeps a solid block of ink reading as a helmet. */
+const KNIGHT_SHUT: PixelArt = {
+    palette: PALETTE,
+    rows: [
+        "      RRRR      ",
+        "      RRRR      ",
+        "   ##########   ",
+        "  ############  ",
+        "  ############  ",
+        "  ############  ",
+        "  ############  ",
+        "  ############  ",
+        "  ############  ",
+        "  ####o##o####  ",
+        "  ############  ",
+        "  ############  ",
+        "   ##########   ",
+        "    ########    ",
+        "                ",
+        "                ",
+    ],
+};
+
+/* Knight, 2: and lifts wide, plume flared. */
+const KNIGHT_WIDE: PixelArt = {
+    palette: PALETTE,
+    rows: [
+        "     RRRRRR     ",
+        "      RRRR      ",
+        "   ##########   ",
+        "  ############  ",
+        "  #oooooooooo#  ",
+        "  #oooooooooo#  ",
+        "  #####oo#####  ",
+        "  #####oo#####  ",
+        "  #####oo#####  ",
+        "  ####o##o####  ",
+        "  ############  ",
+        "  ############  ",
+        "   ##########   ",
+        "    ########    ",
+        "                ",
+        "                ",
+    ],
+};
+
 /** Art keyed by catalog id — avatarArt.test.ts fails if this drifts from
  * shared/avatars.js in either direction. */
 export const AVATAR_ART: Readonly<Record<string, PixelArt>> = {
@@ -899,6 +1188,10 @@ export const AVATAR_ART: Readonly<Record<string, PixelArt>> = {
     shinobi: SHINOBI,
     pirate: PIRATE,
     mushroom: MUSHROOM,
+    shark: SHARK,
+    bee: BEE,
+    sun: SUN,
+    knight: KNIGHT,
 };
 
 /**
@@ -918,6 +1211,10 @@ export const AVATAR_HOVER_FRAMES: Readonly<Record<string, readonly PixelArt[]>> 
     shinobi: [SHINOBI_WHIP_UP, SHINOBI_WHIP_DOWN],
     pirate: [PIRATE_PEEK, PIRATE_WINK],
     mushroom: [MUSHROOM_SQUASH, MUSHROOM_STRETCH],
+    shark: [SHARK_OPEN, SHARK_SNAP],
+    bee: [BEE_BUZZ, BEE_LIFT],
+    sun: [SUN_FLARE, SUN_EBB],
+    knight: [KNIGHT_SHUT, KNIGHT_WIDE],
 };
 
 /**

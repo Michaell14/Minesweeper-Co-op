@@ -287,6 +287,24 @@ const upsertBest = (client, userId, { boardKey, seconds, players, achievedAt }) 
         [userId, boardKey, seconds, players, achievedAt],
     );
 
+/**
+ * Just the achievement ids this account has earned.
+ *
+ * Narrow on purpose: `getProfile` below runs five queries to build a page, and
+ * the avatar gate needs one column to answer one question on every save. Read
+ * LIVE rather than from any cached user — an achievement unlocked seconds ago
+ * has to count, or the picker offers a face the save then refuses.
+ */
+const earnedAchievementIds = async (userId) => {
+    if (!pgPool) throw new Error('Postgres is not configured (DATABASE_URL is unset)');
+
+    const { rows } = await pgPool.query(
+        'SELECT achievement_id FROM user_achievements WHERE user_id = $1',
+        [userId],
+    );
+    return rows.map((row) => row.achievement_id);
+};
+
 /** Everything the profile page shows, in one read. */
 const getProfile = async (userId) => {
     if (!pgPool) throw new Error('Postgres is not configured (DATABASE_URL is unset)');
@@ -368,4 +386,11 @@ const importBests = async (userId, bests) => {
     }
 };
 
-module.exports = { recordResult, getProfile, importBests, backfillAchievements, RECENT_WINDOW };
+module.exports = {
+    recordResult,
+    getProfile,
+    earnedAchievementIds,
+    importBests,
+    backfillAchievements,
+    RECENT_WINDOW,
+};

@@ -54,13 +54,20 @@ export interface RadioCardProps {
     label: React.ReactNode;
     description?: React.ReactNode;
     /**
+     * Present but not choosable. The native `disabled` rather than
+     * `aria-disabled`: arrow keys move a radio group's SELECTION, not just its
+     * focus, so an aria-only card would be picked by anyone navigating past it.
+     * Say why in `description` — a disabled control still reads its label out.
+     */
+    disabled?: boolean;
+    /**
      * Fires in addition to the group's onChange. The Custom-size card uses it
      * to open its dimensions dialog.
      */
     onSelect?: () => void;
 }
 
-export function RadioCard({ value, label, description, onSelect }: RadioCardProps) {
+export function RadioCard({ value, label, description, onSelect, disabled = false }: RadioCardProps) {
     const ctx = React.useContext(RadioCardContext);
     if (!ctx) throw new Error("<RadioCard> must be rendered inside <RadioCardGroup>");
 
@@ -81,13 +88,14 @@ export function RadioCard({ value, label, description, onSelect }: RadioCardProp
     };
 
     return (
-        <label className={styles.card}>
+        <label className={cx(styles.card, disabled && styles.cardDisabled)}>
             <input
                 type="radio"
                 className={styles.input}
                 name={ctx.name}
                 value={value}
                 checked={checked}
+                disabled={disabled}
                 /* Present only to silence React's warning about a `checked` input
                  * with no change handler. See the note above. */
                 onChange={() => {}}
