@@ -694,6 +694,21 @@ game path) or the stats service is down. A null account table therefore means
 "read the browser" — signed out, not fetched yet, and unavailable all take the
 same branch, because they all want the same behaviour.
 
+**The first sign-in on a browser folds that copy in**, once, before the fetch
+(`BestsSync`). Without it the account read would look like data loss on the day
+it shipped: every record in existence was in localStorage, and the account only
+knows boards cleared since results started being recorded. The endpoint is
+keep-if-faster and idempotent, so doing it silently is safe; a failure is left
+unmarked and retried next sign-in. The watermark is per BROWSER, not per
+account — on a shared machine the second person to sign in should not inherit
+the first's records, and the button on /profile covers anyone who does want it.
+
+The fetched table is merged over what the store holds, keeping the faster of
+each pair, rather than replacing it. A straight replace drops a clear finished
+while the fetch was in flight. The cost is that a record whose server write
+dropped outlives the fetch instead of vanishing — the lesser wrong, since both
+numbers come off the same clock.
+
 There is still no server *leaderboard* of these. They seed a private profile,
 and the one client-reported write — the guest import at sign-up — is a
 keep-if-faster upsert, so it can pad your own shelf and corrupt nothing. (The
@@ -702,7 +717,11 @@ board is fixed and the time is server-authoritative.)
 
 **How a record is identified is `shared/boardKeys.js`, read by both halves** —
 the client to look one up, the server to write one. Two spellings of the same
-key is a record written where nothing will ever look for it.
+key is a record written where nothing will ever look for it. That is why the
+server derives the key in ONE place (`utils/statsRecorder`, from the board and
+the room the game-over site already reports) and `recordResult` reads the count
+back out of the key rather than recomputing it: the row's `players` column is a
+display copy, and the key is the identity.
 
 Records are keyed by the board's **dimensions and mine count**, not by its
 size/difficulty labels: `setDimensions` gives a joining player the room's

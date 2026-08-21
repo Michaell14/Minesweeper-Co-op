@@ -6,7 +6,7 @@
 
 import { serverURL } from "@/lib/initSocket";
 import { getBridgeToken } from "@/lib/authBridge";
-import { byPlayerCount, type BestTime } from "@/lib/bestTimes";
+import { byPlayerCount, type BestTime, type ImportableBest } from "@/lib/bestTimes";
 
 /**
  * How many recent games a profile keeps. Kept in step BY HAND with
@@ -14,6 +14,14 @@ import { byPlayerCount, type BestTime } from "@/lib/bestTimes";
  * cannot share the constant, the same trade the socket payloads make.
  */
 export const RECENT_WINDOW = 50;
+
+/**
+ * How many records one import may carry. Kept in step BY HAND with
+ * `MAX_BEST_IMPORT_ENTRIES` in server/validation.js, the same trade
+ * RECENT_WINDOW makes — and it matters more here, because the server refuses
+ * an oversized payload whole rather than truncating it.
+ */
+export const MAX_BEST_IMPORT = 100;
 
 export interface ProfileStats {
     coopGames: number;
@@ -134,9 +142,7 @@ export async function fetchBoardBests(): Promise<Record<string, BestTime> | null
 }
 
 /** Folds this browser's localStorage bests into the account, keep-if-faster. */
-export async function importBests(
-    bests: { boardKey: string; seconds: number; players: number; achievedAt: number }[],
-): Promise<boolean> {
+export async function importBests(bests: ImportableBest[]): Promise<boolean> {
     const res = await request("/api/stats/import-bests", "POST", { bests });
     return !!res && (res.status === 204 || res.ok);
 }

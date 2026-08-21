@@ -1,6 +1,6 @@
 const { resetPlayerScores, updatePlayerStatsInRoom } = require('./playerUtils');
 const { io } = require('./initializeClient');
-const { recordForSockets, boardKeyOf } = require('./statsRecorder');
+const { recordForSockets } = require('./statsRecorder');
 const roomRepo = require('../data/roomRepo');
 const { stoppedAt } = require('../domain/clock');
 const { createEmptyBoard, projectBoard } = require('../domain/board');
@@ -51,7 +51,7 @@ const checkWin = async (roomState, board, room) => {
             const startedAt = parseInt(roomState.startedAt, 10);
             recordForSockets(players, {
                 mode: 'co-op',
-                boardKey: boardKeyOf(board, 'co-op', players.length),
+                board,
                 won: true,
                 durationMs: Number.isFinite(startedAt) ? endedAt - startedAt : null,
                 players: players.length,

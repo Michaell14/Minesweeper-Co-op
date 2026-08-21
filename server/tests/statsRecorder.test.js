@@ -29,11 +29,24 @@ jest.mock('../data/statsRepo', () => ({
     recordResult: (...args) => mockRecordResult(...args),
 }));
 
-const { recordForSockets, boardKeyOf } = require('../utils/statsRecorder');
+const { recordForSockets } = require('../utils/statsRecorder');
 
-// dailyDate included to pin the pass-through contract: recordForSockets must
-// hand the result to the repo verbatim, new fields riding along untouched.
-const RESULT = { mode: 'daily', boardKey: '9x9/10', won: true, durationMs: 1000, players: 1, finishedAt: 1, dailyDate: '2026-08-02' };
+/** A 9x9 board holding 10 mines, which is what the keys below are derived from. */
+const boardOf = (rows, cols, mines) => {
+    const board = Array.from({ length: rows }, () => Array.from({ length: cols }, () => ({ isMine: false })));
+    for (let i = 0; i < mines; i++) board[Math.floor(i / cols)][i % cols].isMine = true;
+    return board;
+};
+
+// dailyDate included to pin the pass-through contract: every field but the
+// board rides along to the repo untouched.
+const RESULT = { mode: 'daily', board: boardOf(9, 9, 10), won: true, durationMs: 1000, players: 1, finishedAt: 1, dailyDate: '2026-08-02' };
+
+/** What the repo should have been handed: the result, with a key for a board. */
+const stored = (over = {}) => {
+    const { board, ...rest } = RESULT;
+    return { ...rest, boardKey: '9x9/10', ...over };
+};
 
 beforeEach(() => {
     mockSockets.clear();
@@ -45,18 +58,25 @@ beforeEach(() => {
 /** Lets the recordResult promise and its .then settle. */
 const settle = () => new Promise((r) => setImmediate(r));
 
-describe('boardKeyOf', () => {
-    const BOARD = [
-        [{ isMine: true }, { isMine: false }, { isMine: false }],
-        [{ isMine: false }, { isMine: true }, { isMine: false }],
-    ];
+/**
+ * The key a result is filed under, derived HERE from the board and the room
+ * rather than at the four game-over sites. Each of those states its mode and
+ * its player count once; a key built beside them would state both a second
+ * time, and a key that disagrees with its own count is a record nothing reads.
+ */
+describe('the key it derives', () => {
+    const keyFor = (result) => {
+        mockSockets.set('sock-user', { data: { user: { id: 'uuid-1' } } });
+        recordForSockets(['sock-user'], result);
+        return mockRecordResult.mock.calls[0][1].boardKey;
+    };
 
     test('keys by what the board IS: dimensions and counted mines', () => {
-        expect(boardKeyOf(BOARD, 'co-op', 1)).toBe('2x3/2');
+        expect(keyFor({ ...RESULT, mode: 'co-op', board: boardOf(2, 3, 2), players: 1 })).toBe('2x3/2');
     });
 
     test('a group clear carries the count, so it cannot take the solo slot', () => {
-        expect(boardKeyOf(BOARD, 'co-op', 3)).toBe('2x3/2@3');
+        expect(keyFor({ ...RESULT, mode: 'co-op', board: boardOf(2, 3, 2), players: 3 })).toBe('2x3/2@3');
     });
 
     /*
@@ -66,11 +86,17 @@ describe('boardKeyOf', () => {
      * point of the rule living in shared/.
      */
     test('a race files as solo, not as the two players in the room', () => {
-        expect(boardKeyOf(BOARD, 'pvp', 2)).toBe('2x3/2');
+        expect(keyFor({ ...RESULT, mode: 'pvp', board: boardOf(2, 3, 2), players: 2 })).toBe('2x3/2');
     });
 
     test('the daily is one player by construction', () => {
-        expect(boardKeyOf(BOARD, 'daily', 1)).toBe('2x3/2');
+        expect(keyFor({ ...RESULT, board: boardOf(2, 3, 2) })).toBe('2x3/2');
+    });
+
+    /* The board is the recorder's input, not the repo's: it stops here. */
+    test('hands the repo a key and never the board itself', () => {
+        keyFor(RESULT);
+        expect(mockRecordResult.mock.calls[0][1]).not.toHaveProperty('board');
     });
 });
 
@@ -83,7 +109,7 @@ describe('recordForSockets', () => {
         recordForSockets(['sock-user', 'sock-guest', 'sock-gone'], RESULT);
 
         expect(mockRecordResult).toHaveBeenCalledTimes(1);
-        expect(mockRecordResult).toHaveBeenCalledWith('uuid-1', RESULT);
+        expect(mockRecordResult).toHaveBeenCalledWith('uuid-1', stored());
     });
 
     test('does nothing at all without a database', () => {

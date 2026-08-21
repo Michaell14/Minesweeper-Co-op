@@ -27,6 +27,9 @@
 /**
  * Separates the board from the size of the group that cleared it. Never appears
  * in the board part, which is only digits, `x` and `/`.
+ *
+ * Module-private: every key is assembled and read through the helpers below,
+ * which is the point of them.
  */
 const PLAYERS_SEPARATOR = '@';
 
@@ -56,6 +59,23 @@ const boardKey = (rows, cols, mines, players = 1) =>
     withPlayers(`${rows}x${cols}/${mines}`, players);
 
 /**
+ * How many cleared the board a key describes — the count back out of the key
+ * `boardKey` put in. Solo keys carry no suffix, so a missing one is 1.
+ *
+ * This is what lets a caller derive the count from the key rather than
+ * recomputing it beside the key: two derivations of one fact are two chances
+ * to disagree, and a record whose key and count disagree is unreadable.
+ *
+ * @param {string} key
+ * @returns {number}
+ */
+const playersFromKey = (key) => {
+    const suffix = String(key).split(PLAYERS_SEPARATOR)[1];
+    const players = parseInt(suffix, 10);
+    return Number.isInteger(players) && players > 1 ? players : 1;
+};
+
+/**
  * How many players a clear counts as.
  *
  * A PVP race is SOLO work: you clear the whole board yourself and your opponent
@@ -75,10 +95,10 @@ const playersForClear = (mode, playersInRoom) =>
     mode === 'pvp' ? 1 : Math.max(1, playersInRoom);
 
 module.exports = {
-    PLAYERS_SEPARATOR,
     BOARD_KEY_PATTERN,
     boardPartOf,
     withPlayers,
     boardKey,
+    playersFromKey,
     playersForClear,
 };

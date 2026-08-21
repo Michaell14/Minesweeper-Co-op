@@ -4,8 +4,8 @@ import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 import { Button, Panel, Table } from '@/components/ds';
 import { DIALOGS, openDialog } from '@/lib/dialogs';
-import { RECENT_WINDOW, fetchBoardBests, fetchStats, importBests, type ProfilePayload } from '@/lib/statsApi';
-import { labelForKey, readBestTimes } from '@/lib/bestTimes';
+import { MAX_BEST_IMPORT, RECENT_WINDOW, fetchBoardBests, fetchStats, importBests, type ProfilePayload } from '@/lib/statsApi';
+import { bestsForImport, labelForKey, markBestsImported, readBestTimes } from '@/lib/bestTimes';
 import { useMinesweeperStore } from '@/app/store';
 import { formatClock } from '@/lib/gameClock';
 import { formatDate } from '@/lib/formatDate';
@@ -83,15 +83,12 @@ export default function ProfileClient() {
 
     const runImport = async () => {
         setImportState('busy');
-        const bests = Object.entries(readBestTimes()).map(([boardKey, best]) => ({
-            boardKey,
-            seconds: best.seconds,
-            players: best.players,
-            achievedAt: best.at,
-        }));
-        const ok = await importBests(bests);
+        const ok = await importBests(bestsForImport(MAX_BEST_IMPORT));
         setImportState(ok ? 'done' : 'failed');
         if (!ok) return;
+        // Same fold-in BestsSync does silently on sign-in; marking it here
+        // stops the automatic one repeating work this player asked for.
+        markBestsImported();
         load();
         // The GAME reads the account's records, not this page's payload — so
         // without this the banner on the board would keep showing what the

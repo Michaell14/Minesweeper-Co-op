@@ -18,7 +18,7 @@
 const { pgPool } = require('../utils/initializePgClient');
 const { advanceStreak, streaksFromDays, utcDayOf } = require('../domain/streak');
 const { earnedFrom } = require('../domain/achievements');
-const { boardPartOf, playersForClear, withPlayers } = require('../../shared/boardKeys');
+const { boardPartOf, playersFromKey, withPlayers } = require('../../shared/boardKeys');
 
 /** How many recent games each player keeps, per the PRD (aggregates + window). */
 const RECENT_WINDOW = 50;
@@ -214,15 +214,18 @@ const recordResult = async (userId, { mode, boardKey, won, durationMs, players, 
          * banner shows — a time set on a board nobody can play again. The daily
          * keeps its own history, in user_daily_results.
          *
-         * `players` is the CLEAR count, not the room: a race is solo work, and
-         * the key already says so. Filing the row one way and captioning it the
-         * other is what made a race read as "with 2 players".
+         * `players` is the CLEAR count, not the room, and it is read back OUT
+         * of the key rather than recomputed beside it: a race is solo work and
+         * the key already says so. Deriving it twice is how a row ends up
+         * keyed '16x16/40' and captioned "with 2 players" — which is what a
+         * race used to do. The row's `players` is therefore a display copy of
+         * something the key already holds; the key is the identity.
          */
         if (mode !== 'daily' && won && typeof durationMs === 'number' && durationMs >= 0) {
             await upsertBest(client, userId, {
                 boardKey,
                 seconds: Math.floor(durationMs / 1000),
-                players: playersForClear(mode, players),
+                players: playersFromKey(boardKey),
                 achievedAt: finishedAt,
             });
         }
@@ -410,16 +413,16 @@ const importBests = async (userId, bests) => {
         await client.query('BEGIN');
         for (const best of bests) {
             /*
-             * The key is rebuilt from the board part and the count on the
-             * record, rather than trusted as sent: a payload naming
-             * '16x16/40@2' with players 1 would otherwise file a record on a
-             * key nothing derives, and sit there unreadable. Same normalisation
-             * `recordBestTime` does in the browser.
+             * Client-reported, so the two halves of an entry can disagree. The
+             * COUNT is the trustworthy half here (the browser files by it), so
+             * the key is rebuilt from it rather than trusted as sent: a payload
+             * naming '16x16/40@2' with players 1 would otherwise sit on a key
+             * nothing derives and nothing reads. The column then comes back out
+             * of the rebuilt key, so this lands on the same rule every other
+             * write follows — the key is the identity, the column mirrors it.
              */
-            await upsertBest(client, userId, {
-                ...best,
-                boardKey: withPlayers(boardPartOf(best.boardKey), best.players),
-            });
+            const boardKey = withPlayers(boardPartOf(best.boardKey), best.players);
+            await upsertBest(client, userId, { ...best, boardKey, players: playersFromKey(boardKey) });
         }
         await client.query('COMMIT');
     } catch (error) {

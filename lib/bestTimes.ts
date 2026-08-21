@@ -52,6 +52,16 @@ export interface BestResult {
 const STORAGE_KEY = "minesweeper_best_times";
 
 /**
+ * Set once this browser's records have been folded into an account.
+ *
+ * A single per-browser flag, not one per account: on a shared machine the
+ * SECOND person to sign in should not have the first's records folded into
+ * their profile, and skipping is the safe way to be wrong. The explicit button
+ * on /profile stays for anyone who does want it.
+ */
+const IMPORTED_KEY = "minesweeper_bests_imported";
+
+/**
  * "Medium / Hard" for a board matching a preset, otherwise its dimensions.
  * Derived from the numbers for the same reason the key is.
  */
@@ -207,11 +217,62 @@ export const recordBestTime = (givenKey: string, run: Clear): BestResult => {
     return result;
 };
 
+/** One record as the import endpoint takes it. */
+export interface ImportableBest {
+    boardKey: string;
+    seconds: number;
+    players: number;
+    achievedAt: number;
+}
+
+/**
+ * This browser's records as an import payload, newest first and capped.
+ *
+ * Newest first because the cap has to drop something: a record set years ago on
+ * a custom board is the one worth losing. Capped at all because the endpoint
+ * refuses an oversized payload outright — without this a browser with enough
+ * records would fail to import, every time, with nothing to show for it.
+ */
+export const bestsForImport = (limit: number): ImportableBest[] =>
+    Object.entries(readBestTimes())
+        .map(([boardKey, best]) => ({
+            boardKey,
+            seconds: best.seconds,
+            players: best.players,
+            achievedAt: best.at,
+        }))
+        .sort((a, b) => b.achievedAt - a.achievedAt)
+        .slice(0, limit);
+
+/** Whether this browser's records have already been folded into an account. */
+export const hasImportedBests = (): boolean => {
+    if (typeof window === "undefined") return true;
+    try {
+        return window.localStorage.getItem(IMPORTED_KEY) !== null;
+    } catch {
+        // Storage blocked: treat it as done. Retrying forever against storage
+        // that cannot remember the answer is worse than not offering.
+        return true;
+    }
+};
+
+/** Records that the fold-in happened, so it is not repeated on every sign-in. */
+export const markBestsImported = (): void => {
+    if (typeof window === "undefined") return;
+    try {
+        window.localStorage.setItem(IMPORTED_KEY, "1");
+    } catch {
+        // Unpersisted: the import runs again next sign-in, which is harmless —
+        // it is keep-if-faster on the server.
+    }
+};
+
 /** Forgets every record in this browser. Used by tests to reset between cases. */
 export const clearBestTimes = () => {
     if (typeof window === "undefined") return;
     try {
         window.localStorage.removeItem(STORAGE_KEY);
+        window.localStorage.removeItem(IMPORTED_KEY);
     } catch {
         // Nothing to do; the records were never persisted anyway.
     }

@@ -24,8 +24,11 @@ const { boardKey, playersForClear } = require('../../shared/boardKeys');
  *
  * The count goes through `playersForClear`, the rule the CLIENT applies to the
  * same clear: a race files as the solo work it is, not as a two-player result.
- * Spelling it a second time here is what would put a player's account record
- * and their browser's on different keys.
+ *
+ * Module-private, and derived HERE rather than at the four game-over sites:
+ * each of those already states the mode and the room size once, and stating
+ * them a second time to build a key is how a result ends up with a key that
+ * disagrees with its own count.
  *
  * @param board          the finished board
  * @param mode           'co-op' | 'pvp' | 'daily'
@@ -88,17 +91,24 @@ const announce = (userId) => (unlocked) => {
  * Records one result for every AUTHENTICATED socket in the list; guests are
  * skipped without comment. Fire-and-forget: call it, do not await it.
  *
+ * Takes the BOARD, not a key: callers state the mode and the room size once
+ * each and this derives the key from them, so a key and the count it implies
+ * cannot come from two different readings of the same game.
+ *
  * @param socketIds array of socket ids sharing this outcome
- * @param result    { mode, boardKey, won, durationMs|null, players, finishedAt,
+ * @param result    { mode, board, won, durationMs|null, players, finishedAt,
  *                    dailyDate? ('YYYY-MM-DD' puzzle date, daily mode only) }
  */
-const recordForSockets = (socketIds, result) => {
+const recordForSockets = (socketIds, { board, ...result }) => {
     if (!isDbEnabled()) return;
+    // The board itself stops here — the repo stores a key, and handing it a few
+    // hundred cells to ignore invites someone to persist them one day.
+    const stored = { ...result, boardKey: boardKeyOf(board, result.mode, result.players) };
     for (const socketId of socketIds) {
         const user = userOf(socketId);
         if (!user) continue;
         statsRepo
-            .recordResult(user.id, result)
+            .recordResult(user.id, stored)
             /*
              * Two-argument `then`, so a failed WRITE and a failed ANNOUNCE are
              * never reported as each other. A single trailing `.catch` reads
@@ -114,4 +124,4 @@ const recordForSockets = (socketIds, result) => {
     }
 };
 
-module.exports = { recordForSockets, boardKeyOf };
+module.exports = { recordForSockets };

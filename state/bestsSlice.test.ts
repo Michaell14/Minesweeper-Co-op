@@ -81,6 +81,60 @@ describe("with the account's records loaded", () => {
     });
 });
 
+/*
+ * The table that lands from the server is not always newer than what the store
+ * holds: a clear finished while the fetch was in flight is only in the store.
+ * Replacing wholesale would drop it and leave a stale banner until the next
+ * page load.
+ */
+describe("hydrating from the server", () => {
+    test("keeps a record the fetch was too early to know about", () => {
+        state().setAccountBests({});
+        state().recordAccountBest("16x16/40", { seconds: 75, players: 1, at: 9 });
+
+        state().setAccountBests({ "9x9/10": { seconds: 30, players: 1, at: 1 } });
+
+        expect(state().accountBests?.["16x16/40"].seconds).toBe(75);
+        expect(state().accountBests?.["9x9/10"].seconds).toBe(30);
+    });
+
+    test("the server's faster record wins over what was held", () => {
+        state().setAccountBests({ "16x16/40": { seconds: 90, players: 1, at: 1 } });
+
+        state().setAccountBests({ "16x16/40": { seconds: 60, players: 1, at: 2 } });
+
+        expect(state().accountBests?.["16x16/40"].seconds).toBe(60);
+    });
+
+    /*
+     * The cost of the merge, pinned deliberately: a held record the server does
+     * not have — because its write dropped, stats being best-effort — outlives
+     * the fetch instead of vanishing from under the player. Both numbers come
+     * off the same clock, so showing the faster is the lesser wrong. If this
+     * ever needs to flip, it flips here.
+     */
+    test("a held record the server never got survives the fetch", () => {
+        state().setAccountBests({ "16x16/40": { seconds: 90, players: 1, at: 1 } });
+
+        state().setAccountBests({ "16x16/40": { seconds: 95, players: 1, at: 2 } });
+
+        expect(state().accountBests?.["16x16/40"].seconds).toBe(90);
+    });
+
+    /*
+     * The merge must not reach across a sign-out: whoever signs in next gets
+     * the table their account holds and nothing of the previous one's.
+     */
+    test("nothing survives a sign-out into the next account's table", () => {
+        state().setAccountBests({ "16x16/40": { seconds: 60, players: 1, at: 1 } });
+        state().setAccountBests(null);
+
+        state().setAccountBests({ "9x9/10": { seconds: 30, players: 1, at: 2 } });
+
+        expect(state().accountBests).toEqual({ "9x9/10": { seconds: 30, players: 1, at: 2 } });
+    });
+});
+
 describe("signing out", () => {
     test("drops the previous account's records rather than showing them on", () => {
         state().setAccountBests({ "16x16/40": { seconds: 90, players: 1, at: 1 } });
