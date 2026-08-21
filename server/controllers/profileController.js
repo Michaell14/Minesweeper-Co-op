@@ -12,7 +12,9 @@
 const { verifyBridgeToken } = require('../utils/authToken');
 const { isDbEnabled } = require('../utils/initializePgClient');
 const userRepo = require('../data/userRepo');
+const statsRepo = require('../data/statsRepo');
 const { isValidAvatarId, isValidPlayerName, normalizePlayerName } = require('../validation');
+const { canUseAvatar, requirementFor } = require('../../shared/avatars');
 
 /** What a fresh account is called when the OAuth profile carries no name. */
 const DEFAULT_DISPLAY_NAME = 'Player';
@@ -162,7 +164,28 @@ const registerProfileRoutes = (app) => {
             return;
         }
 
+        /*
+         * Everything that TOUCHES Postgres lives in here, entitlement included.
+         * Express 4 does not catch a rejected async handler: a throw outside
+         * this block is not a wrong status code, it is no response at all —
+         * the request hangs until the client gives up, and the picker sits on
+         * its optimistic state with nothing to roll back to.
+         */
         try {
+            /*
+             * Earned avatars are checked HERE, the only write path, because the
+             * picker's lock is a courtesy: it draws from a payload the client
+             * could simply not have fetched. The read is skipped entirely for
+             * the ungated majority — most saves stay one round trip.
+             */
+            if (fields.avatar && requirementFor(fields.avatar)) {
+                const earned = await statsRepo.earnedAchievementIds(req.user.id);
+                if (!canUseAvatar(fields.avatar, { earned, current: req.user.avatar })) {
+                    res.status(403).json({ error: 'That avatar is still locked' });
+                    return;
+                }
+            }
+
             const updated = await userRepo.updateUser(req.user.id, fields);
             if (!updated) {
                 // The row vanished between auth and update — deleted elsewhere.

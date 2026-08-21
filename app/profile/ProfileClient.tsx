@@ -311,8 +311,13 @@ export default function ProfileClient() {
             )}
 
             {/* Account management follows the stats — and renders even when the
-                stats are unavailable, because sign-out must stay reachable. */}
-            {status === 'authenticated' && <AccountPanel />}
+                stats are unavailable, because sign-out must stay reachable.
+                The achievements ride along for the avatar picker's locks, and
+                are undefined in exactly the cases that keep this mounted: the
+                stats still loading, or gone. */}
+            {status === 'authenticated' && (
+                <AccountPanel achievements={profile?.achievements} stats={profile?.stats} />
+            )}
         </main>
     );
 }

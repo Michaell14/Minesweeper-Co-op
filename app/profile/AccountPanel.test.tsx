@@ -30,6 +30,7 @@ vi.mock('@/lib/profileApi', async () => {
 });
 
 import AccountPanel from './AccountPanel';
+import { PENDING_NOTE } from '@/shared/achievements';
 import { DIALOGS } from '@/lib/dialogs';
 
 /** jsdom's closed <dialog> is display:none — open it the imperative way. */
@@ -49,10 +50,16 @@ const PROFILE = {
 const deleteButton = () =>
     screen.getByRole('button', { name: /Delete forever|Deleting…/ }) as HTMLButtonElement;
 
+const STATS = {
+    coopGames: 0, coopWins: 0, pvpGames: 0, pvpWins: 0, dailyGames: 0, dailyWins: 0,
+    currentStreak: 0, bestStreak: 0, lastPlayedDay: null,
+    dailyCurrentStreak: 0, dailyBestStreak: 0, lastDailyDay: null,
+};
+
 /** Renders, waits for the profile, and opens the armed delete dialog. */
-const renderReady = async () => {
+const renderReady = async (props: React.ComponentProps<typeof AccountPanel> = {}) => {
     mockFetchProfile.mockResolvedValue(PROFILE);
-    render(<AccountPanel />);
+    render(<AccountPanel {...props} />);
     await screen.findByRole('textbox', { name: 'Display name' });
 };
 
@@ -335,5 +342,82 @@ describe('deletion', () => {
             expect(screen.getByRole('alert').textContent).toMatch(/could not delete/i),
         );
         expect(mockSignOut).not.toHaveBeenCalled();
+    });
+});
+
+/*
+ * The earned avatars. The server is the gate — these are about whether the
+ * picker tells the truth BEFORE someone clicks, since the alternative is
+ * offering a face and answering with a 403.
+ */
+describe('locked avatars', () => {
+    const earned = (...ids: string[]) => ids.map((id) => ({ id, earnedAt: '2026-08-02' }));
+
+    it('locks one the account has not earned, and says what it costs', async () => {
+        await renderReady({ achievements: [], stats: STATS });
+
+        // The requirement is part of the accessible NAME, not just on screen —
+        // a lock a screen reader cannot hear is a card that refuses silently.
+        const shark = screen.getByRole('radio', { name: /^Shark.*Win 100 races/ }) as HTMLInputElement;
+        expect(shark.disabled).toBe(true);
+    });
+
+    it('shows progress towards it', async () => {
+        await renderReady({ achievements: [], stats: { ...STATS, pvpWins: 37 } });
+
+        expect(screen.getByRole('radio', { name: /^Shark.*37\/100/ })).toBeTruthy();
+    });
+
+    /*
+     * Qualified but not yet awarded. Achievements land when a game FINISHES, so
+     * the threshold can be met while the row does not exist yet — and the badge
+     * shelf already words this moment its own way. Two different explanations
+     * of one state is worse than none.
+     */
+    it('tells someone who qualifies that the award is pending', async () => {
+        await renderReady({ achievements: [], stats: { ...STATS, pvpWins: 100 } });
+
+        // Against the shared constant, so the copy and this cannot drift.
+        expect(screen.getByRole('radio', {
+            name: new RegExp(`^Shark.*${PENDING_NOTE}`),
+        })).toBeTruthy();
+    });
+
+    it('opens once the achievement is earned', async () => {
+        mockUpdateAvatar.mockResolvedValue({ ...PROFILE, avatar: 'shark' });
+        await renderReady({ achievements: earned('apex-predator'), stats: STATS });
+
+        const shark = screen.getByRole('radio', { name: /^Shark/ }) as HTMLInputElement;
+        expect(shark.disabled).toBe(false);
+
+        fireEvent.click(shark);
+        await waitFor(() => expect(mockUpdateAvatar).toHaveBeenCalledWith('shark'));
+    });
+
+    it('cannot be picked while locked', async () => {
+        await renderReady({ achievements: [], stats: STATS });
+
+        fireEvent.click(screen.getByRole('radio', { name: /^Shark/ }));
+
+        expect(mockUpdateAvatar).not.toHaveBeenCalled();
+    });
+
+    /*
+     * The panel outlives the stats fetch by design — sign-out has to stay
+     * reachable when the stats are down. Locked is the honest answer there;
+     * the other way round offers a face the save then refuses.
+     */
+    it('stays locked while the achievements are still unknown', async () => {
+        await renderReady();
+
+        expect((screen.getByRole('radio', { name: /^Shark/ }) as HTMLInputElement).disabled).toBe(true);
+    });
+
+    it('leaves the free avatars alone', async () => {
+        await renderReady({ achievements: [], stats: STATS });
+
+        for (const name of ['Smiley', 'Fox', 'Mushroom']) {
+            expect((screen.getByRole('radio', { name }) as HTMLInputElement).disabled).toBe(false);
+        }
     });
 });

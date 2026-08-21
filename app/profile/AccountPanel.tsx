@@ -2,7 +2,9 @@
 import React from 'react';
 import { signOut } from 'next-auth/react';
 import { Avatar, Button, Dialog, DialogClose, Field, Input, Panel, RadioCard, RadioCardGroup } from '@/components/ds';
-import { AVATARS } from '@/shared/avatars';
+import { AVATARS, canUseAvatar, requirementFor } from '@/shared/avatars';
+import { ACHIEVEMENTS, isPending, metricsFrom, PENDING_NOTE, progressOf } from '@/shared/achievements';
+import type { EarnedAchievement, ProfileStats } from '@/lib/statsApi';
 import { DIALOGS, openDialog } from '@/lib/dialogs';
 import { clearBridgeToken } from '@/lib/authBridge';
 import {
@@ -25,7 +27,20 @@ import {
  * dialog only arms once the display name is typed back: it is the one
  * irreversible action in the app, so it gets real friction.
  */
-export default function AccountPanel() {
+export interface AccountPanelProps {
+    /**
+     * What this account has earned, for the locked avatars. Undefined while the
+     * stats payload is still in flight or unavailable — the panel renders
+     * without it on purpose (sign-out has to stay reachable when the stats are
+     * down), so a gated face reads as locked until proven otherwise. The wrong
+     * way round would offer a face the save then refuses.
+     */
+    achievements?: EarnedAchievement[];
+    /** For the progress under a locked face. Same source as the badge shelf. */
+    stats?: ProfileStats;
+}
+
+export default function AccountPanel({ achievements, stats }: AccountPanelProps) {
     // The account row from the game server. 'unavailable' covers everything
     // from "Postgres not provisioned" to "Heroku is down" — states the player
     // can do nothing about beyond trying later.
@@ -113,6 +128,35 @@ export default function AccountPanel() {
             );
         }
     };
+
+    /*
+     * What each avatar costs, or null if it costs nothing. `canUseAvatar` is the
+     * same function the server enforces with, so the lock drawn here and the
+     * lock applied there cannot drift — this one is only the courtesy copy.
+     */
+    const lockFor = React.useMemo(() => {
+        const earned = (achievements ?? []).map((a) => a.id);
+        const metrics = metricsFrom(stats);
+        return (id: string): string | null => {
+            if (canUseAvatar(id, { earned, current: profile?.avatar ?? null })) return null;
+            const achievement = ACHIEVEMENTS.find((a) => a.id === requirementFor(id));
+            // Unreachable while avatarUnlocks.test.js passes, but an
+            // achievement may be RETIRED, and a lock with no legible reason is
+            // worse than a vague one.
+            if (!achievement) return 'Locked';
+            if (!stats) return achievement.description;
+            // The badge shelf shows this same state; both read one predicate
+            // and one sentence, or a full bar here and a different explanation
+            // there reads as two bugs rather than one.
+            if (isPending(achievement, metrics)) {
+                return `${achievement.description} ${PENDING_NOTE}`;
+            }
+            const progress = progressOf(achievement, metrics);
+            return progress
+                ? `${achievement.description} ${progress.value}/${progress.threshold}`
+                : achievement.description;
+        };
+    }, [achievements, stats, profile?.avatar]);
 
     const [deleting, setDeleting] = React.useState(false);
     const [deleteError, setDeleteError] = React.useState<string | null>(null);
@@ -209,18 +253,34 @@ export default function AccountPanel() {
                                     value={profile.avatar}
                                     onChange={(id) => void saveAvatar(id)}
                                     wrap>
-                                    {AVATARS.map(({ id, label }) => (
-                                        <RadioCard
-                                            key={id}
-                                            value={id}
-                                            label={label}
-                                            description={
-                                                <span aria-hidden="true">
-                                                    <Avatar id={id} size={40} animated />
-                                                </span>
-                                            }
-                                        />
-                                    ))}
+                                    {AVATARS.map(({ id, label }) => {
+                                        const lock = lockFor(id);
+                                        return (
+                                            <RadioCard
+                                                key={id}
+                                                value={id}
+                                                label={label}
+                                                disabled={lock !== null}
+                                                description={
+                                                    <>
+                                                        {/* The face is decoration; the
+                                                            requirement is not, so only
+                                                            one of the two is hidden. */}
+                                                        <span
+                                                            aria-hidden="true"
+                                                            className={lock ? 'opacity-50' : undefined}>
+                                                            <Avatar id={id} size={40} animated={!lock} />
+                                                        </span>
+                                                        {lock && (
+                                                            <span className="text-pixel-xs text-ink-muted">
+                                                                {lock}
+                                                            </span>
+                                                        )}
+                                                    </>
+                                                }
+                                            />
+                                        );
+                                    })}
                                 </RadioCardGroup>
                                 {avatarError && (
                                     <p role="alert" className="text-pixel-sm mt-2">{avatarError}</p>

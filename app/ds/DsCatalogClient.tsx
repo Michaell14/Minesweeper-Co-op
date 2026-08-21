@@ -34,6 +34,13 @@ import { THEMES, applyTheme, coverageOf, type ThemeCoverage } from "./themes";
 import { AUDITED_PAIRS, measure, type ContrastResult } from "./contrast";
 
 const INTENTS: ButtonIntent[] = ["default", "primary", "success", "warning", "error"];
+/** The RadioCard sample. The last one is only here to show the disabled state. */
+const CATALOG_SIZES = [
+    { label: "Small", detail: "9x9", locked: false },
+    { label: "Medium", detail: "16x16", locked: false },
+    { label: "Large", detail: "20x16", locked: false },
+    { label: "Huge", detail: "Locked", locked: true },
+];
 const NUMBERS = [1, 2, 3, 4, 5, 6, 7, 8] as const;
 /** RadioCard values are strings; the default palette has no data-theme value. */
 const DEFAULT_THEME = "__default__";
@@ -372,7 +379,7 @@ export default function DsCatalogClient() {
 
             <Section
                 title="RadioCard"
-                note="Real radio inputs inside labels — the smoke test reads .checked/.value off them, and keyboard navigation comes free."
+                note="Real radio inputs inside labels — the smoke test reads .checked/.value off them, and keyboard navigation comes free. A disabled card is natively disabled rather than aria-disabled: arrow keys move a radio group's SELECTION, so an aria-only card gets picked by anyone navigating past it."
             >
                 <Field label="Board Size:">
                     <RadioCardGroup
@@ -381,17 +388,14 @@ export default function DsCatalogClient() {
                         onChange={setSize}
                         ariaLabel="Catalog board size"
                     >
-                        {[
-                            ["Small", "9x9"],
-                            ["Medium", "16x16"],
-                            ["Large", "20x16"],
-                        ].map(([t, d]) => (
+                        {CATALOG_SIZES.map(({ label, detail, locked }) => (
                             <RadioCard
-                                key={t}
-                                value={t}
-                                label={t}
+                                key={label}
+                                value={label}
+                                label={label}
+                                disabled={locked}
                                 description={
-                                    <span className="whitespace-nowrap text-[11px]">{d}</span>
+                                    <span className="whitespace-nowrap text-[11px]">{detail}</span>
                                 }
                             />
                         ))}

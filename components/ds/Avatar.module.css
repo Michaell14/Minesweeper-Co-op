@@ -330,4 +330,91 @@
         52% { opacity: 1; }
         72% { opacity: 0; }
     }
+    /* ===================================================================
+     * THE EARNED FOUR — nothing here differs because they are unlocked
+     * rather than picked; a locked card just renders them unanimated.
+     * ================================================================= */
+
+    /* Shark — a long, still grin, then the jaw drops and snaps. The snap is
+     * the shortest window in the file: a chomp you can watch is a yawn. */
+    .animated[data-avatar="shark"] {
+        --cycle: calc(var(--ms-duration-loop) * 2);
+    }
+    .animated[data-avatar="shark"]:hover .frame:nth-of-type(1) { animation-name: sharkRest; }
+    .animated[data-avatar="shark"]:hover .frame:nth-of-type(2) { animation-name: sharkOpen; }
+    .animated[data-avatar="shark"]:hover .frame:nth-of-type(3) { animation-name: sharkSnap; }
+    @keyframes sharkRest {
+        0% { opacity: 1; }
+        55% { opacity: 0; }
+        90% { opacity: 1; }
+    }
+    @keyframes sharkOpen {
+        0% { opacity: 0; }
+        55% { opacity: 1; }
+        70% { opacity: 0; }
+        82% { opacity: 1; }
+        90% { opacity: 0; }
+    }
+    @keyframes sharkSnap {
+        0% { opacity: 0; }
+        70% { opacity: 1; }
+        82% { opacity: 0; }
+    }
+
+    /* Bee — the puppy's tempo and the puppy's reason: a wingbeat that pauses
+     * is an insect that has landed. */
+    .animated[data-avatar="bee"] {
+        --cycle: var(--ms-duration-loop);
+    }
+    .animated[data-avatar="bee"]:hover .frame:nth-of-type(1) { animation-name: beeRest; }
+    .animated[data-avatar="bee"]:hover .frame:nth-of-type(2) { animation-name: beeBuzz; }
+    .animated[data-avatar="bee"]:hover .frame:nth-of-type(3) { animation-name: beeLift; }
+    @keyframes beeRest {
+        0% { opacity: 1; }
+        34% { opacity: 0; }
+    }
+    @keyframes beeBuzz {
+        0% { opacity: 0; }
+        34% { opacity: 1; }
+        67% { opacity: 0; }
+    }
+    @keyframes beeLift {
+        0% { opacity: 0; }
+        67% { opacity: 1; }
+    }
+
+    /* Sun — the ambient cycle defined up at the penguin, at its slowest.
+     * Light reaching and drawing back has no accent beat to land on either. */
+    .animated[data-avatar="sun"] {
+        --cycle: calc(var(--ms-duration-loop) * 3);
+    }
+    .animated[data-avatar="sun"]:hover .frame:nth-of-type(1) { animation-name: ambientRest; }
+    .animated[data-avatar="sun"]:hover .frame:nth-of-type(2) { animation-name: ambientUp; }
+    .animated[data-avatar="sun"]:hover .frame:nth-of-type(3) { animation-name: ambientDown; }
+
+    /* Knight — the visor shuts, then lifts past where it started. Slow: a helm
+     * is heavy, and a fast visor reads as a blinking robot. */
+    .animated[data-avatar="knight"] {
+        --cycle: calc(var(--ms-duration-loop) * 2.5);
+    }
+    .animated[data-avatar="knight"]:hover .frame:nth-of-type(1) { animation-name: knightRest; }
+    .animated[data-avatar="knight"]:hover .frame:nth-of-type(2) { animation-name: knightShut; }
+    .animated[data-avatar="knight"]:hover .frame:nth-of-type(3) { animation-name: knightWide; }
+    @keyframes knightRest {
+        0% { opacity: 1; }
+        60% { opacity: 0; }
+        92% { opacity: 1; }
+    }
+    @keyframes knightShut {
+        0% { opacity: 0; }
+        60% { opacity: 1; }
+        70% { opacity: 0; }
+        84% { opacity: 1; }
+        92% { opacity: 0; }
+    }
+    @keyframes knightWide {
+        0% { opacity: 0; }
+        70% { opacity: 1; }
+        84% { opacity: 0; }
+    }
 }

@@ -163,8 +163,36 @@ const progressOf = (achievement, metrics) => {
     return { value: Math.min(value, achievement.threshold), threshold: achievement.threshold };
 };
 
+/**
+ * Qualified, but the award has not landed.
+ *
+ * Normally impossible — the award shares a transaction with the aggregate that
+ * triggers it — but lowering a threshold puts everyone who already qualifies
+ * here until their next game. Two surfaces show it (the badge shelf and the
+ * locked avatars in the picker), which is why the predicate and the sentence
+ * below both live here: a full bar in one place and a different explanation in
+ * the other reads as two bugs rather than one state.
+ *
+ * Says nothing about whether the achievement is ALREADY earned — callers know
+ * that and this deliberately does not, so an earned badge is not described as
+ * pending forever.
+ *
+ * @param {{ metric: string | null, threshold: number | null }} achievement
+ * @param {Record<string, number>} metrics
+ * @returns {boolean}
+ */
+const isPending = (achievement, metrics) => {
+    const progress = progressOf(achievement, metrics);
+    return !!progress && progress.value >= progress.threshold;
+};
+
+/** What both surfaces say about that state, in one place. */
+const PENDING_NOTE = 'Lands when you next finish a game.';
+
 module.exports = {
     ACHIEVEMENTS,
+    isPending,
+    PENDING_NOTE,
     metricsFrom,
     parseBoardKey,
     difficultyTierOf,

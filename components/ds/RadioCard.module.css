@@ -56,6 +56,25 @@
     cursor: pointer;
 }
 
+/*
+ * Not choosable. Muted INK rather than the disabled surface every other control
+ * here uses: this card already spends its background on selected-vs-not, and
+ * --ms-surface-disabled sits a hair off --ms-surface-option-selected, so a
+ * locked card read as a chosen one. On Game Boy it is worse — ash and mist are
+ * the same green, and the state disappeared outright.
+ *
+ * The card keeps the unselected fill and greys its text. A caller whose card
+ * carries artwork dims that itself; leaving it to this rule would fade the one
+ * line saying why the card is locked.
+ */
+.cardDisabled {
+    cursor: not-allowed;
+}
+
+.input:disabled ~ .control {
+    color: var(--ms-ink-muted);
+}
+
 /* The native input drives state and focus but is never seen. Its containing
  * block must stay the card — `clip` hides it but does not stop it counting
  * towards scrollable overflow. */
