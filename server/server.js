@@ -27,7 +27,6 @@ const { CLIENT_EVENTS, SERVER_EVENTS } = require('../shared/events');
 const {
     isValidRoomCode,
     isValidPlayerName,
-    normalizePlayerName,
     isValidMode,
     isValidBoardConfig,
     isValidCoordinate,
@@ -36,6 +35,7 @@ const {
     isValidDailyToken,
     isValidDailyDate,
 } = require('./validation');
+const { displayNameFor } = require('./utils/playerIdentity');
 
 // The account routes — the server's first HTTP surface beyond health checks.
 // The JSON body parser is mounted here, ONCE, ahead of every registration:
@@ -91,7 +91,7 @@ io.on('connection', async (socket) => {
     socket.on(CLIENT_EVENTS.CREATE_ROOM, safe(async ({ room, numRows, numCols, numMines, name, mode }) => {
         try {
             // Validate the name as it will be STORED — see joinRoom below.
-            const displayName = normalizePlayerName(name);
+            const displayName = displayNameFor(socket, name);
             if (
                 !isValidRoomCode(room) ||
                 !isValidPlayerName(displayName) ||
@@ -129,7 +129,7 @@ io.on('connection', async (socket) => {
             // Whitespace is not part of a name. The browser sends what was
             // typed, and anything speaking the protocol directly sends whatever
             // it likes.
-            const displayName = normalizePlayerName(name);
+            const displayName = displayNameFor(socket, name);
             if (!isValidRoomCode(room) || !isValidPlayerName(displayName)) {
                 socket.emit(SERVER_EVENTS.JOIN_ROOM_ERROR);
                 return;

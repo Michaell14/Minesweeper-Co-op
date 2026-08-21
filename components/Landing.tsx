@@ -1,6 +1,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { useMinesweeperStore } from '@/app/store';
+import { useAccountProfile } from '@/hooks/useAccountProfile';
 import { Button, ButtonLink, CalendarIcon, Dialog, DialogClose, SwordsIcon } from "@/components/ds";
 import { markPlayIntent } from "@/lib/dailyIntent";
 import { DIALOGS, openDialog } from "@/lib/dialogs";
@@ -37,6 +38,43 @@ interface LandingParams {
 export default function Landing({ createRoom, joinRoom, findMatch, cancelMatch, startPracticeRace }: LandingParams) {
     const setName = useMinesweeperStore((state) => state.setName);
 
+    /*
+     * A signed-in player never types a name: they have one, and the server puts
+     * it on the scoreboard whatever arrives (server/utils/playerIdentity.js).
+     * Asking anyway was friction AND a lie — the typed name lost.
+     */
+    const { profile, resolved } = useAccountProfile();
+    const accountName = profile?.displayName?.trim() || null;
+
+    /*
+     * Seeded into the store even though the server prefers its own snapshot.
+     * If the client believes it is signed in but the handshake's token did not
+     * resolve server-side, this is the only name the emit carries — without it
+     * the skip below sends an empty one and the join is refused with nothing
+     * on screen to explain it.
+     *
+     * One-way on purpose: signing out leaves the last account name in the
+     * store, which nothing reads, because clearing it here would wipe the name
+     * a GUEST typed the moment this resolves as unauthenticated.
+     */
+    React.useEffect(() => {
+        if (accountName) setName(accountName);
+    }, [accountName, setName]);
+
+    /*
+     * What the two forms get, derived ONCE so they cannot drift: the action if
+     * we know the player, null for a guest, and undefined while the account is
+     * still loading.
+     *
+     * `resolved` matters as much as the name. Acting on a not-yet-loaded
+     * profile treats every signed-in player as a guest for the first few
+     * hundred milliseconds, which is exactly when they click — and the join
+     * form's link path decides on MOUNT, when not-yet is the normal state.
+     */
+    const named = resolved && accountName !== null;
+    const skipNameDialog = (action: () => void): (() => void) | null | undefined =>
+        resolved ? (named ? action : null) : undefined;
+
     return (
         <>
             <AnnouncementBanner />
@@ -69,7 +107,7 @@ export default function Landing({ createRoom, joinRoom, findMatch, cancelMatch, 
                     <Button
                         intent="primary"
                         size="sm"
-                        onClick={() => openDialog(DIALOGS.nameMatch)}
+                        onClick={() => (named ? findMatch() : openDialog(DIALOGS.nameMatch))}
                         aria-label="Quick match — race a random opponent, no room code needed">
                         <span className="flex items-center gap-2">
                             <SwordsIcon size={16} />
@@ -83,11 +121,11 @@ export default function Landing({ createRoom, joinRoom, findMatch, cancelMatch, 
 
             <div className="flex justify-center pb-12">
                 <div className="w-full max-w-2xl mx-auto px-4">
-                    <JoinRoomForm />
+                    <JoinRoomForm joinRoom={skipNameDialog(joinRoom)} />
 
                     <p className="my-4" id={"horizontal"}>Or</p>
 
-                    <CreateRoomForm />
+                    <CreateRoomForm createRoom={skipNameDialog(createRoom)} />
                 </div>
             </div>
 
