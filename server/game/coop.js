@@ -58,7 +58,7 @@ const reveal = async (board, r, c, room, socketId, toUpdate) => {
         const players = JSON.parse((await roomRepo.getField(room, 'players')) || '[]');
         recordForSockets(players, {
             mode: 'co-op',
-            boardKey: boardKeyOf(board),
+            boardKey: boardKeyOf(board, 'co-op', players.length),
             won: false,
             durationMs: Number.isFinite(startedAt) ? endedAt - startedAt : null,
             players: players.length,

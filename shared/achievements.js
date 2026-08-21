@@ -22,6 +22,7 @@
  */
 
 const { ALL_PRESETS, DIFFICULTY_LEVELS } = require('./boardConfig');
+const { boardPartOf } = require('./boardKeys');
 
 /**
  * Every metric a `counter` may name, and their values for a stats snapshot —
@@ -116,9 +117,17 @@ const ACHIEVEMENTS = Object.freeze([
     moment('long-haul', 'The Long Haul', 'Clear a board after more than half an hour.', { hidden: true }),
 ]);
 
-/** '16x16/40' -> { rows, cols, mines }, or null. The key format is boardKeyOf's. */
+/**
+ * '16x16/40' -> { rows, cols, mines }, or null. The key format is boardKeyOf's.
+ *
+ * The group suffix a co-op clear carries ('16x16/40@3') is dropped rather than
+ * rejected: every predicate here asks about the BOARD, and clearing Extreme
+ * with three friends is still clearing Extreme. Reading the whole key would
+ * quietly stop awarding those the day records grew a player count.
+ */
 const parseBoardKey = (boardKey) => {
-    const match = typeof boardKey === 'string' && boardKey.match(/^(\d+)x(\d+)\/(\d+)$/);
+    if (typeof boardKey !== 'string') return null;
+    const match = boardPartOf(boardKey).match(/^(\d+)x(\d+)\/(\d+)$/);
     if (!match) return null;
     return { rows: Number(match[1]), cols: Number(match[2]), mines: Number(match[3]) };
 };

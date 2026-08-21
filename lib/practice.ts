@@ -12,7 +12,7 @@
  * par rather than dressed up as theirs.
  */
 
-import { boardKey, readBestTime } from "@/lib/bestTimes";
+import { bestFrom, boardKey, type BestTime } from "@/lib/bestTimes";
 
 /**
  * What a player with no record on this board races.
@@ -32,10 +32,20 @@ export interface PracticeTarget {
 /**
  * The target for one board. Solo records only — `boardKey` defaults to a player
  * count of 1, and a board someone cleared with three friends says nothing about
- * what they can do alone (see lib/bestTimes.ts).
+ * what they can do alone (see shared/boardKeys.js).
+ *
+ * `accountBests` is the signed-in player's records, or null to read this
+ * browser's. Passed in rather than fetched: this runs inside a socket handler
+ * on the way into a room, where there is nothing to await — and a practice race
+ * should chase the same record the banner shows, wherever that lives.
  */
-export function practiceTargetFor(rows: number, cols: number, mines: number): PracticeTarget {
-    const best = readBestTime(boardKey(rows, cols, mines));
+export function practiceTargetFor(
+    rows: number,
+    cols: number,
+    mines: number,
+    accountBests: Record<string, BestTime> | null = null,
+): PracticeTarget {
+    const best = bestFrom(accountBests, boardKey(rows, cols, mines));
     if (best === null) return { ms: PRACTICE_PAR_MS, isPersonal: false };
     return { ms: Math.max(1000, Math.round(best.seconds * 1000)), isPersonal: true };
 }

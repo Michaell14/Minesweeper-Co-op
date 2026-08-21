@@ -25,22 +25,33 @@ import type { SocketHandlers } from "./useSocketEvents";
  * component would re-run it on every render of a dialog that stays open.
  */
 const recordClear = () => {
-    const { startedAt, endedAt, numRows, numCols, numMines, playerStatsInRoom, mode } =
-        useMinesweeperStore.getState();
+    const store = useMinesweeperStore.getState();
+    const { startedAt, endedAt, numRows, numCols, numMines, playerStatsInRoom, mode } = store;
     // No clock, no record. Better a missing best than an invented one.
     if (startedAt === null || endedAt === null) return;
 
     // The count identifies the result, so it decides the key as well as being
-    // stored on it — see lib/bestTimes.ts for why a race counts as one player.
+    // stored on it — see shared/boardKeys.js for why a race counts as one player.
     const players = playersForClear(mode, playerStatsInRoom.length);
+    const key = boardKey(numRows, numCols, numMines, players);
+    const run = { seconds: elapsedSeconds(startedAt, endedAt), players, at: endedAt };
 
-    useMinesweeperStore.getState().setBestTimeResult(
-        recordBestTime(boardKey(numRows, numCols, numMines, players), {
-            seconds: elapsedSeconds(startedAt, endedAt),
-            players,
-            at: endedAt,
-        }),
-    );
+    /*
+     * Both copies, in the order they are believed.
+     *
+     * The browser's is written whether or not anyone is signed in — it is the
+     * guest record, and the thing left standing if a stats write drops. The
+     * ACCOUNT's is what the summary reports when there is one: signed in on a
+     * new device, comparing against localStorage would call a time slower than
+     * your real record a new best, and then say so in a banner.
+     *
+     * The server is recording the same clear from its own clock as this runs.
+     * It announces nothing when it lands, which is why the account copy is
+     * updated here rather than waited on; the next sign-in fetch replaces it
+     * with whatever the server actually stored.
+     */
+    const local = recordBestTime(key, run);
+    store.setBestTimeResult(store.recordAccountBest(key, run) ?? local);
 };
 
 const applyCellUpdates = (updates: CellUpdate[]) => {
@@ -132,7 +143,7 @@ const coopHandlers = (socket: AppSocket, leaveRoom: () => void): SocketHandlers 
          */
         store.setPracticeTarget(
             data.practice && data.numRows && data.numCols && data.numMines !== undefined
-                ? practiceTargetFor(data.numRows, data.numCols, data.numMines)
+                ? practiceTargetFor(data.numRows, data.numCols, data.numMines, store.accountBests)
                 : null,
         );
         store.setPlayerJoined(true);

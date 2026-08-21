@@ -74,6 +74,7 @@ components/ds/            The design system. Import via its index barrel
   cx.ts, pointer.ts       Class joiner; the shared pixel-cursor class
 shared/                   Imported by BOTH halves; viable because the whole repo deploys (§6)
   boardConfig.js          Board sizes, difficulty densities, limits, validity rule, DAILY_PRESET
+  boardKeys.js            How a board record is identified: board + how many cleared it
   events.js               Every socket event name, both directions (frozen, so TS infers literals)
   socketPayloads.ts       Payload shapes; binds the CLIENT only (the server is CommonJS)
 lib/
@@ -86,7 +87,7 @@ lib/
   theme.ts                Palettes, persistence, the no-flash script, cursor ramp
   holidays.ts             The seasonal schedule: which palette the DATE picks, if any
   gameClock.ts            elapsedSeconds/formatClock — the one reading of the run clock
-  bestTimes.ts            Personal bests in localStorage, keyed by board dimensions
+  bestTimes.ts            The GUEST copy of your bests (localStorage) + the shape both copies share
   roomLink.ts             Builds a shareable join URL
   dailyIdentity.ts        The opaque per-browser token a daily attempt is filed under
   dailyShare.ts           The shareable result text
@@ -679,21 +680,52 @@ so the live timer and the end-of-game summary cannot disagree.
 
 ### Personal best times
 
-Kept in `localStorage`, never sent to the server: there are no accounts to hang
-a real leaderboard off, and a server-side table nobody can be authenticated
-against would rank whoever edited a socket payload last. (The daily challenge
-*does* have a server leaderboard — it can afford one because the board is fixed
-and the time is server-authoritative.)
+**Signed in, the record lives on the account.** The server writes
+`user_board_bests` inside the same transaction that records the finished game
+(`data/statsRepo.js`), from its own clock — so a record follows a player to
+whatever device they sign in on next, which a browser-local one never could.
+`components/BestsSync.tsx` fetches the table once per sign-in into
+`state/bestsSlice.ts`, and `hooks/useBestTime.ts` reads it.
+
+`lib/bestTimes.ts` is the **guest** copy of the same thing, in `localStorage`.
+It is still written while signed in: it is what a signed-out player sees, and
+what is left standing when a stats write drops (they are fire-and-forget on a
+game path) or the stats service is down. A null account table therefore means
+"read the browser" — signed out, not fetched yet, and unavailable all take the
+same branch, because they all want the same behaviour.
+
+There is still no server *leaderboard* of these. They seed a private profile,
+and the one client-reported write — the guest import at sign-up — is a
+keep-if-faster upsert, so it can pad your own shelf and corrupt nothing. (The
+daily challenge does have a real leaderboard; it can afford one because the
+board is fixed and the time is server-authoritative.)
+
+**How a record is identified is `shared/boardKeys.js`, read by both halves** —
+the client to look one up, the server to write one. Two spellings of the same
+key is a record written where nothing will ever look for it.
 
 Records are keyed by the board's **dimensions and mine count**, not by its
 size/difficulty labels: `setDimensions` gives a joining player the room's
 numbers and leaves the labels at whatever they last picked, so a label-keyed
-record would file a joiner's win under a board they never played. Each record
-also stores how many players were in the room, because clearing a board with
-three friends is a real result but not the same one.
+record would file a joiner's win under a board they never played.
+
+**How many cleared it is part of that identity, not a note on it** — a group
+clear takes an `@3` suffix and solo keeps the bare key. Two people splitting a
+board finish faster than one person can more or less by construction, so with
+one slot per board the group time takes it and holds it, and every solo run
+afterwards silently fails to be a record. The server's rows carried the count in
+a column and had exactly that bug; the `group-board-best-keys` migration re-files
+them by the same rule the client applies on read.
+
+A **race counts as one player** (`playersForClear`): you clear the whole board
+yourself, even though the room holds two. The game still records as a
+two-player game — only the record is solo.
 
 Only a cleared board counts. A loss has a time but is not a completion, and
-winning because an opponent disconnected is not one either.
+winning because an opponent disconnected is not one either. **The daily is
+excluded**: it is a different board every day, so a daily clear would land on the
+key an ordinary board of the same dimensions looks up and become a record for a
+board nobody can play again. Its history is `user_daily_results`.
 
 ### Rejoining after a reload
 
@@ -789,8 +821,10 @@ a game-over emit. Each result is ONE transaction (the result row, the
 recent-window prune, the aggregates under `FOR UPDATE`, and a keep-if-faster
 board best), so an aggregate can never disagree with its rows. The
 day-streak maths lives in `domain/streak.js`, pure. `/profile` reads it all
-via `GET /api/stats`; the only stats write endpoint is the guest best-times
-import, keep-if-faster by construction. A signed-in daily submit stores the
+via `GET /api/stats`; the GAME reads the board records alone via
+`GET /api/stats/bests`, which is a single query rather than the five that build
+a profile page (§ Personal best times). The only stats write endpoint is the
+guest best-times import, keep-if-faster by construction. A signed-in daily submit stores the
 ACCOUNT display name on the leaderboard.
 
 **Achievements ride the same transaction, and are derived rather than
@@ -1021,4 +1055,4 @@ through both modes and compares, so the two can't drift apart again.
 | Board rendering | `components/game/Board.tsx` | mounted once; the layouts sit either side of it (trap #3) |
 | The run clock's reading | `lib/gameClock.ts` | the live timer and the summary both use it, so they cannot disagree |
 | Daily terminal statuses | `server/data/dailyRepo.js` (`TERMINAL_STATUSES`) | mirrored by name in `state/dailySlice.ts`'s `DailyStatus` |
-| A board's identity for records | `lib/bestTimes.ts` (`boardKey`) | derived from dimensions + mines, never from the size/difficulty labels |
+| A board's identity for records | `shared/boardKeys.js` (`boardKey`, `playersForClear`) | dimensions + mines + how many cleared it, never the size/difficulty labels; read by BOTH halves so a record is spelled one way |

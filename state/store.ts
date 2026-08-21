@@ -1,6 +1,6 @@
 /**
  * The client store, assembled from slices — game, board config, room, PVP,
- * input, daily. Slices are plain creators, so one can still write another's
+ * input, daily, best times. Slices are plain creators, so one can still write another's
  * fields where it genuinely needs to (resetPvpState clears gameOver/gameWon).
  *
  * Consumers import from `@/app/store`, which re-exports this. Always subscribe
@@ -17,6 +17,7 @@ import { createInputSlice, type InputSlice } from './inputSlice';
 import { createDailySlice, type DailySlice } from './dailySlice';
 import { createSettingsSlice, type SettingsSlice } from './settingsSlice';
 import { createAchievementsSlice, type AchievementsSlice } from './achievementsSlice';
+import { createBestsSlice, type BestsSlice } from './bestsSlice';
 import { createConnectionSlice, type ConnectionSlice } from './connectionSlice';
 
 export type MinesweeperState =
@@ -28,6 +29,7 @@ export type MinesweeperState =
     DailySlice &
     SettingsSlice &
     AchievementsSlice &
+    BestsSlice &
     ConnectionSlice;
 
 export const useMinesweeperStore = create<MinesweeperState>()((...a) => ({
@@ -39,5 +41,6 @@ export const useMinesweeperStore = create<MinesweeperState>()((...a) => ({
     ...createDailySlice(...a),
     ...createSettingsSlice(...a),
     ...createAchievementsSlice(...a),
+    ...createBestsSlice(...a),
     ...createConnectionSlice(...a),
 }));

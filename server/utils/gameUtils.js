@@ -51,7 +51,7 @@ const checkWin = async (roomState, board, room) => {
             const startedAt = parseInt(roomState.startedAt, 10);
             recordForSockets(players, {
                 mode: 'co-op',
-                boardKey: boardKeyOf(board),
+                boardKey: boardKeyOf(board, 'co-op', players.length),
                 won: true,
                 durationMs: Number.isFinite(startedAt) ? endedAt - startedAt : null,
                 players: players.length,

@@ -2,10 +2,16 @@
 
 import { useEffect, useState } from "react";
 import { useMinesweeperStore } from "@/app/store";
-import { boardKey, boardLabel, playersForClear, readBestTime, type BestTime } from "@/lib/bestTimes";
+import { bestFrom, boardKey, boardLabel, playersForClear, type BestTime } from "@/lib/bestTimes";
 
 /**
- * This browser's record for the board currently in play or selected.
+ * Your record for the board currently in play or selected.
+ *
+ * Signed in, that is the ACCOUNT's record — the server writes it from its own
+ * clock and it follows you to whatever device you sign in on next. Signed out
+ * (or before the account's records arrive, or if they cannot be fetched) it is
+ * this browser's localStorage copy. `state/bestsSlice.ts` holds the account's
+ * side; a null there means "read the browser", which is the whole branch.
  *
  * Read after mount, never during render. localStorage does not exist on the
  * server, so returning a value during the first render would produce markup
@@ -27,6 +33,7 @@ export function useBestTime(refreshKey: unknown = null): { best: BestTime | null
     const numMines = useMinesweeperStore((state) => state.numMines);
     const mode = useMinesweeperStore((state) => state.mode);
     const playersInRoom = useMinesweeperStore((state) => state.playerStatsInRoom.length);
+    const accountBests = useMinesweeperStore((state) => state.accountBests);
 
     // The same derivation the win handler files under. Two spellings of it is
     // how a record gets written where nothing will ever look for it.
@@ -35,8 +42,8 @@ export function useBestTime(refreshKey: unknown = null): { best: BestTime | null
     const [best, setBest] = useState<BestTime | null>(null);
 
     useEffect(() => {
-        setBest(readBestTime(boardKey(numRows, numCols, numMines, players)));
-    }, [numRows, numCols, numMines, players, refreshKey]);
+        setBest(bestFrom(accountBests, boardKey(numRows, numCols, numMines, players)));
+    }, [numRows, numCols, numMines, players, accountBests, refreshKey]);
 
     return { best, label: boardLabel(numRows, numCols, numMines) };
 }

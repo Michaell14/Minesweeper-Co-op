@@ -16,6 +16,7 @@ const {
     isValidCoordinate,
     isValidHoverCoordinate,
     isPlayerInRoom,
+    isValidBestImport,
 } = require('../validation');
 
 describe('isValidRoomCode', () => {
@@ -188,5 +189,73 @@ describe('isPlayerInRoom', () => {
         // and get swallowed by the handler's try/catch.
         expect(() => isPlayerInRoom({ players: 'not json' }, 'a')).not.toThrow();
         expect(isPlayerInRoom({ players: 'not json' }, 'a')).toBe(false);
+    });
+});
+
+
+/**
+ * The guest best-times import — client-reported records, so this is the whole
+ * gate in front of them (statsRepo's keep-if-faster upsert is what makes the
+ * numbers themselves harmless).
+ *
+ * The GROUP SUFFIX is the case that had no test and did not work: keys carry
+ * '@3' for a board cleared by three people, the rule ran under `every`, and one
+ * such record 400'd the entire payload — so any browser that had ever cleared a
+ * board with a friend could not import at all.
+ */
+describe('isValidBestImport', () => {
+    const record = (over = {}) => ({ boardKey: '16x16/40', seconds: 90, players: 1, achievedAt: 1, ...over });
+
+    test('accepts a solo record', () => {
+        expect(isValidBestImport([record()])).toBe(true);
+    });
+
+    test('accepts a group clear, suffix and all', () => {
+        expect(isValidBestImport([record({ boardKey: '16x16/40@3', players: 3 })])).toBe(true);
+    });
+
+    test('one group clear no longer throws away the whole payload', () => {
+        expect(isValidBestImport([
+            record(),
+            record({ boardKey: '9x9/10@2', players: 2 }),
+            record({ boardKey: '30x16/99' }),
+        ])).toBe(true);
+    });
+
+    test('an empty import is valid and does nothing', () => {
+        expect(isValidBestImport([])).toBe(true);
+    });
+
+    test.each([
+        ['a key that is not a board', 'medium'],
+        ['a label instead of numbers', 'Medium/40'],
+        ['a suffix with no count', '16x16/40@'],
+        ['a non-numeric suffix', '16x16/40@many'],
+        ['a second suffix', '16x16/40@2@2'],
+        ['dimensions out of bounds', '1000x1000/40'],
+    ])('rejects %s', (_label, boardKey) => {
+        expect(isValidBestImport([record({ boardKey })])).toBe(false);
+    });
+
+    test.each([
+        ['a negative time', { seconds: -1 }],
+        ['a time longer than a day', { seconds: 86_401 }],
+        ['a fractional player count', { players: 1.5 }],
+        ['no players at all', { players: 0 }],
+        ['a missing timestamp', { achievedAt: undefined }],
+    ])('rejects %s', (_label, over) => {
+        expect(isValidBestImport([record(over)])).toBe(false);
+    });
+
+    test.each([
+        ['not an array', { boardKey: '16x16/40' }],
+        ['null', null],
+        ['a list of nulls', [null]],
+    ])('rejects %s', (_label, payload) => {
+        expect(isValidBestImport(payload)).toBe(false);
+    });
+
+    test('rejects a payload past the entry cap', () => {
+        expect(isValidBestImport(Array.from({ length: 101 }, () => record()))).toBe(false);
     });
 });

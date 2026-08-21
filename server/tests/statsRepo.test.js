@@ -116,6 +116,65 @@ describe('recordResult', () => {
         expect(client.calls.some((c) => c.sql.includes('user_board_bests'))).toBe(false);
     });
 
+    /*
+     * The daily is a different board every day, so a daily clear filed as a
+     * board record would land on the key a co-op or practice run of the same
+     * dimensions looks up — and become the number the in-game banner shows for
+     * a board nobody can play again. Its own history is user_daily_results.
+     */
+    test('a daily clear records the game but no board best', async () => {
+        const client = makeClient();
+        mockConnect.mockResolvedValue(client);
+
+        await statsRepo.recordResult('uuid-1', {
+            ...RESULT,
+            mode: 'daily',
+            players: 1,
+            dailyDate: '2026-08-02',
+        });
+
+        const sqls = client.calls.map((c) => c.sql);
+        expect(sqls.some((s) => s.includes('INSERT INTO game_results'))).toBe(true);
+        expect(sqls.some((s) => s.includes('user_daily_results'))).toBe(true);
+        expect(sqls.some((s) => s.includes('user_board_bests'))).toBe(false);
+    });
+
+    test('a group clear files under the room it took', async () => {
+        const client = makeClient();
+        mockConnect.mockResolvedValue(client);
+
+        await statsRepo.recordResult('uuid-1', { ...RESULT, boardKey: '16x16/40@3' });
+
+        const best = client.calls.find((c) => c.sql.includes('user_board_bests'));
+        expect(best.params[1]).toBe('16x16/40@3');
+        expect(best.params[3]).toBe(3);
+    });
+
+    /*
+     * A race is SOLO work — you clear the whole board yourself — so the record
+     * is filed and captioned as one player even though the room holds two and
+     * the game itself counts as a two-player game. Reading `players` straight
+     * off the result is what made a race read "with 2 players".
+     */
+    test('a race records two players but a solo record', async () => {
+        const client = makeClient();
+        mockConnect.mockResolvedValue(client);
+
+        await statsRepo.recordResult('uuid-1', {
+            ...RESULT,
+            mode: 'pvp',
+            boardKey: '16x16/40',
+            players: 2,
+        });
+
+        const game = client.calls.find((c) => c.sql.includes('INSERT INTO game_results'));
+        expect(game.params[5]).toBe(2);
+
+        const best = client.calls.find((c) => c.sql.includes('user_board_bests'));
+        expect(best.params[1]).toBe('16x16/40');
+        expect(best.params[3]).toBe(1);
+    });
+
     test('extends the streak read under lock', async () => {
         const client = makeClient();
         client.query.mockImplementation(async (sql, params) => {
@@ -520,5 +579,29 @@ describe('importBests', () => {
         expect(sqls[0]).toBe('BEGIN');
         expect(sqls.filter((s) => s.includes('user_board_bests'))).toHaveLength(2);
         expect(sqls[sqls.length - 1]).toBe('COMMIT');
+
+        // The group clear takes its suffix from the count on the record, so an
+        // imported record lands on the key the game looks up.
+        const upserts = client.calls.filter((c) => c.sql.includes('user_board_bests'));
+        expect(upserts.map((c) => c.params[1])).toEqual(['9x9/10', '16x16/40@2']);
+    });
+
+    /*
+     * Client-reported, so the two halves of an entry can disagree — by a stale
+     * build, or by hand. The count on the record decides, the same rule the
+     * browser applies on read and on write; trusting the key as sent would
+     * file a record on a slot nothing derives and nothing ever reads.
+     */
+    test('a key that disagrees with its own count is re-filed, not trusted', async () => {
+        const client = makeClient();
+        mockConnect.mockResolvedValue(client);
+
+        await statsRepo.importBests('uuid-1', [
+            { boardKey: '16x16/40@2', seconds: 50, players: 1, achievedAt: 1 },
+            { boardKey: '9x9/10', seconds: 20, players: 4, achievedAt: 2 },
+        ]);
+
+        const upserts = client.calls.filter((c) => c.sql.includes('user_board_bests'));
+        expect(upserts.map((c) => c.params[1])).toEqual(['16x16/40', '9x9/10@4']);
     });
 });

@@ -46,12 +46,31 @@ beforeEach(() => {
 const settle = () => new Promise((r) => setImmediate(r));
 
 describe('boardKeyOf', () => {
+    const BOARD = [
+        [{ isMine: true }, { isMine: false }, { isMine: false }],
+        [{ isMine: false }, { isMine: true }, { isMine: false }],
+    ];
+
     test('keys by what the board IS: dimensions and counted mines', () => {
-        const board = [
-            [{ isMine: true }, { isMine: false }, { isMine: false }],
-            [{ isMine: false }, { isMine: true }, { isMine: false }],
-        ];
-        expect(boardKeyOf(board)).toBe('2x3/2');
+        expect(boardKeyOf(BOARD, 'co-op', 1)).toBe('2x3/2');
+    });
+
+    test('a group clear carries the count, so it cannot take the solo slot', () => {
+        expect(boardKeyOf(BOARD, 'co-op', 3)).toBe('2x3/2@3');
+    });
+
+    /*
+     * The one that used to caption a race "with 2 players": both racers clear
+     * the WHOLE board themselves, so a race is solo work however many are in
+     * the room. The client derives the same count for the same clear — the
+     * point of the rule living in shared/.
+     */
+    test('a race files as solo, not as the two players in the room', () => {
+        expect(boardKeyOf(BOARD, 'pvp', 2)).toBe('2x3/2');
+    });
+
+    test('the daily is one player by construction', () => {
+        expect(boardKeyOf(BOARD, 'daily', 1)).toBe('2x3/2');
     });
 });
 

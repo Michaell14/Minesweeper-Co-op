@@ -6,6 +6,7 @@
 
 import { serverURL } from "@/lib/initSocket";
 import { getBridgeToken } from "@/lib/authBridge";
+import { byPlayerCount, type BestTime } from "@/lib/bestTimes";
 
 /**
  * How many recent games a profile keeps. Kept in step BY HAND with
@@ -98,6 +99,38 @@ export async function fetchStats(): Promise<ProfilePayload | null> {
     const res = await request("/api/stats", "GET");
     if (!res || !res.ok) return null;
     return (await res.json().catch(() => null)) as ProfilePayload | null;
+}
+
+/**
+ * Just the account's board records, keyed the way the game looks them up.
+ *
+ * Its own endpoint rather than a slice of `fetchStats`: this is fetched by
+ * every tab with a board in it, and the profile read runs four more queries for
+ * things a game page never shows.
+ *
+ * Null means "not available right now" — signed out, or the stats service is
+ * down — and the caller falls back to this browser's records rather than
+ * blanking a number that was right a second ago.
+ */
+export async function fetchBoardBests(): Promise<Record<string, BestTime> | null> {
+    const res = await request("/api/stats/bests", "GET");
+    if (!res || !res.ok) return null;
+    const payload = (await res.json().catch(() => null)) as { boardBests?: BoardBest[] } | null;
+    if (!payload || !Array.isArray(payload.boardBests)) return null;
+
+    const bests: Record<string, BestTime> = {};
+    for (const best of payload.boardBests) {
+        const at = Date.parse(best.achievedAt);
+        bests[best.boardKey] = {
+            seconds: best.seconds,
+            players: best.players,
+            at: Number.isFinite(at) ? at : 0,
+        };
+    }
+    // Re-filed by the count on each record, exactly as the browser's own copy
+    // is: a server deployed ahead of the key migration would otherwise serve
+    // keys the client cannot look up, and the banner would read as blank.
+    return byPlayerCount(bests);
 }
 
 /** Folds this browser's localStorage bests into the account, keep-if-faster. */

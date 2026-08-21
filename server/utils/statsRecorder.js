@@ -15,14 +15,28 @@ const { io } = require('./initializeClient');
 const { isDbEnabled } = require('./initializePgClient');
 const statsRepo = require('../data/statsRepo');
 const { SERVER_EVENTS } = require('../../shared/events');
+const { boardKey, playersForClear } = require('../../shared/boardKeys');
 
-/** Board records key on what the board IS — CLAUDE.md trap #10. */
-const boardKeyOf = (board) => {
+/**
+ * Board records key on what the board IS and on how many people cleared it —
+ * CLAUDE.md trap #10, and `shared/boardKeys.js` for why the group is part of
+ * the identity rather than a note on it.
+ *
+ * The count goes through `playersForClear`, the rule the CLIENT applies to the
+ * same clear: a race files as the solo work it is, not as a two-player result.
+ * Spelling it a second time here is what would put a player's account record
+ * and their browser's on different keys.
+ *
+ * @param board          the finished board
+ * @param mode           'co-op' | 'pvp' | 'daily'
+ * @param playersInRoom  how many were in the room, however the mode counts them
+ */
+const boardKeyOf = (board, mode, playersInRoom) => {
     const rows = board.length;
     const cols = board[0]?.length ?? 0;
     let mines = 0;
     for (const row of board) for (const cell of row) if (cell.isMine) mines++;
-    return `${rows}x${cols}/${mines}`;
+    return boardKey(rows, cols, mines, playersForClear(mode, playersInRoom));
 };
 
 /** The account behind a live socket, or null for guests and gone sockets. */

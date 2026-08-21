@@ -16,9 +16,13 @@ vi.mock('next-auth/react', () => ({
 
 const mockFetchStats = vi.fn();
 const mockImportBests = vi.fn();
+const mockFetchBoardBests = vi.fn(async () => null);
 vi.mock('@/lib/statsApi', () => ({
     fetchStats: (...args: unknown[]) => mockFetchStats(...args),
     importBests: (...args: unknown[]) => mockImportBests(...args),
+    // A successful import refreshes the ACCOUNT's records for the game, since
+    // the banner on a board reads those rather than this page's payload.
+    fetchBoardBests: (...args: unknown[]) => mockFetchBoardBests(...args),
 }));
 
 // The page mounts AccountPanel (its own tests live beside it); its fetch

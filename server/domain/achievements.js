@@ -22,6 +22,7 @@ const {
     parseBoardKey,
 } = require('../../shared/achievements');
 const { BOARD_SIZES, sizePreset } = require('../../shared/boardConfig');
+const { boardPartOf } = require('../../shared/boardKeys');
 
 const LARGE = sizePreset('Large');
 const FIVE_MINUTES = 5 * 60 * 1000;
@@ -32,6 +33,13 @@ const SMALLEST_SHIPPED_AREA = Math.min(...BOARD_SIZES.map((size) => size.rows * 
 
 /** Every moment describes a CLEARED board; a loss earns none of them. */
 const onWin = (test) => (result) => result.won === true && test(result);
+
+/**
+ * Exactly this board, whoever cleared it. Compares the BOARD PART, so a co-op
+ * clear's group suffix ('16x16/40@3') does not slip past an equality check the
+ * way it would against the whole key.
+ */
+const isBoard = (result, board) => boardPartOf(result.boardKey) === board;
 
 /** Faster than `limit`, and actually measured — a null duration is not a time. */
 const under = (result, limit) => typeof result.durationMs === 'number' && result.durationMs < limit;
@@ -62,9 +70,9 @@ const MOMENTS = Object.freeze({
         (r) => difficultyTierOf(r.boardKey) === 'Extreme' && atLeastShippedSize(r) && under(r, FIVE_MINUTES),
     ),
 
-    'speed-demon': onWin((r) => r.boardKey === '16x16/40' && under(r, 90_000)),
+    'speed-demon': onWin((r) => isBoard(r, '16x16/40') && under(r, 90_000)),
 
-    'blink': onWin((r) => r.boardKey === '9x9/10' && under(r, 15_000)),
+    'blink': onWin((r) => isBoard(r, '9x9/10') && under(r, 15_000)),
 
     'crowd-work': onWin((r) => r.mode === 'co-op' && r.players >= 4),
 

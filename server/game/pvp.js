@@ -206,7 +206,7 @@ const checkWin = async (board, room, socketId, playerIndex) => {
                     const startedAt = readStamp(roomState.startedAt);
                     const shared = {
                         mode: 'pvp',
-                        boardKey: boardKeyOf(board),
+                        boardKey: boardKeyOf(board, 'pvp', 2),
                         durationMs: startedAt === null ? null : endedAt - startedAt,
                         players: 2,
                         finishedAt: endedAt,

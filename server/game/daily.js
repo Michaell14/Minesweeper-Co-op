@@ -179,7 +179,7 @@ const finishAttempt = async (date, token, socketId, board, { won }) => {
     try {
         recordForSockets([socketId], {
             mode: 'daily',
-            boardKey: boardKeyOf(board),
+            boardKey: boardKeyOf(board, 'daily', 1),
             won,
             durationMs: elapsedMs,
             players: 1,

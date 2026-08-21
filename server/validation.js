@@ -10,6 +10,7 @@
 // same thing before it ever emits.
 const { isValidBoardConfig } = require('../shared/boardConfig');
 const { AVATAR_IDS } = require('../shared/avatars');
+const { BOARD_KEY_PATTERN } = require('../shared/boardKeys');
 
 const MAX_ROOM_CODE_LENGTH = 100;
 const MAX_PLAYER_NAME_LENGTH = 50;
@@ -141,9 +142,14 @@ const isValidThemeBlob = (blob) => {
     }
 };
 
-/** `rows x cols / mines` — lib/bestTimes.ts's boardKey shape, bounded sanely. */
-const isValidBoardKey = (key) =>
-    typeof key === 'string' && /^\d{1,3}x\d{1,3}\/\d{1,4}$/.test(key);
+/**
+ * `rows x cols / mines`, optionally `@players` — `shared/boardKeys.js`'s shape,
+ * bounded there. The suffix is what a GROUP clear carries, and rejecting it is
+ * how the guest import used to 400 in full for any browser that had ever
+ * cleared a board with a friend: this runs under `every`, so one such key threw
+ * away the whole payload.
+ */
+const isValidBoardKey = (key) => typeof key === 'string' && BOARD_KEY_PATTERN.test(key);
 
 /**
  * The guest best-times import: an array of client-reported records. Bounded

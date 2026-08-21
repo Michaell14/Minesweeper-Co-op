@@ -32,6 +32,10 @@ function useElapsedSeconds(running: boolean): number {
 export default function MatchSearchingDialog({ cancelMatch, startPracticeRace }: MatchSearchingDialogProps) {
     const matchSearching = useMinesweeperStore((state) => state.matchSearching);
     const othersOnline = useMinesweeperStore((state) => state.matchOthersOnline);
+    // Subscribed rather than read once: signing in resolves after mount, so a
+    // dialog opened first would otherwise race a browser record it has moved on
+    // from.
+    const accountBests = useMinesweeperStore((state) => state.accountBests);
     const seconds = useElapsedSeconds(matchSearching);
 
     const [target, setTarget] = React.useState<PracticeTarget>({
@@ -40,8 +44,15 @@ export default function MatchSearchingDialog({ cancelMatch, startPracticeRace }:
     });
 
     React.useEffect(() => {
-        setTarget(practiceTargetFor(DEFAULT_PRESET.rows, DEFAULT_PRESET.cols, DEFAULT_PRESET.mines));
-    }, [matchSearching]);
+        setTarget(
+            practiceTargetFor(
+                DEFAULT_PRESET.rows,
+                DEFAULT_PRESET.cols,
+                DEFAULT_PRESET.mines,
+                accountBests,
+            ),
+        );
+    }, [matchSearching, accountBests]);
 
     return (
         <Dialog

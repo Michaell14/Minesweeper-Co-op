@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { useMinesweeperStore } from "@/app/store";
 import { CLIENT_EVENTS, SERVER_EVENTS } from "@/shared/events";
 import { boardKey, clearBestTimes, readBestTime, recordBestTime } from "@/lib/bestTimes";
@@ -145,7 +145,10 @@ describe("filing a clear as a personal best", () => {
         const store = useMinesweeperStore.getState();
         store.setMode("co-op");
         store.setPlayerStatsInRoom([]);
+        store.setAccountBests(null);
     });
+
+    afterEach(() => useMinesweeperStore.getState().setAccountBests(null));
 
     test("a co-op clear is filed under the size of the room", () => {
         useMinesweeperStore.getState().setPlayerStatsInRoom(roomOf(3));
@@ -190,6 +193,89 @@ describe("filing a clear as a personal best", () => {
         expect(useMinesweeperStore.getState().bestTimeResult?.improved).toBe(true);
         expect(readBestTime(boardKey(BOARD.rows, BOARD.cols, BOARD.mines))?.seconds).toBe(300);
         expect(readBestTime(boardKey(BOARD.rows, BOARD.cols, BOARD.mines, 2))?.seconds).toBe(60);
+    });
+});
+
+/**
+ * A clear while SIGNED IN, where the account's records are the ones that count.
+ *
+ * The browser's copy is still written — it is the guest record and the fallback
+ * when a stats write drops — but the verdict shown on the summary comes from
+ * the account, because that is the record the player actually holds. On a new
+ * device the two disagree completely: localStorage has nothing, so every
+ * comparison against it says "New best!".
+ */
+describe("recording a clear against an account", () => {
+    const BOARD = { rows: 16, cols: 16, mines: 40 };
+    const KEY = boardKey(BOARD.rows, BOARD.cols, BOARD.mines);
+
+    const finishAt = (seconds: number) => {
+        const store = useMinesweeperStore.getState();
+        store.setDimensions(BOARD.rows, BOARD.cols, BOARD.mines);
+        store.setClock({ startedAt: 0, endedAt: seconds * 1000 });
+    };
+
+    const winCoop = () => {
+        const handlers = useGameEvents(fakeSocket(), vi.fn());
+        handlers[SERVER_EVENTS.GAME_WON]!();
+    };
+
+    beforeEach(() => {
+        clearBestTimes();
+        const store = useMinesweeperStore.getState();
+        store.setMode("co-op");
+        store.setPlayerStatsInRoom([]);
+        store.setAccountBests({});
+    });
+
+    afterEach(() => useMinesweeperStore.getState().setAccountBests(null));
+
+    test("a slower run is not a record just because this browser is new", () => {
+        useMinesweeperStore.getState().setAccountBests({ [KEY]: { seconds: 90, players: 1, at: 1 } });
+        finishAt(300);
+
+        winCoop();
+
+        const result = useMinesweeperStore.getState().bestTimeResult;
+        expect(result?.improved).toBe(false);
+        expect(result?.previous?.seconds).toBe(90);
+        // …and the browser's own copy still took it, since it had nothing.
+        expect(readBestTime(KEY)?.seconds).toBe(300);
+    });
+
+    test("a faster run files against the account without waiting for the server", () => {
+        useMinesweeperStore.getState().setAccountBests({ [KEY]: { seconds: 300, players: 1, at: 1 } });
+        finishAt(90);
+
+        winCoop();
+
+        expect(useMinesweeperStore.getState().bestTimeResult?.improved).toBe(true);
+        expect(useMinesweeperStore.getState().accountBests?.[KEY].seconds).toBe(90);
+    });
+
+    test("a group clear files under the group, on the account copy too", () => {
+        useMinesweeperStore.getState().setPlayerStatsInRoom([
+            { name: "P1", score: 0 },
+            { name: "P2", score: 0 },
+        ]);
+        finishAt(60);
+
+        winCoop();
+
+        const bests = useMinesweeperStore.getState().accountBests;
+        expect(bests?.[`${KEY}@2`].seconds).toBe(60);
+        expect(bests?.[KEY]).toBeUndefined();
+    });
+
+    test("signed out, the browser's record is the verdict as before", () => {
+        useMinesweeperStore.getState().setAccountBests(null);
+        recordBestTime(KEY, { seconds: 90, players: 1, at: 1 });
+        finishAt(300);
+
+        winCoop();
+
+        expect(useMinesweeperStore.getState().bestTimeResult?.improved).toBe(false);
+        expect(readBestTime(KEY)?.seconds).toBe(90);
     });
 });
 
