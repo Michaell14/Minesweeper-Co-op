@@ -11,14 +11,22 @@
  * Postgres is mocked, as it is for every other repo here (themes.test.js sets
  * the pattern): the SQL shape and the branch each outcome takes are what these
  * assert. The migrations themselves are not exercised — see the PRD.
+ *
+ * Reads run on the pool (`mockQuery`); every MUTATION runs on a transaction
+ * client (`mockClientQuery`) behind BEGIN, two advisory-lock statements and
+ * COMMIT, because the caps and the block boundary are check-then-write. The
+ * plumbing answers itself here and `statements()` filters it back out, so the
+ * tests below stay about the statement that matters rather than about its
+ * position in the transaction.
  */
 
 const mockQuery = jest.fn();
 const mockClientQuery = jest.fn();
 const mockRelease = jest.fn();
+const mockConnect = jest.fn();
 
 jest.mock('../utils/initializePgClient', () => ({
-    pgPool: { connect: async () => ({ query: (...a) => mockClientQuery(...a), release: mockRelease }) },
+    pgPool: { connect: (...a) => mockConnect(...a) },
     isDbEnabled: () => true,
     query: (...args) => mockQuery(...args),
 }));
@@ -40,10 +48,34 @@ const edgeRow = (requesterId, addresseeId, status) => ({
     status,
 });
 
+const PLUMBING = /^(BEGIN|COMMIT|ROLLBACK|SELECT pg_advisory_xact_lock)/;
+
+/** What the transaction ran, minus BEGIN / the locks / COMMIT. */
+const statements = () => mockClientQuery.mock.calls.filter(([sql]) => !PLUMBING.test(sql.trim()));
+
+/** The advisory-lock arguments, in the order the transaction took them. */
+const lockOrder = () => mockClientQuery.mock.calls
+    .filter(([sql]) => /pg_advisory_xact_lock/.test(sql))
+    .map(([, params]) => params[0]);
+
+/** Queue answers for the statements; the plumbing answers itself. */
+let queued = [];
+const answers = (...rows) => { queued = [...rows]; };
+
 beforeEach(() => {
     mockQuery.mockReset();
     mockClientQuery.mockReset();
     mockRelease.mockReset();
+    mockConnect.mockReset();
+    queued = [];
+    mockConnect.mockImplementation(async () => ({
+        query: (...a) => mockClientQuery(...a),
+        release: mockRelease,
+    }));
+    mockClientQuery.mockImplementation(async (sql) => {
+        if (PLUMBING.test(sql.trim())) return { rows: [] };
+        return queued.shift() ?? { rows: [], rowCount: 0 };
+    });
     jest.spyOn(console, 'error').mockImplementation(() => {});
 });
 
@@ -51,17 +83,53 @@ afterEach(() => jest.restoreAllMocks());
 
 describe('requestFriend', () => {
     test('inserts a pending row when the pair has no history', async () => {
-        mockQuery
-            .mockResolvedValueOnce({ rows: [] })                    // findEdge
-            .mockResolvedValueOnce({ rows: [{ count: 4 }] })        // my friends
-            .mockResolvedValueOnce({ rows: [{ count: 9 }] })        // their friends
-            .mockResolvedValueOnce({ rows: [{ count: 2 }] })        // my outgoing
-            .mockResolvedValueOnce({ rows: [] });                   // insert
+        answers(
+            { rows: [] },                   // findEdge
+            { rows: [{ count: 4 }] },       // my friends
+            { rows: [{ count: 9 }] },       // their friends
+            { rows: [{ count: 2 }] },       // my outgoing
+            { rows: [] },                   // insert
+        );
 
         expect(await friendsRepo.requestFriend(ME, THEM)).toBe('requested');
-        const [sql, params] = mockQuery.mock.calls[4];
+        const [sql, params] = statements()[4];
         expect(sql).toMatch(/INSERT INTO friendships/);
         expect(params).toEqual([ME, THEM, 'pending']);
+    });
+
+    /*
+     * The race Greptile reproduced against a real Postgres: two requests from
+     * one account read the same outgoing count and both insert, ending past
+     * the cap. Every check has to sit in the same transaction as the insert,
+     * behind the lock — a read on the pool would be a read outside it.
+     */
+    test('reads its caps and writes its row in ONE locked transaction', async () => {
+        answers(
+            { rows: [] },
+            { rows: [{ count: 4 }] },
+            { rows: [{ count: 9 }] },
+            { rows: [{ count: 2 }] },
+            { rows: [] },
+        );
+        await friendsRepo.requestFriend(ME, THEM);
+
+        expect(mockQuery).not.toHaveBeenCalled();          // nothing on the pool
+        expect(mockConnect).toHaveBeenCalledTimes(1);      // nothing on a second connection
+        const sql = mockClientQuery.mock.calls.map(([text]) => text.trim().split('\n')[0]);
+        expect(sql[0]).toBe('BEGIN');
+        expect(sql[sql.length - 1]).toBe('COMMIT');
+        expect(mockRelease).toHaveBeenCalled();
+    });
+
+    /*
+     * Sorted, not call order. Two overlapping pairs that took their locks in
+     * the order the CALLER named them would each hold what the other waits
+     * for; a total order over the ids is what makes them queue instead.
+     */
+    test('locks both accounts, in sorted id order', async () => {
+        answers({ rows: [] }, { rows: [{ count: 0 }] }, { rows: [{ count: 0 }] }, { rows: [{ count: 0 }] }, { rows: [] });
+        await friendsRepo.requestFriend(THEM, ME);   // named the other way round
+        expect(lockOrder()).toEqual([ME, THEM].sort());
     });
 
     /*
@@ -71,13 +139,17 @@ describe('requestFriend', () => {
      * an ugly way to learn the graph is directional.
      */
     test('accepts their standing request instead of inserting a mirror row', async () => {
-        mockQuery
-            .mockResolvedValueOnce({ rows: [edgeRow(THEM, ME, 'pending')] })  // findEdge
-            .mockResolvedValueOnce({ rows: [{ id: 7 }] });                    // accept UPDATE
+        answers(
+            { rows: [edgeRow(THEM, ME, 'pending')] },   // findEdge
+            { rows: [{ id: 7 }] },                      // accept UPDATE
+        );
 
         expect(await friendsRepo.requestFriend(ME, THEM)).toBe('accepted');
-        expect(mockQuery.mock.calls[1][0]).toMatch(/UPDATE friendships/);
-        expect(mockQuery.mock.calls.some(([sql]) => /INSERT INTO friendships/.test(sql))).toBe(false);
+        expect(statements()[1][0]).toMatch(/UPDATE friendships/);
+        expect(statements().some(([sql]) => /INSERT INTO friendships/.test(sql))).toBe(false);
+        // On the lock it already holds. Calling the public acceptRequest here
+        // would open a second connection and wait on this transaction forever.
+        expect(mockConnect).toHaveBeenCalledTimes(1);
     });
 
     test.each([
@@ -89,20 +161,18 @@ describe('requestFriend', () => {
         ['blocked-by-me', 'blocked', ME, THEM],
         ['blocked', 'blocked', THEM, ME],
     ])('answers %s for an existing %s row', async (expected, status, requester, addressee) => {
-        mockQuery.mockResolvedValueOnce({ rows: [edgeRow(requester, addressee, status)] });
+        answers({ rows: [edgeRow(requester, addressee, status)] });
         expect(await friendsRepo.requestFriend(ME, THEM)).toBe(expected);
     });
 
     test('refuses to befriend yourself', async () => {
         expect(await friendsRepo.requestFriend(ME, ME)).toBe('self');
-        expect(mockQuery).not.toHaveBeenCalled();
+        expect(mockConnect).not.toHaveBeenCalled();
     });
 
     describe('caps', () => {
         test('refuses when my list is full', async () => {
-            mockQuery
-                .mockResolvedValueOnce({ rows: [] })
-                .mockResolvedValueOnce({ rows: [{ count: friendsRepo.MAX_FRIENDS }] });
+            answers({ rows: [] }, { rows: [{ count: friendsRepo.MAX_FRIENDS }] });
             expect(await friendsRepo.requestFriend(ME, THEM)).toBe('cap-reached');
         });
 
@@ -112,31 +182,30 @@ describe('requestFriend', () => {
          * the place to store my overflow.
          */
         test('refuses when their list is full', async () => {
-            mockQuery
-                .mockResolvedValueOnce({ rows: [] })
-                .mockResolvedValueOnce({ rows: [{ count: 1 }] })
-                .mockResolvedValueOnce({ rows: [{ count: friendsRepo.MAX_FRIENDS }] });
+            answers({ rows: [] }, { rows: [{ count: 1 }] }, { rows: [{ count: friendsRepo.MAX_FRIENDS }] });
             expect(await friendsRepo.requestFriend(ME, THEM)).toBe('their-cap-reached');
         });
 
         // The only spam vector a mutual-accept graph has: papering inboxes.
         test('refuses past the outstanding-request cap', async () => {
-            mockQuery
-                .mockResolvedValueOnce({ rows: [] })
-                .mockResolvedValueOnce({ rows: [{ count: 1 }] })
-                .mockResolvedValueOnce({ rows: [{ count: 1 }] })
-                .mockResolvedValueOnce({ rows: [{ count: friendsRepo.MAX_OUTGOING_REQUESTS }] });
+            answers(
+                { rows: [] },
+                { rows: [{ count: 1 }] },
+                { rows: [{ count: 1 }] },
+                { rows: [{ count: friendsRepo.MAX_OUTGOING_REQUESTS }] },
+            );
             expect(await friendsRepo.requestFriend(ME, THEM)).toBe('request-cap-reached');
+            expect(statements().some(([sql]) => /INSERT INTO friendships/.test(sql))).toBe(false);
         });
     });
 });
 
 describe('acceptRequest', () => {
     test('only flips a PENDING row addressed to me', async () => {
-        mockQuery.mockResolvedValueOnce({ rows: [{ id: 7 }] });
+        answers({ rows: [{ id: 7 }] });
         expect(await friendsRepo.acceptRequest(ME, THEM)).toBe('accepted');
 
-        const [sql, params] = mockQuery.mock.calls[0];
+        const [sql, params] = statements()[0];
         // requester = them, addressee = me: a requester cannot accept their own.
         expect(params.slice(0, 2)).toEqual([ME, THEM]);
         expect(sql).toMatch(/requester_id = \$2 AND addressee_id = \$1/);
@@ -149,22 +218,35 @@ describe('acceptRequest', () => {
      * cap by accepting the backlog.
      */
     test('carries the cap in the same statement', async () => {
-        mockQuery.mockResolvedValueOnce({ rows: [{ id: 7 }] });
+        answers({ rows: [{ id: 7 }] });
         await friendsRepo.acceptRequest(ME, THEM);
-        const [sql, params] = mockQuery.mock.calls[0];
+        const [sql, params] = statements()[0];
         expect(sql).toMatch(/SELECT count\(\*\) FROM friendships/);
         expect(params).toContain(friendsRepo.MAX_FRIENDS);
     });
 
+    /*
+     * That subselect reads the transaction's own snapshot, so on its own it
+     * only bounds the accepts it can SEE: Greptile ran two at 99 friends
+     * against a real Postgres and landed on 101. Both accepts take MY lock —
+     * whoever is at the other end — so the second one reads the first.
+     */
+    test('runs under a lock on the accepting account', async () => {
+        answers({ rows: [{ id: 7 }] });
+        await friendsRepo.acceptRequest(ME, THEM);
+        expect(lockOrder()).toContain(ME);
+        expect(lockOrder()).toEqual([ME, THEM].sort());
+        expect(mockQuery).not.toHaveBeenCalled();
+    });
+
     test('tells a full list from a missing request', async () => {
-        mockQuery
-            .mockResolvedValueOnce({ rows: [] })                                    // no update
-            .mockResolvedValueOnce({ rows: [{ count: friendsRepo.MAX_FRIENDS }] }); // because full
+        answers(
+            { rows: [] },                                       // no update
+            { rows: [{ count: friendsRepo.MAX_FRIENDS }] },     // because full
+        );
         expect(await friendsRepo.acceptRequest(ME, THEM)).toBe('cap-reached');
 
-        mockQuery
-            .mockResolvedValueOnce({ rows: [] })
-            .mockResolvedValueOnce({ rows: [{ count: 3 }] });
+        answers({ rows: [] }, { rows: [{ count: 3 }] });
         expect(await friendsRepo.acceptRequest(ME, THEM)).toBe('no-request');
     });
 });
@@ -189,26 +271,38 @@ describe('blockUser', () => {
      * and the pair key means the block cannot be inserted alongside it.
      */
     test('clears whatever the pair held, then stores the block on my row', async () => {
-        mockClientQuery.mockResolvedValue({ rows: [] });
         expect(await friendsRepo.blockUser(ME, THEM)).toBe(true);
 
-        const statements = mockClientQuery.mock.calls.map(([sql]) => sql.trim().split('\n')[0]);
-        expect(statements[0]).toBe('BEGIN');
-        expect(statements[1]).toMatch(/DELETE FROM friendships/);
-        expect(statements[2]).toMatch(/INSERT INTO friendships/);
-        expect(statements[3]).toBe('COMMIT');
-        expect(mockClientQuery.mock.calls[2][1]).toEqual([ME, THEM, 'blocked']);
+        const written = statements();
+        expect(written[0][0]).toMatch(/DELETE FROM friendships/);
+        expect(written[1][0]).toMatch(/INSERT INTO friendships/);
+        expect(written[1][1]).toEqual([ME, THEM, 'blocked']);
+
+        const all = mockClientQuery.mock.calls.map(([sql]) => sql.trim().split('\n')[0]);
+        expect(all[0]).toBe('BEGIN');
+        expect(all[all.length - 1]).toBe('COMMIT');
         expect(mockRelease).toHaveBeenCalled();
+    });
+
+    /*
+     * The block must WIN a race with a request that already read "no edge".
+     * It can only do that by queueing behind the same pair lock the request
+     * holds — otherwise its delete runs before an insert it never saw, and the
+     * pair ends up blocked one way and pending the other.
+     */
+    test('takes the same pair lock a request does', async () => {
+        await friendsRepo.blockUser(THEM, ME);
+        expect(lockOrder()).toEqual([ME, THEM].sort());
     });
 
     test('rolls back and releases the client when a statement throws', async () => {
         // A default so ROLLBACK itself resolves — a real pg client always
         // hands back a promise, and the rollback must not be the thing that
         // throws while handling a throw.
-        mockClientQuery.mockResolvedValue({ rows: [] });
-        mockClientQuery
-            .mockResolvedValueOnce({ rows: [] })            // BEGIN
-            .mockRejectedValueOnce(new Error('boom'));      // DELETE
+        mockClientQuery.mockImplementation(async (sql) => {
+            if (/DELETE FROM friendships/.test(sql)) throw new Error('boom');
+            return { rows: [] };
+        });
         await expect(friendsRepo.blockUser(ME, THEM)).rejects.toThrow('boom');
         expect(mockClientQuery.mock.calls.some(([sql]) => sql === 'ROLLBACK')).toBe(true);
         expect(mockRelease).toHaveBeenCalled();
@@ -216,7 +310,7 @@ describe('blockUser', () => {
 
     test('refuses to block yourself, without touching the database', async () => {
         expect(await friendsRepo.blockUser(ME, ME)).toBe(false);
-        expect(mockClientQuery).not.toHaveBeenCalled();
+        expect(mockConnect).not.toHaveBeenCalled();
     });
 });
 
@@ -335,13 +429,14 @@ describe('the routes', () => {
     });
 
     test('POST accepts a code however it was typed', async () => {
-        mockQuery
-            .mockResolvedValueOnce({ rows: [{ id: THEM }] })    // findByFriendCode
-            .mockResolvedValueOnce({ rows: [] })                // findEdge
-            .mockResolvedValueOnce({ rows: [{ count: 0 }] })
-            .mockResolvedValueOnce({ rows: [{ count: 0 }] })
-            .mockResolvedValueOnce({ rows: [{ count: 0 }] })
-            .mockResolvedValueOnce({ rows: [] });               // insert
+        mockQuery.mockResolvedValueOnce({ rows: [{ id: THEM }] });  // findByFriendCode
+        answers(
+            { rows: [] },               // findEdge
+            { rows: [{ count: 0 }] },
+            { rows: [{ count: 0 }] },
+            { rows: [{ count: 0 }] },
+            { rows: [] },               // insert
+        );
         const res = makeRes();
         await routes['POST /api/friends']({ user: USER, body: { code: '  abc23xyz ' } }, res);
         expect(res.statusCode).toBe(201);
@@ -370,9 +465,8 @@ describe('the routes', () => {
         await routes['POST /api/friends']({ user: USER, body: { code: 'ABC23XYZ' } }, unknown);
 
         mockQuery.mockReset();
-        mockQuery
-            .mockResolvedValueOnce({ rows: [{ id: THEM }] })                    // found
-            .mockResolvedValueOnce({ rows: [edgeRow(THEM, ME, 'blocked')] });   // they blocked me
+        mockQuery.mockResolvedValueOnce({ rows: [{ id: THEM }] });      // found
+        answers({ rows: [edgeRow(THEM, ME, 'blocked')] });              // they blocked me
         const blocked = makeRes();
         await routes['POST /api/friends']({ user: USER, body: { code: 'ABC23XYZ' } }, blocked);
 
@@ -381,16 +475,14 @@ describe('the routes', () => {
     });
 
     test('PUT accept flips the request', async () => {
-        mockQuery.mockResolvedValueOnce({ rows: [{ id: 7 }] });
+        answers({ rows: [{ id: 7 }] });
         const res = makeRes();
         await routes['PUT /api/friends/:id']({ user: USER, params: { id: THEM }, body: { action: 'accept' } }, res);
         expect(res.statusCode).toBe(204);
     });
 
     test('PUT accept answers 404 when there is no request', async () => {
-        mockQuery
-            .mockResolvedValueOnce({ rows: [] })
-            .mockResolvedValueOnce({ rows: [{ count: 1 }] });
+        answers({ rows: [] }, { rows: [{ count: 1 }] });
         const res = makeRes();
         await routes['PUT /api/friends/:id']({ user: USER, params: { id: THEM }, body: { action: 'accept' } }, res);
         expect(res.statusCode).toBe(404);
