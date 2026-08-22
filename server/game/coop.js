@@ -18,7 +18,7 @@ const { clockOf, readStamp } = require('../domain/clock');
 const { io } = require('../utils/initializeClient');
 const roomRepo = require('../data/roomRepo');
 const playerRepo = require('../data/playerRepo');
-const { recordForSockets, boardKeyOf } = require('../utils/statsRecorder');
+const { recordForSockets } = require('../utils/statsRecorder');
 const { SERVER_EVENTS } = require('../../shared/events');
 
 /**
@@ -58,7 +58,7 @@ const reveal = async (board, r, c, room, socketId, toUpdate) => {
         const players = JSON.parse((await roomRepo.getField(room, 'players')) || '[]');
         recordForSockets(players, {
             mode: 'co-op',
-            boardKey: boardKeyOf(board),
+            board,
             won: false,
             durationMs: Number.isFinite(startedAt) ? endedAt - startedAt : null,
             players: players.length,

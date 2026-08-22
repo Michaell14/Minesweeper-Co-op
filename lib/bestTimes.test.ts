@@ -1,8 +1,11 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, test, vi } from "vitest";
 import {
+    bestsForImport,
     boardKey,
     boardLabel,
+    hasImportedBests,
+    markBestsImported,
     playersForClear,
     clearBestTimes,
     readBestTime,
@@ -295,5 +298,51 @@ describe("when localStorage is not to be trusted", () => {
 
         expect(() => recordBestTime(KEY, { seconds: 90, players: 1, at: 1 })).not.toThrow();
         expect(recordBestTime(KEY, { seconds: 90, players: 1, at: 1 }).improved).toBe(true);
+    });
+});
+
+
+/**
+ * The import payload. The cap is the part that matters: the endpoint refuses an
+ * oversized payload WHOLE rather than truncating it, so a browser with enough
+ * records would otherwise fail to import anything, every time, silently.
+ */
+describe("bestsForImport", () => {
+    test("carries each record as the endpoint takes it", () => {
+        recordBestTime(boardKey(9, 9, 10), { seconds: 30, players: 1, at: 7 });
+
+        expect(bestsForImport(10)).toEqual([
+            { boardKey: "9x9/10", seconds: 30, players: 1, achievedAt: 7 },
+        ]);
+    });
+
+    test("keeps group clears keyed as they are stored", () => {
+        recordBestTime(boardKey(16, 16, 40, 3), { seconds: 120, players: 3, at: 1 });
+
+        expect(bestsForImport(10)[0].boardKey).toBe("16x16/40@3");
+    });
+
+    test("drops the oldest when there are more than the cap allows", () => {
+        recordBestTime(boardKey(9, 9, 10), { seconds: 30, players: 1, at: 1 });
+        recordBestTime(boardKey(16, 16, 40), { seconds: 300, players: 1, at: 9 });
+
+        expect(bestsForImport(1)).toEqual([
+            { boardKey: "16x16/40", seconds: 300, players: 1, achievedAt: 9 },
+        ]);
+    });
+
+    test("an empty browser has nothing to send", () => {
+        expect(bestsForImport(10)).toEqual([]);
+    });
+});
+
+describe("the import watermark", () => {
+    test("starts unset, so the fold-in is offered once", () => {
+        expect(hasImportedBests()).toBe(false);
+    });
+
+    test("stays set once the records have been folded in", () => {
+        markBestsImported();
+        expect(hasImportedBests()).toBe(true);
     });
 });

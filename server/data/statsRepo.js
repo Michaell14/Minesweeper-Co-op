@@ -18,6 +18,7 @@
 const { pgPool } = require('../utils/initializePgClient');
 const { advanceStreak, streaksFromDays, utcDayOf } = require('../domain/streak');
 const { earnedFrom } = require('../domain/achievements');
+const { boardPartOf, playersFromKey, withPlayers } = require('../../shared/boardKeys');
 
 /** How many recent games each player keeps, per the PRD (aggregates + window). */
 const RECENT_WINDOW = 50;
@@ -203,12 +204,28 @@ const recordResult = async (userId, { mode, boardKey, won, durationMs, players, 
         );
         const unlocked = await awardAchievements(client, userId, earned);
 
-        // A board best is a WIN with a measured time; keep only if faster.
-        if (won && typeof durationMs === 'number' && durationMs >= 0) {
+        /*
+         * A board best is a WIN on a REPLAYABLE board with a measured time;
+         * keep only if faster.
+         *
+         * The daily is excluded on purpose. It is a different board every day,
+         * so a daily clear would land on the same key as a co-op or practice
+         * run of the same dimensions and quietly become the record the in-game
+         * banner shows — a time set on a board nobody can play again. The daily
+         * keeps its own history, in user_daily_results.
+         *
+         * `players` is the CLEAR count, not the room, and it is read back OUT
+         * of the key rather than recomputed beside it: a race is solo work and
+         * the key already says so. Deriving it twice is how a row ends up
+         * keyed '16x16/40' and captioned "with 2 players" — which is what a
+         * race used to do. The row's `players` is therefore a display copy of
+         * something the key already holds; the key is the identity.
+         */
+        if (mode !== 'daily' && won && typeof durationMs === 'number' && durationMs >= 0) {
             await upsertBest(client, userId, {
                 boardKey,
                 seconds: Math.floor(durationMs / 1000),
-                players,
+                players: playersFromKey(boardKey),
                 achievedAt: finishedAt,
             });
         }
@@ -305,6 +322,31 @@ const earnedAchievementIds = async (userId) => {
     return rows.map((row) => row.achievement_id);
 };
 
+/** One row's outward shape. The client keys its own copy the same way. */
+const bestOf = (row) => ({
+    boardKey: row.board_key,
+    seconds: row.seconds,
+    players: row.players,
+    achievedAt: row.achieved_at,
+});
+
+/**
+ * Just this account's board records.
+ *
+ * Narrow on purpose, the same trade `earnedAchievementIds` makes: the in-game
+ * best-time banner needs one table, and `getProfile` runs five queries to build
+ * a page. This is what the GAME loads, on the landing page and on every board.
+ */
+const getBoardBests = async (userId) => {
+    if (!pgPool) throw new Error('Postgres is not configured (DATABASE_URL is unset)');
+
+    const { rows } = await pgPool.query(
+        'SELECT board_key, seconds, players, achieved_at FROM user_board_bests WHERE user_id = $1 ORDER BY achieved_at DESC',
+        [userId],
+    );
+    return rows.map(bestOf);
+};
+
 /** Everything the profile page shows, in one read. */
 const getProfile = async (userId) => {
     if (!pgPool) throw new Error('Postgres is not configured (DATABASE_URL is unset)');
@@ -337,12 +379,7 @@ const getProfile = async (userId) => {
 
     return {
         stats: snapshotOf(stats.rows[0]),
-        boardBests: bests.rows.map((b) => ({
-            boardKey: b.board_key,
-            seconds: b.seconds,
-            players: b.players,
-            achievedAt: b.achieved_at,
-        })),
+        boardBests: bests.rows.map(bestOf),
         recentGames: recent.rows.map((g) => ({
             mode: g.mode,
             boardKey: g.board_key,
@@ -375,7 +412,17 @@ const importBests = async (userId, bests) => {
     try {
         await client.query('BEGIN');
         for (const best of bests) {
-            await upsertBest(client, userId, best);
+            /*
+             * Client-reported, so the two halves of an entry can disagree. The
+             * COUNT is the trustworthy half here (the browser files by it), so
+             * the key is rebuilt from it rather than trusted as sent: a payload
+             * naming '16x16/40@2' with players 1 would otherwise sit on a key
+             * nothing derives and nothing reads. The column then comes back out
+             * of the rebuilt key, so this lands on the same rule every other
+             * write follows — the key is the identity, the column mirrors it.
+             */
+            const boardKey = withPlayers(boardPartOf(best.boardKey), best.players);
+            await upsertBest(client, userId, { ...best, boardKey, players: playersFromKey(boardKey) });
         }
         await client.query('COMMIT');
     } catch (error) {
@@ -389,6 +436,7 @@ const importBests = async (userId, bests) => {
 module.exports = {
     recordResult,
     getProfile,
+    getBoardBests,
     earnedAchievementIds,
     importBests,
     backfillAchievements,

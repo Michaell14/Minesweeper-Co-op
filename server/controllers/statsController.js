@@ -21,6 +21,21 @@ const registerStatsRoutes = (app) => {
         }
     });
 
+    /*
+     * The board records alone — what the GAME reads, rather than the profile
+     * page. Separate from /api/stats because it is fetched on sign-in by every
+     * tab with a board in it, and building the whole profile for it would run
+     * four queries nothing on that page shows.
+     */
+    app.get('/api/stats/bests', requireUser, async (req, res) => {
+        try {
+            res.json({ boardBests: await statsRepo.getBoardBests(req.user.id) });
+        } catch (error) {
+            console.error('Postgres error reading board bests:', error.message);
+            res.status(503).json({ error: 'Stats are temporarily unavailable' });
+        }
+    });
+
     app.post('/api/stats/import-bests', requireUser, async (req, res) => {
         const bests = req.body && req.body.bests;
         if (!isValidBestImport(bests)) {

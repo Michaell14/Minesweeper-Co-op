@@ -4,8 +4,9 @@ import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 import { Button, Panel, Table } from '@/components/ds';
 import { DIALOGS, openDialog } from '@/lib/dialogs';
-import { RECENT_WINDOW, fetchStats, importBests, type ProfilePayload } from '@/lib/statsApi';
-import { boardLabel, readBestTimes } from '@/lib/bestTimes';
+import { MAX_BEST_IMPORT, RECENT_WINDOW, fetchBoardBests, fetchStats, importBests, type ProfilePayload } from '@/lib/statsApi';
+import { bestsForImport, labelForKey, markBestsImported, readBestTimes } from '@/lib/bestTimes';
+import { useMinesweeperStore } from '@/app/store';
 import { formatClock } from '@/lib/gameClock';
 import { formatDate } from '@/lib/formatDate';
 import { markAchievementsSeen, newlyEarned } from '@/lib/achievementsSeen';
@@ -19,13 +20,6 @@ import DailyHistoryPanel from './DailyHistoryPanel';
  * write it offers is the guest import: this browser's localStorage bests,
  * folded in keep-if-faster.
  */
-
-/** "16x16/40" → the same display name the rest of the app derives. */
-const labelForKey = (key: string): string => {
-    const match = key.match(/^(\d+)x(\d+)\/(\d+)$/);
-    if (!match) return key;
-    return boardLabel(Number(match[1]), Number(match[2]), Number(match[3]));
-};
 
 const MODE_LABELS = { 'co-op': 'Co-op', pvp: 'PVP', daily: 'Daily' } as const;
 
@@ -81,6 +75,7 @@ export default function ProfileClient() {
 
     // The guest import offer: only when this browser actually holds records.
     const [localBestCount, setLocalBestCount] = React.useState(0);
+    const setAccountBests = useMinesweeperStore((s) => s.setAccountBests);
     const [importState, setImportState] = React.useState<'idle' | 'busy' | 'done' | 'failed'>('idle');
     React.useEffect(() => {
         setLocalBestCount(Object.keys(readBestTimes()).length);
@@ -88,15 +83,17 @@ export default function ProfileClient() {
 
     const runImport = async () => {
         setImportState('busy');
-        const bests = Object.entries(readBestTimes()).map(([boardKey, best]) => ({
-            boardKey,
-            seconds: best.seconds,
-            players: best.players,
-            achievedAt: best.at,
-        }));
-        const ok = await importBests(bests);
+        const ok = await importBests(bestsForImport(MAX_BEST_IMPORT));
         setImportState(ok ? 'done' : 'failed');
-        if (ok) load();
+        if (!ok) return;
+        // Same fold-in BestsSync does silently on sign-in; marking it here
+        // stops the automatic one repeating work this player asked for.
+        markBestsImported();
+        load();
+        // The GAME reads the account's records, not this page's payload — so
+        // without this the banner on the board would keep showing what the
+        // account held before the import until the next sign-in.
+        void fetchBoardBests().then(setAccountBests);
     };
 
     const recentGames = profile?.recentGames ?? [];
@@ -197,8 +194,9 @@ export default function ProfileClient() {
                         <Panel title={<span id="profile-bests">Best times</span>}>
                             {profile.boardBests.length === 0 ? (
                                 <p className="text-pixel-sm text-ink-muted">
-                                    No cleared boards recorded yet — finish one signed in and
-                                    it lands here.
+                                    No cleared boards recorded yet — clear one signed in and
+                                    it lands here. The daily is a different board every day,
+                                    so it keeps its own history rather than a record.
                                 </p>
                             ) : (
                                 <Table aria-label="Best time per board">

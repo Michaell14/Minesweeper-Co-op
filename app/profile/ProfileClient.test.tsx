@@ -16,9 +16,16 @@ vi.mock('next-auth/react', () => ({
 
 const mockFetchStats = vi.fn();
 const mockImportBests = vi.fn();
-vi.mock('@/lib/statsApi', () => ({
+const mockFetchBoardBests = vi.fn(async (): Promise<Record<string, never> | null> => null);
+// Partial: the calls are stubbed, the constants stay real. A factory listing
+// only the functions makes every constant the page reads throw on access.
+vi.mock('@/lib/statsApi', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('@/lib/statsApi')>()),
     fetchStats: (...args: unknown[]) => mockFetchStats(...args),
     importBests: (...args: unknown[]) => mockImportBests(...args),
+    // A successful import refreshes the ACCOUNT's records for the game, since
+    // the banner on a board reads those rather than this page's payload.
+    fetchBoardBests: () => mockFetchBoardBests(),
 }));
 
 // The page mounts AccountPanel (its own tests live beside it); its fetch

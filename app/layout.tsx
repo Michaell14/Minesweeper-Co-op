@@ -11,6 +11,7 @@ import Footer from "@/components/Footer";
 import AchievementToast from "@/components/AchievementToast";
 import AuthProvider from "@/components/AuthProvider";
 import SettingsSync from "@/components/SettingsSync";
+import BestsSync from "@/components/BestsSync";
 import SpriteDefsHost from "@/components/SpriteDefsHost";
 
 // `variable` as well as `className`: the class puts Inter on <body>, where the
@@ -147,6 +148,9 @@ export default function RootLayout({
         <SpriteDefsHost />
         <AuthProvider>
           <SettingsSync />
+          {/* Signed in, board records come from the account rather than this
+              browser; this is what fetches them. Renders nothing. */}
+          <BestsSync />
           {children}
           <Footer />
           {/* Renders nothing until the server announces an unlock; here rather

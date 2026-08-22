@@ -18,7 +18,7 @@
  */
 
 const { updatePlayerStatsInRoom } = require('../utils/playerUtils');
-const { recordForSockets, boardKeyOf } = require('../utils/statsRecorder');
+const { recordForSockets } = require('../utils/statsRecorder');
 const { getAdjacentCells, revealFrom, projectBoard, projectCells } = require('../domain/board');
 const { pvpIndexOf } = require('../domain/pvpPlayer');
 const { io } = require('../utils/initializeClient');
@@ -206,7 +206,7 @@ const checkWin = async (board, room, socketId, playerIndex) => {
                     const startedAt = readStamp(roomState.startedAt);
                     const shared = {
                         mode: 'pvp',
-                        boardKey: boardKeyOf(board),
+                        board,
                         durationMs: startedAt === null ? null : endedAt - startedAt,
                         players: 2,
                         finishedAt: endedAt,

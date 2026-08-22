@@ -15,7 +15,7 @@ const { withCrossedMilestones } = require('../../shared/pace');
 const { parseMilestones } = require('../domain/pace');
 const { hashStringToSeed, mulberry32 } = require('../domain/seededRandom');
 const { io } = require('../utils/initializeClient');
-const { recordForSockets, boardKeyOf } = require('../utils/statsRecorder');
+const { recordForSockets } = require('../utils/statsRecorder');
 const dailyRepo = require('../data/dailyRepo');
 const { TERMINAL_STATUSES } = dailyRepo;
 const { SERVER_EVENTS } = require('../../shared/events');
@@ -179,7 +179,7 @@ const finishAttempt = async (date, token, socketId, board, { won }) => {
     try {
         recordForSockets([socketId], {
             mode: 'daily',
-            boardKey: boardKeyOf(board),
+            board,
             won,
             durationMs: elapsedMs,
             players: 1,

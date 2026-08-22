@@ -219,6 +219,23 @@ describe('earnedFrom: moments', () => {
         expect(won({ boardKey: '9x9/10', durationMs: 14_999 })).toContain('blink');
     });
 
+    /*
+     * Board-specific, not GROUP-specific. Records grew a player-count suffix so
+     * a group clear stops taking the solo slot, and every predicate here asks
+     * about the board — clearing 16x16/40 in 80 seconds is the same feat with
+     * friends. An equality check against the whole key silently stopped
+     * awarding these to co-op rooms the day the suffix arrived.
+     */
+    test('a group clear earns the same board moments as a solo one', () => {
+        expect(won({ boardKey: '16x16/40@3', durationMs: 89_999, players: 3 })).toContain('speed-demon');
+        expect(won({ boardKey: '9x9/10@2', durationMs: 14_999, players: 2 })).toContain('blink');
+        expect(won({ boardKey: '16x16/100@4', durationMs: 30_000, players: 4 })).toEqual(
+            expect.arrayContaining(['extreme-measures', 'century-of-mines']),
+        );
+        // …and a preset cleared by a group is still a preset.
+        expect(won({ boardKey: '16x16/40@3', players: 3 })).not.toContain('custom-job');
+    });
+
     // A null duration is not a fast time. Co-op rooms can lose their start stamp.
     test('an unmeasured clear earns no timed moment', () => {
         const earned = won({ boardKey: '16x16/40', durationMs: null });
