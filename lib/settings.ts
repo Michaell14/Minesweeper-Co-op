@@ -63,6 +63,8 @@ export interface Settings {
     confetti: boolean;
     /** Broadcast your cursor position to the co-op room. Privacy setting. */
     shareCursor: boolean;
+    /** Show other players' reactions. RECEIVE only — sending is never gated. */
+    emotes: boolean;
     /** Arrow-key cursor + reveal/flag keys on the board. */
     keyboardControls: boolean;
 
@@ -95,6 +97,7 @@ export const DEFAULT_SETTINGS: Settings = {
     chording: true,
     confetti: true,
     shareCursor: true,
+    emotes: true,
     keyboardControls: true,
     sound: false,
     soundVolume: 0.5,
@@ -138,6 +141,7 @@ const SANITISERS: { [K in SettingKey]: (value: unknown) => Settings[K] | undefin
     chording: boolean,
     confetti: boolean,
     shareCursor: boolean,
+    emotes: boolean,
     keyboardControls: boolean,
     sound: boolean,
     soundVolume: (value) =>

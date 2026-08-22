@@ -7,6 +7,7 @@ import {
     Button,
     CalendarIcon,
     CoinIcon,
+    Emote,
     Field,
     GithubIcon,
     Input,
@@ -28,6 +29,7 @@ import type { ButtonIntent } from "@/components/ds";
 // one page whose job is to show internals.
 import { DEFAULT_SET, GENERAL_SPRITE_SETS, PixelRects, SPRITE_SETS, type SpriteSet } from "@/components/ds/sprites";
 import { AVATARS } from "@/shared/avatars";
+import { EMOTES } from "@/shared/emotes";
 import board from "@/components/game/board.module.css";
 import { readPaletteEntries } from "@/lib/theme";
 import { THEMES, applyTheme, coverageOf, type ThemeCoverage } from "./themes";
@@ -288,6 +290,20 @@ export default function DsCatalogClient() {
                     {AVATARS.map(({ id, label }) => (
                         <div key={id} className="flex flex-col items-center gap-1" data-avatar={id}>
                             <Avatar id={id} size={48} animated />
+                            <span className="text-pixel-xs text-ink-muted">{label}</span>
+                        </div>
+                    ))}
+                </div>
+            </Section>
+
+            <Section
+                title="Emotes"
+                note="The reaction vocabulary (components/ds/emoteArt.ts), one per id in shared/emotes.js — a CLOSED set, which is what means nothing a player sends another player needs moderating. Same three tokens as the avatars, so each one reads on every palette. Shown at tray size; the feed draws them smaller still, which is why none of them relies on a one-pixel detail."
+            >
+                <div className="flex flex-wrap gap-4">
+                    {EMOTES.map(({ id, label }) => (
+                        <div key={id} className="flex flex-col items-center gap-1">
+                            <Emote id={id} size={48} />
                             <span className="text-pixel-xs text-ink-muted">{label}</span>
                         </div>
                     ))}

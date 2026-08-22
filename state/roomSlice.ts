@@ -1,5 +1,5 @@
 import { StateCreator } from 'zustand';
-import type { PlayerHover, PlayerStats } from './types';
+import type { PlayerEmote, PlayerHover, PlayerStats } from './types';
 import type { MinesweeperState } from './store';
 
 /** Who is in the room, their scores, and where their cursors are. */
@@ -10,6 +10,8 @@ export interface RoomSlice {
     playerStatsInRoom: PlayerStats[];           // everyone's scores
     gameOverName: string;                       // who hit the mine
     playerHovers: Record<string, PlayerHover>;  // live hover state, by socket id
+    /** Reactions still on screen, oldest first. Bounded — see `pushPlayerEmote`. */
+    playerEmotes: PlayerEmote[];
     /** In the quick-match queue: waiting to be paired, not yet in a room.
      *  Lives here rather than in its own slice because the only thing it
      *  produces is a room, and it ends the moment `playerJoined` begins. */
@@ -34,9 +36,15 @@ export interface RoomSlice {
     setMatchSearching: (searching: boolean) => void;
     setMatchOthersOnline: (others: number) => void;
     setPracticeTarget: (target: { ms: number; isPersonal: boolean } | null) => void;
+    pushPlayerEmote: (emote: PlayerEmote) => void;
+    /** Drops everything whose deadline has passed. Idempotent. */
+    expirePlayerEmotes: (now: number) => void;
     updatePlayerHover: (id: string, row: number, col: number, name: string, color: string) => void;
     removePlayerHover: (id: string) => void;
     clearAllHovers: () => void;
+    /** Separate from the hover clear: a board reset leaves reactions alone
+     *  (they are about the moment, not the board), leaving the room does not. */
+    clearPlayerEmotes: () => void;
 }
 
 export const createRoomSlice: StateCreator<MinesweeperState, [], [], RoomSlice> = (set) => ({
@@ -46,6 +54,7 @@ export const createRoomSlice: StateCreator<MinesweeperState, [], [], RoomSlice> 
     playerStatsInRoom: [],
     gameOverName: '',
     playerHovers: {},
+    playerEmotes: [],
     matchSearching: false,
     matchOthersOnline: 0,
     practiceTargetMs: null,
@@ -65,6 +74,22 @@ export const createRoomSlice: StateCreator<MinesweeperState, [], [], RoomSlice> 
             practiceTargetIsPersonal: target?.isPersonal ?? false,
         }),
 
+    /*
+     * Capped at three. A full room can emote faster than anyone reads, and an
+     * unbounded feed is both a wall of glyphs and a way for one player to push
+     * the rest off screen — the cap is the display half of the server's bucket.
+     */
+    pushPlayerEmote: (emote) =>
+        set((state) => ({ playerEmotes: [...state.playerEmotes, emote].slice(-3) })),
+
+    expirePlayerEmotes: (now) =>
+        set((state) => {
+            const live = state.playerEmotes.filter((emote) => emote.expiresAt > now);
+            // Same array when nothing expired, so a tick that changes nothing
+            // does not re-render the feed.
+            return live.length === state.playerEmotes.length ? {} : { playerEmotes: live };
+        }),
+
     updatePlayerHover: (id, row, col, name, color) =>
         set((state) => ({
             playerHovers: { ...state.playerHovers, [id]: { row, col, name, color } },
@@ -78,4 +103,6 @@ export const createRoomSlice: StateCreator<MinesweeperState, [], [], RoomSlice> 
         }),
 
     clearAllHovers: () => set({ playerHovers: {} }),
+
+    clearPlayerEmotes: () => set({ playerEmotes: [] }),
 });

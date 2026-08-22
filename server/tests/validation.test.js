@@ -8,6 +8,7 @@
  */
 
 const { ALL_PRESETS, BOARD_LIMITS } = require('../../shared/boardConfig');
+const { EMOTE_IDS } = require('../../shared/emotes');
 const {
     isValidRoomCode,
     isValidPlayerName,
@@ -15,6 +16,7 @@ const {
     isValidBoardConfig,
     isValidCoordinate,
     isValidHoverCoordinate,
+    isValidEmoteId,
     isPlayerInRoom,
     isValidBestImport,
 } = require('../validation');
@@ -160,6 +162,29 @@ describe('isValidHoverCoordinate', () => {
     ])('rejects %s', (_label, row, col) =>
         expect(isValidHoverCoordinate(row, col)).toBe(false)
     );
+});
+
+describe('isValidEmoteId', () => {
+    test.each(EMOTE_IDS)('accepts the catalog id %s', (id) =>
+        expect(isValidEmoteId(id)).toBe(true)
+    );
+
+    /*
+     * The check that keeps the vocabulary CLOSED. Anything that passed here
+     * and was not in the catalog would be relayed verbatim from one player to
+     * another, which is chat — and chat needs a filter, a report flow and
+     * somebody to read the reports.
+     */
+    test.each([
+        ['a plain sentence', 'meet me at 3pm'],
+        ['markup', '<img src=x onerror=alert(1)>'],
+        ['an id that only looks close', 'nice '],
+        ['the empty string', ''],
+        ['a number', 3],
+        ['null', null],
+        ['undefined', undefined],
+        ['an object', { id: 'nice' }],
+    ])('rejects %s', (_label, value) => expect(isValidEmoteId(value)).toBe(false));
 });
 
 describe('isPlayerInRoom', () => {

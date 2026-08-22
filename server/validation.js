@@ -11,6 +11,7 @@
 const { isValidBoardConfig } = require('../shared/boardConfig');
 const { AVATAR_IDS } = require('../shared/avatars');
 const { BOARD_KEY_PATTERN } = require('../shared/boardKeys');
+const { EMOTE_IDS } = require('../shared/emotes');
 
 const MAX_ROOM_CODE_LENGTH = 100;
 const MAX_PLAYER_NAME_LENGTH = 50;
@@ -43,6 +44,15 @@ const isValidMode = (mode) => mode === 'co-op' || mode === 'pvp';
 
 /** An avatar as STORED: one id from the shared catalog, nothing free-form. */
 const isValidAvatarId = (avatar) => AVATAR_IDS.includes(avatar);
+
+/**
+ * An emote as SENT: one id from the shared catalog, nothing free-form.
+ *
+ * The vocabulary being closed is the feature, not a limitation of this check —
+ * it is what means nothing a player sends another player needs moderating. A
+ * length rule here instead would quietly turn the protocol into chat.
+ */
+const isValidEmoteId = (emote) => EMOTE_IDS.includes(emote);
 
 /** Opaque client-generated id for a daily attempt -- same shape as a room code. */
 const isValidDailyToken = (token) =>
@@ -182,6 +192,7 @@ module.exports = {
     normalizePlayerName,
     isValidMode,
     isValidAvatarId,
+    isValidEmoteId,
     isValidBoardConfig,
     isValidCoordinate,
     isValidHoverCoordinate,

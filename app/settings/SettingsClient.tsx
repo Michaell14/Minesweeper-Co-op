@@ -87,6 +87,11 @@ export default function SettingsClient() {
                         description="Teammates in a co-op room see which cell you are hovering."
                     />
                     <SettingRow
+                        settingKey="emotes"
+                        name="Show reactions"
+                        description="See the emotes other players send in your room. Turning this off does not stop you sending them."
+                    />
+                    <SettingRow
                         settingKey="keyboardControls"
                         name="Keyboard controls"
                         description="Arrow keys or WASD move a cursor on the board. Space or Enter reveals, F flags, Escape hides it."
