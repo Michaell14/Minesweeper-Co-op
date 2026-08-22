@@ -421,3 +421,18 @@ describe('locked avatars', () => {
         }
     });
 });
+
+/*
+ * 'loading' is the one state with no way out on its own — stuck there, the
+ * panel hides sign-out and deletion for the life of the page. `fetchProfile`
+ * answers with null rather than throwing, so this is defence in depth, not a
+ * reachable path today.
+ */
+it('shows the unavailable state if the profile read throws', async () => {
+    mockFetchProfile.mockRejectedValue(new SyntaxError('Unexpected token <'));
+    render(<AccountPanel />);
+
+    expect(await screen.findByText(/account could not be loaded right now/i)).toBeTruthy();
+    // Sign-out has to survive the failure — it is the only way off the page.
+    expect(screen.getByRole('button', { name: 'Sign out' })).toBeTruthy();
+});

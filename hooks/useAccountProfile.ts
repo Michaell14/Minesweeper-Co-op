@@ -17,18 +17,18 @@ export interface AccountProfile {
 }
 
 /*
- * ONE fetch per sign-in, shared by every consumer.
+ * One fetch per sign-in, shared by every consumer — the Footer is in the
+ * layout and the landing page mounts this again, so without a shared copy
+ * every page issues a GET per consumer. Only a SUCCESSFUL read is shared: a
+ * null is not cached, so consumers on a page whose account API is down each
+ * retry rather than inheriting the failure.
  *
- * The Footer is in the layout and the landing page mounts this again, so
- * without a shared copy every page issues a GET per consumer — and this hook
- * exists to be reused, so that number only grows.
- *
- * `generation` guards the same race the hook does below: an update event heard
- * while a fetch is in flight is strictly fresher, so the fetch must not write
- * its stale answer into the cache that LATER mounts will read.
- *
- * A failed fetch caches nothing. Null here means "the account API had nothing
- * for us", and pinning that would leave the page unable to recover.
+ * `generation` is what makes the sharing safe across a sign-out. Anything the
+ * previous session opened must not reach the next one — neither by writing the
+ * copy after it was cleared, nor by having its in-flight promise handed over —
+ * or a different person signing in reads the departed account's name and face
+ * until an update event or a reload. It also covers the smaller case of an
+ * update event landing mid-fetch, where the event is strictly fresher.
  */
 let cachedProfile: ProfileUser | null = null;
 let inFlight: Promise<ProfileUser | null> | null = null;
@@ -38,12 +38,17 @@ const loadProfile = (): Promise<ProfileUser | null> => {
     if (cachedProfile) return Promise.resolve(cachedProfile);
     if (!inFlight) {
         const startedAt = generation;
-        inFlight = fetchProfile()
+        const pending: Promise<ProfileUser | null> = fetchProfile()
             .then((user) => {
-                if (generation === startedAt) cachedProfile = user;
-                return cachedProfile ?? user;
+                if (generation !== startedAt) return cachedProfile;
+                cachedProfile = user;
+                return user;
             })
-            .finally(() => { inFlight = null; });
+            .finally(() => {
+                // Only clear OUR slot — a later generation may already own it.
+                if (inFlight === pending) inFlight = null;
+            });
+        inFlight = pending;
     }
     return inFlight;
 };
@@ -52,6 +57,9 @@ const loadProfile = (): Promise<ProfileUser | null> => {
 const rememberProfile = (user: ProfileUser | null) => {
     generation++;
     cachedProfile = user;
+    // The open fetch belongs to the generation that just ended. Leaving it here
+    // would hand the next sign-in the previous account's answer.
+    inFlight = null;
 };
 
 /**
@@ -109,17 +117,9 @@ export function useAccountProfile(): AccountProfile {
                 // nothing for us", which is an answer, not a pending state.
                 setResolved(true);
             })
-            .catch(() => {
-                /*
-                 * `fetchProfile` answers with null rather than throwing, so
-                 * this should be unreachable — it is here because `resolved`
-                 * must become true no matter what. Callers WAIT on it (the
-                 * join-link path decides nothing until it settles), so a
-                 * promise that never resolves is not a degraded page, it is a
-                 * page that silently does nothing.
-                 */
-                if (!cancelled) setResolved(true);
-            });
+            // `resolved` has to settle whatever happens: callers WAIT on it,
+            // so a promise that never resolves is a page that does nothing.
+            .catch(() => { if (!cancelled) setResolved(true); });
         const onProfileUpdated = (event: Event) => {
             heardUpdate = true;
             const user = (event as CustomEvent<ProfileUser>).detail;

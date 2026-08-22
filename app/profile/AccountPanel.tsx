@@ -49,15 +49,19 @@ export default function AccountPanel({ achievements, stats }: AccountPanelProps)
     const [nameDraft, setNameDraft] = React.useState('');
     React.useEffect(() => {
         let cancelled = false;
-        fetchProfile().then((user) => {
-            if (cancelled) return;
-            setProfile(user);
-            setProfileState(user ? 'ready' : 'unavailable');
-            if (user) {
-                lastConfirmed.current = user;
-                setNameDraft(user.displayName);
-            }
-        });
+        fetchProfile()
+            .then((user) => {
+                if (cancelled) return;
+                setProfile(user);
+                setProfileState(user ? 'ready' : 'unavailable');
+                if (user) {
+                    lastConfirmed.current = user;
+                    setNameDraft(user.displayName);
+                }
+            })
+            // 'loading' is the one state with no way out on its own, and it
+            // hides sign-out and deletion while it lasts.
+            .catch(() => { if (!cancelled) setProfileState('unavailable'); });
         return () => { cancelled = true; };
     }, []);
 
