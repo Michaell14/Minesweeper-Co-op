@@ -1,6 +1,6 @@
 # PRD: Social — Emotes, Pings & Friends
 
-**Status:** Phases 1–3 done 2026-08-22 · Phases 4–5 proposed · **Owner:** Michael · **Created:** 2026-08-21
+**Status:** Phases 1–4 done 2026-08-22 · Phase 5 proposed · **Owner:** Michael · **Created:** 2026-08-21
 
 A living document, same contract as `USER_PROFILES_PRD.md`: each phase has a
 checklist; check items off as they land and update the phase status line. The
@@ -324,17 +324,42 @@ now listed and only you can lift them; a block placed ON you is still invisible
 and still answers exactly like a code nobody holds, which is the half that
 actually protects anybody.
 
-### Phase 4 — Presence & invites
+### Phase 4 — Presence & invites ✔ Done 2026-08-22
 
-- [ ] Presence resolution on connect/disconnect via the `io.sockets` scan;
-      **no `user:<id>` rooms**.
-- [ ] `FRIEND_PRESENCE` push to a user's friends' live sockets.
-- [ ] `INVITE_FRIEND` / `FRIEND_INVITE` events with friendship + room-capacity
-      checks and a per-pair cooldown.
-- [ ] Invite toast with Join, reusing the achievement toast's presentation.
-- [ ] "Invite a friend" entry point in `RoomPanel`, signed-in only.
-- [ ] Tests: invite refused for non-friends, for blocks, for a full or missing
-      room, and past the cooldown.
+- [x] Presence on connect/disconnect via the `io.sockets` scan, in
+      `server/utils/presence.js`; **no `user:<id>` rooms**. `statsRecorder`
+      imports the scan rather than keeping its own copy.
+- [x] `FRIENDS_ONLINE` snapshot to an arriving socket, `FRIEND_PRESENCE` delta
+      to its online friends. Two events, because a client that just connected
+      has no prior state to apply a delta to, while recomputing every
+      recipient's whole list would be one query per friend per connect.
+- [x] `INVITE_FRIEND` / `FRIEND_INVITE` with friendship, sender-in-room,
+      capacity and a per-pair cooldown. All refusals silent.
+- [x] Invite toast with Join, mounted in the layout beside `AchievementToast`.
+- [x] "Invite a friend" entry point in `RoomPanel`, signed-in only.
+- [x] Tests: 25 server (presence including the two-tab case and the guest cost,
+      every invite refusal, the cooldown in both directions), 22 client.
+
+**Three things this phase settled.**
+
+*A second tab must not look like leaving.* A player with the game open twice
+closing one would otherwise wink out for their friends while still playing, so
+a departure is announced only when the disconnecting socket is the account's
+LAST — and an arrival only when it is the first.
+
+*Guests must cost nothing.* Presence runs on every connect, so a query per
+anonymous socket is a query per visitor. `onConnect` returns before touching
+Postgres when the socket has no account.
+
+*Accepting an invite is a NAVIGATION*, not a socket call. The `?room=` join
+flow already fills the code, prompts for a name and copes with a room that
+filled up; a join emitted from the toast would be a second, worse copy of all
+of it — and the invited player may be mid-game somewhere else, which that flow
+already handles and this one would not.
+
+The invite dialog is mounted ONCE by `Grid`, not by `RoomPanel`: the panel
+renders in both layout clusters, and two `<dialog>` elements sharing an id is
+one `openDialog` away from opening the wrong one.
 
 ### Phase 5 — Recent players (optional)
 
@@ -363,6 +388,7 @@ actually protects anybody.
 | Date | Change |
 |---|---|
 | 2026-08-21 | PRD drafted. Decisions in §2 proposed, none confirmed; §8 carries three open questions (per-player mute, ping binding, friends leaderboard). |
+| 2026-08-22 | Phase 4 complete: presence derived from the live socket map (never stored, never a `user:<id>` room), a snapshot on connect and deltas to online friends, invites gated on friendship + sender-in-room + capacity + a per-pair cooldown with every refusal silent, an invite toast whose Join is a link into the existing `?room=` flow, and a signed-in-only entry point in RoomPanel. 1229 server + 1437 client tests, lint, tsc, build and the guest smoke suite green. NOT verified in a browser: presence and invites both need two signed-in accounts, and OAuth is still one of the two manual steps outstanding from USER_PROFILES_PRD.md. |
 | 2026-08-22 | Phase 3 complete: `friendCode` domain module (32 symbols, no O/0/I/1), two migrations, `friendsRepo` with both caps and the reciprocal-accept rule, four routes under `requireUser`, and a Friends panel that fetches its own graph. 1192 server + 1412 client tests, lint, tsc and build green. Verified against a REAL Postgres 14 in a throwaway cluster: every migration up, then the actual repo SQL — code minting and its race, reciprocal accept landing one row rather than two, the graph from both sides, block semantics in both directions, the three table constraints, and the delete cascade. Two corrections recorded in the phase: the validation rule cannot live in `validation.js` (layering), and blocks must be visible to the blocker. |
 | 2026-08-22 | Phase 2 complete: `pingCell`/`playerPing` on the shared expression bucket, suppressed in PVP with a test that fails without the guard; grid-level capture interception across all four of Cell's render branches; `PingLayer` rings in the sender's cursor colour; three input paths (Shift+click, tray arm, P). Alt rejected as a binding — Linux window managers grab it. 1114 server + 1396 client tests, lint, tsc and the smoke suite green; verified live in a real browser that the pinged cell is NOT opened by the click that pinged it. Two bugs found by the browser and not the unit tests: the one-shot disarm racing the tail of its own gesture, and this layer's live region shadowing the keyboard cursor's (both now addressed by explicit markers rather than DOM order). |
 | 2026-08-21 | Phase 1 complete: six-glyph catalog in `shared/`, token-painted art on `/ds`, the `sendEmote`/`playerEmote` pair through all four places, an expression bucket shared with whatever Phase 2 adds, tray + three-chip feed mounted once under the board, `settings.emotes` as a receive-only opt-out, and a synthesised blip. 1044 server + 1292 client tests, lint, tsc, production build and the full ui-smoke suite green — the new EMOTES scenario exchanges a reaction between two real browsers and watches it expire. Verified live in the browser: one tray in the DOM, all six glyphs resolve their tokens on default, Game Boy, C64 and every seasonal palette, and the live region carries "Emoter: Nice". Corrected two draft assumptions (see the phase). |

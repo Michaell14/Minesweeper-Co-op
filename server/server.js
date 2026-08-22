@@ -16,6 +16,8 @@ const { resolveSocketUser, registerProfileRoutes } = require('./controllers/prof
 const { registerSettingsRoutes } = require('./controllers/settingsController');
 const { registerThemesRoutes } = require('./controllers/themesController');
 const { registerFriendsRoutes } = require('./controllers/friendsController');
+const { inviteFriend } = require('./controllers/friendInviteController');
+const presence = require('./utils/presence');
 const { registerStatsRoutes } = require('./controllers/statsController');
 const { startDaily, submitDailyScore, getDailyLeaderboard } = require('./controllers/dailyController');
 const dailyGame = require('./game/daily');
@@ -358,6 +360,10 @@ io.on('connection', async (socket) => {
         }
     }))
 
+    socket.on(CLIENT_EVENTS.INVITE_FRIEND, safe(async ({ friendId, room }) => {
+        await inviteFriend(socket, { friendId, room });
+    }))
+
     socket.on(CLIENT_EVENTS.PING_CELL, safe(async ({ room, row, col }) => {
         try {
             /*
@@ -583,6 +589,11 @@ io.on('connection', async (socket) => {
         // Last, so a cosmetic refresh cannot delay the cleanup above, and after
         // `leaveQueue` so a leaver is never sent their own departure.
         await broadcastOnlineCount();
+
+        // Best-effort and last: a friend's presence is cosmetic, and a Postgres
+        // outage must not hold up a disconnect. Only announces when this was
+        // the account's LAST socket — see utils/presence.js.
+        await presence.onDisconnect(socket);
     });
 
     // Last, deliberately: this can prompt the client to send `joinRoom` straight
@@ -596,6 +607,9 @@ io.on('connection', async (socket) => {
     // After the resume, which a reloading player is waiting on: this socket now
     // counts towards "how many are here", and anyone queued is one behind.
     await broadcastOnlineCount();
+
+    // Guests fall straight through this; it needs an account to have a graph.
+    await presence.onConnect(socket);
 });
 
 /**

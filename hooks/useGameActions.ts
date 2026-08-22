@@ -301,6 +301,24 @@ export function useGameActions(socket: AppSocket | null) {
         [socket]
     );
 
+    /**
+     * Ask a friend into the room this player is in.
+     *
+     * Every real check is the SERVER's — friendship, the room being one this
+     * socket is in, capacity, the per-pair cooldown — because each of them is
+     * about state the client either cannot see or should not be trusted about.
+     * The two here are the ones that would otherwise send a message that could
+     * not possibly mean anything.
+     */
+    const inviteFriend = useCallback(
+        (friendId: string) => {
+            const { room, playerJoined } = useMinesweeperStore.getState();
+            if (!socket || !room || !playerJoined) return;
+            socket.emit(CLIENT_EVENTS.INVITE_FRIEND, { friendId, room });
+        },
+        [socket]
+    );
+
     const emitCellHover = useCallback(
         (row: number, col: number) => {
             const { room, playerJoined, settings } = useMinesweeperStore.getState();
@@ -434,6 +452,7 @@ export function useGameActions(socket: AppSocket | null) {
         emitConfetti,
         sendEmote,
         pingCell,
+        inviteFriend,
         startPvpGame,
         resetMyBoard,
         pvpRematch,

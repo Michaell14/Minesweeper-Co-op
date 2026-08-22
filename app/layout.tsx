@@ -9,6 +9,7 @@ import { NO_FLASH_SCRIPT } from "@/lib/settings";
 import { OG_IMAGE, SITE_URL } from "@/lib/site";
 import Footer from "@/components/Footer";
 import AchievementToast from "@/components/AchievementToast";
+import FriendInviteToast from "@/components/FriendInviteToast";
 import AuthProvider from "@/components/AuthProvider";
 import SettingsSync from "@/components/SettingsSync";
 import BestsSync from "@/components/BestsSync";
@@ -156,6 +157,7 @@ export default function RootLayout({
           {/* Renders nothing until the server announces an unlock; here rather
               than on the game page so a toast survives navigating away. */}
           <AchievementToast />
+          <FriendInviteToast />
         </AuthProvider>
         <Analytics />
       </body>

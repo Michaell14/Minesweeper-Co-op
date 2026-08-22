@@ -3,6 +3,15 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useMinesweeperStore } from "@/app/store";
 import type { PlayerStats } from "@/shared/socketPayloads";
+
+/*
+ * The panel reads `useSession` to decide whether to offer the invite button,
+ * and the real hook throws outside a <SessionProvider>. Signed OUT by default
+ * so every case below is about the code and the copy, as it was.
+ */
+const mockStatus = vi.fn(() => "unauthenticated");
+vi.mock("next-auth/react", () => ({ useSession: () => ({ status: mockStatus() }) }));
+
 import RoomPanel from "./RoomPanel";
 
 /**
@@ -135,5 +144,42 @@ describe("always", () => {
 
         await waitFor(() =>
             expect(screen.getByRole("button", { name: /copy/i }).textContent).toBe("Copy Link"));
+    });
+});
+
+describe("the invite button", () => {
+    /*
+     * Signed-in only: a friend list needs an account. The Copy Link path above
+     * is what a guest uses, and it stays the primary way in for everybody.
+     */
+    test("is not offered to a guest", () => {
+        mockStatus.mockReturnValue("unauthenticated");
+        render(<RoomPanel inviteFriend={vi.fn()} />);
+        expect(screen.queryByRole("button", { name: "Invite a friend to this room" })).toBeNull();
+    });
+
+    test("is offered to a signed-in player", () => {
+        mockStatus.mockReturnValue("authenticated");
+        render(<RoomPanel inviteFriend={vi.fn()} />);
+        expect(screen.getByRole("button", { name: "Invite a friend to this room" })).toBeTruthy();
+    });
+
+    // The daily passes no handler: it is not a room, and there is nobody to
+    // invite into it.
+    test("is not offered where there is no room to invite into", () => {
+        mockStatus.mockReturnValue("authenticated");
+        render(<RoomPanel />);
+        expect(screen.queryByRole("button", { name: "Invite a friend to this room" })).toBeNull();
+    });
+
+    /*
+     * The panel is mounted once per layout cluster, so it must carry the
+     * button and NOT the dialog — two <dialog> elements sharing an id is one
+     * openDialog away from opening the wrong one.
+     */
+    test("carries no dialog of its own", () => {
+        mockStatus.mockReturnValue("authenticated");
+        const { container } = render(<RoomPanel inviteFriend={vi.fn()} />);
+        expect(container.querySelector("dialog")).toBeNull();
     });
 });
