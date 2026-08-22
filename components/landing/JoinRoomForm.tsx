@@ -7,6 +7,20 @@ import { Button, Field, Input } from "@/components/ds";
 import { DIALOGS, openDialog } from "@/lib/dialogs";
 import { ROOM_QUERY_PARAM } from "@/lib/roomLink";
 
+export interface JoinRoomFormProps {
+    /**
+     * Fired instead of opening the name dialog, for a player whose name is
+     * already known.
+     *
+     * Three states, not two: a function means go straight in, `null` means ask
+     * (a guest), and `undefined` means the account has not resolved yet. The
+     * join-link path below decides on MOUNT, when not-yet is the normal state,
+     * so collapsing null and undefined would send every signed-in player
+     * arriving by link to a name dialog they should never see.
+     */
+    joinRoom?: (() => void) | null;
+}
+
 interface JoinFormValues {
     roomCode: string;
 }
@@ -21,10 +35,11 @@ interface JoinFormValues {
  * The join-link effect lives here because all it does is pre-fill this form's
  * input, which needs this form's `setValue`.
  *
- * Takes no props: submitting records the room and opens the name dialog, and
- * that dialog fires the `joinRoom` emit.
+ * Submitting records the room and opens the name dialog, and that dialog fires
+ * the `joinRoom` emit — unless the player's name is already known, in which
+ * case the action arrives here as a prop and the dialog is skipped entirely.
  */
-export default function JoinRoomForm() {
+export default function JoinRoomForm({ joinRoom }: JoinRoomFormProps) {
     const setRoom = useMinesweeperStore((state) => state.setRoom);
 
     const {
@@ -40,21 +55,30 @@ export default function JoinRoomForm() {
      * landing page does not reopen it.
      */
     React.useEffect(() => {
+        // Wait for the account before deciding: acting now would ask a
+        // signed-in player for a name that arrives a moment later. The param
+        // survives until then, and is stripped by the run that acts.
+        if (joinRoom === undefined) return;
+
         const roomParam = new URLSearchParams(window.location.search).get(ROOM_QUERY_PARAM)?.trim().slice(0, 200);
         if (!roomParam) return;
 
         setRoom(roomParam);
         setValue("roomCode", roomParam);
-        openDialog(DIALOGS.nameJoin);
+        if (joinRoom) joinRoom();
+        else openDialog(DIALOGS.nameJoin);
 
         const url = new URL(window.location.href);
         url.searchParams.delete(ROOM_QUERY_PARAM);
         window.history.replaceState(null, '', url.toString());
-    }, [setRoom, setValue]);
+    }, [joinRoom, setRoom, setValue]);
 
     const onSubmit = handleSubmit((data) => {
+        // Both read the store, and zustand sets synchronously, so the room
+        // recorded a line above is the one `joinRoom` emits.
         setRoom(data.roomCode);
-        openDialog(DIALOGS.nameJoin);
+        if (joinRoom) joinRoom();
+        else openDialog(DIALOGS.nameJoin);
     });
 
     return (

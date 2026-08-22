@@ -40,6 +40,7 @@ vi.mock('@/lib/profileApi', async () => {
 });
 
 import Footer from './Footer';
+import { clearAccountProfileCache } from '@/hooks/useAccountProfile';
 import { PROFILE_UPDATED_EVENT } from '@/lib/profileApi';
 import { LATEST_ENTRY_DATE } from '@/lib/changelog';
 import { DIALOGS } from '@/lib/dialogs';
@@ -53,6 +54,9 @@ beforeEach(() => {
     // "Accounts unavailable" by default — signed-in tests that care about the
     // avatar set up their own answer.
     mockFetchProfile.mockResolvedValue(null);
+    // The shared profile copy would otherwise serve one test's account to the
+    // next, exactly as the server's identity cache does.
+    clearAccountProfileCache();
     localStorage.clear();
 });
 

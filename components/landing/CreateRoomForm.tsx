@@ -12,6 +12,16 @@ interface CreateFormValues {
     roomCode: string;
 }
 
+export interface CreateRoomFormProps {
+    /**
+     * Fired instead of opening the name dialog, for a player whose name is
+     * already known. Null (a guest) and undefined (account not resolved yet)
+     * both mean ask — the join form takes the same shape from the same helper,
+     * and distinguishes them because its link path fires on mount.
+     */
+    createRoom?: (() => void) | null;
+}
+
 /**
  * A radio card's one-line description. The pixel font is ~14px per glyph, so
  * "48 mines" wraps once four cards share a row; smaller and non-wrapping keeps
@@ -44,10 +54,11 @@ const OptionRow = ({ label, ariaLabel, name, value, onChange, children }: Option
  * Creating a room: the code, then mode, size and difficulty. Difficulty's cards
  * show what each density works out to at the size selected above.
  *
- * Takes no props, like the join form: submitting records the room and opens the
- * name dialog, and that dialog fires `createRoom`.
+ * Submitting records the room and opens the name dialog, and that dialog fires
+ * `createRoom` — unless the player's name is already known, in which case the
+ * action arrives here as a prop and the dialog is skipped entirely.
  */
-export default function CreateRoomForm() {
+export default function CreateRoomForm({ createRoom }: CreateRoomFormProps) {
     const numRows = useMinesweeperStore((state) => state.numRows);
     const numCols = useMinesweeperStore((state) => state.numCols);
     const numMines = useMinesweeperStore((state) => state.numMines);
@@ -76,8 +87,11 @@ export default function CreateRoomForm() {
             openDialog(DIALOGS.customError);
             return;
         }
+        // Both read the store, and zustand sets synchronously, so the room
+        // recorded a line above is the one `createRoom` emits.
         setRoom(data.roomCode);
-        openDialog(DIALOGS.nameCreate);
+        if (createRoom) createRoom();
+        else openDialog(DIALOGS.nameCreate);
     });
 
     const openCustom = () => {

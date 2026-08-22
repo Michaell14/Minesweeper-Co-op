@@ -20,7 +20,8 @@ const crypto = require('crypto');
 const { io } = require('../utils/initializeClient');
 const { createRoom } = require('../utils/gameUtils');
 const { addPlayerToRoom } = require('../utils/playerUtils');
-const { isValidPlayerName, normalizePlayerName } = require('../validation');
+const { isValidPlayerName } = require('../validation');
+const { displayNameFor } = require('../utils/playerIdentity');
 const { DEFAULT_PRESET } = require('../../shared/boardConfig');
 const { MATCH_ENTRY_STALE_MS } = require('../data/keys');
 const matchRepo = require('../data/matchRepo');
@@ -197,7 +198,7 @@ const startMatch = async ({ host, hostSocket, guestSocket, guestName, guestSessi
 const findMatch = async ({ socket, name }) => {
     try {
         // Validate the name as it will be STORED, same as createRoom/joinRoom.
-        const displayName = normalizePlayerName(name);
+        const displayName = displayNameFor(socket, name);
         if (!isValidPlayerName(displayName)) {
             socket.emit(SERVER_EVENTS.MATCH_ERROR);
             return;
@@ -287,7 +288,7 @@ const findMatch = async ({ socket, name }) => {
  */
 const startPracticeRace = async ({ socket, name }) => {
     try {
-        const displayName = normalizePlayerName(name);
+        const displayName = displayNameFor(socket, name);
         if (!isValidPlayerName(displayName)) {
             socket.emit(SERVER_EVENTS.MATCH_ERROR);
             return;

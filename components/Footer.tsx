@@ -8,7 +8,7 @@ import { Avatar, CoinIcon, Dialog, DialogClose, GearIcon, GithubIcon, StarIcon, 
 import AccountMenu from '@/components/AccountMenu';
 import { useMinesweeperStore } from '@/app/store';
 import { hasUnseenEntries, markChangelogSeen } from '@/lib/changelog';
-import { PROFILE_UPDATED_EVENT, fetchProfile, type ProfileUser } from '@/lib/profileApi';
+import { useAccountProfile } from '@/hooks/useAccountProfile';
 
 const KEY_BINDINGS: [string, string][] = [
     ['Arrows / WASD', 'Move the cursor'],
@@ -47,40 +47,13 @@ export default function Footer() {
     const showCluster = pathname === '/' || pathname === '/daily';
 
     /*
-     * The signed-in icon is the player's avatar. Fetched once per load, then
-     * kept fresh by the profile-updated event — the Footer is mounted once in
-     * the layout, so without the event a new pick on /profile would show the
-     * old face here until a full reload. Until it resolves (or when the
-     * account API is down) the generic signed-in icon stands in.
+     * The signed-in icon is the player's avatar, kept fresh by the hook: the
+     * Footer is mounted once in the layout, so a new pick on /profile has to
+     * reach it without a reload. Until it resolves (or when the account API is
+     * down) the generic signed-in icon stands in.
      */
-    const [avatarId, setAvatarId] = useState<string | null>(null);
-    useEffect(() => {
-        if (status !== 'authenticated') {
-            setAvatarId(null);
-            return;
-        }
-        let cancelled = false;
-        /*
-         * The initial GET is not part of the save queue, so it can resolve
-         * AFTER a save's update event with a snapshot read before that save.
-         * Any event heard while the fetch is in flight is strictly fresher —
-         * the save it reports was issued after the fetch began — so once one
-         * arrives, the fetch result is stale and must not apply.
-         */
-        let heardUpdate = false;
-        fetchProfile().then((user) => {
-            if (!cancelled && !heardUpdate && user) setAvatarId(user.avatar);
-        });
-        const onProfileUpdated = (event: Event) => {
-            heardUpdate = true;
-            setAvatarId((event as CustomEvent<ProfileUser>).detail.avatar);
-        };
-        window.addEventListener(PROFILE_UPDATED_EVENT, onProfileUpdated);
-        return () => {
-            cancelled = true;
-            window.removeEventListener(PROFILE_UPDATED_EVENT, onProfileUpdated);
-        };
-    }, [status]);
+    const { profile } = useAccountProfile();
+    const avatarId = profile?.avatar ?? null;
 
     useEffect(() => {
         const refreshUnseenState = () => {
