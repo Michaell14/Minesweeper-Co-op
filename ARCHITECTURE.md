@@ -705,9 +705,14 @@ the first's records, and the button on /profile covers anyone who does want it.
 
 The fetched table is merged over what the store holds, keeping the faster of
 each pair, rather than replacing it. A straight replace drops a clear finished
-while the fetch was in flight. The cost is that a record whose server write
-dropped outlives the fetch instead of vanishing — the lesser wrong, since both
-numbers come off the same clock.
+while the fetch was in flight — and that window is a real one: sign-in
+resolving is what STARTS the fetch, with an import ahead of it on a first
+sign-in. A clear landing before any table has arrived is held in
+`pendingClears` and folded in when one does, because it cannot go in
+`accountBests`: a table there means "these are the account's records", which
+switches off the localStorage fallback for every other board. The cost of the
+merge is that a record whose server write dropped outlives the fetch instead of
+vanishing — the lesser wrong, since both numbers come off the same clock.
 
 There is still no server *leaderboard* of these. They seed a private profile,
 and the one client-reported write — the guest import at sign-up — is a

@@ -12,6 +12,7 @@ import { useMinesweeperStore } from "@/app/store";
 
 const state = () => useMinesweeperStore.getState();
 
+// Clears the pending table as well as the account one.
 afterEach(() => state().setAccountBests(null));
 
 describe("with no account copy in play", () => {
@@ -88,6 +89,32 @@ describe("with the account's records loaded", () => {
  * page load.
  */
 describe("hydrating from the server", () => {
+    /*
+     * The window that actually happens: `accountBests` is still NULL, because
+     * sign-in resolving is what starts the fetch and a first sign-in sends an
+     * import ahead of it. A clear here has no table to file against — and the
+     * table that lands next was read before the run existed.
+     */
+    test("keeps a clear finished before any table arrived", () => {
+        expect(state().accountBests).toBeNull();
+        state().recordAccountBest("16x16/40", { seconds: 75, players: 1, at: 9 });
+
+        state().setAccountBests({ "16x16/40": { seconds: 300, players: 1, at: 1 } });
+
+        expect(state().accountBests?.["16x16/40"].seconds).toBe(75);
+    });
+
+    test("that clear is folded in once, not re-applied to every later fetch", () => {
+        state().recordAccountBest("16x16/40", { seconds: 75, players: 1, at: 9 });
+        state().setAccountBests({});
+
+        // A later fetch carrying a genuinely faster server record wins: the
+        // pending clear was consumed by the hydrate above, not held forever.
+        state().setAccountBests({ "16x16/40": { seconds: 60, players: 1, at: 2 } });
+
+        expect(state().accountBests?.["16x16/40"].seconds).toBe(60);
+    });
+
     test("keeps a record the fetch was too early to know about", () => {
         state().setAccountBests({});
         state().recordAccountBest("16x16/40", { seconds: 75, players: 1, at: 9 });
@@ -127,6 +154,16 @@ describe("hydrating from the server", () => {
      */
     test("nothing survives a sign-out into the next account's table", () => {
         state().setAccountBests({ "16x16/40": { seconds: 60, players: 1, at: 1 } });
+        state().setAccountBests(null);
+
+        state().setAccountBests({ "9x9/10": { seconds: 30, players: 1, at: 2 } });
+
+        expect(state().accountBests).toEqual({ "9x9/10": { seconds: 30, players: 1, at: 2 } });
+    });
+
+    /* A clear held for a table that never came must not follow the account out. */
+    test("a pending clear does not cross a sign-out either", () => {
+        state().recordAccountBest("16x16/40", { seconds: 60, players: 1, at: 1 });
         state().setAccountBests(null);
 
         state().setAccountBests({ "9x9/10": { seconds: 30, players: 1, at: 2 } });

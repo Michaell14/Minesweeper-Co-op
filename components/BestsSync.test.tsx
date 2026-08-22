@@ -91,6 +91,37 @@ describe('who the records belong to', () => {
     });
 });
 
+/*
+ * The whole reason a clear is retained rather than filed: sign-in resolving is
+ * what STARTS the fetch, so the table is in flight for as long as a round trip
+ * takes — two of them on a first sign-in, since the import goes ahead of it.
+ * A board finished in that window is only in the store; the response was read
+ * before the run existed and would otherwise replace it with an older record.
+ */
+describe('a clear finished while the table is in flight', () => {
+    test('survives the response that predates it', async () => {
+        let land!: (bests: Record<string, BestTime> | null) => void;
+        mockFetchBoardBests.mockImplementation(
+            () => new Promise((resolve) => { land = resolve; }),
+        );
+
+        mockStatus.mockReturnValue('authenticated');
+        render(<BestsSync />);
+        await act(async () => {});
+
+        // Mid-flight: no table to file against, so the win handler shows what
+        // the browser's copy made of the run.
+        expect(state().accountBests).toBeNull();
+        act(() => {
+            expect(state().recordAccountBest('16x16/40', { seconds: 75, players: 1, at: 9 })).toBeNull();
+        });
+
+        await act(async () => land({ '16x16/40': { seconds: 300, players: 1, at: 1 } }));
+
+        expect(state().accountBests?.['16x16/40'].seconds).toBe(75);
+    });
+});
+
 describe('folding this browser\'s records in', () => {
     test('sends what this browser holds, once', async () => {
         recordBestTime(boardKey(9, 9, 10), { seconds: 95, players: 1, at: 5 });
