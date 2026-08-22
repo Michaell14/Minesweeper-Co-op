@@ -28,6 +28,7 @@ const CLIENT_EVENTS = Object.freeze({
     CHORD_CELL: 'chordCell',
     TOGGLE_FLAG: 'toggleFlag',
     EMIT_CONFETTI: 'emitConfetti',
+    SEND_EMOTE: 'sendEmote',
     CELL_HOVER: 'cellHover',
     RESET_GAME: 'resetGame',
     START_PVP_GAME: 'startPvpGame',
@@ -70,6 +71,7 @@ const SERVER_EVENTS = Object.freeze({
 
     // Presence and fun
     RECEIVE_CONFETTI: 'receiveConfetti',
+    PLAYER_EMOTE: 'playerEmote',
     PLAYER_HOVER_UPDATE: 'playerHoverUpdate',
     GAME_CLOCK: 'gameClock',
     SESSION_RESUME: 'sessionResume',

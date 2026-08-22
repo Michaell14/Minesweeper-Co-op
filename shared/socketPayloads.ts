@@ -116,6 +116,8 @@ export interface ClientToServerEvents {
     cellHover: (payload: CellPayload) => void;
 
     emitConfetti: (payload: RoomPayload) => void;
+    /** `emote` is an id from shared/emotes.js — never free text. */
+    sendEmote: (payload: { room: string; emote: string }) => void;
     resetGame: (payload: RoomPayload) => void;
 
     startPvpGame: (payload: RoomPayload) => void;
@@ -197,6 +199,12 @@ export interface ServerToClientEvents {
 
     // --- Presence and fun ---
     receiveConfetti: () => void;
+    /**
+     * Somebody in the room reacted. Sent to EVERYONE including the sender,
+     * unlike hover: the sender should see the same artefact at the same
+     * moment as the room, which is what confetti already does.
+     */
+    playerEmote: (payload: { id: string; name: string; emote: string }) => void;
     /** Co-op only; the server suppresses hover in PVP. */
     playerHoverUpdate: (payload: { id: string; row: number; col: number; name: string }) => void;
     /**

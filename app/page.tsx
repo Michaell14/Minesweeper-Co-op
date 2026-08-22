@@ -41,6 +41,7 @@ export default function Home() {
                     openCell={actions.openCell}
                     chordCell={actions.chordCell}
                     emitConfetti={actions.emitConfetti}
+                    sendEmote={actions.sendEmote}
                     emitCellHover={actions.emitCellHover}
                     handleBoardLeave={actions.handleBoardLeave}
                     startPvpGame={actions.startPvpGame}

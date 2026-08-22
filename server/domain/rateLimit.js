@@ -25,6 +25,21 @@ const HOVER_PER_SECOND = 20;
 /** Allowed straight away after a quiet spell — covers a burst on reconnect. */
 const HOVER_BURST = 20;
 
+/**
+ * Expression — emotes, and anything else deliberate that fans out to the room.
+ *
+ * ONE bucket for the whole category rather than one per event: separate buckets
+ * would let a client alternate between two of them and send at double the rate
+ * either was meant to allow. The caller keys it `socket.data.expressionBucket`,
+ * so adding a second expressive event costs nothing here.
+ *
+ * A person taps a reaction a few times in a row and then stops, so the burst is
+ * what the limit really is; one per second afterwards is already faster than
+ * anyone reads them.
+ */
+const EXPRESSION_PER_SECOND = 1;
+const EXPRESSION_BURST = 3;
+
 const createBucket = (capacity, refillPerSecond) => ({
     capacity,
     refillPerSecond,
@@ -67,4 +82,11 @@ const takeToken = (bucket, now) => {
     return true;
 };
 
-module.exports = { createBucket, takeToken, HOVER_PER_SECOND, HOVER_BURST };
+module.exports = {
+    createBucket,
+    takeToken,
+    HOVER_PER_SECOND,
+    HOVER_BURST,
+    EXPRESSION_PER_SECOND,
+    EXPRESSION_BURST,
+};

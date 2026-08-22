@@ -20,6 +20,7 @@ import StatusBanner from '@/components/game/StatusBanner';
 import ProgressBar, { opponentBarColor } from '@/components/game/ProgressBar';
 import PracticeProgress from '@/components/game/PracticeProgress';
 import ScoreTable from '@/components/game/ScoreTable';
+import EmoteBar from '@/components/game/EmoteBar';
 import FlagCounter from '@/components/game/FlagCounter';
 import Timer from '@/components/game/Timer';
 import RoomPanel from '@/components/game/RoomPanel';
@@ -36,6 +37,7 @@ interface GridParams {
     openCell: (row: number, col: number) => void;
     chordCell: (row: number, col: number) => void;
     emitConfetti: () => void;                           // to everyone in the room
+    sendEmote: (emote: string) => void;                 // a reaction, to the room
     emitCellHover: (row: number, col: number) => void;
     handleBoardLeave: () => void;                       // clears this player's hover
     startPvpGame: () => void;
@@ -43,7 +45,7 @@ interface GridParams {
     pvpRematch: () => void;                             // PVP: host only
 }
 
-const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell, emitConfetti, emitCellHover, handleBoardLeave, startPvpGame, resetMyBoard, pvpRematch }: GridParams) => {
+const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell, emitConfetti, sendEmote, emitCellHover, handleBoardLeave, startPvpGame, resetMyBoard, pvpRematch }: GridParams) => {
     const isChecked = useMinesweeperStore((state) => state.isChecked);
     const mode = useMinesweeperStore((state) => state.mode);
     const gameOver = useMinesweeperStore((state) => state.gameOver);
@@ -196,6 +198,10 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
                             <StatusBanner startPvpGame={startPvpGame} emitConfetti={emitConfetti} variant="mobile" />
                         </div>
                         <Board {...boardProps} />
+                        {/* Under the board, inside the one container that
+                            both layouts share — so the tray is mounted once,
+                            the same rule the board itself follows. */}
+                        <EmoteBar sendEmote={sendEmote} />
                     </div>
 
                     {/* MOBILE: everything else, below the board. */}
