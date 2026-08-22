@@ -38,6 +38,7 @@ const {
     isValidBoardConfig,
     isValidCoordinate,
     isValidHoverCoordinate,
+    isCoordinateOnBoard,
     isValidEmoteId,
     isPlayerInRoom,
     isValidDailyToken,
@@ -379,6 +380,13 @@ io.on('connection', async (socket) => {
 
             const roomState = await roomRepo.getState(room);
             if (!isPlayerInRoom(roomState, socket.id)) return;
+
+            /*
+             * Bounds against THIS room's board, which only exists once the room
+             * is loaded. A ping is relayed raw for clients to draw and announce,
+             * so the global 0..100 check above is not enough on a small board.
+             */
+            if (!isCoordinateOnBoard(roomState, row, col)) return;
 
             /*
              * SUPPRESSED IN PVP, exactly like hover and unlike an emote.

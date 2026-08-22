@@ -129,6 +129,10 @@ export function useGameActions(socket: AppSocket | null) {
         store.clearAllHovers();
         store.clearPlayerEmotes();
         store.clearPlayerPings();
+        // The rendered pings belong to the room; so does the ARM. A one-shot
+        // left standing is spent on the first cell of the next room, which
+        // pings it instead of opening it.
+        store.setPingArmed(false);
         store.resetPvpState(); // also resets gameOver/gameWon
         store.setMode("co-op");
         // The clock is the record of the run THIS browser played, and

@@ -63,6 +63,24 @@ describe("leaveRoom", () => {
         expect(state().playerStatsInRoom).toEqual([]);
     });
 
+    /*
+     * The ARM is room state too, not just the pings it draws. A one-shot left
+     * standing across a leave is spent on the first cell of the NEXT room,
+     * which is pinged instead of opened — and the arm has no visible trace on
+     * a board that has not been clicked yet.
+     */
+    test("disarms the ping, so the next room's first click plays its cell", () => {
+        act(() => {
+            state().setMode("co-op");
+            state().setPingArmed(true);
+        });
+
+        const { leaveRoom } = actions();
+        act(() => leaveRoom());
+
+        expect(state().pingArmed).toBe(false);
+    });
+
     test("still leaves the room", () => {
         const socket = fakeSocket();
 

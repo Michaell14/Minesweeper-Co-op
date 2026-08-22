@@ -59,12 +59,18 @@ const connect = async (id = ALICE) => {
     };
 };
 
-const seedRoom = (mode = 'co-op', players = [ALICE]) => {
+/*
+ * Dimensions are part of the seed, not decoration: the handler bounds a ping
+ * against the ROOM's board, so a room without them relays nothing.
+ */
+const seedRoom = (mode = 'co-op', players = [ALICE], { numRows = 16, numCols = 16 } = {}) => {
     mockRedis.seed(`room:${ROOM}`, {
         mode,
         gameOver: 'false',
         gameWon: 'false',
         initialized: 'true',
+        numRows: String(numRows),
+        numCols: String(numCols),
         players: JSON.stringify(players),
     });
     mockRedis.seed(`player:${ALICE}`, { name: 'Alice', room: ROOM, score: '0' });
@@ -146,6 +152,50 @@ describe('what it refuses, silently', () => {
         await pingCell({ room: ROOM, ...coords });
 
         expect(pingsSent()).toEqual([]);
+    });
+
+    /*
+     * The global 0..100 rule passes anything a small board cannot hold, and it
+     * has to: it runs before any room is loaded. On a 2x3 board (2, 3) is two
+     * cells past the last one in both axes, and a relayed ping is drawn and
+     * announced straight from these numbers — so the room's own dimensions are
+     * the only thing that can refuse it.
+     */
+    describe('a cell the room does not have', () => {
+        test.each([
+            ['a row past the last one', { row: 2, col: 1 }],
+            ['a column past the last one', { row: 1, col: 3 }],
+            ['both past the end', { row: 2, col: 3 }],
+        ])('%s', async (_label, coords) => {
+            seedRoom('co-op', [ALICE], { numRows: 2, numCols: 3 });
+            const { pingCell } = await connect();
+
+            await pingCell({ room: ROOM, ...coords });
+
+            expect(pingsSent()).toEqual([]);
+        });
+
+        // The same small board still relays its own last cell, so the rule is
+        // an off-by-one away from refusing every ping on it.
+        test('but the last cell it does have still goes through', async () => {
+            seedRoom('co-op', [ALICE], { numRows: 2, numCols: 3 });
+            const { pingCell } = await connect();
+
+            await pingCell({ room: ROOM, row: 1, col: 2 });
+
+            expect(pingsSent()).toEqual([{ id: ALICE, name: 'Alice', row: 1, col: 2 }]);
+        });
+
+        // A room hash with no dimensions cannot bound anything; refuse rather
+        // than fall back to the global cap.
+        test('a room with no dimensions stored', async () => {
+            seedRoom('co-op', [ALICE], { numRows: '', numCols: '' });
+            const { pingCell } = await connect();
+
+            await pingCell({ room: ROOM, row: 1, col: 1 });
+
+            expect(pingsSent()).toEqual([]);
+        });
     });
 
     /*

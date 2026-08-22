@@ -98,6 +98,22 @@ const isValidHoverCoordinate = (row, col) => {
 };
 
 /**
+ * Whether a coordinate lands on THIS room's board.
+ *
+ * `isValidCoordinate` only bounds a coordinate globally, at 0..100, because it
+ * runs before any room is loaded. That is enough for a cell action, which then
+ * indexes the stored board and finds nothing — but a ping is broadcast raw, so
+ * a 2x3 room would happily relay (2, 3) and every client would draw a marker
+ * at a cell that does not exist. Dimensions come back from Redis as strings.
+ */
+const isCoordinateOnBoard = (roomState, row, col) => {
+    const numRows = parseInt(roomState?.numRows, 10);
+    const numCols = parseInt(roomState?.numCols, 10);
+    if (!Number.isInteger(numRows) || !Number.isInteger(numCols)) return false;
+    return row >= 0 && row < numRows && col >= 0 && col < numCols;
+};
+
+/**
  * Whether a socket id appears in a room hash's players list.
  * Tolerates a missing or malformed players field rather than throwing.
  */
@@ -196,6 +212,7 @@ module.exports = {
     isValidBoardConfig,
     isValidCoordinate,
     isValidHoverCoordinate,
+    isCoordinateOnBoard,
     isPlayerInRoom,
     isValidDailyToken,
     isValidSessionId,
