@@ -92,6 +92,7 @@ Backend deps install separately: `npm --prefix server install`.
 | Post-deploy check | `scripts/verify-deploy/` — `npm run verify:deploy` |
 | Client test setup (jsdom, DOM cleanup) | `vitest.config.ts`, `test/setup.ts` |
 | Motion / reduced motion | `--ms-duration-*` in `app/tokens.css`; `lib/motion.ts` for the JS path |
+| Board pings ("look here") | `pingCell`/`playerPing`, suppressed in PVP like hover (`server.js`); click interception is ONE capture listener on the grid in `components/game/Board.tsx` reading each cell's `data-row`/`data-col`, never per-branch inside `Cell.tsx`; ring in `components/game/PingLayer.tsx`; arming in `state/inputSlice.ts`; `P` in `hooks/useKeyboardControls.ts` |
 | Reactions (emotes) | catalog in `shared/emotes.js` (ids + labels, imported by both halves); art in `components/ds/emoteArt.ts` (PURE, token-painted) drawn by `Emote.tsx`; tray + feed in `components/game/EmoteBar.tsx`; feed state in `state/roomSlice.ts`; lifetime and wording in `lib/emotes.ts`; server handler in `server.js` behind `isValidEmoteId` and the shared expression bucket in `server/domain/rateLimit.js`. Plan: `SOCIAL_PRD.md` |
 | Sound effects | `lib/sound.ts` — synthesised Web Audio blips, NO asset files; gates on `settings.sound` + background tabs; unlock installed by `SettingsSync` |
 | Palette / theming | `lib/theme.ts` (list, applyTheme, cursor ramp); cards in `components/ThemeCards.tsx`, mounted by the /settings Appearance section |

@@ -16,6 +16,16 @@ export interface InputSlice {
     bothPressed: boolean;
     /** Keyboard selection on the board; null = hidden. */
     kbCursor: { r: number; c: number } | null;
+    /**
+     * The next click on a cell points at it instead of playing it.
+     *
+     * ONE-SHOT, and it clears itself on the ping. A persistent mode would be
+     * a second set of rules for every click on the board, and the way out of
+     * it would be a thing to discover mid-game; armed for exactly one click,
+     * the worst case is one wasted tap. It is also the only ping path a
+     * touch screen has — there is no modifier to hold.
+     */
+    pingArmed: boolean;
 
     setIsChecked: (checked: boolean) => void;
     setCoord: (newR: number, newC: number) => void;
@@ -23,6 +33,7 @@ export interface InputSlice {
     setRightClick: (rClick: boolean) => void;
     setBothPressed: (bothPressed: boolean) => void;
     setKbCursor: (cursor: { r: number; c: number } | null) => void;
+    setPingArmed: (armed: boolean) => void;
 }
 
 export const createInputSlice: StateCreator<MinesweeperState, [], [], InputSlice> = (set) => ({
@@ -33,6 +44,7 @@ export const createInputSlice: StateCreator<MinesweeperState, [], [], InputSlice
     rightClick: false,
     bothPressed: false,
     kbCursor: null,
+    pingArmed: false,
 
     setIsChecked: (checked) => set({ isChecked: checked }),
     setCoord: (newR, newC) => set({ r: newR, c: newC }),
@@ -40,4 +52,5 @@ export const createInputSlice: StateCreator<MinesweeperState, [], [], InputSlice
     setRightClick: (rClick) => set({ rightClick: rClick }),
     setBothPressed: (bothPressed) => set({ bothPressed }),
     setKbCursor: (kbCursor) => set({ kbCursor }),
+    setPingArmed: (pingArmed) => set({ pingArmed }),
 });

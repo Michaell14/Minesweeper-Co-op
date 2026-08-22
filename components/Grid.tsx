@@ -38,6 +38,7 @@ interface GridParams {
     chordCell: (row: number, col: number) => void;
     emitConfetti: () => void;                           // to everyone in the room
     sendEmote: (emote: string) => void;                 // a reaction, to the room
+    pingCell: (row: number, col: number) => void;       // "look at this cell"
     emitCellHover: (row: number, col: number) => void;
     handleBoardLeave: () => void;                       // clears this player's hover
     startPvpGame: () => void;
@@ -45,7 +46,7 @@ interface GridParams {
     pvpRematch: () => void;                             // PVP: host only
 }
 
-const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell, emitConfetti, sendEmote, emitCellHover, handleBoardLeave, startPvpGame, resetMyBoard, pvpRematch }: GridParams) => {
+const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell, emitConfetti, sendEmote, pingCell, emitCellHover, handleBoardLeave, startPvpGame, resetMyBoard, pvpRematch }: GridParams) => {
     const isChecked = useMinesweeperStore((state) => state.isChecked);
     const mode = useMinesweeperStore((state) => state.mode);
     const gameOver = useMinesweeperStore((state) => state.gameOver);
@@ -70,9 +71,9 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
     useChording(chordCell);
 
     // Arrow-key cursor + reveal/flag keys. See hooks/useKeyboardControls.ts.
-    useKeyboardControls({ openCell, toggleFlag, chordCell, emitCellHover });
+    useKeyboardControls({ openCell, toggleFlag, chordCell, emitCellHover, pingCell });
 
-    const boardProps = { toggleFlag, openCell, chordCell, emitCellHover, handleBoardLeave };
+    const boardProps = { toggleFlag, openCell, chordCell, emitCellHover, pingCell, handleBoardLeave };
 
     /** Mobile only — desktop shows the score table inline. */
     const openPlayersDialog = () => openDialog(DIALOGS.players);

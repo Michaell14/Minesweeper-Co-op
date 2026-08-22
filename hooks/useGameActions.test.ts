@@ -327,3 +327,54 @@ describe("daily actions on a terminal attempt", () => {
         ).toBe(true);
     });
 });
+
+describe("pingCell", () => {
+    beforeEach(() => {
+        act(() => {
+            state().setRoom("room-1");
+            state().setMode("co-op");
+            state().setPingArmed(true);
+        });
+    });
+
+    test("emits the cell it was given", () => {
+        const socket = fakeSocket();
+        const { pingCell } = actions(socket);
+
+        act(() => pingCell(2, 5));
+
+        expect(socket.emit).toHaveBeenCalledWith(CLIENT_EVENTS.PING_CELL, { room: "room-1", row: 2, col: 5 });
+    });
+
+    test("disarms after one ping — the arm is one-shot", () => {
+        const { pingCell } = actions();
+
+        act(() => pingCell(2, 5));
+
+        expect(state().pingArmed).toBe(false);
+    });
+
+    /*
+     * Disarming has to happen even on a click that goes nowhere. Left armed by
+     * a refusal, the board sits in a mode where the next click does not play
+     * the cell — invisible, and with nothing to undo it but another click.
+     */
+    test("disarms even when there is no socket to send on", () => {
+        const { pingCell } = actions(null);
+
+        act(() => pingCell(2, 5));
+
+        expect(state().pingArmed).toBe(false);
+    });
+
+    test("disarms even in PVP, where it never emits", () => {
+        const socket = fakeSocket();
+        act(() => state().setMode("pvp"));
+        const { pingCell } = actions(socket);
+
+        act(() => pingCell(2, 5));
+
+        expect(socket.emit).not.toHaveBeenCalled();
+        expect(state().pingArmed).toBe(false);
+    });
+});

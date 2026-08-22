@@ -63,7 +63,7 @@ export interface Settings {
     confetti: boolean;
     /** Broadcast your cursor position to the co-op room. Privacy setting. */
     shareCursor: boolean;
-    /** Show other players' reactions. RECEIVE only — sending is never gated. */
+    /** Show other players' reactions and pings. RECEIVE only — sending is never gated. */
     emotes: boolean;
     /** Arrow-key cursor + reveal/flag keys on the board. */
     keyboardControls: boolean;

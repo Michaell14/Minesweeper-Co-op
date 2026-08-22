@@ -393,6 +393,7 @@ token** (the daily challenge) instead.
 | `toggleFlag` | `{room, row, col}` | `server.js:202` |
 | `emitConfetti` | `{room}` | `server.js:217` |
 | `sendEmote` | `{room, emote}` — `emote` is a `shared/emotes.js` id, never free text | `server.js` |
+| `pingCell` | `{room, row, col}` — a real cell; no `-1,-1` clear | `server.js` |
 | `cellHover` | `{room, row, col}` — `-1,-1` clears | `server.js:229` |
 | `resetGame` | `{room}` | `server.js:269` |
 | `startPvpGame` | `{room}` | `pvpController.js:7` |
@@ -431,6 +432,7 @@ Shapes are typed in `shared/socketPayloads.ts` (`ClientToServerEvents`).
 | `resetEveryone` | — |
 | `receiveConfetti` | — |
 | `playerEmote` | `{id, name, emote}` — to the whole room, sender included |
+| `playerPing` | `{id, name, row, col}` — co-op only, suppressed in PVP like hover |
 | `playerHoverUpdate` | `{id, row, col, name}` (client derives color from `id`) |
 | `playerLeft` | `socketId` |
 | `achievementsUnlocked` | `{ids}` — catalog ids, to ONE socket, only what this result newly earned |
@@ -844,6 +846,38 @@ A chip's lifetime (`EMOTE_LIFETIME_MS`, `lib/emotes.ts`) is a plain timer, NOT a
 `prefers-reduced-motion`, and somebody who asked for no motion still has to be
 able to read the message. The float-and-fade on top of it is the part that may
 be zeroed.
+
+### Pings (co-op only)
+
+"Look at this cell", as a ring on the board for ~2s. Same handler shape as an
+emote and the same **shared** expression bucket — but **suppressed in PVP**,
+exactly like hover and unlike an emote: both racers play the same board, so a
+cell somebody points at is a move hint delivered to their opponent's screen.
+`server/tests/pings.test.js` asserts both halves of that rule side by side.
+
+**The interception is on the GRID, in the capture phase** (`Board.tsx`), not in
+`Cell`. Cell has four render branches acting from four different handlers —
+`onClick` on two inner hit areas, `onMouseUp` on an opened cell, `onContextMenu`
+on a flagged one — so a modifier check per branch is four chances to miss one,
+and a missed branch means a ping that opens the cell it points at. One capture
+listener sits ahead of all of them, on the component mounted once rather than
+512 times, and reads the cell's `data-row`/`data-col`.
+
+It hooks **mousedown**, not click: the opened-cell branch acts on mouse UP, so a
+handler waiting for the click would fire after the chord it was replacing. The
+mouseup and click that follow are swallowed off a **latch** rather than by
+re-asking whether a ping is armed — the arm is one-shot and clears the moment
+the ping is sent, so by mouseup the answer has already changed. That bug shipped
+briefly and did exactly what the design warns about: the ping fired *and* the
+cell opened under it. The smoke suite caught it; the unit test had not, because
+its mock `pingCell` never disarmed anything.
+
+Three ways in, one for each kind of input: **Shift+click** (desktop), the tray's
+one-shot **arm** then a click or tap (the only path a touch screen has), and
+**P** on the keyboard cursor's cell. Alt was rejected for the desktop shortcut —
+it is free in this codebase, but Linux window managers commonly grab Alt+click
+to move a window, so the page may never see it. Ctrl is the macOS secondary
+click, which is the flag.
 
 ### Accounts and the auth bridge
 

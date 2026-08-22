@@ -11,7 +11,7 @@ import { elapsedSeconds } from "@/lib/gameClock";
 import { practiceTargetFor } from "@/lib/practice";
 import { CLIENT_EVENTS, SERVER_EVENTS } from "@/shared/events";
 import { emoteArtById } from "@/components/ds/emoteArt";
-import { EMOTE_LIFETIME_MS } from "@/lib/emotes";
+import { EMOTE_LIFETIME_MS, PING_LIFETIME_MS } from "@/lib/emotes";
 import type { AppSocket } from "@/lib/initSocket";
 import type { CellUpdate } from "@/shared/socketPayloads";
 import type { SocketHandlers } from "./useSocketEvents";
@@ -230,6 +230,29 @@ const coopHandlers = (socket: AppSocket, leaveRoom: () => void): SocketHandlers 
             name,
             emote,
             expiresAt: Date.now() + EMOTE_LIFETIME_MS,
+        });
+        playSound('emote');
+    },
+
+    /*
+     * Somebody pointed at a cell. Co-op only — the server suppresses it in PVP,
+     * where both racers share a board and a ping would be a move hint.
+     *
+     * Gated on the same setting as reactions: "show me what other players
+     * send" is one preference, and splitting it would mean a second toggle for
+     * the same class of thing.
+     */
+    [SERVER_EVENTS.PLAYER_PING]: ({ id, name, row, col }) => {
+        const store = useMinesweeperStore.getState();
+        if (!store.settings.emotes) return;
+
+        store.pushPlayerPing({
+            key: `${id}-${nextEmoteKey()}`,
+            id,
+            name,
+            row,
+            col,
+            expiresAt: Date.now() + PING_LIFETIME_MS,
         });
         playSound('emote');
     },

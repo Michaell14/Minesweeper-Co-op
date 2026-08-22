@@ -355,6 +355,51 @@ io.on('connection', async (socket) => {
         }
     }))
 
+    socket.on(CLIENT_EVENTS.PING_CELL, safe(async ({ room, row, col }) => {
+        try {
+            /*
+             * Shares the EXPRESSION bucket with sendEmote rather than carrying
+             * one of its own — two buckets would let a client alternate between
+             * the two and send at double the rate either allows. Taken first,
+             * before anything touches Redis, and every refusal below is a silent
+             * drop; see cellHover for both rules.
+             */
+            socket.data.expressionBucket ??= createBucket(EXPRESSION_BURST, EXPRESSION_PER_SECOND);
+            if (!takeToken(socket.data.expressionBucket, performance.now())) return;
+
+            /*
+             * A real cell, not hover's (-1,-1) clear: a ping is a point at
+             * something, and there is nothing to clear — it expires on its own.
+             */
+            if (!isValidRoomCode(room) || !isValidCoordinate(row, col)) return;
+
+            const roomExists = await roomRepo.exists(room);
+            const playerExists = await playerRepo.exists(socket.id);
+            if (!roomExists || !playerExists) return;
+
+            const roomState = await roomRepo.getState(room);
+            if (!isPlayerInRoom(roomState, socket.id)) return;
+
+            /*
+             * SUPPRESSED IN PVP, exactly like hover and unlike an emote.
+             *
+             * Both racers play the SAME board (see startPvpGame), so a cell
+             * somebody points at is a move hint delivered straight to their
+             * opponent's screen — "this one is safe" or "this one is a mine" is
+             * the entire content of a ping. An emote carries no such thing,
+             * which is why that handler has no gate here.
+             */
+            if (roomState.mode === 'pvp') return;
+
+            const playerName = await playerRepo.getName(socket.id);
+            if (!playerName) return;
+
+            io.to(room).emit(SERVER_EVENTS.PLAYER_PING, { id: socket.id, name: playerName, row, col });
+        } catch (error) {
+            console.error('Error in pingCell:', error);
+        }
+    }))
+
     socket.on(CLIENT_EVENTS.CELL_HOVER, safe(async ({ room, row, col }) => {
         try {
             /*

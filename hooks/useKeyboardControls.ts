@@ -3,11 +3,13 @@
 import { useEffect } from "react";
 import { useMinesweeperStore } from "@/app/store";
 
-interface KeyboardActions {
+export interface KeyboardActions {
     openCell: (row: number, col: number) => void;
     toggleFlag: (row: number, col: number) => void;
     chordCell: (row: number, col: number) => void;
     emitCellHover: (row: number, col: number) => void;
+    /** Omitted where there is nobody to point at — the daily is single-player. */
+    pingCell?: (row: number, col: number) => void;
 }
 
 const MOVES: Record<string, [number, number]> = {
@@ -53,7 +55,7 @@ const isCheckbox = (el: Element | null | undefined): boolean =>
  * stay stable and a keystroke costs no component a render (the useGameActions
  * pattern). The cursor itself lives in inputSlice; KeyboardCursor renders it.
  */
-export function useKeyboardControls({ openCell, toggleFlag, chordCell, emitCellHover }: KeyboardActions): void {
+export function useKeyboardControls({ openCell, toggleFlag, chordCell, emitCellHover, pingCell }: KeyboardActions): void {
     useEffect(() => {
         const onKeyDown = (event: KeyboardEvent) => {
             const state = useMinesweeperStore.getState();
@@ -100,6 +102,24 @@ export function useKeyboardControls({ openCell, toggleFlag, chordCell, emitCellH
                 event.preventDefault();
                 state.setKbCursor(null);
                 emitCellHover(-1, -1);
+                return;
+            }
+
+            /*
+             * P points at the cell under the cursor. A plain key, not a
+             * modifier: the guard above drops every keystroke carrying Ctrl,
+             * Meta or Alt, so a modifier binding here would be dead on arrival
+             * — and Shift, the one modifier that does get through, is the
+             * MOUSE shortcut. There is no arming step because there is nothing
+             * to disambiguate: the cursor already says which cell.
+             */
+            if (key === "p") {
+                if (!pingCell || kbCursor === null) return;
+                if (event.repeat) return;
+                if (activatableFocus) return;
+                event.preventDefault();
+                if (state.mode === "pvp") return;
+                pingCell(kbCursor.r, kbCursor.c);
                 return;
             }
 
@@ -154,5 +174,5 @@ export function useKeyboardControls({ openCell, toggleFlag, chordCell, emitCellH
             window.removeEventListener("keydown", onKeyDown);
             window.removeEventListener("mousedown", onMouseDown);
         };
-    }, [openCell, toggleFlag, chordCell, emitCellHover]);
+    }, [openCell, toggleFlag, chordCell, emitCellHover, pingCell]);
 }

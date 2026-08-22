@@ -128,6 +128,7 @@ export function useGameActions(socket: AppSocket | null) {
         store.setBoardConfig(DEFAULT_SIZE, DEFAULT_DIFFICULTY);
         store.clearAllHovers();
         store.clearPlayerEmotes();
+        store.clearPlayerPings();
         store.resetPvpState(); // also resets gameOver/gameWon
         store.setMode("co-op");
         // The clock is the record of the run THIS browser played, and
@@ -272,6 +273,30 @@ export function useGameActions(socket: AppSocket | null) {
         [socket]
     );
 
+    /**
+     * Point at a cell for everyone in the room.
+     *
+     * Disarms first, and unconditionally: the arm is one-shot, so it must clear
+     * even on a click the guards below drop — otherwise a ping sent while
+     * disconnected leaves the board silently in a mode where the next click
+     * does not play the cell.
+     *
+     * No `settings.emotes` check, same as sending a reaction: that setting
+     * governs what reaches YOUR screen.
+     */
+    const pingCell = useCallback(
+        (row: number, col: number) => {
+            const { room, playerJoined, mode, setPingArmed } = useMinesweeperStore.getState();
+            setPingArmed(false);
+            if (!socket || !room || !playerJoined) return;
+            // The server refuses this in PVP anyway; not emitting keeps a
+            // racer's pointless click off the wire and out of their bucket.
+            if (mode === 'pvp') return;
+            socket.emit(CLIENT_EVENTS.PING_CELL, { room, row, col });
+        },
+        [socket]
+    );
+
     const emitCellHover = useCallback(
         (row: number, col: number) => {
             const { room, playerJoined, settings } = useMinesweeperStore.getState();
@@ -404,6 +429,7 @@ export function useGameActions(socket: AppSocket | null) {
         resetGame,
         emitConfetti,
         sendEmote,
+        pingCell,
         startPvpGame,
         resetMyBoard,
         pvpRematch,

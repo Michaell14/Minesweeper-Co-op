@@ -1,6 +1,6 @@
 # PRD: Social — Emotes, Pings & Friends
 
-**Status:** Phase 1 (emotes) done 2026-08-21 · Phases 2–5 proposed · **Owner:** Michael · **Created:** 2026-08-21
+**Status:** Phases 1–2 (emotes, pings) done 2026-08-22 · Phases 3–5 proposed · **Owner:** Michael · **Created:** 2026-08-21
 
 A living document, same contract as `USER_PROFILES_PRD.md`: each phase has a
 checklist; check items off as they land and update the phase status line. The
@@ -246,17 +246,43 @@ on `ScoreTable` (see §4.1). And the chip's lifetime cannot be a
 asked for *no motion*. It is a plain timer in `lib/emotes.ts`, with the
 float-and-fade layered on top as the part that may be zeroed.
 
-### Phase 2 — Board pings
+### Phase 2 — Board pings ✔ Done 2026-08-22
 
-- [ ] Verify Alt/Option+click collides with nothing in `Cell.tsx`, chording, or
-      `swapMouseButtons`, and pick the touch and keyboard bindings.
-- [ ] `PING_CELL` + `PLAYER_PING` events, all four places.
-- [ ] Handler reusing `isValidHoverCoordinate` and the Phase 1 bucket, with the
-      **`mode === 'pvp'` early return** and a test that asserts it.
-- [ ] `PingLayer` beside `CursorLayer`, sharing `useCellMetrics`; ring + name,
-      ~2s, token-driven; announced in the live region.
-- [ ] Tests: PVP suppression, coordinate bounds, shared-bucket exhaustion
-      across both event types.
+- [x] Bindings verified and chosen — **Shift+click** on desktop, a one-shot
+      **arm** from the tray for touch, **P** on the keyboard cursor's cell.
+      *Alt was rejected*: free in this codebase, but Linux window managers
+      commonly grab Alt+click to move a window, so the page may never see it.
+      Ctrl is the macOS secondary click, which is already the flag. A keyboard
+      modifier was never available — `useKeyboardControls` drops every
+      keystroke carrying Ctrl, Meta or Alt.
+- [x] `PING_CELL` + `PLAYER_PING` events, all four places.
+- [x] Handler on the Phase 1 bucket with the **`mode === 'pvp'` early return**,
+      and a test that fails without it. Validates with `isValidCoordinate`, not
+      `isValidHoverCoordinate` — the `-1,-1` clear is hover's, and a ping has no
+      such state.
+- [x] `PingLayer` beside `CursorLayer`, sharing `useCellMetrics`; ring + name in
+      the sender's cursor colour, ~2s, token-driven, announced in its own live
+      region.
+- [x] Tests: 14 server (PVP suppression beside the emote that is allowed from
+      the same room, coordinate bounds, the bucket shared across both events),
+      22 client (interception across all four of Cell's branches, the hotkey,
+      the arm's one-shot disarm, ring expiry, announcement wording), and the
+      smoke scenario extended.
+
+**The interception is on the grid, not in `Cell`.** Cell has four render
+branches acting from four different handlers, so a modifier check per branch is
+four chances to miss one — and a missed branch means a ping that opens the cell
+it points at. One capture listener on the grid sits ahead of all of them, reads
+`data-row`/`data-col`, and hooks **mousedown** because the opened-cell branch
+acts on mouse up.
+
+**One bug worth recording.** The mouseup and click that follow were swallowed by
+re-asking "is a ping armed?" — but the arm is one-shot and clears the moment the
+ping is sent, so by mouseup the answer had changed: the ping fired *and* the cell
+opened under it. The tail of the gesture now runs off a latch. The smoke suite
+caught it; the unit test had not, because its mock `pingCell` never disarmed
+anything the way the real action does. That mock now disarms, and the test fails
+without the latch.
 
 ### Phase 3 — Friend graph
 
@@ -310,4 +336,5 @@ float-and-fade layered on top as the part that may be zeroed.
 | Date | Change |
 |---|---|
 | 2026-08-21 | PRD drafted. Decisions in §2 proposed, none confirmed; §8 carries three open questions (per-player mute, ping binding, friends leaderboard). |
+| 2026-08-22 | Phase 2 complete: `pingCell`/`playerPing` on the shared expression bucket, suppressed in PVP with a test that fails without the guard; grid-level capture interception across all four of Cell's render branches; `PingLayer` rings in the sender's cursor colour; three input paths (Shift+click, tray arm, P). Alt rejected as a binding — Linux window managers grab it. 1114 server + 1396 client tests, lint, tsc and the smoke suite green; verified live in a real browser that the pinged cell is NOT opened by the click that pinged it. Two bugs found by the browser and not the unit tests: the one-shot disarm racing the tail of its own gesture, and this layer's live region shadowing the keyboard cursor's (both now addressed by explicit markers rather than DOM order). |
 | 2026-08-21 | Phase 1 complete: six-glyph catalog in `shared/`, token-painted art on `/ds`, the `sendEmote`/`playerEmote` pair through all four places, an expression bucket shared with whatever Phase 2 adds, tray + three-chip feed mounted once under the board, `settings.emotes` as a receive-only opt-out, and a synthesised blip. 1044 server + 1292 client tests, lint, tsc, production build and the full ui-smoke suite green — the new EMOTES scenario exchanges a reaction between two real browsers and watches it expire. Verified live in the browser: one tray in the DOM, all six glyphs resolve their tokens on default, Game Boy, C64 and every seasonal palette, and the live region carries "Emoter: Nice". Corrected two draft assumptions (see the phase). |

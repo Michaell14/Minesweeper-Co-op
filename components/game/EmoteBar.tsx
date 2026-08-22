@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { useMinesweeperStore } from '@/app/store';
-import { Button, Emote } from '@/components/ds';
+import { Button, Emote, PingIcon } from '@/components/ds';
 import { EMOTES } from '@/shared/emotes';
 import { EMOTE_LIFETIME_MS, emoteAnnouncement } from '@/lib/emotes';
 import type { PlayerEmote } from '@/state/types';
@@ -36,6 +36,12 @@ const delayUntilNextExpiry = (emotes: PlayerEmote[]): number => {
 export default function EmoteBar({ sendEmote }: EmoteBarProps) {
     const playerEmotes = useMinesweeperStore((state) => state.playerEmotes);
     const expirePlayerEmotes = useMinesweeperStore((state) => state.expirePlayerEmotes);
+    const pingArmed = useMinesweeperStore((state) => state.pingArmed);
+    const setPingArmed = useMinesweeperStore((state) => state.setPingArmed);
+    // A race has nobody to point at: both players are on the same board, so the
+    // server refuses a ping there (see server.js) and offering the button would
+    // be offering a control that does nothing.
+    const mode = useMinesweeperStore((state) => state.mode);
 
     /*
      * One timer for the whole feed, armed at the earliest deadline rather than
@@ -96,6 +102,23 @@ export default function EmoteBar({ sendEmote }: EmoteBarProps) {
                         <Emote id={id} size={24} />
                     </Button>
                 ))}
+                {mode !== 'pvp' && (
+                    /*
+                     * Arms one ping, and says so: `aria-pressed` is the only
+                     * thing telling a screen reader the board is momentarily in
+                     * a different mode, and the label changes with it because a
+                     * toggle whose name never moves reads as a dead button.
+                     */
+                    <Button
+                        size="sm"
+                        intent={pingArmed ? 'primary' : 'default'}
+                        aria-pressed={pingArmed}
+                        aria-label={pingArmed ? 'Cancel ping' : 'Ping a cell'}
+                        title="Point at a cell — or hold Shift and click one"
+                        onClick={() => setPingArmed(!pingArmed)}>
+                        <PingIcon size={24} />
+                    </Button>
+                )}
             </div>
 
             {/*
