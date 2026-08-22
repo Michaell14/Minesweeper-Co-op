@@ -127,6 +127,7 @@ export function useGameActions(socket: AppSocket | null) {
         store.setPlayerStatsInRoom([]);
         store.setBoardConfig(DEFAULT_SIZE, DEFAULT_DIFFICULTY);
         store.clearAllHovers();
+        store.clearPlayerEmotes();
         store.resetPvpState(); // also resets gameOver/gameWon
         store.setMode("co-op");
         // The clock is the record of the run THIS browser played, and
@@ -248,6 +249,28 @@ export function useGameActions(socket: AppSocket | null) {
         emitForRoom(CLIENT_EVENTS.RESET_MY_BOARD);
         store.setGameOver(false);
     }, [emitForRoom]);
+
+    /**
+     * Send a reaction to the room.
+     *
+     * No optimistic echo: the server sends `playerEmote` to everyone including
+     * the sender, so drawing one here too would show it twice for whoever
+     * pressed the button. The round trip is what keeps the room's copies of
+     * the feed in step, and it is also the only thing that knows whether the
+     * server accepted it — a refused emote should draw nothing.
+     *
+     * `settings.emotes` is deliberately NOT read here: it governs what you
+     * receive, not what you may say, the same way muting a room does not mute
+     * you. The receive side is in hooks/useGameEvents.ts.
+     */
+    const sendEmote = useCallback(
+        (emote: string) => {
+            const { room, playerJoined } = useMinesweeperStore.getState();
+            if (!socket || !room || !playerJoined) return;
+            socket.emit(CLIENT_EVENTS.SEND_EMOTE, { room, emote });
+        },
+        [socket]
+    );
 
     const emitCellHover = useCallback(
         (row: number, col: number) => {
@@ -380,6 +403,7 @@ export function useGameActions(socket: AppSocket | null) {
         toggleFlag,
         resetGame,
         emitConfetti,
+        sendEmote,
         startPvpGame,
         resetMyBoard,
         pvpRematch,

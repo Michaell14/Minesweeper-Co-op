@@ -270,6 +270,7 @@ describe('the gameplay and HUD sections', () => {
         expectSwitch('Start taps in flag mode', false);
         expectSwitch('Confetti', true);
         expectSwitch('Share your cursor', true);
+        expectSwitch('Show reactions', true);
         expectSwitch('Keyboard controls', true);
         expectSwitch('Timer', true);
         expectSwitch('Flag counter', true);
@@ -281,6 +282,13 @@ describe('the gameplay and HUD sections', () => {
         fireEvent.click(screen.getByRole('switch', { name: 'Swap mouse buttons' }));
         expect(useMinesweeperStore.getState().settings.swapMouseButtons).toBe(true);
         expect(localStorage.getItem('minesweeper_settings')).toContain('"swapMouseButtons":true');
+    });
+
+    it('reactions can be switched off, and it persists', () => {
+        render(<SettingsClient />);
+        fireEvent.click(screen.getByRole('switch', { name: 'Show reactions' }));
+        expect(useMinesweeperStore.getState().settings.emotes).toBe(false);
+        expect(localStorage.getItem('minesweeper_settings')).toContain('"emotes":false');
     });
 
     it('keyboard controls can be switched off, and it persists', () => {

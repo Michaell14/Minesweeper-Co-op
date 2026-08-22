@@ -20,7 +20,7 @@
 
 import { useMinesweeperStore } from '@/app/store';
 
-export type SoundName = 'reveal' | 'flag' | 'unflag' | 'chord' | 'cascade' | 'win' | 'lose';
+export type SoundName = 'reveal' | 'flag' | 'unflag' | 'chord' | 'cascade' | 'win' | 'lose' | 'emote';
 
 /** Keeps full volume comfortable; the user slider scales inside this. */
 const MASTER_SCALE = 0.22;
@@ -72,6 +72,12 @@ const SOUNDS: Record<SoundName, Blip[]> = {
         duration: i === 4 ? 0.28 : 0.09,
     })),
     lose: [{ freq: 220, slideTo: 55, at: 0, duration: 0.45, type: 'sawtooth' }],
+    /* Two notes up, quiet and quick: it fires for other people's messages, so
+       it has to be noticeable without competing with the click you just made. */
+    emote: [
+        { freq: 784, at: 0, duration: 0.05, type: 'triangle' },
+        { freq: 1047, at: 0.05, duration: 0.07, type: 'triangle' },
+    ],
 };
 
 const scheduleBlip = (audio: AudioContext, out: GainNode, blip: Blip) => {

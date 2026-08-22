@@ -392,6 +392,7 @@ token** (the daily challenge) instead.
 | `chordCell` | `{room, row, col}` | `server.js:187` |
 | `toggleFlag` | `{room, row, col}` | `server.js:202` |
 | `emitConfetti` | `{room}` | `server.js:217` |
+| `sendEmote` | `{room, emote}` — `emote` is a `shared/emotes.js` id, never free text | `server.js` |
 | `cellHover` | `{room, row, col}` — `-1,-1` clears | `server.js:229` |
 | `resetGame` | `{room}` | `server.js:269` |
 | `startPvpGame` | `{room}` | `pvpController.js:7` |
@@ -429,6 +430,7 @@ Shapes are typed in `shared/socketPayloads.ts` (`ClientToServerEvents`).
 | `gameOver` | `playerName` |
 | `resetEveryone` | — |
 | `receiveConfetti` | — |
+| `playerEmote` | `{id, name, emote}` — to the whole room, sender included |
 | `playerHoverUpdate` | `{id, row, col, name}` (client derives color from `id`) |
 | `playerLeft` | `socketId` |
 | `achievementsUnlocked` | `{ids}` — catalog ids, to ONE socket, only what this result newly earned |
@@ -808,6 +810,40 @@ the flood itself. The bucket (`domain/rateLimit.js`, 20/s with a burst of 20 —
 double what the client can send) is checked before anything touches Redis, and
 excess is dropped silently, which is what this handler already does with every
 other refusal.
+
+### Reactions (co-op and PVP)
+
+Six drawn glyphs and nothing else. The tray calls `sendEmote`, the server
+validates the id against `shared/emotes.js` and fans `playerEmote` out with
+`io.to(room)` — everyone including the sender, so every copy of the feed
+agrees and the sender's own reaction is not a second, locally-drawn one.
+
+**The vocabulary being CLOSED is the feature, not a limitation.** Free text
+would need a profanity filter, a report flow and somebody to read the reports;
+a fixed set of ids needs none of that, and `isValidEmoteId` is what keeps it
+that way — a length check there instead would quietly turn the protocol into
+chat.
+
+Unlike hover, this is **not** suppressed in PVP: an emote carries no board
+information, so racers on the same board may taunt each other without either
+learning anything about the mines. The `pingCell` planned in `SOCIAL_PRD.md`
+Phase 2 does carry board information and follows hover's rule instead.
+
+Rate limited by an **expression** bucket (`domain/rateLimit.js`, 1/s with a
+burst of 3), keyed `socket.data.expressionBucket` and deliberately shared by the
+whole category rather than one bucket per event — two of them would let a client
+alternate and send at double the intended rate. The client-side half of the same
+cap is the feed's three-chip limit in `state/roomSlice.ts`.
+
+`settings.emotes` is a RECEIVE opt-out, applied in the client's handler so an
+opted-out player accumulates no state and hears no blip. It never gates sending:
+the setting means "no reactions on my screen", not a mute.
+
+A chip's lifetime (`EMOTE_LIFETIME_MS`, `lib/emotes.ts`) is a plain timer, NOT a
+`--ms-duration-*` token — one media query zeroes those under
+`prefers-reduced-motion`, and somebody who asked for no motion still has to be
+able to read the message. The float-and-fade on top of it is the part that may
+be zeroed.
 
 ### Accounts and the auth bridge
 

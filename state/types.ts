@@ -14,3 +14,22 @@ export interface PlayerHover {
     name: string;
     color: string;
 }
+
+/**
+ * A reaction somebody in the room just sent, as the feed holds it.
+ *
+ * `key` rather than the sender's socket id, because the same player emoting
+ * twice in a row is two entries in the feed rather than one that jumps — and
+ * React needs to tell them apart. `expiresAt` is a wall-clock deadline, not a
+ * duration: the feed is trimmed by comparing against now, so a backgrounded tab
+ * that misses its timer catches up on the next tick instead of piling up.
+ */
+export interface PlayerEmote {
+    key: string;
+    /** Sender's socket id — what the colour and "was that me" are derived from. */
+    id: string;
+    name: string;
+    /** A catalog id from shared/emotes.js. */
+    emote: string;
+    expiresAt: number;
+}

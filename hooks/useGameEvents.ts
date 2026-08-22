@@ -10,6 +10,8 @@ import { recordDailyResult } from "@/lib/dailyHistory";
 import { elapsedSeconds } from "@/lib/gameClock";
 import { practiceTargetFor } from "@/lib/practice";
 import { CLIENT_EVENTS, SERVER_EVENTS } from "@/shared/events";
+import { emoteArtById } from "@/components/ds/emoteArt";
+import { EMOTE_LIFETIME_MS } from "@/lib/emotes";
 import type { AppSocket } from "@/lib/initSocket";
 import type { CellUpdate } from "@/shared/socketPayloads";
 import type { SocketHandlers } from "./useSocketEvents";
@@ -79,6 +81,15 @@ const applyCellUpdates = (updates: CellUpdate[]) => {
     // the board rebuilt in full behind every one of them.
     setCells(updates);
 };
+
+/**
+ * Distinguishes two emotes from the same player, which the socket id alone
+ * cannot: without it the second reaction replaces the first in React's
+ * reconciliation and the feed jumps instead of stacking. A counter rather than
+ * a timestamp because two can land in the same millisecond.
+ */
+let emoteSequence = 0;
+const nextEmoteKey = () => String(++emoteSequence);
 
 /** Shared + co-op events. */
 const coopHandlers = (socket: AppSocket, leaveRoom: () => void): SocketHandlers => ({
@@ -195,6 +206,33 @@ const coopHandlers = (socket: AppSocket, leaveRoom: () => void): SocketHandlers 
     },
 
     [SERVER_EVENTS.RECEIVE_CONFETTI]: () => shootConfetti(),
+
+    /*
+     * A reaction from anyone in the room, the sender included — the server
+     * fans it out to everyone so all copies of the feed agree.
+     *
+     * `settings.emotes` is the RECEIVE opt-out and is applied here rather than
+     * in the component, so an opted-out player accumulates no feed state and
+     * hears no blip. Their own emotes are silenced too, deliberately: the
+     * setting means "no reactions on my screen", and an exception for your own
+     * would leave you emoting into what you believe is a quiet room.
+     */
+    [SERVER_EVENTS.PLAYER_EMOTE]: ({ id, name, emote }) => {
+        const store = useMinesweeperStore.getState();
+        if (!store.settings.emotes) return;
+        // An id this build cannot draw is dropped rather than shown as
+        // something else — see emoteArtById.
+        if (!emoteArtById(emote)) return;
+
+        store.pushPlayerEmote({
+            key: `${id}-${nextEmoteKey()}`,
+            id,
+            name,
+            emote,
+            expiresAt: Date.now() + EMOTE_LIFETIME_MS,
+        });
+        playSound('emote');
+    },
 
     // --- Hover presence (co-op only; the server suppresses it in PVP) ---
     [SERVER_EVENTS.PLAYER_HOVER_UPDATE]: ({ id, row, col, name }) => {

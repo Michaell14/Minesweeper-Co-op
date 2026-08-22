@@ -1,0 +1,68 @@
+/*
+ * The reaction feed and its tray.
+ *
+ * Two timings, and they are deliberately different things: how long a reaction
+ * stays on screen is a TIMER in lib/emotes.ts, and how it arrives is the
+ * animation here. The `--ms-duration-*` media query zeroes the animation under
+ * prefers-reduced-motion, which is correct — the chip then simply appears —
+ * but somebody who asked for no motion still has to be able to read it, so the
+ * lifetime is not expressed in a token that query can neutralise.
+ */
+
+.feed {
+    position: absolute;
+    /* Above the tray, so a reaction never covers the buttons that send them. */
+    bottom: calc(100% + var(--ms-space-2));
+    left: 0;
+    right: 0;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: var(--ms-space-2);
+    /* Decorative and transient: it must never eat a click meant for the board. */
+    pointer-events: none;
+}
+
+.chip {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--ms-space-1);
+    padding: var(--ms-space-1) var(--ms-space-2);
+    background-color: var(--ms-surface-panel);
+    color: var(--ms-ink-strong);
+    /* A hard pixel drop-shadow rather than a border: at --ms-border-width
+     * (4px) an outline swamps a chip this small, and the offset shadow is
+     * the same trick the notched controls use to sit off the page. */
+    box-shadow: var(--ms-space-1) var(--ms-space-1) 0 var(--ms-border-color);
+    white-space: nowrap;
+    /*
+     * No fill-mode on purpose. At zero duration the animation ends on the
+     * element's own styles rather than the keyframes' last frame, so a
+     * reduced-motion reader gets a chip that is simply there — not one stuck
+     * at `from`, and not one that vanished before it could be read.
+     */
+    animation: emoteIn var(--ms-duration-slow) var(--ms-ease-out);
+}
+
+/*
+ * A name is up to 50 characters (`isValidPlayerName`), and the chip does not
+ * wrap — uncapped, three of them tile into rows tall enough to cover the bottom
+ * of the board. Capped in `ch` rather than px so it tracks the pixel font, and
+ * the same reason `.cursorLabel` caps at 80px and the score table at max-w-40.
+ */
+.name {
+    max-width: 14ch;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+@keyframes emoteIn {
+    from {
+        transform: translateY(var(--ms-space-2));
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}

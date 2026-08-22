@@ -22,7 +22,14 @@ const { PORT } = require('./config');
 const roomRepo = require('./data/roomRepo');
 const playerRepo = require('./data/playerRepo');
 const sessionRepo = require('./data/sessionRepo');
-const { createBucket, takeToken, HOVER_PER_SECOND, HOVER_BURST } = require('./domain/rateLimit');
+const {
+    createBucket,
+    takeToken,
+    HOVER_PER_SECOND,
+    HOVER_BURST,
+    EXPRESSION_PER_SECOND,
+    EXPRESSION_BURST,
+} = require('./domain/rateLimit');
 const { CLIENT_EVENTS, SERVER_EVENTS } = require('../shared/events');
 const {
     isValidRoomCode,
@@ -31,6 +38,7 @@ const {
     isValidBoardConfig,
     isValidCoordinate,
     isValidHoverCoordinate,
+    isValidEmoteId,
     isPlayerInRoom,
     isValidDailyToken,
     isValidDailyDate,
@@ -303,6 +311,47 @@ io.on('connection', async (socket) => {
             io.to(room).emit(SERVER_EVENTS.RECEIVE_CONFETTI);
         } catch (error) {
             console.error('Error in emitConfetti:', error);
+        }
+    }))
+
+    socket.on(CLIENT_EVENTS.SEND_EMOTE, safe(async ({ room, emote }) => {
+        try {
+            /*
+             * Same order as cellHover below, and for the same reasons: rate
+             * limited BEFORE anything touches Redis, and every refusal is a
+             * silent drop rather than an error emit. An emote is deliberate
+             * where a hover is continuous, so the bucket is far smaller — but
+             * it is the same class of message, one that fans out to the room on
+             * a client's say-so.
+             *
+             * The bucket covers expression as a category, not this event: see
+             * domain/rateLimit.js for why two of them would be a hole.
+             */
+            socket.data.expressionBucket ??= createBucket(EXPRESSION_BURST, EXPRESSION_PER_SECOND);
+            if (!takeToken(socket.data.expressionBucket, performance.now())) return;
+
+            if (!isValidRoomCode(room) || !isValidEmoteId(emote)) return;
+
+            // Membership re-checked inline rather than through `isValid`, which
+            // answers a refusal with an error — see cellHover.
+            const roomExists = await roomRepo.exists(room);
+            const playerExists = await playerRepo.exists(socket.id);
+            if (!roomExists || !playerExists) return;
+
+            const roomState = await roomRepo.getState(room);
+            if (!isPlayerInRoom(roomState, socket.id)) return;
+
+            /*
+             * NOT gated on mode. Unlike a hover or a ping an emote carries no
+             * board information, so racers on the same PVP board may taunt each
+             * other without either learning anything about the mines.
+             */
+            const playerName = await playerRepo.getName(socket.id);
+            if (!playerName) return;
+
+            io.to(room).emit(SERVER_EVENTS.PLAYER_EMOTE, { id: socket.id, name: playerName, emote });
+        } catch (error) {
+            console.error('Error in sendEmote:', error);
         }
     }))
 

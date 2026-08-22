@@ -1270,6 +1270,84 @@ async function daily(page) {
         `cells=${forged.cells} intro=${forged.intro} — a pasted link can spend someone's attempt`);
 }
 
+/**
+ * Reactions: two clients in one co-op room, one taps an emote, the other sees
+ * it — and it goes away on its own.
+ *
+ * The parts that need a real browser: the tray is mounted ONCE for both
+ * layouts, the feed must not cover the buttons that send it, and the chip's
+ * lifetime is a timer rather than an animation, so a jsdom test can prove the
+ * state changes but never that anything was on screen.
+ */
+async function emotes(host, guest) {
+    console.log('\n\x1b[1m--- EMOTES ---\x1b[0m');
+    const room = 'smokemote' + Date.now().toString().slice(-6);
+
+    await host.goto(CLIENT);
+    await guest.goto(CLIENT);
+    await host.waitFor(`!!document.querySelector('form[aria-label="Create new room form"] button[type=submit]')`,
+        { timeout: 60000, label: 'host landing ready' });
+
+    await enterRoom(host, { room, name: 'Emoter', mode: 'create' });
+    await host.waitFor(`${cellCount} > 0`, { label: 'host board' });
+    await enterRoom(guest, { room, name: 'Watcher', mode: 'join' });
+    await guest.waitFor(`${cellCount} > 0`, { label: 'guest board' });
+
+    const trayCount = `document.querySelectorAll('[aria-label="Send a reaction"]').length`;
+    check(await host.evaluate(`return ${trayCount};`) === 1,
+        'the tray is mounted exactly once, like the board',
+        'two trays in the DOM — the layouts duplicated it');
+
+    /*
+     * The VISIBLE chips only. The wrapper's own textContent would do just as
+     * well for `.includes` — and would be satisfied by the sr-only live region
+     * alone, so a feed that rendered nothing at all would still pass every
+     * check below. A chip is the only <span> wrapping an emote glyph; the tray
+     * puts its glyphs in <button>s.
+     */
+    const feedText = `(() => {
+        const tray = document.querySelector('[aria-label="Send a reaction"]');
+        if (!tray) return '';
+        return [...tray.parentElement.querySelectorAll('span')]
+            .filter(s => s.querySelector('svg[data-emote]'))
+            .map(s => s.textContent)
+            .join(' ');
+    })()`;
+
+    await host.evaluate(`
+        const btn = document.querySelector('[aria-label="Send a reaction"] button[aria-label="Nice"]');
+        if (!btn) throw new Error('no Nice button in the tray');
+        btn.click();
+        return true;
+    `);
+
+    check(await settles(guest, `${feedText}.includes('Emoter')`),
+        "the other player sees who reacted",
+        'the reaction never reached the second client');
+
+    // Everyone sees the same feed, the sender included — the server fans out
+    // with io.to rather than socket.to for exactly this.
+    check(await settles(host, `${feedText}.includes('Emoter')`),
+        'the sender sees their own reaction too');
+
+    /* Scoped to the tray's own subtree: the game screen carries four other
+       polite live regions, and a document-wide query finds the room panel's. */
+    const feedAnnouncement = `(() => {
+        const tray = document.querySelector('[aria-label="Send a reaction"]');
+        const live = tray && tray.parentElement.querySelector('[aria-live=polite]');
+        return live ? live.textContent : '';
+    })()`;
+    check(await settles(guest, `${feedAnnouncement}.includes('Emoter: Nice')`),
+        'it is announced as speech, not as a picture',
+        'the live region never carried the reaction');
+
+    // The lifetime is a plain timer, so this is the one assertion that has to
+    // wait in real time. Generous: the check is that it clears at all.
+    check(await settles(guest, `!${feedText}.includes('Emoter')`, 8000),
+        'it clears itself without anyone dismissing it',
+        'the chip is still on screen well past its lifetime');
+}
+
 (async () => {
     await preflight();
     const chrome = await launchChrome();
@@ -1292,12 +1370,19 @@ async function daily(page) {
         const guest = await attach(await newTarget('about:blank'));
         await pvp(host, guest);
 
+        // Fresh tabs, not the PVP pair: those two are still in a race, and a
+        // reload puts them straight back into it rather than on Landing.
+        const emoteHost = await attach(await newTarget('about:blank'));
+        const emoteGuest = await attach(await newTarget('about:blank'));
+        await emotes(emoteHost, emoteGuest);
+
         const linkHost = await attach(await newTarget('about:blank'));
         const linkGuest = await attach(await newTarget('about:blank'));
         await joinLink(linkHost, linkGuest);
 
         console.log('\n\x1b[1m--- CONSOLE ---\x1b[0m');
         const errors = [...page.consoleErrors, ...host.consoleErrors, ...guest.consoleErrors,
+            ...emoteHost.consoleErrors, ...emoteGuest.consoleErrors,
             ...linkHost.consoleErrors, ...linkGuest.consoleErrors]
             .filter((e) => !/favicon|404/i.test(e));
         check(errors.length === 0, 'no uncaught errors in any client', errors.slice(0, 3).join('\n        '));
