@@ -395,6 +395,8 @@ token** (the daily challenge) instead.
 | `sendEmote` | `{room, emote}` — `emote` is a `shared/emotes.js` id, never free text | `server.js` |
 | `pingCell` | `{room, row, col}` — a real cell; no `-1,-1` clear | `server.js` |
 | `inviteFriend` | `{friendId, room}` — account-addressed, not room-addressed | `friendInviteController.js` |
+| `roomFriends` | `{room}` — who here could be added | `roomFriendController.js` |
+| `addRoomFriend` | `{room, playerId}` — `playerId` is a SOCKET id | `roomFriendController.js` |
 | `cellHover` | `{room, row, col}` — `-1,-1` clears | `server.js:229` |
 | `resetGame` | `{room}` | `server.js:269` |
 | `startPvpGame` | `{room}` | `pvpController.js:7` |
@@ -437,6 +439,7 @@ Shapes are typed in `shared/socketPayloads.ts` (`ClientToServerEvents`).
 | `friendsOnline` | `{ids}` — which friends were already here, on connect |
 | `friendPresence` | `{id, online}` — one friend came or went |
 | `friendInvite` | `{fromId, fromName, fromAvatar, room, mode}` |
+| `roomFriendsUpdate` | `{players: [{id, name, avatar, status}]}` — to the ASKER alone |
 | `playerHoverUpdate` | `{id, row, col, name}` (client derives color from `id`) |
 | `playerLeft` | `socketId` |
 | `achievementsUnlocked` | `{ids}` — catalog ids, to ONE socket, only what this result newly earned |
@@ -961,6 +964,33 @@ Accepting is a **navigation** into the existing `?room=` join flow, not a
 socket call — that flow already fills the code, prompts for a name, and copes
 with a room that filled up, and the invited player may be mid-game somewhere
 else.
+
+### Adding a friend from a game
+
+The third and narrowest door onto the graph, after the code and the reciprocal
+accept — and the one that decides whether the other two matter. A code is a
+fine way to add somebody you already know; it is a terrible way to add the
+stranger a quick match just paired you with, which is the one moment two people
+have a reason to.
+
+**Account ids never leave the server.** The client addresses a co-player by
+SOCKET id — something it already sees on every hover, reaction and ping — and
+`roomFriendController` turns that back into an account, but only after checking
+that BOTH sockets are in the room. Without that second check it is a way to add
+any account whose socket id you can name. Putting account ids in the room roster
+instead would hand every player in a room a permanent handle for everybody
+else, which is exactly what the code-only rule exists to prevent.
+
+The list is computed per ASKER, which is what lets "me" be excluded server-side
+rather than by a client comparing socket ids it would first have to be told. It
+leaves out guests (no account to befriend), anybody either party has blocked (a
+button that silently failed would be the one place a block leaked), and anybody
+whose socket has gone — the account is resolved from the LIVE socket, so
+somebody who closed their tab the moment the race ended is simply not offered,
+which is honest rather than a button that does nothing.
+
+Every add answers by re-sending the whole list rather than a per-player result,
+so the client never holds two sources of truth about one relationship.
 
 ### Accounts and the auth bridge
 

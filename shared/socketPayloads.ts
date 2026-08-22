@@ -122,6 +122,10 @@ export interface ClientToServerEvents {
     pingCell: (payload: CellPayload) => void;
     /** Ask a friend to join the room this socket is in. */
     inviteFriend: (payload: { friendId: string; room: string }) => void;
+    /** Who in this room could be added as a friend. */
+    roomFriends: (payload: RoomPayload) => void;
+    /** `playerId` is the co-player's SOCKET id — account ids never leave the server. */
+    addRoomFriend: (payload: { room: string; playerId: string }) => void;
     resetGame: (payload: RoomPayload) => void;
 
     startPvpGame: (payload: RoomPayload) => void;
@@ -233,6 +237,23 @@ export interface ServerToClientEvents {
         fromAvatar: string | null;
         room: string;
         mode: GameMode;
+    }) => void;
+    /**
+     * The signed-in players in this room, to the ASKER alone — so "me" is
+     * excluded server-side and a guest is told nothing at all.
+     *
+     * The whole list is re-sent after every add rather than a per-player
+     * result, so the client never merges two sources of truth about the same
+     * relationship.
+     */
+    roomFriendsUpdate: (payload: {
+        players: {
+            /** SOCKET id. The account id is never sent. */
+            id: string;
+            name: string;
+            avatar: string | null;
+            status: 'none' | 'requested' | 'incoming' | 'friends';
+        }[];
     }) => void;
     /** Co-op only; the server suppresses hover in PVP. */
     playerHoverUpdate: (payload: { id: string; row: number; col: number; name: string }) => void;

@@ -1,6 +1,6 @@
 # PRD: Social — Emotes, Pings & Friends
 
-**Status:** Phases 1–4 done 2026-08-22 · Phase 5 proposed · **Owner:** Michael · **Created:** 2026-08-21
+**Status:** All five phases done 2026-08-22 · **Owner:** Michael · **Created:** 2026-08-21
 
 A living document, same contract as `USER_PROFILES_PRD.md`: each phase has a
 checklist; check items off as they land and update the phase status line. The
@@ -361,11 +361,27 @@ The invite dialog is mounted ONCE by `Grid`, not by `RoomPanel`: the panel
 renders in both layout clusters, and two `<dialog>` elements sharing an id is
 one `openDialog` away from opening the wrong one.
 
-### Phase 5 — Recent players (optional)
+### Phase 5 — Recent players ✔ Done 2026-08-22
 
-- [ ] Offer "add friend" for signed-in players you just finished a game with,
-      from the game summary — the lowest-friction path onto the graph, and the
-      one that decides whether Phase 3 gets used at all.
+- [x] Offer "add friend" for signed-in players you just finished a game with,
+      from the game summary — both modes, since a quick match pairs strangers
+      and that is the case this exists for.
+- [x] Tests: 20 server (the list's four filters, both membership checks, every
+      status), 8 client.
+
+**Account ids never leave the server**, which is the decision the whole phase
+turns on. The client names a co-player by SOCKET id — something it already sees
+on every hover, reaction and ping — and the server resolves the account only
+after checking BOTH sockets are in the room. The obvious alternative, putting
+account ids in the room roster, would hand every player in a room a permanent
+handle for everybody else, which is exactly what §2's code-only rule exists to
+prevent.
+
+Two consequences worth knowing. The account is resolved from the LIVE socket,
+so somebody who closed their tab as the race ended is not offered at all —
+honest, rather than a button that silently does nothing. And every add answers
+by re-sending the whole list rather than a per-player result, so the client
+never holds two sources of truth about one relationship.
 
 ## 8. Risks & open questions
 
@@ -388,6 +404,7 @@ one `openDialog` away from opening the wrong one.
 | Date | Change |
 |---|---|
 | 2026-08-21 | PRD drafted. Decisions in §2 proposed, none confirmed; §8 carries three open questions (per-player mute, ping binding, friends leaderboard). |
+| 2026-08-22 | Phase 5 complete, and with it the PRD: the add-friend offer in the game summary, addressed by socket id so account ids never reach a client, filtered server-side for guests, blocks and departed sockets. 1263 server + 1445 client tests, lint, tsc, build and the guest smoke suite green. Same caveat as Phases 3–4: nothing signed-in has been exercised in a browser, because OAuth remains outstanding from USER_PROFILES_PRD.md. |
 | 2026-08-22 | Phase 4 complete: presence derived from the live socket map (never stored, never a `user:<id>` room), a snapshot on connect and deltas to online friends, invites gated on friendship + sender-in-room + capacity + a per-pair cooldown with every refusal silent, an invite toast whose Join is a link into the existing `?room=` flow, and a signed-in-only entry point in RoomPanel. 1229 server + 1437 client tests, lint, tsc, build and the guest smoke suite green. NOT verified in a browser: presence and invites both need two signed-in accounts, and OAuth is still one of the two manual steps outstanding from USER_PROFILES_PRD.md. |
 | 2026-08-22 | Phase 3 complete: `friendCode` domain module (32 symbols, no O/0/I/1), two migrations, `friendsRepo` with both caps and the reciprocal-accept rule, four routes under `requireUser`, and a Friends panel that fetches its own graph. 1192 server + 1412 client tests, lint, tsc and build green. Verified against a REAL Postgres 14 in a throwaway cluster: every migration up, then the actual repo SQL — code minting and its race, reciprocal accept landing one row rather than two, the graph from both sides, block semantics in both directions, the three table constraints, and the delete cascade. Two corrections recorded in the phase: the validation rule cannot live in `validation.js` (layering), and blocks must be visible to the blocker. |
 | 2026-08-22 | Phase 2 complete: `pingCell`/`playerPing` on the shared expression bucket, suppressed in PVP with a test that fails without the guard; grid-level capture interception across all four of Cell's render branches; `PingLayer` rings in the sender's cursor colour; three input paths (Shift+click, tray arm, P). Alt rejected as a binding — Linux window managers grab it. 1114 server + 1396 client tests, lint, tsc and the smoke suite green; verified live in a real browser that the pinged cell is NOT opened by the click that pinged it. Two bugs found by the browser and not the unit tests: the one-shot disarm racing the tail of its own gesture, and this layer's live region shadowing the keyboard cursor's (both now addressed by explicit markers rather than DOM order). |

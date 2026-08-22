@@ -17,6 +17,7 @@ const { registerSettingsRoutes } = require('./controllers/settingsController');
 const { registerThemesRoutes } = require('./controllers/themesController');
 const { registerFriendsRoutes } = require('./controllers/friendsController');
 const { inviteFriend } = require('./controllers/friendInviteController');
+const { roomFriends, addRoomFriend } = require('./controllers/roomFriendController');
 const presence = require('./utils/presence');
 const { registerStatsRoutes } = require('./controllers/statsController');
 const { startDaily, submitDailyScore, getDailyLeaderboard } = require('./controllers/dailyController');
@@ -362,6 +363,14 @@ io.on('connection', async (socket) => {
 
     socket.on(CLIENT_EVENTS.INVITE_FRIEND, safe(async ({ friendId, room }) => {
         await inviteFriend(socket, { friendId, room });
+    }))
+
+    socket.on(CLIENT_EVENTS.ROOM_FRIENDS, safe(async ({ room }) => {
+        await roomFriends(socket, { room });
+    }))
+
+    socket.on(CLIENT_EVENTS.ADD_ROOM_FRIEND, safe(async ({ room, playerId }) => {
+        await addRoomFriend(socket, { room, playerId });
     }))
 
     socket.on(CLIENT_EVENTS.PING_CELL, safe(async ({ room, row, col }) => {

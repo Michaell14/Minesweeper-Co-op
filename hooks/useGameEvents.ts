@@ -319,6 +319,11 @@ const coopHandlers = (socket: AppSocket, leaveRoom: () => void): SocketHandlers 
      */
     [SERVER_EVENTS.FRIEND_INVITE]: (invite) =>
         useMinesweeperStore.getState().setFriendInvite(invite),
+
+    /* Sent to this socket alone, and re-sent after every add — so it is always
+     * the whole truth about who in this room can be added. */
+    [SERVER_EVENTS.ROOM_FRIENDS_UPDATE]: ({ players }) =>
+        useMinesweeperStore.getState().setRoomFriends(players),
 });
 
 /** PVP events. `socket` is needed to tell "I won" from "they won". */
