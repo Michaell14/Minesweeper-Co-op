@@ -206,12 +206,18 @@ export interface ServerToClientEvents {
      * unlike hover: the sender should see the same artefact at the same
      * moment as the room, which is what confetti already does.
      */
-    playerEmote: (payload: { id: string; name: string; emote: string }) => void;
+    playerEmote: (payload: { id: string; name: string; emote: string; room: string }) => void;
     /**
      * Somebody pointed at a cell. Co-op only, for the same reason hover is:
      * PVP racers play the SAME board, so a ping is a move hint.
+     *
+     * `room` rides along on both of these so the receiver can tell WHICH board
+     * the cell belongs to. A relay already in flight when its recipient leaves
+     * is still delivered, and without the room there is nothing to tell it
+     * apart from one belonging to the room they joined next — see the handlers
+     * in useGameEvents.
      */
-    playerPing: (payload: { id: string; name: string; row: number; col: number }) => void;
+    playerPing: (payload: { id: string; name: string; row: number; col: number; room: string }) => void;
     /** Co-op only; the server suppresses hover in PVP. */
     playerHoverUpdate: (payload: { id: string; row: number; col: number; name: string }) => void;
     /**

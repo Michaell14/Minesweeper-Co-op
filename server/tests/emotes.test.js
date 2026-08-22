@@ -90,7 +90,7 @@ describe('a valid emote', () => {
         // io.to, not socket.to: everyone's copy of the feed should agree, and
         // the sender seeing their own is what confetti already does.
         expect(mockTo).toHaveBeenCalledWith(ROOM);
-        expect(emotesSent()).toEqual([{ id: ALICE, name: 'Alice', emote: 'nice' }]);
+        expect(emotesSent()).toEqual([{ id: ALICE, name: 'Alice', emote: 'nice', room: ROOM }]);
     });
 
     test('carries the stored name, not one the client supplied', async () => {
@@ -206,6 +206,6 @@ describe('the rate limit', () => {
 
         await bobEmote({ room: ROOM, emote: 'wave' });
 
-        expect(emotesSent()).toEqual([{ id: 'sock-bob', name: 'Bob', emote: 'wave' }]);
+        expect(emotesSent()).toEqual([{ id: 'sock-bob', name: 'Bob', emote: 'wave', room: ROOM }]);
     });
 });

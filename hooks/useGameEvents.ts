@@ -91,6 +91,25 @@ const applyCellUpdates = (updates: CellUpdate[]) => {
 let emoteSequence = 0;
 const nextEmoteKey = () => String(++emoteSequence);
 
+/**
+ * Whether a relayed reaction or ping belongs to the board on screen NOW.
+ *
+ * A relay already on the wire when its recipient leaves is still delivered —
+ * the server broadcast it before the leave was processed, and the socket
+ * outlives the room. `leaveRoom` clears what has already been stored, but it
+ * cannot refuse what has not arrived yet, so an emote or ping from the room
+ * just left would land afterwards and draw on the room joined next: a ring on
+ * a cell nobody pointed at, under a name that is not in the room.
+ *
+ * `playerJoined` is half the check, not decoration. `room` also holds whatever
+ * is being TYPED into the landing form, so the code alone matches again the
+ * moment somebody types their way back towards the room they left.
+ */
+const belongsToCurrentRoom = (
+    store: { room: string; playerJoined: boolean },
+    room: string,
+) => store.playerJoined && store.room === room;
+
 /** Shared + co-op events. */
 const coopHandlers = (socket: AppSocket, leaveRoom: () => void): SocketHandlers => ({
     // --- Game state ---
@@ -217,9 +236,10 @@ const coopHandlers = (socket: AppSocket, leaveRoom: () => void): SocketHandlers 
      * setting means "no reactions on my screen", and an exception for your own
      * would leave you emoting into what you believe is a quiet room.
      */
-    [SERVER_EVENTS.PLAYER_EMOTE]: ({ id, name, emote }) => {
+    [SERVER_EVENTS.PLAYER_EMOTE]: ({ id, name, emote, room }) => {
         const store = useMinesweeperStore.getState();
         if (!store.settings.emotes) return;
+        if (!belongsToCurrentRoom(store, room)) return;
         // An id this build cannot draw is dropped rather than shown as
         // something else — see emoteArtById.
         if (!emoteArtById(emote)) return;
@@ -242,9 +262,10 @@ const coopHandlers = (socket: AppSocket, leaveRoom: () => void): SocketHandlers 
      * send" is one preference, and splitting it would mean a second toggle for
      * the same class of thing.
      */
-    [SERVER_EVENTS.PLAYER_PING]: ({ id, name, row, col }) => {
+    [SERVER_EVENTS.PLAYER_PING]: ({ id, name, row, col, room }) => {
         const store = useMinesweeperStore.getState();
         if (!store.settings.emotes) return;
+        if (!belongsToCurrentRoom(store, room)) return;
 
         store.pushPlayerPing({
             key: `${id}-${nextEmoteKey()}`,
