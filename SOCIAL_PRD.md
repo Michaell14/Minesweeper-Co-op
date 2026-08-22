@@ -1,6 +1,6 @@
 # PRD: Social — Emotes, Pings & Friends
 
-**Status:** Phases 1–2 (emotes, pings) done 2026-08-22 · Phases 3–5 proposed · **Owner:** Michael · **Created:** 2026-08-21
+**Status:** Phases 1–3 done 2026-08-22 · Phases 4–5 proposed · **Owner:** Michael · **Created:** 2026-08-21
 
 A living document, same contract as `USER_PROFILES_PRD.md`: each phase has a
 checklist; check items off as they land and update the phase status line. The
@@ -47,6 +47,7 @@ that.
 | Rate limiting | **One shared token bucket for emotes + pings** | Separate buckets would let a client alternate the two and send at double the intended rate. Reuses `server/domain/rateLimit.js`. |
 | Adding a friend | **By friend code, plus "players from your last game"** | Not by display-name search. Names are not unique and `USER_PROFILES_PRD.md` deliberately deleted name-uniqueness and public profiles; name search would reintroduce both, plus enumeration and harassment. |
 | Friend graph shape | **Mutual, both sides accept** | Not follows. A one-way edge that can invite you into a room is a spam primitive. |
+| Blocks | **Invisible to the blocked, listed for the blocker** | Amended in Phase 3. A block placed ON you answers exactly like an unknown code; one you placed is listed so you can lift it, since otherwise blocking is a one-way door. |
 | Presence | **Derived from live sockets, never stored** | Same scan pattern as `utils/statsRecorder.js`; nothing to prune on disconnect. |
 | Invites | **Only from accepted friends, rate-limited per pair** | This is the whole anti-spam design; there is no other inbound channel to a stranger. |
 | Friend data on game paths | **Best-effort, like every other Postgres write** | A database outage must not slow or break a game. Only the friends UI itself may fail visibly. |
@@ -284,18 +285,44 @@ caught it; the unit test had not, because its mock `pingCell` never disarmed
 anything the way the real action does. That mock now disarms, and the test fails
 without the latch.
 
-### Phase 3 — Friend graph
+### Phase 3 — Friend graph ✔ Done 2026-08-22
 
-- [ ] Migrations: `users.friend_code`, `friendships`.
-- [ ] `server/data/friendsRepo.js` — request, accept, decline, block, remove,
+- [x] Migrations: `users.friend_code`, `friendships`. Run up against a real
+      Postgres 14, along with every migration before them.
+- [x] `server/data/friendsRepo.js` — request, accept, decline, block, remove,
       list-with-caps. Direction-preserving, cap-enforcing.
-- [ ] `server/controllers/friendsController.js` — the four routes under
+- [x] `server/controllers/friendsController.js` — the four routes under
       `requireUser`.
-- [ ] `lib/friendsApi.ts` + a Friends panel on `/profile` beside
-      `AchievementsPanel`, showing avatars from `shared/avatars.js`.
-- [ ] Friend code shown on `/profile` with copy-to-clipboard.
-- [ ] Tests: repo cap and duplicate/reciprocal-request behaviour, block
-      semantics, route auth, panel rendering.
+- [x] `lib/friendsApi.ts` + a Friends panel on `/profile`. It fetches its own
+      graph rather than riding the profile payload: friends fail independently,
+      and folding them together would make a friends outage look like a broken
+      profile.
+- [x] Friend code shown on `/profile` with copy-to-clipboard.
+- [x] Tests: 63 server (the pure code module, repo semantics, routes) and 15
+      client, plus a live harness driving the real SQL against real Postgres —
+      constraints, cascade, and both sides of a block.
+
+**Three things this phase settled.**
+
+The friend-code rule could not live in `validation.js`. That file sits BELOW
+`domain/` in the enforced layer order, so it cannot re-export the shape check
+the way it re-exports `isValidBoardConfig` from `shared/` — `shared/` is exempt
+from the layering test and `domain/` is not. Splitting the pattern from the
+alphabet to satisfy the import direction would have left two copies of the same
+32 symbols to drift apart, so the rule lives beside the alphabet in
+`domain/friendCode.js`. `tests/layering.test.js` caught the first attempt.
+
+The route id is the OTHER ACCOUNT's, not the friendship row's. The client
+already knows who it is acting on, and a row id is a handle it has no other
+reason to hold.
+
+**Blocks had to become visible to the blocker**, which this PRD had wrong. §2
+said a block is "a thing you do, not a list you maintain" and `listGraph`
+returned none. That makes blocking a one-way door: their code simply stops
+working, with nothing on screen to explain it or lift it. Blocks you PLACED are
+now listed and only you can lift them; a block placed ON you is still invisible
+and still answers exactly like a code nobody holds, which is the half that
+actually protects anybody.
 
 ### Phase 4 — Presence & invites
 
@@ -336,5 +363,6 @@ without the latch.
 | Date | Change |
 |---|---|
 | 2026-08-21 | PRD drafted. Decisions in §2 proposed, none confirmed; §8 carries three open questions (per-player mute, ping binding, friends leaderboard). |
+| 2026-08-22 | Phase 3 complete: `friendCode` domain module (32 symbols, no O/0/I/1), two migrations, `friendsRepo` with both caps and the reciprocal-accept rule, four routes under `requireUser`, and a Friends panel that fetches its own graph. 1192 server + 1412 client tests, lint, tsc and build green. Verified against a REAL Postgres 14 in a throwaway cluster: every migration up, then the actual repo SQL — code minting and its race, reciprocal accept landing one row rather than two, the graph from both sides, block semantics in both directions, the three table constraints, and the delete cascade. Two corrections recorded in the phase: the validation rule cannot live in `validation.js` (layering), and blocks must be visible to the blocker. |
 | 2026-08-22 | Phase 2 complete: `pingCell`/`playerPing` on the shared expression bucket, suppressed in PVP with a test that fails without the guard; grid-level capture interception across all four of Cell's render branches; `PingLayer` rings in the sender's cursor colour; three input paths (Shift+click, tray arm, P). Alt rejected as a binding — Linux window managers grab it. 1114 server + 1396 client tests, lint, tsc and the smoke suite green; verified live in a real browser that the pinged cell is NOT opened by the click that pinged it. Two bugs found by the browser and not the unit tests: the one-shot disarm racing the tail of its own gesture, and this layer's live region shadowing the keyboard cursor's (both now addressed by explicit markers rather than DOM order). |
 | 2026-08-21 | Phase 1 complete: six-glyph catalog in `shared/`, token-painted art on `/ds`, the `sendEmote`/`playerEmote` pair through all four places, an expression bucket shared with whatever Phase 2 adds, tray + three-chip feed mounted once under the board, `settings.emotes` as a receive-only opt-out, and a synthesised blip. 1044 server + 1292 client tests, lint, tsc, production build and the full ui-smoke suite green — the new EMOTES scenario exchanges a reaction between two real browsers and watches it expire. Verified live in the browser: one tray in the DOM, all six glyphs resolve their tokens on default, Game Boy, C64 and every seasonal palette, and the live region carries "Emoter: Nice". Corrected two draft assumptions (see the phase). |

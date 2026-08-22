@@ -15,6 +15,7 @@ const {
 const { resolveSocketUser, registerProfileRoutes } = require('./controllers/profileController');
 const { registerSettingsRoutes } = require('./controllers/settingsController');
 const { registerThemesRoutes } = require('./controllers/themesController');
+const { registerFriendsRoutes } = require('./controllers/friendsController');
 const { registerStatsRoutes } = require('./controllers/statsController');
 const { startDaily, submitDailyScore, getDailyLeaderboard } = require('./controllers/dailyController');
 const dailyGame = require('./game/daily');
@@ -54,6 +55,7 @@ app.use('/api', express.json());
 registerProfileRoutes(app);
 registerSettingsRoutes(app);
 registerThemesRoutes(app);
+registerFriendsRoutes(app);
 registerStatsRoutes(app);
 
 /**

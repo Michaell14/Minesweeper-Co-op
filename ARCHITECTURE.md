@@ -879,6 +879,49 @@ it is free in this codebase, but Linux window managers commonly grab Alt+click
 to move a window, so the page may never see it. Ctrl is the macOS secondary
 click, which is the flag.
 
+### Friends
+
+A **mutual** graph — both sides accept — reachable only by **friend code**.
+Neither choice is incidental:
+
+- A one-way edge that can invite you into a room is a spam primitive, so a
+  friendship exists only once both have agreed. The only spam vector left is
+  papering inboxes with requests, which is what the 20-outstanding cap is for.
+- Adding is by code rather than by name search. Display names here are not
+  unique and there are no public profiles (a decision from
+  `USER_PROFILES_PRD.md`); a search box would reintroduce both, plus
+  enumeration and a harassment surface. The alphabet omits O/0/I/1 because a
+  code is read off one screen and typed into somebody else's box —
+  `server/domain/friendCode.js`.
+
+**Direction is preserved rather than normalised** into (least, greatest),
+because a pending row has to know who asked. "My friends" is therefore the
+union of both directions where status is `accepted`. The reciprocal case — B
+asks A while A's request to B is pending — is an ACCEPT of the existing row,
+not a second row facing the other way; without that, the pair key turns two
+people doing exactly what the feature asks into a unique-violation.
+
+**Blocks are asymmetric on purpose.** Blocking deletes whatever the pair held
+and stores one row on the blocker's side, in a transaction — leaving an
+accepted row behind would list two people as friends while one had blocked the
+other. A block placed ON you is invisible and answers exactly like a code
+nobody holds, so the refusal itself cannot tell you that you were blocked or by
+whom. A block you placed IS listed, and only you can lift it: the PRD had blocks
+unlisted entirely, which made blocking a one-way door — the other person's code
+just stopped working with nothing on screen to explain it.
+
+Caps (`friendsRepo`): **100 friends**, **20 outstanding requests**. Both are
+about fan-out rather than storage — presence pushes and invites walk the friend
+list. The friend cap is re-checked *inside* the accept statement, so an account
+that filled up while requests sat pending cannot exceed it by accepting the
+backlog.
+
+Routes are `/api/friends` (GET the graph + your own code, POST a code) and
+`/api/friends/:id` (PUT accept/decline/block, DELETE unfriend/cancel/unblock),
+all under `requireUser`. The `:id` is the OTHER ACCOUNT's, not the row's — the
+client already knows who it is acting on, and row ids are a handle it has no
+other reason to hold.
+
 ### Accounts and the auth bridge
 
 Sign-in is OAuth-only (Google, GitHub) via Auth.js v4 in the Next app — see

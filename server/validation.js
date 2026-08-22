@@ -54,6 +54,16 @@ const isValidAvatarId = (avatar) => AVATAR_IDS.includes(avatar);
  */
 const isValidEmoteId = (emote) => EMOTE_IDS.includes(emote);
 
+/**
+ * An account id as it arrives in a URL.
+ *
+ * Checked for SHAPE before it reaches Postgres: `users.id` is a uuid column,
+ * so a malformed one is a type error from the driver — a 503 that reads as
+ * "the database is down" for what is really a bad request.
+ */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const isValidUserId = (id) => typeof id === 'string' && UUID_RE.test(id);
+
 /** Opaque client-generated id for a daily attempt -- same shape as a room code. */
 const isValidDailyToken = (token) =>
     typeof token === 'string' && token.length > 0 && token.length <= MAX_DAILY_TOKEN_LENGTH;
@@ -209,6 +219,7 @@ module.exports = {
     isValidMode,
     isValidAvatarId,
     isValidEmoteId,
+    isValidUserId,
     isValidBoardConfig,
     isValidCoordinate,
     isValidHoverCoordinate,

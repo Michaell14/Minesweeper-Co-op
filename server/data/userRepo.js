@@ -11,6 +11,7 @@
  */
 
 const { query } = require('../utils/initializePgClient');
+const { generateFriendCode } = require('../domain/friendCode');
 
 /** camelCase view of a row. Everything the client may see; no secrets here. */
 const rowToUser = (row) => ({
@@ -80,4 +81,55 @@ const deleteUser = async (id) => {
     return result.rowCount > 0;
 };
 
-module.exports = { getOrCreateUser, getUserById, updateUser, deleteUser };
+/** Postgres's unique-violation code. */
+const UNIQUE_VIOLATION = '23505';
+
+/**
+ * This account's friend code, minting one the first time anybody asks.
+ *
+ * Lazy rather than backfilled: most accounts will never use friends, and a
+ * column filled on first read has exactly one place where a code comes into
+ * existence.
+ *
+ * The claim is `WHERE friend_code IS NULL`, so two tabs asking at once cannot
+ * overwrite each other — the loser matches no row and re-reads the winner's
+ * code. A collision with somebody else's code fails the unique index, which is
+ * a retry rather than an error: at 40 bits it is not going to happen, and the
+ * alternative is handing back a 500 for a dice roll.
+ */
+const getOrCreateFriendCode = async (userId) => {
+    for (let attempt = 0; attempt < 5; attempt++) {
+        const existing = await query('SELECT friend_code FROM users WHERE id = $1', [userId]);
+        if (existing.rows.length === 0) return null;          // account gone
+        if (existing.rows[0].friend_code) return existing.rows[0].friend_code;
+
+        try {
+            const claimed = await query(
+                `UPDATE users SET friend_code = $2
+                 WHERE id = $1 AND friend_code IS NULL
+                 RETURNING friend_code`,
+                [userId, generateFriendCode()],
+            );
+            if (claimed.rows.length > 0) return claimed.rows[0].friend_code;
+            // Lost the race: the next loop reads what the winner wrote.
+        } catch (error) {
+            if (error.code !== UNIQUE_VIOLATION) throw error;
+        }
+    }
+    throw new Error('Could not allocate a friend code');
+};
+
+/** The account a typed code belongs to, or null. Codes are stored NORMALISED. */
+const findByFriendCode = async (code) => {
+    const result = await query('SELECT * FROM users WHERE friend_code = $1', [code]);
+    return result.rows[0] ? rowToUser(result.rows[0]) : null;
+};
+
+module.exports = {
+    getOrCreateUser,
+    getUserById,
+    updateUser,
+    deleteUser,
+    getOrCreateFriendCode,
+    findByFriendCode,
+};
