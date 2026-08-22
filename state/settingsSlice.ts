@@ -96,6 +96,14 @@ const applySideEffects = (
     return null;
 };
 
+/**
+ * Turning reactions off has to take the feed already on screen with it.
+ * `settings.emotes` is applied on the RECEIVE path, so anything the store is
+ * still holding would outlive the switch and paint again on the next mount.
+ */
+const emoteFeedReset = (before: Settings, after: Settings) =>
+    before.emotes && !after.emotes ? { playerEmotes: [] } : {};
+
 export const createSettingsSlice: StateCreator<MinesweeperState, [], [], SettingsSlice> = (set) => ({
     settings: DEFAULT_SETTINGS,
     settingsHydrated: false,
@@ -152,7 +160,7 @@ export const createSettingsSlice: StateCreator<MinesweeperState, [], [], Setting
 
             writeStoredSettings(settings);
             const seasonalOverride = applySideEffects(settings, state.customThemes);
-            return { settings, seasonalOverride };
+            return { settings, seasonalOverride, ...emoteFeedReset(state.settings, settings) };
         }),
 
     replaceSettings: (incoming) => {
@@ -160,7 +168,12 @@ export const createSettingsSlice: StateCreator<MinesweeperState, [], [], Setting
             const settings = sanitizeSettings(incoming);
             writeStoredSettings(settings);
             const seasonalOverride = applySideEffects(settings, state.customThemes);
-            return { settings, seasonalOverride, settingsHydrated: true };
+            return {
+                settings,
+                seasonalOverride,
+                settingsHydrated: true,
+                ...emoteFeedReset(state.settings, settings),
+            };
         });
     },
 

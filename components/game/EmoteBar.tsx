@@ -20,8 +20,9 @@ export interface EmoteBarProps {
  * is what stops a reaction ever covering the button that sent it.
  *
  * Nothing here is gated on `settings.emotes`: the opt-out is applied on the
- * RECEIVE path (hooks/useGameEvents.ts), so an opted-out player has an empty
- * feed and a working tray, which is exactly what the setting says.
+ * RECEIVE path (hooks/useGameEvents.ts), and turning it off empties whatever
+ * the store still holds (state/settingsSlice.ts), so an opted-out player has an
+ * empty feed and a working tray, which is exactly what the setting says.
  */
 /**
  * How long until the earliest deadline. Capped at a whole lifetime so a
