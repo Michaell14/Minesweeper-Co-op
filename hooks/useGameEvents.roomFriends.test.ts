@@ -10,6 +10,15 @@
  * The ask belongs with the OPEN. These are the tests that keep it there.
  */
 import { beforeEach, describe, expect, test, vi } from "vitest";
+/*
+ * The win handler shoots confetti, and the real one schedules an animation
+ * frame that outlives this file's jsdom window — the callback then finds a
+ * null canvas context and throws where no test can catch it. Every test passes
+ * and the run still exits 1. Mocked here for the same reason
+ * useGameEvents.test.ts mocks it.
+ */
+vi.mock("@/lib/confetti", () => ({ shootConfetti: vi.fn() }));
+
 import { useMinesweeperStore } from "@/app/store";
 import { CLIENT_EVENTS, SERVER_EVENTS } from "@/shared/events";
 import { useGameEvents } from "./useGameEvents";
