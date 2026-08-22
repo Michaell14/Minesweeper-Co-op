@@ -320,19 +320,17 @@ export function useGameActions(socket: AppSocket | null) {
     );
 
     /**
-     * Ask who in this room could be added, and add one.
+     * Add somebody from the room just played.
      *
      * The co-player is addressed by SOCKET id — the same id every hover and
      * reaction already carries. Account ids never reach the client, so this is
      * the only handle there is, and the server turns it back into an account
      * only after checking both sockets are in the room.
+     *
+     * Asking for the LIST is not here: it happens where the summary opens
+     * (hooks/useGameEvents.ts), so it fires once per game rather than once per
+     * mounted summary dialog.
      */
-    const requestRoomFriends = useCallback(() => {
-        const { room, playerJoined } = useMinesweeperStore.getState();
-        if (!socket || !room || !playerJoined) return;
-        socket.emit(CLIENT_EVENTS.ROOM_FRIENDS, { room });
-    }, [socket]);
-
     const addRoomFriend = useCallback(
         (playerId: string) => {
             const { room, playerJoined } = useMinesweeperStore.getState();
@@ -476,7 +474,6 @@ export function useGameActions(socket: AppSocket | null) {
         sendEmote,
         pingCell,
         inviteFriend,
-        requestRoomFriends,
         addRoomFriend,
         startPvpGame,
         resetMyBoard,

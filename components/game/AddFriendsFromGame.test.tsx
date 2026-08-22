@@ -26,7 +26,7 @@ const roster = (...players: RoomFriend[]) =>
     act(() => useMinesweeperStore.getState().setRoomFriends(players));
 
 const renderOffer = () => {
-    const props = { requestRoomFriends: vi.fn(), addRoomFriend: vi.fn() };
+    const props = { addRoomFriend: vi.fn() };
     render(<AddFriendsFromGame {...props} />);
     return props;
 };
@@ -38,27 +38,21 @@ beforeEach(() => {
 
 afterEach(cleanup);
 
-describe('asking for the list', () => {
-    it('asks when the summary appears', () => {
-        const props = renderOffer();
-        expect(props.requestRoomFriends).toHaveBeenCalled();
-    });
-
-    // A guest has no graph to add anybody to, and the server tells them
-    // nothing — so asking would be a round trip for a certain empty answer.
-    it('does not ask when signed out', () => {
+describe('signed out', () => {
+    // A guest has no graph to add anybody to, and the server sends them no
+    // list — so there is nothing to draw even if one arrived.
+    it('renders nothing', () => {
         mockStatus.mockReturnValue('unauthenticated');
-        const props = renderOffer();
-        expect(props.requestRoomFriends).not.toHaveBeenCalled();
+        roster(PAT);
+        const { container } = render(<AddFriendsFromGame addRoomFriend={vi.fn()} />);
+        expect(container.firstChild).toBeNull();
     });
 });
 
 describe('with nobody to offer', () => {
     // An empty list means the server found nobody — not that something failed.
     it('renders nothing rather than an empty heading', () => {
-        const { container } = render(
-            <AddFriendsFromGame requestRoomFriends={vi.fn()} addRoomFriend={vi.fn()} />,
-        );
+        const { container } = render(<AddFriendsFromGame addRoomFriend={vi.fn()} />);
         expect(container.firstChild).toBeNull();
     });
 });

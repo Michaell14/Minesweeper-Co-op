@@ -4,7 +4,7 @@ import { useMinesweeperStore } from "@/app/store";
 import { shootConfetti } from "@/lib/confetti";
 import { playSound } from "@/lib/sound";
 import { cursorColorForId } from "@/lib/theme";
-import { DIALOGS, openDialog, closeDialog } from "@/lib/dialogs";
+import { DIALOGS, openDialog, closeDialog, type DialogId } from "@/lib/dialogs";
 import { boardKey, playersForClear, recordBestTime } from "@/lib/bestTimes";
 import { recordDailyResult } from "@/lib/dailyHistory";
 import { elapsedSeconds } from "@/lib/gameClock";
@@ -110,6 +110,25 @@ const belongsToCurrentRoom = (
     room: string,
 ) => store.playerJoined && store.room === room;
 
+/**
+ * Opens a game-over dialog, and asks who in this room could be added.
+ *
+ * The ask belongs HERE, with the open, rather than in the component that draws
+ * the offer: every summary dialog contains one, and dialogs in this app are
+ * always rendered (they are native <dialog>s opened imperatively), so a
+ * component-owned fetch ran four times — on ROOM JOIN, before anybody had
+ * played anything. Measured at four, which is also four walks of the room on
+ * the server.
+ *
+ * A guest's ask is a no-op the server drops, which is cheaper than teaching
+ * this table what a session is.
+ */
+const openSummary = (socket: AppSocket, dialog: DialogId) => {
+    openDialog(dialog);
+    const { room, playerJoined } = useMinesweeperStore.getState();
+    if (room && playerJoined) socket.emit(CLIENT_EVENTS.ROOM_FRIENDS, { room });
+};
+
 /** Shared + co-op events. */
 const coopHandlers = (socket: AppSocket, leaveRoom: () => void): SocketHandlers => ({
     // --- Game state ---
@@ -128,7 +147,7 @@ const coopHandlers = (socket: AppSocket, leaveRoom: () => void): SocketHandlers 
         playSound('win');
         useMinesweeperStore.getState().setGameWon(true);
         recordClear();
-        openDialog(DIALOGS.gameSummary);
+        openSummary(socket, DIALOGS.gameSummary);
     },
 
     [SERVER_EVENTS.GAME_OVER]: (name) => {
@@ -136,7 +155,7 @@ const coopHandlers = (socket: AppSocket, leaveRoom: () => void): SocketHandlers 
         const store = useMinesweeperStore.getState();
         store.setGameOver(true);
         store.setGameOverName(name);
-        openDialog(DIALOGS.gameSummary);
+        openSummary(socket, DIALOGS.gameSummary);
     },
 
     [SERVER_EVENTS.RESET_EVERYONE]: () => {
@@ -366,7 +385,7 @@ const pvpHandlers = (socket: AppSocket): SocketHandlers => ({
         const store = useMinesweeperStore.getState();
         store.setGameOver(true);
         store.setPvpOpponentStatus("playing"); // Opponent might still be playing
-        openDialog(DIALOGS.pvpGameOver);
+        openSummary(socket, DIALOGS.pvpGameOver);
     },
 
     [SERVER_EVENTS.PVP_OPPONENT_FAILED]: () => useMinesweeperStore.getState().setPvpOpponentStatus("failed"),
@@ -383,10 +402,10 @@ const pvpHandlers = (socket: AppSocket): SocketHandlers => ({
             store.setGameWon(true);
             // Winning a race means clearing the board, so it counts.
             recordClear();
-            openDialog(DIALOGS.pvpYouWon);
+            openSummary(socket, DIALOGS.pvpYouWon);
         } else {
             playSound('lose');
-            openDialog(DIALOGS.pvpOpponentWon);
+            openSummary(socket, DIALOGS.pvpOpponentWon);
         }
     },
 
@@ -401,7 +420,7 @@ const pvpHandlers = (socket: AppSocket): SocketHandlers => ({
         shootConfetti();
         playSound('win');
         store.setGameWon(true);
-        openDialog(DIALOGS.pvpOpponentDisconnected);
+        openSummary(socket, DIALOGS.pvpOpponentDisconnected);
     },
 
     [SERVER_EVENTS.PVP_OPPONENT_LEFT_BEFORE_START]: () => {

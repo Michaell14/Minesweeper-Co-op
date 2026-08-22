@@ -943,6 +943,12 @@ codes here are arbitrary player-typed strings bounded only by length, so
 `socket.join('user:<uuid>')` would share a namespace with the join box: anyone
 who knew an account id could create that room and receive their traffic.
 
+Every presence path INDEXES the socket map once per call
+(`indexSocketsByUser`) rather than scanning it per question. Asking "is this
+friend online" and then "which sockets are theirs" one friend at a time made a
+single connect O(friends x sockets) — two hundred walks of the map at the
+friend cap, on the connection path.
+
 A **snapshot** goes to an arriving socket (`friendsOnline`) and a **delta** to
 its online friends (`friendPresence`). A client that just connected has no
 prior state to apply deltas to; recomputing every recipient's whole list would
@@ -981,8 +987,12 @@ any account whose socket id you can name. Putting account ids in the room roster
 instead would hand every player in a room a permanent handle for everybody
 else, which is exactly what the code-only rule exists to prevent.
 
-The list is computed per ASKER, which is what lets "me" be excluded server-side
-rather than by a client comparing socket ids it would first have to be told. It
+The list is asked for where the summary dialog is OPENED, not by the component
+that draws it: dialogs here are always rendered, so a component-owned fetch ran
+once per summary dialog — four times, on room join, before anybody had played
+anything. It is computed per ASKER, which is what lets "me" be excluded
+server-side rather than by a client comparing socket ids it would first have to
+be told. It
 leaves out guests (no account to befriend), anybody either party has blocked (a
 button that silently failed would be the one place a block leaked), and anybody
 whose socket has gone — the account is resolved from the LIVE socket, so

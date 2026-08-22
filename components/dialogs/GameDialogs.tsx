@@ -15,14 +15,13 @@ import GameSummary from '@/components/game/GameSummary';
  */
 export interface GameDialogsProps {
     /** Threaded to every summary: the add-friend offer lives in it. */
-    requestRoomFriends: () => void;
     addRoomFriend: (playerId: string) => void;
     /** Starts a fresh board. Same action as the side panel's Reset. */
     resetGame: () => void;
 }
 
-export default function GameDialogs({ resetGame, requestRoomFriends, addRoomFriend }: GameDialogsProps) {
-    const summaryProps = { requestRoomFriends, addRoomFriend };
+export default function GameDialogs({ resetGame, addRoomFriend }: GameDialogsProps) {
+    const summaryProps = { addRoomFriend };
     const gameOverName = useMinesweeperStore((state) => state.gameOverName);
     const gameWon = useMinesweeperStore((state) => state.gameWon);
     const setPlayerJoined = useMinesweeperStore((state) => state.setPlayerJoined);

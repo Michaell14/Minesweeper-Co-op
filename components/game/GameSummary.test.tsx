@@ -11,8 +11,8 @@ import { useMinesweeperStore } from "@/app/store";
 const mockStatus = vi.fn(() => "unauthenticated");
 vi.mock("next-auth/react", () => ({ useSession: () => ({ status: mockStatus() }) }));
 
-/** The offer's two actions. Nothing here presses them. */
-const summaryProps = { requestRoomFriends: vi.fn(), addRoomFriend: vi.fn() };
+/** The offer's action. Nothing here presses it. */
+const summaryProps = { addRoomFriend: vi.fn() };
 import { DEFAULT_PRESET } from "@/shared/boardConfig";
 import type { Cell } from "@/shared/socketPayloads";
 import GameSummary from "./GameSummary";

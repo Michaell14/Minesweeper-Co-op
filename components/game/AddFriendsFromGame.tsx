@@ -6,7 +6,6 @@ import { useMinesweeperStore } from '@/app/store';
 import { Button, NameWithAvatar } from '@/components/ds';
 
 export interface AddFriendsFromGameProps {
-    requestRoomFriends: () => void;
     addRoomFriend: (playerId: string) => void;
 }
 
@@ -23,21 +22,17 @@ export interface AddFriendsFromGameProps {
  * filtering here — an empty list means there is nobody to offer, and this
  * renders nothing rather than an empty heading.
  */
-export default function AddFriendsFromGame({ requestRoomFriends, addRoomFriend }: AddFriendsFromGameProps) {
+export default function AddFriendsFromGame({ addRoomFriend }: AddFriendsFromGameProps) {
     const { status } = useSession();
     const roomFriends = useMinesweeperStore((state) => state.roomFriends);
 
     /*
-     * Asked for when the summary appears rather than pushed at game end: the
-     * server would otherwise have to hook every one of the game-end sites, and
-     * this is the only moment the answer is looked at.
+     * Draws only. The list is asked for where the summary is OPENED
+     * (hooks/useGameEvents.ts): this component is mounted once per summary
+     * dialog, and dialogs here are always rendered, so owning the fetch meant
+     * asking four times on room join.
      */
-    const signedIn = status === 'authenticated';
-    React.useEffect(() => {
-        if (signedIn) requestRoomFriends();
-    }, [signedIn, requestRoomFriends]);
-
-    if (!signedIn || roomFriends.length === 0) return null;
+    if (status !== 'authenticated' || roomFriends.length === 0) return null;
 
     /** What the button says, and whether it still does anything. */
     const action = (statusOf: (typeof roomFriends)[number]['status']) => {

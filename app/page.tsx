@@ -54,7 +54,6 @@ export default function Home() {
 
             <GameDialogs
                 resetGame={actions.resetGame}
-                requestRoomFriends={actions.requestRoomFriends}
                 addRoomFriend={actions.addRoomFriend}
             />
         </>

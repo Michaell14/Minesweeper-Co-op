@@ -17,7 +17,6 @@ function Stat({ label, value }: { label: string; value: string }) {
 }
 
 export interface GameSummaryProps {
-    requestRoomFriends: () => void;
     addRoomFriend: (playerId: string) => void;
 }
 
@@ -31,7 +30,7 @@ export interface GameSummaryProps {
  * scoreboard; PVP is a race, where the only number that settles anything is how
  * far each player got.
  */
-export default function GameSummary({ requestRoomFriends, addRoomFriend }: GameSummaryProps) {
+export default function GameSummary({ addRoomFriend }: GameSummaryProps) {
     const mode = useMinesweeperStore((state) => state.mode);
     const startedAt = useMinesweeperStore((state) => state.startedAt);
     const endedAt = useMinesweeperStore((state) => state.endedAt);
@@ -72,10 +71,7 @@ export default function GameSummary({ requestRoomFriends, addRoomFriend }: GameS
 
             {/* Both modes: a quick match pairs strangers, which is the case
                 this exists for. */}
-            <AddFriendsFromGame
-                requestRoomFriends={requestRoomFriends}
-                addRoomFriend={addRoomFriend}
-            />
+            <AddFriendsFromGame addRoomFriend={addRoomFriend} />
         </div>
     );
 }

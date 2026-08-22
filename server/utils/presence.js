@@ -17,25 +17,43 @@ const friendsRepo = require('../data/friendsRepo');
 const { SERVER_EVENTS } = require('../../shared/events');
 
 /**
+ * The live socket map, indexed by account: `Map<userId, socketId[]>`.
+ *
+ * ONE pass, reused for every lookup the caller then makes. Built rather than
+ * scanned per question because the questions come in bunches: announcing a
+ * departure asks "is this friend online?" once per friend and then "which
+ * sockets do they have?" for each one who is, so a scan per lookup made a
+ * single connect O(friends x sockets) — at the 100-friend cap, two hundred
+ * walks of the whole map, on the connection path. That is the shape of thing
+ * that is free in testing and quadratic in production.
+ */
+const indexSocketsByUser = () => {
+    const byUser = new Map();
+    for (const [socketId, socket] of io.sockets.sockets) {
+        const userId = socket?.data?.user?.id;
+        if (!userId) continue;
+        const existing = byUser.get(userId);
+        if (existing) existing.push(socketId);
+        else byUser.set(userId, [socketId]);
+    }
+    return byUser;
+};
+
+/**
  * Every live socket belonging to an account, resolved NOW rather than assumed.
  *
  * A scan rather than a `user:<id>` room, which would be the idiomatic answer
  * anywhere else: room codes here are arbitrary strings (`validation.js` bounds
  * only the length), so `socket.join('user:<uuid>')` shares a namespace with
  * whatever players type into the join box — and anyone who knew a victim's id
- * could create that room and receive their traffic. Presence events are rare
- * and the socket map is small, so the scan costs nothing worth protecting.
+ * could create that room and receive their traffic.
  *
  * Moved here from statsRecorder, which now imports it: two copies of this
  * scan would be two places for the `user:<id>` shortcut to creep back in.
+ * That caller asks once, on a rare unlock, so it pays for its own pass; the
+ * presence paths below build the index instead.
  */
-const socketIdsOf = (userId) => {
-    const ids = [];
-    for (const [socketId, socket] of io.sockets.sockets) {
-        if (socket?.data?.user?.id === userId) ids.push(socketId);
-    }
-    return ids;
-};
+const socketIdsOf = (userId) => indexSocketsByUser().get(userId) ?? [];
 
 /** Whether an account has any live socket at all. */
 const isOnline = (userId) => socketIdsOf(userId).length > 0;
@@ -58,7 +76,8 @@ const isLastSocketOf = (socket) => {
 const onlineFriendIds = async (userId) => {
     if (!isDbEnabled()) return [];
     const friendIds = await friendsRepo.listFriendIds(userId);
-    return friendIds.filter(isOnline);
+    const byUser = indexSocketsByUser();
+    return friendIds.filter((friendId) => byUser.has(friendId));
 };
 
 /** Emits to every live socket of one account. No-op if they have none. */
@@ -99,9 +118,13 @@ const announcePresence = async (userId, online) => {
     if (!userId || !isDbEnabled()) return;
     try {
         const friendIds = await friendsRepo.listFriendIds(userId);
+        // One index for the whole fan-out: both questions below — who is here,
+        // and which sockets are theirs — are answered from it.
+        const byUser = indexSocketsByUser();
         for (const friendId of friendIds) {
-            if (!isOnline(friendId)) continue;
-            emitToUser(friendId, SERVER_EVENTS.FRIEND_PRESENCE, { id: userId, online });
+            for (const socketId of byUser.get(friendId) ?? []) {
+                io.to(socketId).emit(SERVER_EVENTS.FRIEND_PRESENCE, { id: userId, online });
+            }
         }
     } catch (error) {
         console.error('Presence announce failed:', error.message);
@@ -139,6 +162,7 @@ const onDisconnect = async (socket) => {
 };
 
 module.exports = {
+    indexSocketsByUser,
     socketIdsOf,
     isOnline,
     isLastSocketOf,

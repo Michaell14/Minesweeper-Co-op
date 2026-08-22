@@ -29,13 +29,11 @@ jest.mock('../data/roomRepo', () => ({
     getPlayers: (...a) => mockGetPlayers(...a),
 }));
 
-jest.mock('../data/playerRepo', () => ({ getName: async (id) => `name-of-${id}` }));
-
 const mockRequestFriend = jest.fn();
-const mockFindEdge = jest.fn();
+const mockFindEdges = jest.fn();
 jest.mock('../data/friendsRepo', () => ({
     STATUS: { pending: 'pending', accepted: 'accepted', blocked: 'blocked' },
-    findEdge: (...a) => mockFindEdge(...a),
+    findEdges: (...a) => mockFindEdges(...a),
     requestFriend: (...a) => mockRequestFriend(...a),
 }));
 
@@ -69,7 +67,7 @@ beforeEach(() => {
     mockQuery.mockReset();
     mockGetState.mockReset();
     mockGetPlayers.mockReset();
-    mockFindEdge.mockReset().mockResolvedValue(null);
+    mockFindEdges.mockReset().mockResolvedValue(new Map());
     mockRequestFriend.mockReset().mockResolvedValue('requested');
     jest.spyOn(console, 'error').mockImplementation(() => {});
 });
@@ -86,7 +84,7 @@ describe('the list', () => {
 
         const payload = listSentTo(me);
         expect(payload.players).toEqual([
-            { id: 'sock-them', name: 'name-of-sock-them', avatar: 'frog', status: 'none' },
+            { id: 'sock-them', name: 'Them', avatar: 'frog', status: 'none' },
         ]);
         // The one assertion this whole design exists for.
         expect(JSON.stringify(payload)).not.toContain(THEM_ACCOUNT.id);
@@ -135,7 +133,7 @@ describe('the list', () => {
         const me = socketFor('sock-me', ME_ACCOUNT);
         socketFor('sock-them', THEM_ACCOUNT);
         roomHolds('sock-me', 'sock-them');
-        mockFindEdge.mockResolvedValue(edge);
+        mockFindEdges.mockResolvedValue(edge ? new Map([[THEM_ACCOUNT.id, edge]]) : new Map());
 
         await roomFriends(me, { room: ROOM });
 
@@ -150,7 +148,7 @@ describe('the list', () => {
         const me = socketFor('sock-me', ME_ACCOUNT);
         socketFor('sock-them', THEM_ACCOUNT);
         roomHolds('sock-me', 'sock-them');
-        mockFindEdge.mockResolvedValue({ status: 'blocked', direction });
+        mockFindEdges.mockResolvedValue(new Map([[THEM_ACCOUNT.id, { status: 'blocked', direction }]]));
 
         await roomFriends(me, { room: ROOM });
 
@@ -235,5 +233,26 @@ describe('adding', () => {
         mockRequestFriend.mockRejectedValue(new Error('connection terminated'));
 
         await expect(addRoomFriend(me, { room: ROOM, playerId: 'sock-them' })).resolves.toBeUndefined();
+    });
+});
+
+describe('the cost of the list', () => {
+    /*
+     * The regression this exists for: one edge query per player. Co-op rooms
+     * have no size limit, so that was a query per player every time a game
+     * ended — and the offer is asked for by every signed-in player in the room
+     * at once.
+     */
+    test('asks about the whole room in one query', async () => {
+        const me = socketFor('sock-me', ME_ACCOUNT);
+        const ids = Array.from({ length: 12 }, (_, i) => `sock-${i}`);
+        ids.forEach((id, i) => socketFor(id, { id: `uuid-${i}`, displayName: `P${i}`, avatar: null }));
+        roomHolds('sock-me', ...ids);
+
+        await roomFriends(me, { room: ROOM });
+
+        expect(mockFindEdges).toHaveBeenCalledTimes(1);
+        expect(mockFindEdges.mock.calls[0][1]).toHaveLength(12);
+        expect(listSentTo(me).players).toHaveLength(12);
     });
 });

@@ -22,7 +22,6 @@
 const { io } = require('../utils/initializeClient');
 const { isDbEnabled } = require('../utils/initializePgClient');
 const roomRepo = require('../data/roomRepo');
-const playerRepo = require('../data/playerRepo');
 const friendsRepo = require('../data/friendsRepo');
 const { isValidRoomCode, isPlayerInRoom } = require('../validation');
 const { SERVER_EVENTS } = require('../../shared/events');
@@ -59,22 +58,36 @@ const sendRoomFriends = async (socket, room) => {
     const roomState = await roomRepo.getState(room);
     if (!roomState || !isPlayerInRoom(roomState, socket.id)) return;
 
+    /*
+     * Resolve every candidate first, then ask about all of them at once. A
+     * co-op room has no size limit, so the obvious loop — one edge query per
+     * player — is a query per player every time a game ends.
+     *
+     * The name is the ACCOUNT's rather than the room record's, which is both
+     * cheaper and the same string: a signed-in player is stored in a room
+     * under their account name (utils/playerIdentity.js), and everybody in
+     * this list is signed in by construction.
+     */
     const playerIds = await roomRepo.getPlayers(room);
-    const players = [];
+    const candidates = [];
     for (const playerId of playerIds || []) {
         if (playerId === socket.id) continue;
         const account = accountOf(playerId);
         if (!account) continue;                      // a guest, or already gone
         if (account.id === me.id) continue;          // the same account, second tab
+        candidates.push({ playerId, account });
+    }
 
-        const status = statusFor(await friendsRepo.findEdge(me.id, account.id));
+    const edges = await friendsRepo.findEdges(me.id, candidates.map(({ account }) => account.id));
+
+    const players = [];
+    for (const { playerId, account } of candidates) {
+        const status = statusFor(edges.get(account.id) ?? null);
         if (status === null) continue;               // blocked, either way
 
         players.push({
             id: playerId,
-            // The name as the ROOM knows it, not the account's: it is the one
-            // on the scoreboard they just played against.
-            name: (await playerRepo.getName(playerId)) || account.displayName,
+            name: account.displayName,
             avatar: account.avatar ?? null,
             status,
         });
