@@ -236,11 +236,20 @@ const requestUnderLock = async (client, me, them) => {
 /**
  * Accept a request addressed to me.
  *
+ * Returns 'accepted', 'cap-reached' (mine), 'their-cap-reached', or
+ * 'no-request'.
+ *
  * The cap is re-checked inside the same statement rather than before it: an
  * account that filled up while a request sat pending must not be able to
  * exceed the cap by accepting the backlog. That subselect reads the
  * transaction's snapshot, so it only bounds the accepts it can SEE — the pair
  * lock is what makes two simultaneous accepts into my inbox see each other.
+ *
+ * BOTH ends are counted. `requestFriend` checks both too, but that check is
+ * only true of the moment the request was made: the requester can fill up
+ * while their ask sits in my inbox, and accepting then would put THEM at 101
+ * — a cap breach that neither of us asked for and only they can see.
+ *
  * Only a PENDING row addressed to me can be accepted, which is also what stops
  * a requester accepting their own request.
  */
@@ -255,11 +264,18 @@ const acceptUnderLock = async (client, me, them) => {
          WHERE requester_id = $2 AND addressee_id = $1 AND status = $4
            AND (SELECT count(*) FROM friendships
                 WHERE status = $3 AND (requester_id = $1 OR addressee_id = $1)) < $5
+           AND (SELECT count(*) FROM friendships
+                WHERE status = $3 AND (requester_id = $2 OR addressee_id = $2)) < $5
          RETURNING id`,
         [me, them, STATUS.accepted, STATUS.pending, MAX_FRIENDS],
     );
     if (result.rows.length > 0) return 'accepted';
-    return (await countFriends(me, client)) >= MAX_FRIENDS ? 'cap-reached' : 'no-request';
+
+    // Which cap stopped it, so the answer can say. Both reads are on the same
+    // locked transaction as the update that just declined to fire.
+    if ((await countFriends(me, client)) >= MAX_FRIENDS) return 'cap-reached';
+    if ((await countFriends(them, client)) >= MAX_FRIENDS) return 'their-cap-reached';
+    return 'no-request';
 };
 
 /** Turn down a request addressed to me. Idempotent: nothing to decline is fine. */

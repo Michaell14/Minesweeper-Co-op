@@ -242,12 +242,35 @@ describe('acceptRequest', () => {
     test('tells a full list from a missing request', async () => {
         answers(
             { rows: [] },                                       // no update
-            { rows: [{ count: friendsRepo.MAX_FRIENDS }] },     // because full
+            { rows: [{ count: friendsRepo.MAX_FRIENDS }] },     // because I am full
         );
         expect(await friendsRepo.acceptRequest(ME, THEM)).toBe('cap-reached');
 
-        answers({ rows: [] }, { rows: [{ count: 3 }] });
+        answers({ rows: [] }, { rows: [{ count: 3 }] }, { rows: [{ count: 3 }] });
         expect(await friendsRepo.acceptRequest(ME, THEM)).toBe('no-request');
+    });
+
+    /*
+     * requestFriend checks both lists, but only as they stood when the request
+     * was SENT. The requester can fill up while their ask sits in my inbox,
+     * and accepting then puts THEM at 101 — a breach neither of us asked for
+     * and only they can see. So both ends are counted here too.
+     */
+    test('refuses when the REQUESTER filled up while their ask sat pending', async () => {
+        answers(
+            { rows: [] },                                       // no update
+            { rows: [{ count: 3 }] },                           // I have room
+            { rows: [{ count: friendsRepo.MAX_FRIENDS }] },     // they do not
+        );
+        expect(await friendsRepo.acceptRequest(ME, THEM)).toBe('their-cap-reached');
+    });
+
+    test('carries BOTH participants\' caps in the update itself', async () => {
+        answers({ rows: [{ id: 7 }] });
+        await friendsRepo.acceptRequest(ME, THEM);
+        const [sql] = statements()[0];
+        expect(sql).toMatch(/requester_id = \$1 OR addressee_id = \$1\)\) < \$5/);   // mine
+        expect(sql).toMatch(/requester_id = \$2 OR addressee_id = \$2\)\) < \$5/);   // theirs
     });
 });
 
@@ -482,10 +505,26 @@ describe('the routes', () => {
     });
 
     test('PUT accept answers 404 when there is no request', async () => {
-        answers({ rows: [] }, { rows: [{ count: 1 }] });
+        answers({ rows: [] }, { rows: [{ count: 1 }] }, { rows: [{ count: 1 }] });
         const res = makeRes();
         await routes['PUT /api/friends/:id']({ user: USER, params: { id: THEM }, body: { action: 'accept' } }, res);
         expect(res.statusCode).toBe(404);
+    });
+
+    /*
+     * Either cap is a 409, and the wording is the request path's — one table,
+     * so "their list is full" cannot drift into two different sentences
+     * depending on which end of the request you are standing at.
+     */
+    test.each([
+        ['my own list', [{ rows: [] }, { rows: [{ count: friendsRepo.MAX_FRIENDS }] }]],
+        ['theirs', [{ rows: [] }, { rows: [{ count: 1 }] }, { rows: [{ count: friendsRepo.MAX_FRIENDS }] }]],
+    ])('PUT accept answers 409 when %s is full', async (_label, queued) => {
+        answers(...queued);
+        const res = makeRes();
+        await routes['PUT /api/friends/:id']({ user: USER, params: { id: THEM }, body: { action: 'accept' } }, res);
+        expect(res.statusCode).toBe(409);
+        expect(res.body.error).toEqual(expect.any(String));
     });
 
     test.each([
