@@ -80,8 +80,22 @@ const errorFrom = async (res: Response): Promise<ProfileApiError> => {
 export async function fetchProfile(): Promise<ProfileUser | null> {
     const res = await request("GET");
     if (!res || !res.ok) return null;
-    const data = await res.json();
-    return (data?.user as ProfileUser) ?? null;
+    try {
+        const data = await res.json();
+        return (data?.user as ProfileUser) ?? null;
+    } catch {
+        /*
+         * A 200 carrying something that is not JSON — a proxy interstitial, a
+         * truncated body. Tolerated the same way `errorFrom` tolerates it on
+         * the refusal path, because the contract at the top of this file is
+         * that only an ANSWERED REFUSAL throws. A raw SyntaxError escaping
+         * here reaches callers that only handle fulfilment: the account panel
+         * sits on "Loading…" for the rest of the page's life, and a signed-in
+         * player following a room link never gets in and is never asked for a
+         * name either.
+         */
+        return null;
+    }
 }
 
 /**

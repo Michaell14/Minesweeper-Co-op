@@ -16,7 +16,7 @@ vi.mock("@/lib/authBridge", () => ({
 }));
 vi.mock("@/lib/initSocket", () => ({ serverURL: "http://test" }));
 
-import { PROFILE_UPDATED_EVENT, updateAvatar, updateDisplayName } from "./profileApi";
+import { PROFILE_UPDATED_EVENT, fetchProfile, updateAvatar, updateDisplayName } from "./profileApi";
 
 const response = (avatar: string) => ({
     ok: true,
@@ -86,4 +86,26 @@ it("a lone save broadcasts its response", async () => {
     await updateAvatar("kitty");
 
     expect(heard).toEqual(["kitty"]);
+});
+
+/*
+ * The read path's failure shape. Everything downstream only handles
+ * fulfilment: the account panel's `profileState` and the landing page's
+ * `resolved` both stay pending forever on a rejection, which is a page that
+ * silently does nothing rather than one that degrades.
+ */
+it("answers null when a 200 carries something that is not JSON", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        json: async () => { throw new SyntaxError("Unexpected token < in JSON"); },
+    })));
+
+    await expect(fetchProfile()).resolves.toBeNull();
+});
+
+it("answers null when the body has no user", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, status: 200, json: async () => ({}) })));
+
+    await expect(fetchProfile()).resolves.toBeNull();
 });

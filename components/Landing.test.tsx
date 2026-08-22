@@ -216,3 +216,33 @@ describe('arriving by join link', () => {
         expect(mockOpenDialog).not.toHaveBeenCalledWith(DIALOGS.nameJoin);
     });
 });
+
+/*
+ * `fetchProfile` answers with null rather than throwing, but the hook must not
+ * DEPEND on that: `resolved` gates the join-link path, so a promise that never
+ * settles is a landing page that silently does nothing — no room joined, and
+ * no name dialog offered either.
+ */
+describe('when the profile fetch rejects outright', () => {
+    it('still falls back to asking, rather than hanging on a join link', async () => {
+        mockUseSession.mockReturnValue({ status: 'authenticated' });
+        mockFetchProfile.mockRejectedValue(new SyntaxError('Unexpected token <'));
+        window.history.replaceState(null, '', '/?room=shared');
+
+        renderLanding();
+
+        await waitFor(() => expect(mockOpenDialog).toHaveBeenCalledWith(DIALOGS.nameJoin));
+        expect(actions.joinRoom).not.toHaveBeenCalled();
+    });
+
+    it('still asks before creating', async () => {
+        mockUseSession.mockReturnValue({ status: 'authenticated' });
+        mockFetchProfile.mockRejectedValue(new SyntaxError('Unexpected token <'));
+        renderLanding();
+
+        await submitCreate();
+
+        await waitFor(() => expect(mockOpenDialog).toHaveBeenCalledWith(DIALOGS.nameCreate));
+        expect(actions.createRoom).not.toHaveBeenCalled();
+    });
+});

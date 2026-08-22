@@ -101,13 +101,25 @@ export function useAccountProfile(): AccountProfile {
          * arrives, the fetch result is stale and must not apply.
          */
         let heardUpdate = false;
-        loadProfile().then((user) => {
-            if (cancelled) return;
-            if (!heardUpdate) setProfile(user);
-            // Resolved either way: a null here is "the account API had nothing
-            // for us", which is an answer, not a pending state.
-            setResolved(true);
-        });
+        loadProfile()
+            .then((user) => {
+                if (cancelled) return;
+                if (!heardUpdate) setProfile(user);
+                // Resolved either way: a null here is "the account API had
+                // nothing for us", which is an answer, not a pending state.
+                setResolved(true);
+            })
+            .catch(() => {
+                /*
+                 * `fetchProfile` answers with null rather than throwing, so
+                 * this should be unreachable — it is here because `resolved`
+                 * must become true no matter what. Callers WAIT on it (the
+                 * join-link path decides nothing until it settles), so a
+                 * promise that never resolves is not a degraded page, it is a
+                 * page that silently does nothing.
+                 */
+                if (!cancelled) setResolved(true);
+            });
         const onProfileUpdated = (event: Event) => {
             heardUpdate = true;
             const user = (event as CustomEvent<ProfileUser>).detail;
