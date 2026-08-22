@@ -352,7 +352,7 @@ io.on('connection', async (socket) => {
             const playerName = await playerRepo.getName(socket.id);
             if (!playerName) return;
 
-            io.to(room).emit(SERVER_EVENTS.PLAYER_EMOTE, { id: socket.id, name: playerName, emote });
+            io.to(room).emit(SERVER_EVENTS.PLAYER_EMOTE, { id: socket.id, name: playerName, emote, room });
         } catch (error) {
             console.error('Error in sendEmote:', error);
         }
@@ -404,7 +404,7 @@ io.on('connection', async (socket) => {
             const playerName = await playerRepo.getName(socket.id);
             if (!playerName) return;
 
-            io.to(room).emit(SERVER_EVENTS.PLAYER_PING, { id: socket.id, name: playerName, row, col });
+            io.to(room).emit(SERVER_EVENTS.PLAYER_PING, { id: socket.id, name: playerName, row, col, room });
         } catch (error) {
             console.error('Error in pingCell:', error);
         }

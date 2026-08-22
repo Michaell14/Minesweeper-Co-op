@@ -96,7 +96,7 @@ describe('a valid ping', () => {
         await pingCell({ room: ROOM, row: 4, col: 7 });
 
         expect(mockTo).toHaveBeenCalledWith(ROOM);
-        expect(pingsSent()).toEqual([{ id: ALICE, name: 'Alice', row: 4, col: 7 }]);
+        expect(pingsSent()).toEqual([{ id: ALICE, name: 'Alice', row: 4, col: 7, room: ROOM }]);
     });
 
     test('carries the stored name, not one the client supplied', async () => {
@@ -183,7 +183,7 @@ describe('what it refuses, silently', () => {
 
             await pingCell({ room: ROOM, row: 1, col: 2 });
 
-            expect(pingsSent()).toEqual([{ id: ALICE, name: 'Alice', row: 1, col: 2 }]);
+            expect(pingsSent()).toEqual([{ id: ALICE, name: 'Alice', row: 1, col: 2, room: ROOM }]);
         });
 
         // A room hash with no dimensions cannot bound anything; refuse rather
