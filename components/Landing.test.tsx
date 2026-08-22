@@ -172,6 +172,61 @@ describe('while the account is still loading', () => {
 });
 
 /*
+ * Quick Match is one click with nothing to type first, so it is the action a
+ * signed-in player reaches inside the window before the profile lands. Falling
+ * through to the dialog there asks for a name the server would overrule anyway.
+ */
+describe('quick matching before the account resolves', () => {
+    const pendingAccount = () => {
+        mockUseSession.mockReturnValue({ status: 'authenticated' });
+        let arrive!: (user: typeof PROFILE | null) => void;
+        mockFetchProfile.mockReturnValue(new Promise((resolve) => { arrive = resolve; }));
+        return () => arrive;
+    };
+
+    it('holds the click and replays it once the account arrives', async () => {
+        const getArrive = pendingAccount();
+        renderLanding();
+
+        fireEvent.click(screen.getByRole('button', { name: /Quick match/i }));
+
+        // Nothing decided yet: no dialog, no search.
+        expect(mockOpenDialog).not.toHaveBeenCalledWith(DIALOGS.nameMatch);
+        expect(actions.findMatch).not.toHaveBeenCalled();
+
+        getArrive()(PROFILE);
+
+        await waitFor(() => expect(actions.findMatch).toHaveBeenCalled());
+        expect(mockOpenDialog).not.toHaveBeenCalledWith(DIALOGS.nameMatch);
+        // The account name has to be in the store first — findMatch drops an
+        // emit without one.
+        expect(useMinesweeperStore.getState().name).toBe('Miguel');
+    });
+
+    it('still asks when the answer turns out to be no account', async () => {
+        const getArrive = pendingAccount();
+        renderLanding();
+
+        fireEvent.click(screen.getByRole('button', { name: /Quick match/i }));
+        getArrive()(null);
+
+        await waitFor(() => expect(mockOpenDialog).toHaveBeenCalledWith(DIALOGS.nameMatch));
+        expect(actions.findMatch).not.toHaveBeenCalled();
+    });
+
+    it('asks rather than hanging when the profile fetch rejects', async () => {
+        mockUseSession.mockReturnValue({ status: 'authenticated' });
+        mockFetchProfile.mockRejectedValue(new SyntaxError('Unexpected token <'));
+        renderLanding();
+
+        fireEvent.click(screen.getByRole('button', { name: /Quick match/i }));
+
+        await waitFor(() => expect(mockOpenDialog).toHaveBeenCalledWith(DIALOGS.nameMatch));
+        expect(actions.findMatch).not.toHaveBeenCalled();
+    });
+});
+
+/*
  * The join link (?room=...) is the one path that decides on MOUNT, before an
  * account can possibly have loaded — which is why the forms take a tri-state
  * prop instead of a plain optional. Collapsing "guest" and "not yet" sends

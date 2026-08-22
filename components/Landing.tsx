@@ -75,6 +75,30 @@ export default function Landing({ createRoom, joinRoom, findMatch, cancelMatch, 
     const skipNameDialog = (action: () => void): (() => void) | null | undefined =>
         resolved ? (named ? action : null) : undefined;
 
+    /*
+     * Quick Match is one click, live the instant the page paints, so it is the
+     * action people actually reach before the account resolves. Deciding then
+     * would ask a signed-in player for a name they already have, so the click
+     * is HELD and replayed once the answer lands. The forms fall through to the
+     * dialog instead — typing a room code outlasts the fetch — and the one path
+     * that does decide on mount, the join link, waits for the same reason.
+     */
+    const [matchQueued, setMatchQueued] = React.useState(false);
+
+    /** Only correct once `resolved`: before that, `named` means "not yet". */
+    const startMatch = React.useCallback(() => {
+        if (named) findMatch();
+        else openDialog(DIALOGS.nameMatch);
+    }, [named, findMatch]);
+
+    // Declared after the setName effect above, so the store already holds the
+    // account name when this fires — findMatch drops an emit with an empty one.
+    React.useEffect(() => {
+        if (!matchQueued || !resolved) return;
+        setMatchQueued(false);
+        startMatch();
+    }, [matchQueued, resolved, startMatch]);
+
     return (
         <>
             <AnnouncementBanner />
@@ -107,7 +131,9 @@ export default function Landing({ createRoom, joinRoom, findMatch, cancelMatch, 
                     <Button
                         intent="primary"
                         size="sm"
-                        onClick={() => (named ? findMatch() : openDialog(DIALOGS.nameMatch))}
+                        onClick={() => (resolved ? startMatch() : setMatchQueued(true))}
+                        disabled={matchQueued}
+                        aria-busy={matchQueued}
                         aria-label="Quick match — race a random opponent, no room code needed">
                         <span className="flex items-center gap-2">
                             <SwordsIcon size={16} />
