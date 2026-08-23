@@ -107,6 +107,27 @@ describe('a second tab', () => {
 
         expect(presenceEvents()).toEqual([{ id: ALICE, online: false }]);
     });
+
+    /*
+     * A reload is a disconnect and a connect a moment apart, and the friend
+     * lookup in between is a Postgres round trip. The departure must not
+     * outlive the arrival that overtook it.
+     */
+    test('and a reconnect inside the lookup cancels the departure', async () => {
+        const first = connect('s1', ALICE);
+        connect('sb', BOB);
+        friendsAre(BOB);
+        mockSockets.delete('s1');
+
+        // The reload lands while listFriendIds is still in flight.
+        mockQuery.mockImplementationOnce(async () => {
+            connect('s2', ALICE);
+            return { rows: [{ friend_id: BOB }] };
+        });
+        await presence.onDisconnect(first);
+
+        expect(presenceEvents()).toEqual([]);
+    });
 });
 
 describe('arriving', () => {

@@ -41,17 +41,26 @@ const socketIdsOf = (userId) => {
 const isOnline = (userId) => socketIdsOf(userId).length > 0;
 
 /**
+ * The same question with one socket left out — the one that is leaving.
+ *
+ * By id rather than by count: whether the leaver is still in the map when a
+ * handler runs depends on the disconnect path, and this answers the same
+ * either way.
+ */
+const isOnlineExcept = (userId, exceptSocketId) =>
+    socketIdsOf(userId).some((id) => id !== exceptSocketId);
+
+/**
  * Whether this socket is the account's LAST one.
  *
  * The reason a disconnect cannot simply announce "offline": a player with the
  * game open in two tabs closes one, and their friends would watch them wink
- * out while they are still playing. The disconnecting socket is still in the
- * map when this runs, so it is excluded by id rather than by count.
+ * out while they are still playing.
  */
 const isLastSocketOf = (socket) => {
     const userId = socket?.data?.user?.id;
     if (!userId) return false;
-    return socketIdsOf(userId).every((id) => id === socket.id);
+    return !isOnlineExcept(userId, socket.id);
 };
 
 /** The subset of an account's friends who are on the site. */
@@ -94,11 +103,20 @@ const sendPresenceSnapshot = async (socket) => {
  *
  * Only friends who are ONLINE are told — an offline friend has no socket to
  * receive it, and will get a snapshot of their own when they arrive.
+ *
+ * `exceptSocketId` is the leaver on the disconnect path, so the recheck below
+ * asks the same question this was called with rather than counting the socket
+ * whose departure it is announcing.
  */
-const announcePresence = async (userId, online) => {
+const announcePresence = async (userId, online, exceptSocketId) => {
     if (!userId || !isDbEnabled()) return;
     try {
         const friendIds = await friendsRepo.listFriendIds(userId);
+        // The socket map moves while that query is in flight — a reload
+        // reconnects inside it — and a stale `false` arriving after the new
+        // socket's `true` leaves friends looking at a ghost. Re-read, and drop
+        // an announcement the map no longer agrees with.
+        if (isOnlineExcept(userId, exceptSocketId) !== online) return;
         for (const friendId of friendIds) {
             if (!isOnline(friendId)) continue;
             emitToUser(friendId, SERVER_EVENTS.FRIEND_PRESENCE, { id: userId, online });
@@ -132,7 +150,7 @@ const onDisconnect = async (socket) => {
     try {
         const userId = socket?.data?.user?.id;
         if (!userId || !isLastSocketOf(socket)) return;
-        await announcePresence(userId, false);
+        await announcePresence(userId, false, socket.id);
     } catch (error) {
         console.error('Presence on disconnect failed:', error.message);
     }
@@ -141,6 +159,7 @@ const onDisconnect = async (socket) => {
 module.exports = {
     socketIdsOf,
     isOnline,
+    isOnlineExcept,
     isLastSocketOf,
     onlineFriendIds,
     emitToUser,

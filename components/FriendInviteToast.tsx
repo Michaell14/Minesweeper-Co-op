@@ -8,9 +8,10 @@ import { ROOM_QUERY_PARAM } from '@/lib/roomLink';
  * "Come play with me", from a friend, wherever the player happens to be.
  *
  * Mounted once in the layout beside AchievementToast and for the same reason:
- * the socket lives on `/` and `/daily`, but an invite can land while somebody
- * is reading /settings, and a toast that only existed on the game page would
- * drop exactly the ones worth having.
+ * the socket lives on `/` and `/daily`, and an offer that arrives a moment
+ * before the player navigates away would unmount with the page. Nothing
+ * arrives WHILE they are on /settings — presence is a live socket, so an
+ * account reading it is offline and never gets invited in the first place.
  *
  * ACCEPTING IS A NAVIGATION, not a socket call. The join flow already exists
  * for links (`?room=`) — it fills the code, asks for a name if there is not
