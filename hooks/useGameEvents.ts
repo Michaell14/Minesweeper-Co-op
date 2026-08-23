@@ -104,11 +104,30 @@ const nextEmoteKey = () => String(++emoteSequence);
  * `playerJoined` is half the check, not decoration. `room` also holds whatever
  * is being TYPED into the landing form, so the code alone matches again the
  * moment somebody types their way back towards the room they left.
+ *
+ * A payload with NO room is let through, but only until this browser leaves a
+ * room. Both halves deploy from `main` and neither waits for the other, so for
+ * the length of a deploy a new client talks to a server that has not started
+ * sending `room` yet; comparing against `undefined` there would refuse every
+ * relay and turn reactions and pings silently off. `leftARoom` is what keeps
+ * that from re-opening the hole above: a stale relay can only arrive after a
+ * leave, so once one has happened a roomless payload is no longer provably
+ * from the room on screen and is refused. Somebody who joins one room and
+ * stays — nearly everybody — keeps their reactions through the window; anybody
+ * who switches rooms inside it loses them until they reload, which is the safe
+ * direction to fail.
+ *
+ * All of this is dead the moment the server catches up: every payload carries
+ * a room from then on, and the strict comparison is the only branch that runs.
  */
 const belongsToCurrentRoom = (
-    store: { room: string; playerJoined: boolean },
-    room: string,
-) => store.playerJoined && store.room === room;
+    store: { room: string; playerJoined: boolean; leftARoom: boolean },
+    room: string | undefined,
+) => {
+    if (!store.playerJoined) return false;
+    if (room === undefined) return !store.leftARoom;
+    return store.room === room;
+};
 
 /** Shared + co-op events. */
 const coopHandlers = (socket: AppSocket, leaveRoom: () => void): SocketHandlers => ({

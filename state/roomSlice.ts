@@ -6,6 +6,12 @@ import type { MinesweeperState } from './store';
 export interface RoomSlice {
     room: string;
     playerJoined: boolean;                      // true once this player is in a room
+    /**
+     * Whether this browser has ever LEFT a room on this socket. Latches: it is
+     * about the session's history, not its present. The only reader is the
+     * relay guard in `useGameEvents` — see `belongsToCurrentRoom`.
+     */
+    leftARoom: boolean;
     name: string;                               // this player's display name
     playerStatsInRoom: PlayerStats[];           // everyone's scores
     gameOverName: string;                       // who hit the mine
@@ -55,6 +61,7 @@ export interface RoomSlice {
 export const createRoomSlice: StateCreator<MinesweeperState, [], [], RoomSlice> = (set) => ({
     room: '',
     playerJoined: false,
+    leftARoom: false,
     name: '',
     playerStatsInRoom: [],
     gameOverName: '',
@@ -67,7 +74,11 @@ export const createRoomSlice: StateCreator<MinesweeperState, [], [], RoomSlice> 
     practiceTargetIsPersonal: false,
 
     setRoom: (newRoom) => set({ room: newRoom }),
-    setPlayerJoined: (isPlayerJoined) => set({ playerJoined: isPlayerJoined }),
+    // Going false IS the leave: `leaveRoom` and the leave button are the only
+    // callers, and neither a reconnect nor a resume passes through here.
+    setPlayerJoined: (isPlayerJoined) => set(
+        isPlayerJoined ? { playerJoined: true } : { playerJoined: false, leftARoom: true },
+    ),
     setName: (newName) => set({ name: newName }),
     setPlayerStatsInRoom: (newStats) => set({ playerStatsInRoom: newStats }),
     setGameOverName: (gameOverName) => set({ gameOverName }),
