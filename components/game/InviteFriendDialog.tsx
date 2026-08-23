@@ -24,6 +24,7 @@ export interface InviteFriendDialogProps {
 export default function InviteFriendDialog({ inviteFriend }: InviteFriendDialogProps) {
     const onlineFriendIds = useMinesweeperStore((state) => state.onlineFriendIds);
     const [friends, setFriends] = React.useState<FriendProfile[] | null>(null);
+    const [failed, setFailed] = React.useState(false);
     const [invited, setInvited] = React.useState<string[]>([]);
 
     // One fetch, the first time the dialog is opened. Presence arrives on the
@@ -35,8 +36,17 @@ export default function InviteFriendDialog({ inviteFriend }: InviteFriendDialogP
         const onToggle = async () => {
             if (!(dialog as HTMLDialogElement).open || opened.current) return;
             opened.current = true;
+            setFailed(false);
             const graph = await fetchFriends();
-            setFriends(graph ? graph.friends : []);
+            // A fetch that failed is not a graph with nobody in it. Unlatch so
+            // the next open tries again, rather than answering "no friends
+            // online" for the rest of the session over one blip.
+            if (!graph) {
+                opened.current = false;
+                setFailed(true);
+                return;
+            }
+            setFriends(graph.friends);
         };
         // `toggle` rather than a store flag: these dialogs are opened
         // imperatively with showModal(), so the element is the only thing that
@@ -60,9 +70,15 @@ export default function InviteFriendDialog({ inviteFriend }: InviteFriendDialogP
             id={DIALOGS.inviteFriend}
             title="Invite a friend"
             actions={<DialogClose aria-label="Close invite dialog">Close</DialogClose>}>
-            {friends === null && <p className="text-pixel-sm text-ink-muted">Loading…</p>}
+            {friends === null && !failed && <p className="text-pixel-sm text-ink-muted">Loading…</p>}
 
-            {friends !== null && online.length === 0 && (
+            {failed && (
+                <p className="text-pixel-sm text-ink-muted">
+                    Could not load your friends. Close this and open it again to retry.
+                </p>
+            )}
+
+            {!failed && friends !== null && online.length === 0 && (
                 <p className="text-pixel-sm text-ink-muted">
                     None of your friends are online right now.
                 </p>
