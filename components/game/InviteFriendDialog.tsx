@@ -29,24 +29,49 @@ export default function InviteFriendDialog({ inviteFriend }: InviteFriendDialogP
 
     // One fetch, the first time the dialog is opened. Presence arrives on the
     // socket afterwards, so the list stays current without re-fetching.
-    const opened = React.useRef(false);
+    //
+    // Two refs, not one: "we have the roster" and "a request is in flight" are
+    // different reasons not to start another, and only the first should
+    // survive a failure. Refs rather than the state above because the listener
+    // below is registered once and would close over the first render's values.
+    const loaded = React.useRef(false);
+    const inFlight = React.useRef(false);
+    /*
+     * An open that landed while a request was in flight. It cannot start a
+     * second one, but it is still a request for fresh data — so if the flight
+     * FAILS, it is honoured then. Without it that open edge is spent, and the
+     * dialog the player is looking at sits on the error until they close and
+     * open it a second time. Cleared at the start of every attempt, so a
+     * failing endpoint retries once per reopen rather than in a loop.
+     */
+    const reopened = React.useRef(false);
     React.useEffect(() => {
         const dialog = document.getElementById(DIALOGS.inviteFriend);
         if (!dialog) return;
-        const onToggle = async () => {
-            if (!(dialog as HTMLDialogElement).open || opened.current) return;
-            opened.current = true;
+        const load = async (): Promise<void> => {
+            inFlight.current = true;
+            reopened.current = false;
             setFailed(false);
             const graph = await fetchFriends();
-            // A fetch that failed is not a graph with nobody in it. Unlatch so
-            // the next open tries again, rather than answering "no friends
-            // online" for the rest of the session over one blip.
+            inFlight.current = false;
+            // A fetch that failed is not a graph with nobody in it. Leave it
+            // unloaded so the next open tries again, rather than answering "no
+            // friends online" for the rest of the session over one blip.
             if (!graph) {
-                opened.current = false;
+                if (reopened.current && (dialog as HTMLDialogElement).open) return load();
                 setFailed(true);
                 return;
             }
+            loaded.current = true;
             setFriends(graph.friends);
+        };
+        const onToggle = () => {
+            if (!(dialog as HTMLDialogElement).open || loaded.current) return;
+            if (inFlight.current) {
+                reopened.current = true;
+                return;
+            }
+            void load();
         };
         // `toggle` rather than a store flag: these dialogs are opened
         // imperatively with showModal(), so the element is the only thing that
