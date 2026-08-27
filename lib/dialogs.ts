@@ -21,6 +21,10 @@ export const DIALOGS = {
     // Owned by components/Grid.tsx
     players: 'dialog-players',
 
+    // Owned by components/game/InviteFriendDialog.tsx, mounted ONCE by Grid —
+    // RoomPanel draws the button in both layout clusters.
+    inviteFriend: 'dialog-invite-friend',
+
     // Owned by components/Landing.tsx
     nameCreate: 'dialog-name-create',
     nameJoin: 'dialog-name-join',

@@ -120,6 +120,8 @@ export interface ClientToServerEvents {
     sendEmote: (payload: { room: string; emote: string }) => void;
     /** "Look at this cell". Co-op only — the server suppresses it in PVP. */
     pingCell: (payload: CellPayload) => void;
+    /** Ask a friend to join the room this socket is in. */
+    inviteFriend: (payload: { friendId: string; room: string }) => void;
     resetGame: (payload: RoomPayload) => void;
 
     startPvpGame: (payload: RoomPayload) => void;
@@ -220,6 +222,20 @@ export interface ServerToClientEvents {
      */
     // `room` is optional only for deploy skew — see belongsToCurrentRoom.
     playerPing: (payload: { id: string; name: string; row: number; col: number; room?: string }) => void;
+
+    // --- Friends ---
+    /** Which friends were already here, sent to a socket as it arrives. */
+    friendsOnline: (payload: { ids: string[] }) => void;
+    /** One friend came or went. A delta — see server/utils/presence.js. */
+    friendPresence: (payload: { id: string; online: boolean }) => void;
+    /** A friend asked you into their room. */
+    friendInvite: (payload: {
+        fromId: string;
+        fromName: string;
+        fromAvatar: string | null;
+        room: string;
+        mode: GameMode;
+    }) => void;
     /** Co-op only; the server suppresses hover in PVP. */
     playerHoverUpdate: (payload: { id: string; row: number; col: number; name: string }) => void;
     /**

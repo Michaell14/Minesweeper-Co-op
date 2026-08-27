@@ -316,6 +316,28 @@ const coopHandlers = (socket: AppSocket, leaveRoom: () => void): SocketHandlers 
      */
     [SERVER_EVENTS.ACHIEVEMENTS_UNLOCKED]: ({ ids }) =>
         useMinesweeperStore.getState().pushUnlocked(ids),
+
+    /*
+     * --- Friends ---
+     *
+     * Not room-scoped, unlike the reaction and ping relays above: presence and
+     * an invitation into a room you are NOT in are about the account, and
+     * dropping them for not matching the room on screen would drop exactly the
+     * ones worth having.
+     */
+    [SERVER_EVENTS.FRIENDS_ONLINE]: ({ ids }) =>
+        useMinesweeperStore.getState().setOnlineFriends(ids),
+
+    [SERVER_EVENTS.FRIEND_PRESENCE]: ({ id, online }) =>
+        useMinesweeperStore.getState().setFriendOnline(id, online),
+
+    /*
+     * One invite at a time, newest wins. Two friends asking at once is a
+     * choice between two rooms, and the second arriving is the more likely to
+     * still have space.
+     */
+    [SERVER_EVENTS.FRIEND_INVITE]: (invite) =>
+        useMinesweeperStore.getState().setFriendInvite(invite),
 });
 
 /** PVP events. `socket` is needed to tell "I won" from "they won". */

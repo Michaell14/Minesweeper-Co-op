@@ -394,6 +394,7 @@ token** (the daily challenge) instead.
 | `emitConfetti` | `{room}` | `server.js:217` |
 | `sendEmote` | `{room, emote}` — `emote` is a `shared/emotes.js` id, never free text | `server.js` |
 | `pingCell` | `{room, row, col}` — a real cell; no `-1,-1` clear | `server.js` |
+| `inviteFriend` | `{friendId, room}` — account-addressed, not room-addressed | `friendInviteController.js` |
 | `cellHover` | `{room, row, col}` — `-1,-1` clears | `server.js:229` |
 | `resetGame` | `{room}` | `server.js:269` |
 | `startPvpGame` | `{room}` | `pvpController.js:7` |
@@ -432,7 +433,10 @@ Shapes are typed in `shared/socketPayloads.ts` (`ClientToServerEvents`).
 | `resetEveryone` | — |
 | `receiveConfetti` | — |
 | `playerEmote` | `{id, name, emote}` — to the whole room, sender included |
-| `playerPing` | `{id, name, row, col}` — co-op only, suppressed in PVP like hover |
+| `playerPing` | `{id, name, row, col, room}` — co-op only, suppressed in PVP like hover |
+| `friendsOnline` | `{ids}` — which friends were already here, on connect |
+| `friendPresence` | `{id, online}` — one friend came or went |
+| `friendInvite` | `{fromId, fromName, fromAvatar, room, mode}` |
 | `playerHoverUpdate` | `{id, row, col, name}` (client derives color from `id`) |
 | `playerLeft` | `socketId` |
 | `achievementsUnlocked` | `{ids}` — catalog ids, to ONE socket, only what this result newly earned |
@@ -921,6 +925,42 @@ Routes are `/api/friends` (GET the graph + your own code, POST a code) and
 all under `requireUser`. The `:id` is the OTHER ACCOUNT's, not the row's — the
 client already knows who it is acting on, and row ids are a handle it has no
 other reason to hold.
+
+### Presence and invites
+
+**Presence is derived, never stored.** It is exactly "does this account have a
+live socket", and the socket map already knows — so there is nothing to write
+on connect, nothing to prune on disconnect, and no state that can survive a
+crash and report a ghost as online. `server/utils/presence.js` owns the scan;
+`statsRecorder` imports it rather than keeping a second copy, because two
+copies are two places for the `user:<id>` room shortcut to creep back in.
+
+**It is a scan and not a socket room, and that is a security property.** Room
+codes here are arbitrary player-typed strings bounded only by length, so
+`socket.join('user:<uuid>')` would share a namespace with the join box: anyone
+who knew an account id could create that room and receive their traffic.
+
+A **snapshot** goes to an arriving socket (`friendsOnline`) and a **delta** to
+its online friends (`friendPresence`). A client that just connected has no
+prior state to apply deltas to; recomputing every recipient's whole list would
+be one query per friend per connect. Neither fires for a guest — presence runs
+on every connect, so a query per anonymous socket would be a query per visitor
+— and a second tab announces nothing, or a player closing one of two would wink
+out for their friends while still playing.
+
+**An invite is the one message this protocol lets an account send to another
+account** rather than to a room, so every guard is about proving it was wanted:
+an accepted friendship, a room the SENDER is in (otherwise an account could
+send a friend into any room code it can name), space in it (PVP is full at
+two), and a one-per-pair-per-minute cooldown held in memory. Every refusal is
+silent, for the same reason the friends API answers a block like an unknown
+code: "not your friend", "blocked you" and "not online" are each a fact about
+somebody who did not choose to share it.
+
+Accepting is a **navigation** into the existing `?room=` join flow, not a
+socket call — that flow already fills the code, prompts for a name, and copes
+with a room that filled up, and the invited player may be mid-game somewhere
+else.
 
 ### Accounts and the auth bridge
 

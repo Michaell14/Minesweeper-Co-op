@@ -43,6 +43,7 @@ export default function Home() {
                     emitConfetti={actions.emitConfetti}
                     sendEmote={actions.sendEmote}
                     pingCell={actions.pingCell}
+                    inviteFriend={actions.inviteFriend}
                     emitCellHover={actions.emitCellHover}
                     handleBoardLeave={actions.handleBoardLeave}
                     startPvpGame={actions.startPvpGame}

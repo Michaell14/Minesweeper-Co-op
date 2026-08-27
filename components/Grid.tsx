@@ -21,6 +21,7 @@ import ProgressBar, { opponentBarColor } from '@/components/game/ProgressBar';
 import PracticeProgress from '@/components/game/PracticeProgress';
 import ScoreTable from '@/components/game/ScoreTable';
 import EmoteBar from '@/components/game/EmoteBar';
+import InviteFriendDialog from '@/components/game/InviteFriendDialog';
 import FlagCounter from '@/components/game/FlagCounter';
 import Timer from '@/components/game/Timer';
 import RoomPanel from '@/components/game/RoomPanel';
@@ -39,6 +40,7 @@ interface GridParams {
     emitConfetti: () => void;                           // to everyone in the room
     sendEmote: (emote: string) => void;                 // a reaction, to the room
     pingCell: (row: number, col: number) => void;       // "look at this cell"
+    inviteFriend: (friendId: string) => void;           // pull a friend into this room
     emitCellHover: (row: number, col: number) => void;
     handleBoardLeave: () => void;                       // clears this player's hover
     startPvpGame: () => void;
@@ -46,7 +48,7 @@ interface GridParams {
     pvpRematch: () => void;                             // PVP: host only
 }
 
-const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell, emitConfetti, sendEmote, pingCell, emitCellHover, handleBoardLeave, startPvpGame, resetMyBoard, pvpRematch }: GridParams) => {
+const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell, emitConfetti, sendEmote, pingCell, inviteFriend, emitCellHover, handleBoardLeave, startPvpGame, resetMyBoard, pvpRematch }: GridParams) => {
     const isChecked = useMinesweeperStore((state) => state.isChecked);
     const mode = useMinesweeperStore((state) => state.mode);
     const gameOver = useMinesweeperStore((state) => state.gameOver);
@@ -176,7 +178,7 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
                     {/* DESKTOP: sticky side panels either side of the board. */}
                     <div className="hidden xl:flex flex-col sticky top-20">
                         {leaveButton}
-                        <RoomPanel className="max-w-60 mt-6" />
+                        <RoomPanel className="max-w-60 mt-6" inviteFriend={inviteFriend} />
                     </div>
 
                     {/*
@@ -230,7 +232,7 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
                             {actionButtons}
                         </div>
 
-                        <RoomPanel className="my-6 max-w-60" centered />
+                        <RoomPanel className="my-6 max-w-60" centered inviteFriend={inviteFriend} />
                     </div>
 
                     <div className="hidden xl:flex flex-col sticky top-20">
@@ -296,6 +298,11 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
                     </div>
                 </div>
             </div>
+
+            {/* Mounted ONCE, like the players dialog: RoomPanel renders in
+                both layout clusters, so the button is duplicated and the
+                dialog must not be. */}
+            <InviteFriendDialog inviteFriend={inviteFriend} />
 
             <Dialog
                 id={DIALOGS.players}
