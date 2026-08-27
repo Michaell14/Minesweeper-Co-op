@@ -106,7 +106,10 @@ components/drills/DrillBoard.tsx
 components/drills/DrillBoard.test.tsx
 components/drills/DrillRunner.tsx
 components/drills/DrillRunner.test.tsx
+components/drills/LessonDrills.tsx        (sequences one lesson; the routes are server components)
+components/drills/LessonDrills.test.tsx
 components/drills/LessonCard.tsx
+components/drills/LessonCard.test.tsx
 components/drills/drillLabel.ts          (aria-label builder; mirrors game/cellLabel.ts)
 components/drills/drillLabel.test.ts
 components/drills/drills.module.css      (layout, plus the `wrong` mark)
@@ -365,13 +368,13 @@ afterwards is verified as it is written.
 
 ### Phase 3 — the runner and the routes
 
-- [ ] `DrillRunner.tsx`: marks, mistake count, solved detection, explanation.
-- [ ] `lib/drillProgress.ts` + sanitiser + tests.
-- [ ] `app/drills/page.tsx` (index, `LessonCard` with progress) and
+- [x] `DrillRunner.tsx`: marks, mistake count, solved detection, explanation.
+- [x] `lib/drillProgress.ts` + sanitiser + tests.
+- [x] `app/drills/page.tsx` (index, `LessonCard` with progress) and
       `app/drills/[lesson]/page.tsx`.
-- [ ] Metadata per route, own canonical, in the shape `app/how-to-play/page.tsx`
+- [x] Metadata per route, own canonical, in the shape `app/how-to-play/page.tsx`
       already uses.
-- [ ] `DrillRunner.test.tsx` with `// @vitest-environment jsdom`: a correct move
+- [x] `DrillRunner.test.tsx` with `// @vitest-environment jsdom`: a correct move
       advances, a wrong move marks without advancing, the explanation appears on
       solve, cells resolve by accessible name.
 
@@ -426,6 +429,8 @@ CLAUDE.md trap #3 and fail the smoke suite. Don't.
 | Cell rendering, mouse/touch/keyboard input | `components/drills/DrillCell.test.tsx` | jsdom |
 | Board shape and derived counts | `components/drills/DrillBoard.test.tsx` | jsdom |
 | Runner behaviour and accessible names | `components/drills/DrillRunner.test.tsx` | jsdom |
+| Lesson sequencing | `components/drills/LessonDrills.test.tsx` | jsdom |
+| Lesson card progress | `components/drills/LessonCard.test.tsx` | jsdom |
 
 All under `npm run test:client`. No server tests — there is no server change.
 The ui-smoke suite is not extended in v1; jsdom covers what fails silently here

@@ -1,7 +1,7 @@
 /** The catalog is only as good as the checker run over it. */
 
 import { describe, expect, test } from 'vitest';
-import { DRILLS, drillsForLesson } from './drills';
+import { DRILLS, LESSONS, drillsForLesson, lessonById } from './drills';
 import { validateDrill, LESSON_RULES } from './drillDeduction';
 
 describe('the catalog', () => {
@@ -28,5 +28,27 @@ describe('the catalog', () => {
         const counting = drillsForLesson('counting');
         expect(counting.length).toBeGreaterThan(0);
         expect(counting.every((d) => d.lesson === 'counting')).toBe(true);
+    });
+});
+
+describe('lessons', () => {
+    test('there is one lesson entry per lesson the gate knows', () => {
+        expect(LESSONS.map((l) => l.id).sort()).toEqual(Object.keys(LESSON_RULES).sort());
+    });
+
+    test('every lesson has a title and a blurb', () => {
+        for (const lesson of LESSONS) {
+            expect(lesson.title.length).toBeGreaterThan(0);
+            expect(lesson.blurb.length).toBeGreaterThan(0);
+        }
+    });
+
+    test('lessonById finds one and shrugs at nonsense', () => {
+        expect(lessonById('counting')?.id).toBe('counting');
+        expect(lessonById('not-a-lesson')).toBeUndefined();
+    });
+
+    test('every authored drill belongs to a listed lesson', () => {
+        for (const d of DRILLS) expect(lessonById(d.lesson)).toBeDefined();
     });
 });
