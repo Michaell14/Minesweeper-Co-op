@@ -29,13 +29,18 @@ const { SERVER_EVENTS } = require('../../shared/events');
  * Moved here from statsRecorder, which now imports it: two copies of this
  * scan would be two places for the `user:<id>` shortcut to creep back in.
  */
-const socketIdsOf = (userId) => {
-    const ids = [];
+const socketEntriesOf = (userId) => {
+    const entries = [];
     for (const [socketId, socket] of io.sockets.sockets) {
-        if (socket?.data?.user?.id === userId) ids.push(socketId);
+        if (socket?.data?.user?.id === userId) entries.push([socketId, socket]);
     }
-    return ids;
+    return entries;
 };
+
+const socketIdsOf = (userId) => socketEntriesOf(userId).map(([socketId]) => socketId);
+
+/** The same scan, as instances — what identity comparisons need. */
+const socketsOf = (userId) => socketEntriesOf(userId).map(([, socket]) => socket);
 
 /** Whether an account has any live socket at all. */
 const isOnline = (userId) => socketIdsOf(userId).length > 0;
@@ -43,12 +48,17 @@ const isOnline = (userId) => socketIdsOf(userId).length > 0;
 /**
  * The same question with one socket left out — the one that is leaving.
  *
- * By id rather than by count: whether the leaver is still in the map when a
- * handler runs depends on the disconnect path, and this answers the same
- * either way.
+ * By INSTANCE, not by id: `connectionStateRecovery` is on, so a client that
+ * reconnects inside the window comes back under the SAME socket id. Excluding
+ * by id would filter that live socket out and report a player who is still
+ * here as gone. Excluding by identity leaves it counted — a recovered socket
+ * is a new object.
+ *
+ * Not by count either: whether the leaver is still in the map when a handler
+ * runs depends on the disconnect path, and this answers the same either way.
  */
-const isOnlineExcept = (userId, exceptSocketId) =>
-    socketIdsOf(userId).some((id) => id !== exceptSocketId);
+const isOnlineExcept = (userId, exceptSocket) =>
+    socketsOf(userId).some((socket) => socket !== exceptSocket);
 
 /**
  * Whether this socket is the account's LAST one.
@@ -60,7 +70,7 @@ const isOnlineExcept = (userId, exceptSocketId) =>
 const isLastSocketOf = (socket) => {
     const userId = socket?.data?.user?.id;
     if (!userId) return false;
-    return !isOnlineExcept(userId, socket.id);
+    return !isOnlineExcept(userId, socket);
 };
 
 /** The subset of an account's friends who are on the site. */
@@ -104,11 +114,11 @@ const sendPresenceSnapshot = async (socket) => {
  * Only friends who are ONLINE are told — an offline friend has no socket to
  * receive it, and will get a snapshot of their own when they arrive.
  *
- * `exceptSocketId` is the leaver on the disconnect path, so the recheck below
+ * `exceptSocket` is the leaver on the disconnect path, so the recheck below
  * asks the same question this was called with rather than counting the socket
  * whose departure it is announcing.
  */
-const announcePresence = async (userId, online, exceptSocketId) => {
+const announcePresence = async (userId, online, exceptSocket) => {
     if (!userId || !isDbEnabled()) return;
     try {
         const friendIds = await friendsRepo.listFriendIds(userId);
@@ -116,7 +126,7 @@ const announcePresence = async (userId, online, exceptSocketId) => {
         // reconnects inside it — and a stale `false` arriving after the new
         // socket's `true` leaves friends looking at a ghost. Re-read, and drop
         // an announcement the map no longer agrees with.
-        if (isOnlineExcept(userId, exceptSocketId) !== online) return;
+        if (isOnlineExcept(userId, exceptSocket) !== online) return;
         for (const friendId of friendIds) {
             if (!isOnline(friendId)) continue;
             emitToUser(friendId, SERVER_EVENTS.FRIEND_PRESENCE, { id: userId, online });
@@ -135,7 +145,7 @@ const onConnect = async (socket) => {
     try {
         const userId = socket?.data?.user?.id;
         if (!userId) return;                      // guests have no graph
-        const alreadyHere = socketIdsOf(userId).some((id) => id !== socket.id);
+        const alreadyHere = socketsOf(userId).some((other) => other !== socket);
         await sendPresenceSnapshot(socket);
         if (!alreadyHere) await announcePresence(userId, true);
     } catch (error) {
@@ -150,13 +160,14 @@ const onDisconnect = async (socket) => {
     try {
         const userId = socket?.data?.user?.id;
         if (!userId || !isLastSocketOf(socket)) return;
-        await announcePresence(userId, false, socket.id);
+        await announcePresence(userId, false, socket);
     } catch (error) {
         console.error('Presence on disconnect failed:', error.message);
     }
 };
 
 module.exports = {
+    socketsOf,
     socketIdsOf,
     isOnline,
     isOnlineExcept,
