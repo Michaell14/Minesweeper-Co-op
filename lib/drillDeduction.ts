@@ -124,6 +124,13 @@ export function deduce(
     return { mines, safe };
 }
 
+/** How many mines a cell touches, from the layout's `*` positions. */
+export function adjacentMines(layout: readonly string[], r: number, c: number): number {
+    const cols = layout.length === 0 ? 0 : layout[0].length;
+    return neighbours(layout.length, cols, r, c)
+        .filter(([nr, nc]) => layout[nr][nc] === '*').length;
+}
+
 const LEGAL = new Set(['.', '#', '*', '1', '2', '3', '4', '5', '6', '7', '8']);
 
 const fmt = ([r, c]: Coord) => `(${r},${c})`;
@@ -152,8 +159,7 @@ export function validateDrill(drill: Drill): string[] {
         for (let c = 0; c < cols; c++) {
             const ch = at(r, c);
             if (COVERED.has(ch) || ch === '.') continue;
-            const actual = neighbours(rows, cols, r, c)
-                .filter(([nr, nc]) => at(nr, nc) === '*').length;
+            const actual = adjacentMines(layout, r, c);
             if (actual !== Number(ch)) {
                 problems.push(`${fmt([r, c])} shows ${ch} but touches ${actual} mines`);
             }

@@ -1,7 +1,7 @@
 /** The drill checker: what a player can prove, and whether a drill is honest. */
 
 import { describe, expect, test } from 'vitest';
-import { deduce, validateDrill } from './drillDeduction';
+import { adjacentMines, deduce, validateDrill } from './drillDeduction';
 import type { Drill } from './drills';
 
 describe('counting', () => {
@@ -151,5 +151,19 @@ describe('the lesson gate', () => {
             layout: ['121', '*#*'],
             solution: { flag: [[1, 0], [1, 2]], open: [[1, 1]] },
         }))).toEqual([]);
+    });
+});
+
+describe('adjacentMines', () => {
+    test('counts the mines touching a cell', () => {
+        expect(adjacentMines(['*#*', '###', '...'], 1, 1)).toBe(2);
+    });
+
+    test('a cell touching none counts zero', () => {
+        expect(adjacentMines(['*#*', '###', '...'], 2, 1)).toBe(0);
+    });
+
+    test('does not run off the edge', () => {
+        expect(adjacentMines(['*#'], 0, 1)).toBe(1);
     });
 });

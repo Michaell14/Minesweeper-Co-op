@@ -65,6 +65,7 @@ code, no Redis, no Postgres and no new shared module. See §7.
 | Progress storage | **localStorage, versioned blob, sanitised on read** | Same discipline as `lib/settings.ts` and `lib/bestTimes.ts`. Guests are the majority and must keep progress. |
 | Whether a drill teaches its own lesson | **Gated mechanically in both directions, per lesson (§4.3.1)** | Solvable-at-all is the wrong question: `deduce` runs both rules, so it passes a `counting` drill needing subset reduction *and* a `one-two-one` drill plain counting already cracks. Two bounds, one table. |
 | Solver reuse | **Reimplement the two rules in `lib/`; do NOT reach for `server/domain/solverUtils.js`** | Server CJS, and `tests/layering.test.js` forbids it. They also answer different questions: the server's asks "is this whole board solvable", the drill one asks "is this specific cell provable". |
+| What a correctly opened cell shows | **Its adjacent-mine count, derived from the layout's `*` positions. No cascade — a zero opens as a blank and opens nothing else.** | A cascade would open cells the player never proved, so the board would stop matching `solution` and solved-detection would desync. It would also hand over the rest of the puzzle: the drill is one deduction, not a game. |
 | Input | **Obeys `swapMouseButtons` and `mobileDefaultFlag`, reads them, writes nothing** | Muscle memory has to transfer, or the drill teaches the wrong reflex. |
 | Sound | **Reuse `playSound` from `lib/sound.ts`** | Already gated on `settings.sound` and background tabs. Free consistency. |
 | Indexing | **Indexable, in the sitemap** | Unlike `/ds` and `/profile`. The pattern names are the searched terms. |
@@ -100,12 +101,15 @@ lib/drillDeduction.test.ts
 lib/drillProgress.ts
 lib/drillProgress.test.ts
 components/drills/DrillCell.tsx
+components/drills/DrillCell.test.tsx
 components/drills/DrillBoard.tsx
+components/drills/DrillBoard.test.tsx
 components/drills/DrillRunner.tsx
 components/drills/DrillRunner.test.tsx
 components/drills/LessonCard.tsx
 components/drills/drillLabel.ts          (aria-label builder; mirrors game/cellLabel.ts)
-components/drills/drills.module.css      (layout only — no colour, no border)
+components/drills/drillLabel.test.ts
+components/drills/drills.module.css      (layout, plus the `wrong` mark)
 app/drills/page.tsx
 app/drills/[lesson]/page.tsx
 ```
@@ -146,7 +150,7 @@ export interface Drill {
 |---|---|---|
 | `.` | opened, zero adjacent mines | opened blank cell |
 | `1`–`8` | opened, that many adjacent mines | opened number |
-| `#` | covered, safe | covered cell |
+| `#` | covered, safe | covered cell; once opened, its derived adjacent-mine count |
 | `*` | covered, mine | covered cell (identical to `#`) |
 
 `*` is ground truth only. It renders exactly like `#`, so the layout string is
@@ -280,8 +284,12 @@ declared solution is the complete deducible set ✓.
 
 - Left click opens, right click flags, both swapped by `settings.swapMouseButtons`.
   On touch, tap follows `settings.mobileDefaultFlag` with long-press for the other.
+- Opening a proven-safe cell reveals that cell ALONE, showing the number of `*`
+  cells around it (blank at zero). Never a cascade: see §3. `adjacentMines` in
+  `lib/drillDeduction.ts` is the one place that count is derived, and
+  `validateDrill` checks the authored digits against the same function.
 - A move that contradicts the ground truth marks that cell (a `wrong` modifier
-  reading `--ms-intent-danger`) and increments a per-attempt mistake count. The
+  reading `--ms-intent-error`) and increments a per-attempt mistake count. The
   drill does not end. A second click clears the mark and lets the player retry.
 - A drill is solved when the marked set equals `solution` — checked against the
   declared solution, never against ground truth directly, so the two stay
@@ -349,10 +357,10 @@ afterwards is verified as it is written.
 
 ### Phase 2 — the board
 
-- [ ] `components/drills/DrillCell.tsx` + `DrillBoard.tsx`, importing
+- [x] `components/drills/DrillCell.tsx` + `DrillBoard.tsx`, importing
       `board.module.css` and `<Sprite>` read-only. No store subscriptions.
-- [ ] `drillLabel.ts`, mirroring `components/game/cellLabel.ts`.
-- [ ] Input honouring `swapMouseButtons` / `mobileDefaultFlag`; `playSound` on
+- [x] `drillLabel.ts`, mirroring `components/game/cellLabel.ts`.
+- [x] Input honouring `swapMouseButtons` / `mobileDefaultFlag`; `playSound` on
       reveal and flag.
 
 ### Phase 3 — the runner and the routes
@@ -414,6 +422,9 @@ CLAUDE.md trap #3 and fail the smoke suite. Don't.
 | Deduction rules | `lib/drillDeduction.test.ts` | node |
 | Catalog integrity (every drill) | `lib/drills.test.ts` | node |
 | Progress sanitiser | `lib/drillProgress.test.ts` | node |
+| Cell labels | `components/drills/drillLabel.test.ts` | node |
+| Cell rendering, mouse/touch/keyboard input | `components/drills/DrillCell.test.tsx` | jsdom |
+| Board shape and derived counts | `components/drills/DrillBoard.test.tsx` | jsdom |
 | Runner behaviour and accessible names | `components/drills/DrillRunner.test.tsx` | jsdom |
 
 All under `npm run test:client`. No server tests — there is no server change.

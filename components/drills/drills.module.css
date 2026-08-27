@@ -1,0 +1,7 @@
+/*
+ * Wins over `.cell.closed` in board.module.css, which is (0,2,0) — the same
+ * doubling trick that file already uses for `.cell.hovered.hovered`.
+ */
+.wrong.wrong.wrong {
+    background-color: var(--ms-intent-error);
+}
