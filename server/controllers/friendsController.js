@@ -127,8 +127,10 @@ const registerFriendsRoutes = (app) => {
             const outcome = await friendsRepo.acceptRequest(req.user.id, them);
             if (outcome === 'accepted') {
                 res.status(204).end();
-            } else if (outcome === 'cap-reached') {
-                res.status(409).json({ error: `Friend limit reached (${friendsRepo.MAX_FRIENDS})` });
+            } else if (outcome === 'cap-reached' || outcome === 'their-cap-reached') {
+                // Both caps are checked on accept, because a request can
+                // outlive the check made when it was sent — see acceptRequest.
+                res.status(409).json(REQUEST_OUTCOMES[outcome].body);
             } else {
                 res.status(404).json({ error: 'No request from that account' });
             }
