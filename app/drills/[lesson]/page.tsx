@@ -38,6 +38,7 @@ export default function LessonPage({ params }: LessonPageProps) {
 
     return (
         <ProsePage title={lesson.title} lede={lesson.blurb} cta={{ href: "/drills", label: "All drills" }}>
+            <p>{lesson.intro}</p>
             {drills.length === 0 ? (
                 <p>These drills are still being written.</p>
             ) : (

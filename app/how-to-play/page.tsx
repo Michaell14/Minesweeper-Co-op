@@ -106,6 +106,12 @@ export default function HowToPlayPage() {
                         lives. It is also the reason flags are worth placing even though the win
                         condition ignores them: flags are what make chording possible.
                     </p>
+                    <p className="mt-3">
+                        Chording is only worth as much as your flags are right, which comes down to
+                        reading the patterns. The <Link href="/drills">pattern drills</Link> are
+                        short interactive puzzles for exactly that — 1-1, 1-2, 1-2-1, 1-2-2-1, and
+                        the rule they are all special cases of.
+                    </p>
                 </section>
 
                 <section>

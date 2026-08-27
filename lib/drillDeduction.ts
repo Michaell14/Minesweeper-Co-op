@@ -197,6 +197,21 @@ export function validateDrill(drill: Drill): string[] {
     };
     compare('mine', provable.mines, solution.flag);
     compare('safe', provable.safe, solution.open);
+
+    /*
+     * Every mine must be provable, not just the declared ones. An undeducible
+     * mine takes a lucky flag — ground truth calls it correct — but is absent
+     * from the solution, so the marked set can never equal it and the drill
+     * cannot be finished.
+     */
+    const provenMines = new Set(provable.mines.map(([r, c]) => key(r, c)));
+    for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+            if (at(r, c) === '*' && !provenMines.has(key(r, c))) {
+                problems.push(`mine ${fmt([r, c])} is not deducible, so the drill cannot be finished`);
+            }
+        }
+    }
     if (problems.length > 0) return problems;
 
     const { allow, require } = LESSON_RULES[drill.lesson];

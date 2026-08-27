@@ -9,6 +9,7 @@ const LESSON: Lesson = {
     id: 'counting',
     title: 'Counting',
     blurb: 'A number equal to its covered neighbours means all mines.',
+    intro: 'Every number counts the mines touching it. Two things follow.',
 };
 
 beforeEach(() => window.localStorage.clear());

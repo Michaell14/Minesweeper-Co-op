@@ -1,6 +1,6 @@
 # Design: Drills — an interactive pattern trainer
 
-**Status:** Design approved 2026-08-27, unimplemented · **Owner:** Michael · **Created:** 2026-08-27
+**Status:** Design approved 2026-08-27, v1 implemented (Phases 1-4) · **Owner:** Michael · **Created:** 2026-08-27
 
 **This spec is written to be executed in a SEPARATE session, in parallel with
 the board-pings work** (`SOCIAL_PRD.md` Phase 2). §7 lists the collision
@@ -201,6 +201,10 @@ export function validateDrill(drill: Drill): string[];   // [] means valid
 - **inequality in either direction** between `deduce(layout)` and the declared
   solution. Asking for less than is provable is a bug, not a mercy: a player
   who deduces more would be marked wrong;
+- a mine that is not deducible. Ground truth calls a lucky flag on it correct,
+  but it is absent from the solution, so the marked set can never equal the
+  solution and the drill becomes unfinishable. This is §1's promise —
+  *everything the drill asks for is deducible* — made mechanical;
 - either half of the lesson gate below.
 
 `lib/drills.test.ts` runs `validateDrill` over the whole catalog. Node
@@ -380,10 +384,10 @@ afterwards is verified as it is written.
 
 ### Phase 4 — content and wiring
 
-- [ ] The remaining ~22 drills, each landing green under `validateDrill`.
-- [ ] Lesson prose.
-- [ ] `Footer.tsx` link, `app/sitemap.ts` entries, `/how-to-play` cross-link.
-- [ ] `npm run lint`, `tsc --noEmit`, `npm run test:client`, `npm run build`.
+- [x] The remaining ~22 drills, each landing green under `validateDrill`.
+- [x] Lesson prose.
+- [x] `Footer.tsx` link, `app/sitemap.ts` entries, `/how-to-play` cross-link.
+- [x] `npm run lint`, `tsc --noEmit`, `npm run test:client`, `npm run build`.
 
 ### Deferred (explicitly not v1)
 
@@ -443,6 +447,7 @@ drills depends on layout.
 |---|---|
 | An authored drill teaches a wrong pattern | `validateDrill` over the whole catalog in CI, checking numbers, ground truth and solution completeness. This is the reason Phase 1 comes first. |
 | A drill is solvable only by a rule the lesson has not taught | The lesson gate's **upper** bound (§4.3.1): `deduce` re-run with only that lesson's `allow` rules must still reach the full solution. Solvability by `deduce` at large is not enough — it always runs both rules. |
+| A drill is unfinishable because a lucky flag lands on a mine the solution never asked for | `validateDrill` requires every `*` to be provable, not just the declared ones. Solved compares marks to the DECLARED solution while moves are judged against ground truth, and this is what keeps the two from ever disagreeing. |
 | A drill named after a pattern never exercises it | The lesson gate's **lower** bound (§4.3.1): dropping a `require`d rule must leave the drill unsolved. A 1-2-1 drill that plain counting cracks fails CI. |
 | `DrillCell` drifts from `Cell` and stops looking like the game | Both read `board.module.css`; only behaviour is reimplemented, never the treatment. |
 | Duplicating cell logic ages badly | Accepted knowingly. `Cell` is coupled to five store slices that do not exist here, and sharing it would mean editing the file board pings owns. Revisit only if a third board appears. |

@@ -243,6 +243,7 @@ export default function Footer() {
                 <div className="grid gap-2 text-pixel-sm">
                     <Link href="/how-to-play">Full rules and chording</Link>
                     <Link href="/no-guess-minesweeper">Why these boards never need a guess</Link>
+                    <Link href="/drills">Pattern drills</Link>
                     <Link href="/daily">Today&apos;s daily challenge</Link>
                 </div>
             </Dialog>

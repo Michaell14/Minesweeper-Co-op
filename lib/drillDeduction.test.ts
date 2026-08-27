@@ -117,6 +117,17 @@ describe('validateDrill', () => {
         expect(problems.join(' ')).toMatch(/1,1/);
     });
 
+    test('rejects a board hiding a mine nobody could deduce', () => {
+        // Ground truth would accept a lucky flag on (1,1), but it is not in the
+        // solution — so the drill could never be finished.
+        const problems = validateDrill(drill({
+            layout: ['1#', '#*'],
+            solution: { flag: [], open: [] },
+        }));
+        expect(problems.join(' ')).toMatch(/1,1/);
+        expect(problems.join(' ')).toMatch(/deduc|provable/i);
+    });
+
     test('rejects a solution that asks for more than is provable', () => {
         const problems = validateDrill(drill({
             layout: ['1#', '#*'],

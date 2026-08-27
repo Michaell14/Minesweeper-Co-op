@@ -43,6 +43,26 @@ describe('lessons', () => {
         }
     });
 
+    test('every lesson opens with a couple of sentences of prose', () => {
+        for (const lesson of LESSONS) {
+            expect(lesson.intro.split('. ').length).toBeGreaterThanOrEqual(2);
+        }
+    });
+
+    test('each lesson holds the number of drills the plan calls for', () => {
+        const counts = Object.fromEntries(
+            LESSONS.map((l) => [l.id, drillsForLesson(l.id).length]),
+        );
+        expect(counts).toEqual({
+            'counting': 3,
+            'one-one': 4,
+            'one-two': 4,
+            'one-two-one': 4,
+            'one-two-two-one': 4,
+            'reduction': 5,
+        });
+    });
+
     test('lessonById finds one and shrugs at nonsense', () => {
         expect(lessonById('counting')?.id).toBe('counting');
         expect(lessonById('not-a-lesson')).toBeUndefined();
