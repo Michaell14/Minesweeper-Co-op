@@ -333,15 +333,15 @@ search for, then the general rule that retires them.
 
 ### Phase 1 — the checker (do this first)
 
-- [ ] `lib/drillDeduction.ts`: `deduce` (counting + subset, to fixpoint, rule-restrictable)
+- [x] `lib/drillDeduction.ts`: `deduce` (counting + subset, to fixpoint, rule-restrictable)
       plus `LESSON_RULES` and `validateDrill`.
-- [ ] `lib/drillDeduction.test.ts`: table-driven. Cover a satisfied number, an
+- [x] `lib/drillDeduction.test.ts`: table-driven. Cover a satisfied number, an
       exhausted number, a subset that proves mines, a subset that proves safes,
       a board where nothing is provable, and a ragged/invalid layout.
-- [ ] Lesson-gate tests, one per direction: a `counting` drill that needs subset
+- [x] Lesson-gate tests, one per direction: a `counting` drill that needs subset
       reduction is rejected, and a `one-two-one` drill that plain counting
       already solves is rejected too.
-- [ ] `lib/drills.ts` with the two worked drills from §4.4 only, and
+- [x] `lib/drills.ts` with the two worked drills from §4.4 only, and
       `lib/drills.test.ts` running `validateDrill` over the catalog.
 
 Building the checker before the content is the whole point: every drill authored
