@@ -116,6 +116,39 @@ const findEdge = async (me, them, runner = pool) => {
 };
 
 /**
+ * The edges between one account and MANY others, keyed by the other account's
+ * id — the batched form of `findEdge`.
+ *
+ * One statement rather than one per candidate: the caller is walking a room,
+ * co-op rooms have no size limit, and a query per player is a query per player
+ * every time a game ends.
+ */
+const findEdges = async (me, others) => {
+    if (!Array.isArray(others) || others.length === 0) return new Map();
+
+    const result = await query(
+        `SELECT id, requester_id, addressee_id, status
+         FROM friendships
+         WHERE (requester_id = $1 AND addressee_id = ANY($2))
+            OR (addressee_id = $1 AND requester_id = ANY($2))`,
+        [me, others],
+    );
+
+    const byUser = new Map();
+    for (const row of result.rows) {
+        const them = row.requester_id === me ? row.addressee_id : row.requester_id;
+        byUser.set(them, {
+            id: row.id,
+            status: row.status,
+            requesterId: row.requester_id,
+            addresseeId: row.addressee_id,
+            direction: row.requester_id === me ? 'outgoing' : 'incoming',
+        });
+    }
+    return byUser;
+};
+
+/**
  * Everything one account's graph holds, in one round trip.
  *
  * Four lists rather than one with a status field, because they are four
@@ -364,6 +397,7 @@ module.exports = {
     MAX_OUTGOING_REQUESTS,
     STATUS,
     findEdge,
+    findEdges,
     listGraph,
     countFriends,
     countOutgoingRequests,

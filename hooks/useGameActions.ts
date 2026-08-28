@@ -125,6 +125,11 @@ export function useGameActions(socket: AppSocket | null) {
         // looking at the landing page would otherwise show their record for a
         // board you were about to play alone.
         store.setPlayerStatsInRoom([]);
+        // Co-players belong to the room being left just as the roster does,
+        // and an in-flight list for it may still be on its way back. That list
+        // is retired with them, so rejoining this same room does not inherit
+        // the last visit's players.
+        store.resetRoomFriends();
         store.setBoardConfig(DEFAULT_SIZE, DEFAULT_DIFFICULTY);
         store.clearAllHovers();
         store.clearPlayerEmotes();
@@ -319,6 +324,32 @@ export function useGameActions(socket: AppSocket | null) {
         [socket]
     );
 
+    /**
+     * Add somebody from the room just played.
+     *
+     * The co-player is addressed by SOCKET id — the same id every hover and
+     * reaction already carries. Account ids never reach the client, so this is
+     * the only handle there is, and the server turns it back into an account
+     * only after checking both sockets are in the room.
+     *
+     * Asking for the LIST is not here: it happens where the summary opens
+     * (hooks/useGameEvents.ts), so it fires once per game rather than once per
+     * mounted summary dialog.
+     */
+    const addRoomFriend = useCallback(
+        (playerId: string) => {
+            const store = useMinesweeperStore.getState();
+            const { room, playerJoined } = store;
+            if (!socket || !room || !playerJoined) return;
+            socket.emit(CLIENT_EVENTS.ADD_ROOM_FRIEND, {
+                room,
+                playerId,
+                token: store.nextRoomFriendsToken(),
+            });
+        },
+        [socket]
+    );
+
     const emitCellHover = useCallback(
         (row: number, col: number) => {
             const { room, playerJoined, settings } = useMinesweeperStore.getState();
@@ -453,6 +484,7 @@ export function useGameActions(socket: AppSocket | null) {
         sendEmote,
         pingCell,
         inviteFriend,
+        addRoomFriend,
         startPvpGame,
         resetMyBoard,
         pvpRematch,

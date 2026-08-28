@@ -122,6 +122,15 @@ export interface ClientToServerEvents {
     pingCell: (payload: CellPayload) => void;
     /** Ask a friend to join the room this socket is in. */
     inviteFriend: (payload: { friendId: string; room: string }) => void;
+    /**
+     * Who in this room could be added as a friend.
+     *
+     * `token` is the client's own counter, echoed back untouched on the reply
+     * so it can drop a list one of its later requests has superseded.
+     */
+    roomFriends: (payload: { room: string; token: number }) => void;
+    /** `playerId` is the co-player's SOCKET id — account ids never leave the server. */
+    addRoomFriend: (payload: { room: string; playerId: string; token: number }) => void;
     resetGame: (payload: RoomPayload) => void;
 
     startPvpGame: (payload: RoomPayload) => void;
@@ -235,6 +244,33 @@ export interface ServerToClientEvents {
         fromAvatar: string | null;
         room: string;
         mode: GameMode;
+    }) => void;
+    /**
+     * The signed-in players in this room, to the ASKER alone — so "me" is
+     * excluded server-side and a guest is told nothing at all.
+     *
+     * The whole list is re-sent after every add rather than a per-player
+     * result, so the client never merges two sources of truth about the same
+     * relationship.
+     */
+    roomFriendsUpdate: (payload: {
+        /**
+         * The room this list describes, and the request that asked for it.
+         *
+         * Present because these emits are ordered by when their server-side
+         * work finishes rather than by when they were asked for, so an older
+         * list can arrive after a newer one — from a room since left, or from
+         * before an add already made. The client drops both.
+         */
+        room: string;
+        token: number;
+        players: {
+            /** SOCKET id. The account id is never sent. */
+            id: string;
+            name: string;
+            avatar: string | null;
+            status: 'none' | 'requested' | 'incoming' | 'friends';
+        }[];
     }) => void;
     /** Co-op only; the server suppresses hover in PVP. */
     playerHoverUpdate: (payload: { id: string; row: number; col: number; name: string }) => void;

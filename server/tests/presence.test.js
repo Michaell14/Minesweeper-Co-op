@@ -15,7 +15,7 @@ const mockTo = jest.fn(() => ({ emit: mockEmit }));
 const mockSockets = new Map();
 
 jest.mock('../utils/initializeClient', () => ({
-    io: { to: mockTo, sockets: { sockets: mockSockets } },
+    io: { to: mockTo, get sockets() { return { sockets: global.__presenceSockets }; } },
     server: {},
 }));
 
@@ -43,10 +43,24 @@ const connect = (id, userId) => {
 const friendsAre = (...ids) =>
     mockQuery.mockResolvedValue({ rows: ids.map((id) => ({ friend_id: id })) });
 
+/**
+ * How many times the live socket map was walked. The map is handed over as a
+ * plain iterable so the count is of real traversals, not of calls.
+ */
+let walks = 0;
+const countingSockets = {
+    [Symbol.iterator]() {
+        walks += 1;
+        return mockSockets[Symbol.iterator]();
+    },
+};
+
 const presenceEvents = () =>
     mockEmit.mock.calls.filter(([event]) => event === SERVER_EVENTS.FRIEND_PRESENCE).map(([, p]) => p);
 
 beforeEach(() => {
+    walks = 0;
+    global.__presenceSockets = countingSockets;
     mockSockets.clear();
     mockEmit.mockReset();
     mockTo.mockReset().mockReturnValue({ emit: mockEmit });
@@ -211,5 +225,31 @@ describe('a database outage', () => {
         await expect(presence.onConnect(alice)).resolves.toBeUndefined();
         mockSockets.delete('s1');
         await expect(presence.onDisconnect(alice)).resolves.toBeUndefined();
+    });
+});
+
+describe('the cost of a connect', () => {
+    /*
+     * The regression this exists for: `isOnline` and `emitToUser` each used to
+     * walk the whole socket map, once per friend, so a single connect was
+     * O(friends x sockets) — two hundred walks at the friend cap, on the
+     * connection path. They read one index instead now.
+     *
+     * The bound is deliberately loose (a handful, not an exact number): the
+     * point is that it does not scale with the friend list, and pinning the
+     * exact count would just make this test something to update rather than
+     * something to believe.
+     */
+    test('does not grow with the size of the friend list', async () => {
+        const alice = connect('s1', ALICE);
+        const friendIds = Array.from({ length: 50 }, (_, i) => `uuid-friend-${i}`);
+        friendIds.forEach((id, i) => connect(`sock-${i}`, id));
+        friendsAre(...friendIds);
+
+        walks = 0;
+        await presence.onConnect(alice);
+
+        expect(presenceEvents()).toHaveLength(50);   // everybody was told
+        expect(walks).toBeLessThanOrEqual(4);        // ...from a handful of passes
     });
 });

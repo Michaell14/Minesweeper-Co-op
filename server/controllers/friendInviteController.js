@@ -59,6 +59,31 @@ const markInvited = (from, to, now) => {
     lastInviteAt.set(pairKey(from, to), now);
 };
 
+/**
+ * Takes the pair's one slot for this minute, or returns null if it is taken.
+ *
+ * Taken BEFORE the awaited lookups rather than after them: two invites for one
+ * pair arriving together would otherwise both read an empty cooldown, yield at
+ * the first await, and both land. Returns the undo, called on every refusal so
+ * a rejected invite does not spend the minute a real one is owed.
+ */
+const claimInvite = (from, to, now) => {
+    if (onCooldown(from, to, now)) return null;
+
+    const key = pairKey(from, to);
+    const previous = lastInviteAt.get(key);
+    markInvited(from, to, now);
+
+    return () => {
+        // Only if it is still ours: a later invite that beat us to the send
+        // owns the slot now, and handing back a stale timestamp would reopen
+        // the window it is holding.
+        if (lastInviteAt.get(key) !== now) return;
+        if (previous === undefined) lastInviteAt.delete(key);
+        else lastInviteAt.set(key, previous);
+    };
+};
+
 /** Test seam: the Map would otherwise leak state across cases. */
 const clearInviteCooldowns = () => lastInviteAt.clear();
 
@@ -79,6 +104,29 @@ const hasSpace = (roomState) => {
     return roomState.mode === 'pvp' ? players.length < 2 : true;
 };
 
+/** The payload every guard agreed to, or null if any of them refused. */
+const buildInvite = async (socket, me, friendId, room) => {
+    // Offline first: it is the cheapest check and the most common refusal.
+    if (!isOnline(friendId)) return null;
+    if (!(await friendsRepo.areFriends(me.id, friendId))) return null;
+
+    // The room has to be one the SENDER is in. Without this, an account could
+    // send a friend into any room code it can name — including one it has
+    // never been in, which is a way to make somebody else's game somebody
+    // else's problem.
+    const roomState = await roomRepo.getState(room);
+    if (!roomState || !isPlayerInRoom(roomState, socket.id)) return null;
+    if (!hasSpace(roomState)) return null;
+
+    return {
+        fromId: me.id,
+        fromName: me.displayName,
+        fromAvatar: me.avatar ?? null,
+        room,
+        mode: roomState.mode,
+    };
+};
+
 /**
  * Sends the invite, or silently does not.
  *
@@ -93,30 +141,16 @@ const inviteFriend = async (socket, { friendId, room }) => {
     if (!isValidUserId(friendId) || !isValidRoomCode(room)) return;
     if (friendId === me.id) return;
 
+    const release = claimInvite(me.id, friendId, Date.now());
+    if (!release) return;
+
     try {
-        if (onCooldown(me.id, friendId, Date.now())) return;
+        const invite = await buildInvite(socket, me, friendId, room);
+        if (!invite) return release();
 
-        // Offline first: it is the cheapest check and the most common refusal.
-        if (!isOnline(friendId)) return;
-        if (!(await friendsRepo.areFriends(me.id, friendId))) return;
-
-        // The room has to be one the SENDER is in. Without this, an account
-        // could send a friend into any room code it can name — including one
-        // it has never been in, which is a way to make somebody else's game
-        // somebody else's problem.
-        const roomState = await roomRepo.getState(room);
-        if (!roomState || !isPlayerInRoom(roomState, socket.id)) return;
-        if (!hasSpace(roomState)) return;
-
-        markInvited(me.id, friendId, Date.now());
-        emitToUser(friendId, SERVER_EVENTS.FRIEND_INVITE, {
-            fromId: me.id,
-            fromName: me.displayName,
-            fromAvatar: me.avatar ?? null,
-            room,
-            mode: roomState.mode,
-        });
+        emitToUser(friendId, SERVER_EVENTS.FRIEND_INVITE, invite);
     } catch (error) {
+        release();
         console.error('Error inviting a friend:', error.message);
     }
 };

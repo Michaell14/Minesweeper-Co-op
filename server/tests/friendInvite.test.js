@@ -224,6 +224,41 @@ describe('the cooldown', () => {
     });
 
     /*
+     * The check and the mark used to sit either side of two awaits, so a
+     * double-click sent two invites: both read an empty cooldown, both
+     * yielded, both landed. The slot is taken before the lookups now.
+     */
+    test('holds when two invites for the same pair overlap', async () => {
+        friendIsOnline();
+        areFriends(true);
+        roomHolding(['sock-me']);
+
+        await Promise.all([
+            inviteFriend(senderSocket(), { friendId: FRIEND, room: ROOM }),
+            inviteFriend(senderSocket(), { friendId: FRIEND, room: ROOM }),
+        ]);
+
+        expect(invitesSent()).toHaveLength(1);
+    });
+
+    /*
+     * The slot is taken up front, so a refusal has to give it back — or one
+     * invite into a room the sender had left would cost the next real one its
+     * minute.
+     */
+    test('is not spent by an invite that was refused', async () => {
+        friendIsOnline();
+        areFriends(true);
+        roomHolding(['sock-somebody-else']);          // sender is not in it
+        await inviteFriend(senderSocket(), { friendId: FRIEND, room: ROOM });
+        expect(invitesSent()).toHaveLength(0);
+
+        await sendOne();
+
+        expect(invitesSent()).toHaveLength(1);
+    });
+
+    /*
      * Per PAIR, not per sender: the thing being protected is one person's
      * attention, so somebody with twenty friends can still invite all of them.
      */

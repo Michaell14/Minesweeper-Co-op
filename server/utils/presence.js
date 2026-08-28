@@ -17,25 +17,47 @@ const friendsRepo = require('../data/friendsRepo');
 const { SERVER_EVENTS } = require('../../shared/events');
 
 /**
+ * The live socket map, indexed by account: `Map<userId, [socketId, socket][]>`.
+ *
+ * ONE pass, reused for every lookup the caller then makes. Built rather than
+ * scanned per question because the questions come in bunches: announcing a
+ * departure asks "is this friend online?" once per friend and then "which
+ * sockets do they have?" for each one who is, so a scan per lookup made a
+ * single connect O(friends x sockets) — at the 100-friend cap, two hundred
+ * walks of the whole map, on the connection path. That is the shape of thing
+ * that is free in testing and quadratic in production.
+ *
+ * Entries rather than ids alone, because `isOnlineExcept` compares socket
+ * INSTANCES: an index of ids could not answer it, and would leave a second
+ * scan standing beside this one.
+ */
+const indexSocketsByUser = () => {
+    const byUser = new Map();
+    for (const [socketId, socket] of io.sockets.sockets) {
+        const userId = socket?.data?.user?.id;
+        if (!userId) continue;
+        const existing = byUser.get(userId);
+        if (existing) existing.push([socketId, socket]);
+        else byUser.set(userId, [[socketId, socket]]);
+    }
+    return byUser;
+};
+
+/**
  * Every live socket belonging to an account, resolved NOW rather than assumed.
  *
  * A scan rather than a `user:<id>` room, which would be the idiomatic answer
  * anywhere else: room codes here are arbitrary strings (`validation.js` bounds
  * only the length), so `socket.join('user:<uuid>')` shares a namespace with
  * whatever players type into the join box — and anyone who knew a victim's id
- * could create that room and receive their traffic. Presence events are rare
- * and the socket map is small, so the scan costs nothing worth protecting.
+ * could create that room and receive their traffic.
  *
  * Moved here from statsRecorder, which now imports it: two copies of this
  * scan would be two places for the `user:<id>` shortcut to creep back in.
+ * That caller asks once, on a rare unlock, so it pays for its own pass; the
+ * paths below that ask in bunches read one index directly instead.
  */
-const socketEntriesOf = (userId) => {
-    const entries = [];
-    for (const [socketId, socket] of io.sockets.sockets) {
-        if (socket?.data?.user?.id === userId) entries.push([socketId, socket]);
-    }
-    return entries;
-};
+const socketEntriesOf = (userId) => indexSocketsByUser().get(userId) ?? [];
 
 const socketIdsOf = (userId) => socketEntriesOf(userId).map(([socketId]) => socketId);
 
@@ -77,7 +99,8 @@ const isLastSocketOf = (socket) => {
 const onlineFriendIds = async (userId) => {
     if (!isDbEnabled()) return [];
     const friendIds = await friendsRepo.listFriendIds(userId);
-    return friendIds.filter(isOnline);
+    const byUser = indexSocketsByUser();
+    return friendIds.filter((friendId) => byUser.has(friendId));
 };
 
 /** Emits to every live socket of one account. No-op if they have none. */
@@ -127,9 +150,13 @@ const announcePresence = async (userId, online, exceptSocket) => {
         // socket's `true` leaves friends looking at a ghost. Re-read, and drop
         // an announcement the map no longer agrees with.
         if (isOnlineExcept(userId, exceptSocket) !== online) return;
+        // One index for the whole fan-out: every "which sockets are theirs"
+        // below is answered from it, rather than a walk per friend.
+        const byUser = indexSocketsByUser();
         for (const friendId of friendIds) {
-            if (!isOnline(friendId)) continue;
-            emitToUser(friendId, SERVER_EVENTS.FRIEND_PRESENCE, { id: userId, online });
+            for (const [socketId] of byUser.get(friendId) ?? []) {
+                io.to(socketId).emit(SERVER_EVENTS.FRIEND_PRESENCE, { id: userId, online });
+            }
         }
     } catch (error) {
         console.error('Presence announce failed:', error.message);
@@ -167,6 +194,7 @@ const onDisconnect = async (socket) => {
 };
 
 module.exports = {
+    indexSocketsByUser,
     socketsOf,
     socketIdsOf,
     isOnline,

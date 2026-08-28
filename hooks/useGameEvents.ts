@@ -4,7 +4,7 @@ import { useMinesweeperStore } from "@/app/store";
 import { shootConfetti } from "@/lib/confetti";
 import { playSound } from "@/lib/sound";
 import { cursorColorForId } from "@/lib/theme";
-import { DIALOGS, openDialog, closeDialog } from "@/lib/dialogs";
+import { DIALOGS, openDialog, closeDialog, type DialogId } from "@/lib/dialogs";
 import { boardKey, playersForClear, recordBestTime } from "@/lib/bestTimes";
 import { recordDailyResult } from "@/lib/dailyHistory";
 import { elapsedSeconds } from "@/lib/gameClock";
@@ -129,6 +129,30 @@ const belongsToCurrentRoom = (
     return store.room === room;
 };
 
+/**
+ * Opens a game-over dialog, and asks who in this room could be added.
+ *
+ * The ask belongs HERE, with the open, rather than in the component that draws
+ * the offer: every summary dialog contains one, and dialogs in this app are
+ * always rendered (they are native <dialog>s opened imperatively), so a
+ * component-owned fetch ran four times — on ROOM JOIN, before anybody had
+ * played anything. Measured at four, which is also four walks of the room on
+ * the server.
+ *
+ * A guest's ask is a no-op the server drops, which is cheaper than teaching
+ * this table what a session is.
+ */
+const openSummary = (socket: AppSocket, dialog: DialogId) => {
+    openDialog(dialog);
+    const store = useMinesweeperStore.getState();
+    if (store.room && store.playerJoined) {
+        socket.emit(CLIENT_EVENTS.ROOM_FRIENDS, {
+            room: store.room,
+            token: store.nextRoomFriendsToken(),
+        });
+    }
+};
+
 /** Shared + co-op events. */
 const coopHandlers = (socket: AppSocket, leaveRoom: () => void): SocketHandlers => ({
     // --- Game state ---
@@ -147,7 +171,7 @@ const coopHandlers = (socket: AppSocket, leaveRoom: () => void): SocketHandlers 
         playSound('win');
         useMinesweeperStore.getState().setGameWon(true);
         recordClear();
-        openDialog(DIALOGS.gameSummary);
+        openSummary(socket, DIALOGS.gameSummary);
     },
 
     [SERVER_EVENTS.GAME_OVER]: (name) => {
@@ -155,7 +179,7 @@ const coopHandlers = (socket: AppSocket, leaveRoom: () => void): SocketHandlers 
         const store = useMinesweeperStore.getState();
         store.setGameOver(true);
         store.setGameOverName(name);
-        openDialog(DIALOGS.gameSummary);
+        openSummary(socket, DIALOGS.gameSummary);
     },
 
     [SERVER_EVENTS.RESET_EVERYONE]: () => {
@@ -338,6 +362,30 @@ const coopHandlers = (socket: AppSocket, leaveRoom: () => void): SocketHandlers 
      */
     [SERVER_EVENTS.FRIEND_INVITE]: (invite) =>
         useMinesweeperStore.getState().setFriendInvite(invite),
+
+    /* Sent to this socket alone, and re-sent after every add — so it is always
+     * the whole truth about who in this room can be added.
+     *
+     * Dropped unless it is the NEWEST list about the room we are in NOW.
+     * These emits are ordered by when their Redis and Postgres work finishes,
+     * not by when they were asked for, so an older one can land on top of a
+     * newer one two ways: from a room since left — offering people from the
+     * last game, whose socket ids the server then refuses — or from before an
+     * add already made, which puts "Add friend" back under somebody who is
+     * already a friend. The room catches the first, the token the second.
+     *
+     * Newer than what we HAVE, not newest of what we asked: a request the
+     * server refuses is answered with silence, so waiting for the newest ask
+     * would discard the last good answer whenever the ask after it was
+     * dropped. Leaving is what closes that door on the visit being left —
+     * `resetRoomFriends` retires its outstanding asks — so nothing from a
+     * previous visit to this same room can pass this check. */
+    [SERVER_EVENTS.ROOM_FRIENDS_UPDATE]: ({ room, token, players }) => {
+        const store = useMinesweeperStore.getState();
+        if (!store.playerJoined || store.room !== room) return;
+        if (token <= store.roomFriendsSeen) return;
+        store.setRoomFriends(players, token);
+    },
 });
 
 /** PVP events. `socket` is needed to tell "I won" from "they won". */
@@ -380,7 +428,7 @@ const pvpHandlers = (socket: AppSocket): SocketHandlers => ({
         const store = useMinesweeperStore.getState();
         store.setGameOver(true);
         store.setPvpOpponentStatus("playing"); // Opponent might still be playing
-        openDialog(DIALOGS.pvpGameOver);
+        openSummary(socket, DIALOGS.pvpGameOver);
     },
 
     [SERVER_EVENTS.PVP_OPPONENT_FAILED]: () => useMinesweeperStore.getState().setPvpOpponentStatus("failed"),
@@ -397,10 +445,10 @@ const pvpHandlers = (socket: AppSocket): SocketHandlers => ({
             store.setGameWon(true);
             // Winning a race means clearing the board, so it counts.
             recordClear();
-            openDialog(DIALOGS.pvpYouWon);
+            openSummary(socket, DIALOGS.pvpYouWon);
         } else {
             playSound('lose');
-            openDialog(DIALOGS.pvpOpponentWon);
+            openSummary(socket, DIALOGS.pvpOpponentWon);
         }
     },
 
@@ -415,7 +463,7 @@ const pvpHandlers = (socket: AppSocket): SocketHandlers => ({
         shootConfetti();
         playSound('win');
         store.setGameWon(true);
-        openDialog(DIALOGS.pvpOpponentDisconnected);
+        openSummary(socket, DIALOGS.pvpOpponentDisconnected);
     },
 
     [SERVER_EVENTS.PVP_OPPONENT_LEFT_BEFORE_START]: () => {

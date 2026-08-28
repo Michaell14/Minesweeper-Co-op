@@ -52,7 +52,10 @@ export default function Home() {
                 />
             )}
 
-            <GameDialogs resetGame={actions.resetGame} />
+            <GameDialogs
+                resetGame={actions.resetGame}
+                addRoomFriend={actions.addRoomFriend}
+            />
         </>
     );
 };

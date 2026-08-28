@@ -4,6 +4,7 @@ import ScoreTable from '@/components/game/ScoreTable';
 import { useGameStats } from '@/hooks/useGameStats';
 import { elapsedSeconds, formatClock } from '@/lib/gameClock';
 import BestTimeNote from '@/components/game/BestTimeNote';
+import AddFriendsFromGame from '@/components/game/AddFriendsFromGame';
 
 /** One number and its caption. */
 function Stat({ label, value }: { label: string; value: string }) {
@@ -13,6 +14,10 @@ function Stat({ label, value }: { label: string; value: string }) {
             <dd className="text-pixel-lg m-0">{value}</dd>
         </div>
     );
+}
+
+export interface GameSummaryProps {
+    addRoomFriend: (playerId: string) => void;
 }
 
 /**
@@ -25,7 +30,7 @@ function Stat({ label, value }: { label: string; value: string }) {
  * scoreboard; PVP is a race, where the only number that settles anything is how
  * far each player got.
  */
-export default function GameSummary() {
+export default function GameSummary({ addRoomFriend }: GameSummaryProps) {
     const mode = useMinesweeperStore((state) => state.mode);
     const startedAt = useMinesweeperStore((state) => state.startedAt);
     const endedAt = useMinesweeperStore((state) => state.endedAt);
@@ -63,6 +68,10 @@ export default function GameSummary() {
                     <ScoreTable />
                 </div>
             )}
+
+            {/* Both modes: a quick match pairs strangers, which is the case
+                this exists for. */}
+            <AddFriendsFromGame addRoomFriend={addRoomFriend} />
         </div>
     );
 }
