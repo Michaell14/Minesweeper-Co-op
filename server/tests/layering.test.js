@@ -22,7 +22,8 @@
  *   4  utils/                  services over repos + io
  *   5  game/                   per-mode cell actions
  *   6  controllers/            lifecycle flows
- *   7  server.js               socket wiring
+ *   7  routes/                 the socket route table and its pipeline
+ *   8  server.js               connection lifecycle
  *
  * Adding a layer means editing `layerOf` here, which is the point: moving a file
  * somewhere that breaks the ordering fails this suite instead of quietly
@@ -39,7 +40,7 @@ const SERVER_ROOT = path.join(__dirname, '..');
  *
  * Returns null for anything the table does not name, rather than defaulting to
  * the top layer. A default is what makes forgetting to edit this look safe: a
- * new `server/services/` would land at 7 alongside server.js, and every file in
+ * new `server/services/` would land at 8 alongside server.js, and every file in
  * it could then import from anywhere without tripping the ordering rule — the
  * enforcement quietly switched off for exactly the directory nobody had
  * thought about yet. An unclassified file fails the suite instead.
@@ -53,7 +54,8 @@ const layerOf = (file) => {
     if (rel.startsWith(`utils${path.sep}`)) return 4;
     if (rel.startsWith(`game${path.sep}`)) return 5;
     if (rel.startsWith(`controllers${path.sep}`)) return 6;
-    if (rel === 'server.js') return 7;
+    if (rel.startsWith(`routes${path.sep}`)) return 7;
+    if (rel === 'server.js') return 8;
     return null;
 };
 

@@ -6,13 +6,15 @@
  * was a feature silently not working. These tests keep the two halves in step
  * and stop the literals creeping back.
  *
- * They read source files as text on purpose: the client is TypeScript and cannot
- * be imported here, but its handler table is declarative enough to check.
+ * The CLIENT half is still read as text: it is TypeScript and cannot be imported
+ * here, but its handler table is declarative enough to check. The SERVER half no
+ * longer needs to be — `server/routes` is a table this can import directly.
  */
 
 const fs = require('fs');
 const path = require('path');
 const { CLIENT_EVENTS, SERVER_EVENTS } = require('../../shared/events');
+const { ROUTES } = require('../routes');
 
 const repoRoot = path.join(__dirname, '..', '..');
 const read = (rel) => fs.readFileSync(path.join(repoRoot, rel), 'utf8');
@@ -55,8 +57,14 @@ describe('the event name tables', () => {
 });
 
 describe('the server uses the constants', () => {
-    test.each(Object.entries(CLIENT_EVENTS))('registers a handler for %s', (key) => {
-        expect(serverSource).toContain(`CLIENT_EVENTS.${key}`);
+    /*
+     * The inbound half is checked against the ROUTE TABLE rather than by
+     * scanning source for `CLIENT_EVENTS.X`, which only ever proved the name
+     * appeared somewhere — a row could be commented out and this still passed.
+     * `routes.test.js` owns the rest of the table's shape.
+     */
+    test.each(Object.entries(CLIENT_EVENTS))('has a route registered for %s', (_key, value) => {
+        expect(ROUTES.map((route) => route.event)).toContain(value);
     });
 
     test('no raw event-name literal is emitted or listened for', () => {

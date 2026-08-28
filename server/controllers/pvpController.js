@@ -1,7 +1,6 @@
 const { revealFrom, projectBoard } = require('../domain/board');
 const { generateBoard } = require('../domain/boardGen');
 const { updatePlayerStatsInRoom } = require('../utils/playerUtils');
-const { isValidRoomCode } = require('../validation');
 const roomRepo = require('../data/roomRepo');
 const playerRepo = require('../data/playerRepo');
 const { pvpPlayerFields } = require('../data/keys');
@@ -27,12 +26,10 @@ const buildSharedBoard = (numRows, numCols, numMines) => {
     return { board, openedCells: cellsRevealed };
 };
 
+// Room code and membership are the route's job now (routes/index.js).
 /** Handles 'startPvpGame'. */
-const startPvpGame = async ({ socket, room, isValid, io }) => {
+const startPvpGame = async ({ socket, room, io }) => {
     try {
-        if (!isValidRoomCode(room)) return;
-        if (!(await isValid(room))) return;
-
         const roomState = await roomRepo.getState(room);
         const mode = roomState.mode || 'co-op';
         if (mode !== 'pvp') return;
@@ -128,11 +125,8 @@ const startPvpGame = async ({ socket, room, isValid, io }) => {
 };
 
 /** Handles 'resetMyBoard'. */
-const resetMyBoard = async ({ socket, room, isValid, io }) => {
+const resetMyBoard = async ({ socket, room, io }) => {
     try {
-        if (!isValidRoomCode(room)) return;
-        if (!(await isValid(room))) return;
-
         const roomState = await roomRepo.getState(room);
         const mode = roomState.mode || 'co-op';
         if (mode !== 'pvp') return;
@@ -207,11 +201,8 @@ const resetMyBoard = async ({ socket, room, isValid, io }) => {
 };
 
 /** Handles 'pvpRematch'. */
-const pvpRematch = async ({ socket, room, isValid, io }) => {
+const pvpRematch = async ({ socket, room, io }) => {
     try {
-        if (!isValidRoomCode(room)) return;
-        if (!(await isValid(room))) return;
-
         const roomState = await roomRepo.getState(room);
         const mode = roomState.mode || 'co-op';
         if (mode !== 'pvp') return;
