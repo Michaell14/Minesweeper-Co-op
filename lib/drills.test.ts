@@ -60,7 +60,25 @@ describe('lessons', () => {
             'one-two-one': 4,
             'one-two-two-one': 4,
             'reduction': 5,
+            'in-the-wild': 5,
         });
+    });
+
+    test('the in-the-wild boards are actually big', () => {
+        // The whole point of this lesson is that the pattern has to be FOUND.
+        // A small board here teaches nothing the earlier lessons did not, and
+        // nothing else would notice it had shrunk.
+        for (const d of drillsForLesson('in-the-wild')) {
+            const cells = d.layout.length * d.layout[0].length;
+            expect({ id: d.id, tooSmall: cells < 25 }).toEqual({ id: d.id, tooSmall: false });
+        }
+    });
+
+    test('every in-the-wild board stays a drill, not a full game', () => {
+        for (const d of drillsForLesson('in-the-wild')) {
+            const moves = d.solution.flag.length + d.solution.open.length;
+            expect({ id: d.id, tooLong: moves > 14 }).toEqual({ id: d.id, tooLong: false });
+        }
     });
 
     test('lessonById finds one and shrugs at nonsense', () => {

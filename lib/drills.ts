@@ -8,7 +8,8 @@ export type LessonId =
     | 'one-two'
     | 'one-two-one'
     | 'one-two-two-one'
-    | 'reduction';
+    | 'reduction'
+    | 'in-the-wild';
 
 export interface Drill {
     id: string;
@@ -75,6 +76,14 @@ export const LESSONS: readonly Lesson[] = [
         blurb: 'The general rule every pattern above is a special case of.',
         intro:
             'Every pattern in the lessons before this one is this rule wearing a costume. When one number\'s covered cells sit entirely inside another\'s, subtract the smaller from the larger: the difference between their counts tells you about exactly the cells left over. Learn it and you never have to recognise a named pattern again.',
+    },
+
+    {
+        id: 'in-the-wild',
+        title: 'In the wild',
+        blurb: 'The same patterns, hidden in a board that looks like a real game.',
+        intro:
+            'Knowing a pattern and spotting one are different skills, and only the second one saves you time in a real game. These boards are bigger and busier, and the shape you need is somewhere in them \u2014 next to plenty that resembles it and is not it.',
     },
 ];
 
@@ -297,6 +306,51 @@ export const DRILLS: readonly Drill[] = [
         solution: { flag: [[1, 0]], open: [[0, 0], [0, 2], [2, 0]] },
         explanation:
             'Every pattern in this lesson is this one rule wearing a different shape.',
+    },
+    {
+        id: 'in-the-wild-a',
+        lesson: 'in-the-wild',
+        prompt: 'Flag every mine and open every safe cell you can prove.',
+        layout: ['.1221.', '13**1.', '1**##.', '12##1.', '..1*1.', '..1#1.'],
+        solution: { flag: [[1, 2], [1, 3], [2, 1], [2, 2], [4, 3]], open: [[2, 3], [2, 4], [3, 2], [3, 3], [5, 3]] },
+        explanation:
+            'A 1-2-2-1 runs along the top row, and you will need it: counting alone does not finish this board.',
+    },
+    {
+        id: 'in-the-wild-b',
+        lesson: 'in-the-wild',
+        prompt: 'Flag every mine and open every safe cell you can prove.',
+        layout: ['1#1....', '#*#....', '2*#11..', '112*1..', '..111..', '..11211', '..1*#*1'],
+        solution: { flag: [[1, 1], [2, 1], [3, 3], [6, 3], [6, 5]], open: [[0, 1], [1, 0], [1, 2], [2, 2], [6, 4]] },
+        explanation:
+            'There is a 1-2-1 low on the board. The loose 1s scattered elsewhere are the noise you have to see past.',
+    },
+    {
+        id: 'in-the-wild-c',
+        lesson: 'in-the-wild',
+        prompt: 'Flag every mine and open every safe cell you can prove.',
+        layout: ['.1***1', '.2#4#1', '13*31.', '1***1.', '12321.', '......'],
+        solution: { flag: [[0, 2], [0, 3], [0, 4], [2, 2], [3, 1], [3, 2], [3, 3]], open: [[1, 2], [1, 4]] },
+        explanation:
+            'A 1 beside a 2 near the bottom is the way in. The 4 looks like the hard part and never is.',
+    },
+    {
+        id: 'in-the-wild-d',
+        lesson: 'in-the-wild',
+        prompt: 'Flag every mine and open every safe cell you can prove.',
+        layout: ['...111', '...1*2', '..#1#*', '111#2#', '#*11*1', '1111#1'],
+        solution: { flag: [[1, 4], [2, 5], [4, 1], [4, 4]], open: [[2, 2], [2, 4], [3, 3], [3, 5], [4, 0], [5, 4]] },
+        explanation:
+            'The 1 and 2 at the top of the right-hand column are a 1-2 like any other, only read downwards.',
+    },
+    {
+        id: 'in-the-wild-e',
+        lesson: 'in-the-wild',
+        prompt: 'Flag every mine and open every safe cell you can prove.',
+        layout: ['1#321.', '#***1.', '14*#1.', '.2*211', '.1111*', '....11', '......'],
+        solution: { flag: [[1, 1], [1, 2], [1, 3], [2, 2], [3, 2], [4, 5]], open: [[0, 1], [1, 0], [2, 3]] },
+        explanation:
+            'Several 1-1 pairs sit low on the board. They are what plain counting cannot do for you here.',
     },
 ];
 

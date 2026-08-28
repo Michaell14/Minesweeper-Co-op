@@ -304,3 +304,27 @@ describe('a pattern read backwards', () => {
         expect(problems.join(' ')).not.toMatch(/pattern/i);
     });
 });
+
+describe('a lesson that accepts any of several patterns', () => {
+    test('passes a board holding one of them', () => {
+        expect(validateDrill(drill({
+            lesson: 'in-the-wild',
+            layout: ['121', '*#*'],
+            solution: { flag: [[1, 0], [1, 2]], open: [[1, 1]] },
+        }))).toEqual([]);
+    });
+
+    test('rejects a board holding none of them', () => {
+        // Needs subset reduction, but shows no named pattern in any row or
+        // column read EITHER way — its only digit neighbours are 1-3 and 3-1.
+        const problems = validateDrill(drill({
+            lesson: 'in-the-wild',
+            layout: ['#*2', '*3*', '13#', '#1*'],
+            solution: {
+                flag: [[0, 1], [1, 0], [1, 2], [3, 2]],
+                open: [[0, 0], [2, 2], [3, 0]],
+            },
+        }));
+        expect(problems.join(' ')).toMatch(/pattern/i);
+    });
+});
