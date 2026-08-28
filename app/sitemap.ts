@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import { SITE_URL } from "@/lib/site";
+import { LESSONS } from "@/lib/drills";
 
 /**
  * Replaces the old static public/sitemap.xml, whose `lastmod` was hand-typed and
@@ -17,6 +18,13 @@ const ROUTES: { path: string; priority: number; changeFrequency: "daily" | "week
     { path: "/daily", priority: 0.9, changeFrequency: "daily" },
     { path: "/how-to-play", priority: 0.7, changeFrequency: "monthly" },
     { path: "/no-guess-minesweeper", priority: 0.7, changeFrequency: "monthly" },
+    { path: "/drills", priority: 0.7, changeFrequency: "monthly" },
+    // One per lesson: the pattern names are the searched terms.
+    ...LESSONS.map((lesson) => ({
+        path: `/drills/${lesson.id}`,
+        priority: 0.6,
+        changeFrequency: "monthly" as const,
+    })),
     // Carried over from the static file this replaced — /changelog sets its own
     // canonical and is indexable, so dropping it here would have quietly
     // deindexed a page that was already listed.
