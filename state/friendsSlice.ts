@@ -54,9 +54,9 @@ export interface FriendsSlice {
     } | null;
 
     setRoomFriends: (players: RoomFriend[], token: number) => void;
-    /** The next token to ask with. Monotonic until the room is left. */
+    /** The next token to ask with. Monotonic for the life of the tab. */
     nextRoomFriendsToken: () => number;
-    /** The offer, back to before anybody asked for it. */
+    /** Drops the offer without touching the counters. See `resetRoomFriends`. */
     resetRoomFriends: () => void;
     setOnlineFriends: (ids: string[]) => void;
     setFriendOnline: (id: string, online: boolean) => void;
@@ -79,7 +79,13 @@ export const createFriendsSlice: StateCreator<FriendsSlice> = (set, get) => ({
     // next arrival can tell whether it is newer than this one.
     setRoomFriends: (roomFriends, roomFriendsSeen) => set({ roomFriends, roomFriendsSeen }),
 
-    resetRoomFriends: () => set({ roomFriends: [], roomFriendsToken: 0, roomFriendsSeen: 0 }),
+    /*
+     * The list goes; the counters do NOT. Rejoining the same room would
+     * otherwise reuse the tokens of the visit just left, and an answer still
+     * in flight from that visit would be taken as this one's — former players,
+     * offered again.
+     */
+    resetRoomFriends: () => set({ roomFriends: [] }),
 
     nextRoomFriendsToken: () => {
         const roomFriendsToken = get().roomFriendsToken + 1;

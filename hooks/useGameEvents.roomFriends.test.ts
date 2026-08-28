@@ -49,7 +49,9 @@ beforeEach(() => {
     state().setRoom("wired-room");
     state().setPlayerJoined(true);
     state().setMode("co-op");
-    state().resetRoomFriends();
+    // The counters deliberately outlive a room, so a clean slate per test is
+    // a store reset rather than anything the app itself does.
+    useMinesweeperStore.setState({ roomFriends: [], roomFriendsToken: 0, roomFriendsSeen: 0 });
 });
 
 describe("a game ending", () => {
@@ -136,24 +138,39 @@ describe("a list arriving", () => {
     });
 
     /*
-     * The same staleness one step earlier: the older answer arrives while the
-     * newer ASK is still out. It is newer than anything taken, so a
-     * last-seen check alone lets it in — and "Add friend" reappears under
-     * somebody already added for as long as the pending answer takes. Every
-     * list is the whole truth about the room, so the pending ask supersedes
-     * this one outright.
+     * Why the check is against what we HAVE and not against what we last
+     * asked: the server answers a request it refuses with silence, so an ask
+     * that never comes back would strand the good answer before it.
      */
-    test("older than an ask still pending is dropped", () => {
+    test("is kept even when a later ask never answers", () => {
         const handlers = useGameEvents(socketWith(), vi.fn());
 
-        const asked = state().nextRoomFriendsToken();
-        arrives(handlers, listFor("wired-room", "Alice", asked, "friends"));
-        state().nextRoomFriendsToken();                    // superseded
-        const pending = state().nextRoomFriendsToken();    // and still out
+        const answered = state().nextRoomFriendsToken();
+        state().nextRoomFriendsToken();                    // refused; never answers
 
-        arrives(handlers, listFor("wired-room", "Alice", pending - 1, "none"));
+        arrives(handlers, listFor("wired-room", "Alice", answered, "friends"));
 
         expect(state().roomFriends.map((p) => p.status)).toEqual(["friends"]);
+    });
+
+    /*
+     * And why the counters outlive the room: rejoining the one just left would
+     * otherwise reuse its tokens, and an answer still in flight from the last
+     * visit would be taken as this visit's — former players, offered again.
+     */
+    test("from a previous visit to the same room is dropped", () => {
+        const handlers = useGameEvents(socketWith(), vi.fn());
+
+        const first = state().nextRoomFriendsToken();
+        arrives(handlers, listFor("wired-room", "Gone", first, "none"));
+
+        state().resetRoomFriends();                        // the visit ends
+        const second = state().nextRoomFriendsToken();     // and begins again
+        expect(second).toBeGreaterThan(first);
+
+        arrives(handlers, listFor("wired-room", "Gone", first, "none"));
+
+        expect(state().roomFriends).toEqual([]);
     });
 
     test("is dropped once we are out of the room altogether", () => {
