@@ -116,3 +116,62 @@ describe('the prompt', () => {
         expect(screen.getByText(DRILL.prompt)).toBeTruthy();
     });
 });
+
+const explanation = () => screen.queryByRole('status', { name: 'Explanation' });
+
+describe('when a move is wrong', () => {
+    test('nothing is explained before the player has done anything', () => {
+        render(<DrillRunner drill={DRILL} />);
+        expect(explanation()).toBeNull();
+    });
+
+    test('the drill says why the cell is what it is', () => {
+        render(<DrillRunner drill={DRILL} />);
+        open('Unrevealed cell at row 2, column 1');
+        expect(explanation()?.textContent).toMatch(/mine/i);
+    });
+
+    test('the reason comes from the rules, naming a number on the board', () => {
+        render(<DrillRunner drill={DRILL} />);
+        open('Unrevealed cell at row 2, column 1');
+        expect(explanation()?.textContent).toMatch(/row 1, column \d/);
+    });
+
+    test('acting again clears the explanation', () => {
+        render(<DrillRunner drill={DRILL} />);
+        open('Unrevealed cell at row 2, column 1');
+        open('Wrong guess at row 2, column 1');
+        expect(explanation()).toBeNull();
+    });
+});
+
+describe('hints', () => {
+    test('a hint points at a cell and names the reason', () => {
+        render(<DrillRunner drill={DRILL} />);
+        fireEvent.click(screen.getByRole('button', { name: /Hint/i }));
+        const text = explanation()?.textContent ?? '';
+        expect(text).toMatch(/row 2, column 3/);
+        expect(text).toMatch(/mine/i);
+    });
+
+    test('a hint does not play the move for you', () => {
+        render(<DrillRunner drill={DRILL} />);
+        fireEvent.click(screen.getByRole('button', { name: /Hint/i }));
+        expect(cellNamed('Unrevealed cell at row 2, column 3')).toBeTruthy();
+    });
+
+    test('a hinted solve is completed but not perfect', () => {
+        render(<DrillRunner drill={DRILL} />);
+        fireEvent.click(screen.getByRole('button', { name: /Hint/i }));
+        solveIt();
+        const stored = JSON.parse(window.localStorage.getItem('ms-drills') ?? '{}');
+        expect(stored.completed).toEqual(['one-two-one-a']);
+        expect(stored.perfect).toEqual([]);
+    });
+
+    test('a solved drill offers no more hints', () => {
+        render(<DrillRunner drill={DRILL} />);
+        solveIt();
+        expect(screen.queryByRole('button', { name: /Hint/i })).toBeNull();
+    });
+});

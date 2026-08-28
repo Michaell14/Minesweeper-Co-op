@@ -35,10 +35,17 @@ export function readProgress(): DrillProgress {
     }
 }
 
-export function recordSolved(id: string, mistakes: number): DrillProgress {
+/** A hint counts against perfect the same as a mistake: both mean it was not solved cold. */
+export interface Attempt {
+    mistakes: number;
+    hints: number;
+}
+
+export function recordSolved(id: string, attempt: Attempt): DrillProgress {
     const next = readProgress();
+    const clean = attempt.mistakes === 0 && attempt.hints === 0;
     if (!next.completed.includes(id)) next.completed.push(id);
-    if (mistakes === 0 && !next.perfect.includes(id)) next.perfect.push(id);
+    if (clean && !next.perfect.includes(id)) next.perfect.push(id);
     try {
         window.localStorage.setItem(DRILL_PROGRESS_KEY, JSON.stringify(next));
     } catch {

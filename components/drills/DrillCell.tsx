@@ -15,11 +15,13 @@ export interface DrillCellProps {
     col: number;
     /** Derived from the layout by `adjacentMines`; only meaningful when open. */
     nearby: number;
+    /** Pointed at by a hint. */
+    hinted?: boolean;
     onOpen: (row: number, col: number) => void;
     onFlag: (row: number, col: number) => void;
 }
 
-export default function DrillCell({ state, row, col, nearby, onOpen, onFlag }: DrillCellProps) {
+export default function DrillCell({ state, row, col, nearby, hinted, onOpen, onFlag }: DrillCellProps) {
     // getState, never a subscription: drills own their board, the store only
     // holds the input preferences the muscle memory has to match.
     const settings = () => useMinesweeperStore.getState().settings;
@@ -85,6 +87,7 @@ export default function DrillCell({ state, row, col, nearby, onOpen, onFlag }: D
         isOpen ? styles.open : styles.closed,
         isOpen && nearby > 0 ? styles[`num${nearby}`] : '',
         state === 'wrong' ? drills.wrong : '',
+        hinted ? drills.hinted : '',
         isOpen ? '' : pointerClass,
     ].filter(Boolean).join(' ');
 

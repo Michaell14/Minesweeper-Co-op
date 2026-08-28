@@ -1,7 +1,7 @@
 /** The drill checker: what a player can prove, and whether a drill is honest. */
 
 import { describe, expect, test } from 'vitest';
-import { adjacentMines, deduce, validateDrill } from './drillDeduction';
+import { adjacentMines, deduce, explain, nextHint, validateDrill } from './drillDeduction';
 import type { Drill } from './drills';
 
 describe('counting', () => {
@@ -176,5 +176,65 @@ describe('adjacentMines', () => {
 
     test('does not run off the edge', () => {
         expect(adjacentMines(['*#'], 0, 1)).toBe(1);
+    });
+});
+
+describe('explain', () => {
+    test('a mine proven by counting names the number that proves it', () => {
+        const why = explain(['1*'], 0, 1);
+        expect(why?.verdict).toBe('mine');
+        expect(why?.rule).toBe('counting');
+        expect(why?.text).toMatch(/row 1, column 1/);
+    });
+
+    test('a safe cell proven by counting says the number is satisfied', () => {
+        const why = explain(['.#'], 0, 1);
+        expect(why?.verdict).toBe('safe');
+        expect(why?.rule).toBe('counting');
+    });
+
+    test('a mine proven by subset reduction names both numbers', () => {
+        const why = explain(['121', '*#*'], 1, 2);
+        expect(why?.verdict).toBe('mine');
+        expect(why?.rule).toBe('subset');
+        // Both opened cells that produced the step have to appear, or the
+        // explanation is not reproducible by the player.
+        expect(why?.text).toMatch(/row 1, column 1/);
+        expect(why?.text).toMatch(/row 1, column 2/);
+    });
+
+    test('a safe cell proven by subset reduction says so', () => {
+        const why = explain(['1111', '*##*'], 1, 2);
+        expect(why?.verdict).toBe('safe');
+        expect(why?.rule).toBe('subset');
+    });
+
+    test('a cell nothing can prove has no explanation', () => {
+        expect(explain(['1#', '#*'], 1, 1)).toBeNull();
+    });
+
+    test('an opened cell has no explanation', () => {
+        expect(explain(['1*'], 0, 0)).toBeNull();
+    });
+});
+
+describe('nextHint', () => {
+    // On this board the subset rule fires before counting can do anything, so
+    // deduction order — not row-major order — is what a hint should follow.
+    const LAYOUT = ['121', '*#*'];
+
+    test('points at the first cell the rules can prove', () => {
+        const hint = nextHint(LAYOUT, []);
+        expect(hint?.at).toEqual([1, 2]);
+        expect(hint?.why.verdict).toBe('mine');
+    });
+
+    test('skips what the player has already worked out', () => {
+        expect(nextHint(LAYOUT, [[1, 2]])?.at).toEqual([1, 0]);
+        expect(nextHint(LAYOUT, [[1, 2], [1, 0]])?.at).toEqual([1, 1]);
+    });
+
+    test('has nothing left to offer on a finished board', () => {
+        expect(nextHint(LAYOUT, [[1, 2], [1, 0], [1, 1]])).toBeNull();
     });
 });

@@ -56,7 +56,7 @@ describe('reading', () => {
 
 describe('recording a solve', () => {
     test('a clean solve counts as completed and perfect', () => {
-        recordSolved('counting-a', 0);
+        recordSolved('counting-a', { mistakes: 0, hints: 0 });
         expect(readProgress()).toEqual({
             version: 1,
             completed: ['counting-a'],
@@ -65,19 +65,24 @@ describe('recording a solve', () => {
     });
 
     test('a solve with mistakes counts as completed only', () => {
-        recordSolved('counting-a', 2);
+        recordSolved('counting-a', { mistakes: 2, hints: 0 });
         expect(readProgress()).toEqual({ version: 1, completed: ['counting-a'], perfect: [] });
     });
 
     test('a later scrappy solve does not take back an earned perfect', () => {
-        recordSolved('counting-a', 0);
-        recordSolved('counting-a', 3);
+        recordSolved('counting-a', { mistakes: 0, hints: 0 });
+        recordSolved('counting-a', { mistakes: 3, hints: 0 });
         expect(readProgress().perfect).toEqual(['counting-a']);
     });
 
+    test('a solve that leaned on a hint is completed but not perfect', () => {
+        recordSolved('counting-a', { mistakes: 0, hints: 1 });
+        expect(readProgress()).toEqual({ version: 1, completed: ['counting-a'], perfect: [] });
+    });
+
     test('solving the same drill twice records it once', () => {
-        recordSolved('counting-a', 1);
-        recordSolved('counting-a', 1);
+        recordSolved('counting-a', { mistakes: 1, hints: 0 });
+        recordSolved('counting-a', { mistakes: 1, hints: 0 });
         expect(readProgress().completed).toEqual(['counting-a']);
     });
 });

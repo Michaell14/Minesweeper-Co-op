@@ -43,23 +43,36 @@ function neighbours(rows: number, cols: number, r: number, c: number): Coord[] {
 interface Constraint {
     remaining: number;
     unknown: string[];
+    /** The opened cell itself, so an explanation can point at it. */
+    at: Coord;
+    digit: number;
 }
 
-/** Every mine/safe cell provable from the OPENED cells using only `rules`. */
-export function deduce(
-    layout: readonly string[],
-    rules: readonly RuleId[] = ALL_RULES,
-): { mines: Coord[]; safe: Coord[] } {
+/** Why a cell is provable, in words the player can check on the board. */
+export interface Explanation {
+    verdict: 'mine' | 'safe';
+    rule: RuleId;
+    text: string;
+}
+
+const where = ([r, c]: Coord) => `row ${r + 1}, column ${c + 1}`;
+const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
+const nameOf = (digit: number, at: Coord) =>
+    digit === 0 ? `blank cell at ${where(at)}` : `${digit} at ${where(at)}`;
+
+function run(layout: readonly string[], rules: readonly RuleId[]) {
     const rows = layout.length;
     const cols = rows === 0 ? 0 : layout[0].length;
     const known = new Map<string, 'mine' | 'safe'>();
+    const why = new Map<string, Explanation>();
     const at = (r: number, c: number) => layout[r][c];
 
-    const prove = (cells: string[], verdict: 'mine' | 'safe') => {
+    const prove = (cells: string[], verdict: 'mine' | 'safe', reason: () => Explanation) => {
         let hit = false;
         for (const k of cells) {
             if (known.get(k) === verdict) continue;
             known.set(k, verdict);
+            why.set(k, reason());
             hit = true;
         }
         return hit;
@@ -71,7 +84,8 @@ export function deduce(
             for (let c = 0; c < cols; c++) {
                 const ch = at(r, c);
                 if (COVERED.has(ch)) continue;
-                let remaining = ch === '.' ? 0 : Number(ch);
+                const digit = ch === '.' ? 0 : Number(ch);
+                let remaining = digit;
                 const unknown: string[] = [];
                 for (const [nr, nc] of neighbours(rows, cols, r, c)) {
                     if (!COVERED.has(at(nr, nc))) continue;
@@ -80,7 +94,7 @@ export function deduce(
                     if (state === 'mine') remaining--;
                     else if (state !== 'safe') unknown.push(k);
                 }
-                if (unknown.length > 0) out.push({ remaining, unknown });
+                if (unknown.length > 0) out.push({ remaining, unknown, at: [r, c], digit });
             }
         }
         return out;
@@ -92,9 +106,23 @@ export function deduce(
         const open = constraints();
 
         if (rules.includes('counting')) {
-            for (const { remaining, unknown } of open) {
-                if (remaining === 0) changed = prove(unknown, 'safe') || changed;
-                else if (remaining === unknown.length) changed = prove(unknown, 'mine') || changed;
+            for (const con of open) {
+                const { remaining, unknown } = con;
+                if (remaining === 0) {
+                    changed = prove(unknown, 'safe', () => ({
+                        verdict: 'safe',
+                        rule: 'counting',
+                        text: con.digit === 0
+                            ? `The ${nameOf(0, con.at)} touches no mines at all, so every covered cell around it is safe.`
+                            : `The ${nameOf(con.digit, con.at)} has already found ${plural(con.digit, 'its mine', 'all of its mines')}, so its remaining covered ${plural(unknown.length, 'cell is', 'cells are')} safe.`,
+                    })) || changed;
+                } else if (remaining === unknown.length) {
+                    changed = prove(unknown, 'mine', () => ({
+                        verdict: 'mine',
+                        rule: 'counting',
+                        text: `The ${nameOf(con.digit, con.at)} still needs ${remaining} more ${plural(remaining, 'mine', 'mines')} and touches only ${unknown.length} covered ${plural(unknown.length, 'cell', 'cells')}, so ${plural(unknown.length, 'it is a mine', 'they are all mines')}.`,
+                    })) || changed;
+                }
             }
         }
 
@@ -106,8 +134,19 @@ export function deduce(
                     if (!a.unknown.every((k) => inB.has(k))) continue;
                     const extra = b.unknown.filter((k) => !a.unknown.includes(k));
                     const delta = b.remaining - a.remaining;
-                    if (delta === extra.length) changed = prove(extra, 'mine') || changed;
-                    else if (delta === 0) changed = prove(extra, 'safe') || changed;
+                    if (delta === extra.length) {
+                        changed = prove(extra, 'mine', () => ({
+                            verdict: 'mine',
+                            rule: 'subset',
+                            text: `The ${nameOf(b.digit, b.at)} needs ${delta} more ${plural(delta, 'mine', 'mines')} than the ${nameOf(a.digit, a.at)}, and sees exactly ${extra.length} covered ${plural(extra.length, 'cell', 'cells')} that one cannot — so ${plural(extra.length, 'that cell is a mine', 'those cells are all mines')}.`,
+                        })) || changed;
+                    } else if (delta === 0) {
+                        changed = prove(extra, 'safe', () => ({
+                            verdict: 'safe',
+                            rule: 'subset',
+                            text: `The ${nameOf(a.digit, a.at)} and the ${nameOf(b.digit, b.at)} want the same number of mines, and every cell the first can see the second can see too — so the ${plural(extra.length, 'extra cell is', 'extra cells are')} safe.`,
+                        })) || changed;
+                    }
                 }
             }
         }
@@ -121,7 +160,26 @@ export function deduce(
             if (state) (state === 'mine' ? mines : safe).push([r, c]);
         }
     }
+    return { mines, safe, why };
+}
+
+/** Every mine/safe cell provable from the OPENED cells using only `rules`. */
+export function deduce(
+    layout: readonly string[],
+    rules: readonly RuleId[] = ALL_RULES,
+): { mines: Coord[]; safe: Coord[] } {
+    const { mines, safe } = run(layout, rules);
     return { mines, safe };
+}
+
+/** Why one cell is provable, or null if nothing proves it. */
+export function explain(
+    layout: readonly string[],
+    row: number,
+    col: number,
+    rules: readonly RuleId[] = ALL_RULES,
+): Explanation | null {
+    return run(layout, rules).why.get(key(row, col)) ?? null;
 }
 
 /** How many mines a cell touches, from the layout's `*` positions. */
@@ -234,4 +292,23 @@ export function validateDrill(drill: Drill): string[] {
     }
 
     return problems;
+}
+
+/**
+ * The next cell worth pointing at, in DEDUCTION order rather than board order —
+ * a hint should offer the step the rules reach next, not whichever cell happens
+ * to come first on the board.
+ */
+export function nextHint(
+    layout: readonly string[],
+    done: readonly Coord[],
+    rules: readonly RuleId[] = ALL_RULES,
+): { at: Coord; why: Explanation } | null {
+    const settled = new Set(done.map(([r, c]) => key(r, c)));
+    for (const [k, why] of run(layout, rules).why) {
+        if (settled.has(k)) continue;
+        const [r, c] = k.split(',');
+        return { at: [Number(r), Number(c)], why };
+    }
+    return null;
 }

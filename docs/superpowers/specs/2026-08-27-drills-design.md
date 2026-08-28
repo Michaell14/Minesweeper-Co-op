@@ -298,6 +298,16 @@ declared solution is the complete deducible set ✓.
 - A move that contradicts the ground truth marks that cell (a `wrong` modifier
   reading `--ms-intent-error`) and increments a per-attempt mistake count. The
   drill does not end. A second click clears the mark and lets the player retry.
+- A wrong move also **says why**, from `explain()` in `lib/drillDeduction.ts`.
+  The reason is derived from the RULES, never from the layout's mines: a drill
+  that only said "that was a mine" would teach nothing, and an explanation the
+  player cannot reproduce on the board is not an explanation. The message names
+  the opened numbers that prove the cell.
+- A **Hint** button points at the next provable cell and names the rule that
+  proves it (`nextHint()`, which walks DEDUCTION order rather than board order,
+  so the hint is the step the rules actually reach next). It outlines the cell;
+  it never plays the move, since solving it for the player destroys the thing
+  being taught. Using one costs `perfect`, exactly as a mistake does.
 - A drill is solved when the marked set equals `solution` — checked against the
   declared solution, never against ground truth directly, so the two stay
   independent all the way to the UI.
@@ -318,6 +328,10 @@ interface DrillProgress {
     perfect: string[];      // solved with zero mistakes
 }
 ```
+
+`perfect` means solved cold: no mistakes AND no hints. `recordSolved` takes an
+`Attempt` (`{ mistakes, hints }`) rather than a bare count, so the two reasons a
+solve is not perfect stay distinguishable at the call site.
 
 localStorage key `ms-drills`. Read through a sanitiser that drops unknown keys
 and defaults missing ones, exactly as `lib/settings.ts` does — a hand-edited or
