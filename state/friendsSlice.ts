@@ -54,8 +54,10 @@ export interface FriendsSlice {
     } | null;
 
     setRoomFriends: (players: RoomFriend[], token: number) => void;
-    /** The next token to ask with. Monotonic for the life of the tab. */
+    /** The next token to ask with. Monotonic until the room is left. */
     nextRoomFriendsToken: () => number;
+    /** The offer, back to before anybody asked for it. */
+    resetRoomFriends: () => void;
     setOnlineFriends: (ids: string[]) => void;
     setFriendOnline: (id: string, online: boolean) => void;
     setFriendInvite: (invite: FriendsSlice['friendInvite']) => void;
@@ -76,6 +78,8 @@ export const createFriendsSlice: StateCreator<FriendsSlice> = (set, get) => ({
     // there is never a local edit to preserve. The token comes with it so the
     // next arrival can tell whether it is newer than this one.
     setRoomFriends: (roomFriends, roomFriendsSeen) => set({ roomFriends, roomFriendsSeen }),
+
+    resetRoomFriends: () => set({ roomFriends: [], roomFriendsToken: 0, roomFriendsSeen: 0 }),
 
     nextRoomFriendsToken: () => {
         const roomFriendsToken = get().roomFriendsToken + 1;

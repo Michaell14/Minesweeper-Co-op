@@ -49,7 +49,7 @@ beforeEach(() => {
     state().setRoom("wired-room");
     state().setPlayerJoined(true);
     state().setMode("co-op");
-    state().setRoomFriends([], 0);
+    state().resetRoomFriends();
 });
 
 describe("a game ending", () => {
@@ -131,6 +131,27 @@ describe("a list arriving", () => {
 
         arrives(handlers, listFor("wired-room", "Alice", 2, "friends"));   // the add's reply
         arrives(handlers, listFor("wired-room", "Alice", 1, "none"));      // asked first, back last
+
+        expect(state().roomFriends.map((p) => p.status)).toEqual(["friends"]);
+    });
+
+    /*
+     * The same staleness one step earlier: the older answer arrives while the
+     * newer ASK is still out. It is newer than anything taken, so a
+     * last-seen check alone lets it in — and "Add friend" reappears under
+     * somebody already added for as long as the pending answer takes. Every
+     * list is the whole truth about the room, so the pending ask supersedes
+     * this one outright.
+     */
+    test("older than an ask still pending is dropped", () => {
+        const handlers = useGameEvents(socketWith(), vi.fn());
+
+        const asked = state().nextRoomFriendsToken();
+        arrives(handlers, listFor("wired-room", "Alice", asked, "friends"));
+        state().nextRoomFriendsToken();                    // superseded
+        const pending = state().nextRoomFriendsToken();    // and still out
+
+        arrives(handlers, listFor("wired-room", "Alice", pending - 1, "none"));
 
         expect(state().roomFriends.map((p) => p.status)).toEqual(["friends"]);
     });

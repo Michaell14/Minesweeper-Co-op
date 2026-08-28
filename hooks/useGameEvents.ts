@@ -372,11 +372,16 @@ const coopHandlers = (socket: AppSocket, leaveRoom: () => void): SocketHandlers 
      * newer one two ways: from a room since left — offering people from the
      * last game, whose socket ids the server then refuses — or from before an
      * add already made, which puts "Add friend" back under somebody who is
-     * already a friend. The room catches the first, the token the second. */
+     * already a friend. The room catches the first, the token the second.
+     *
+     * Only the NEWEST ask's answer is taken. Every list is the whole truth
+     * about the room, so a pending ask supersedes an older one outright —
+     * taking the older one first would show a stale status for the round trip
+     * until the newer answer landed. */
     [SERVER_EVENTS.ROOM_FRIENDS_UPDATE]: ({ room, token, players }) => {
         const store = useMinesweeperStore.getState();
         if (!store.playerJoined || store.room !== room) return;
-        if (token <= store.roomFriendsSeen) return;
+        if (token < store.roomFriendsToken || token <= store.roomFriendsSeen) return;
         store.setRoomFriends(players, token);
     },
 });
