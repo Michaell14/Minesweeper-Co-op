@@ -377,8 +377,9 @@ const coopHandlers = (socket: AppSocket, leaveRoom: () => void): SocketHandlers 
      * Newer than what we HAVE, not newest of what we asked: a request the
      * server refuses is answered with silence, so waiting for the newest ask
      * would discard the last good answer whenever the ask after it was
-     * dropped. Tokens never restart, so an answer from a previous visit to
-     * this same room loses to one already taken. */
+     * dropped. Leaving is what closes that door on the visit being left —
+     * `resetRoomFriends` retires its outstanding asks — so nothing from a
+     * previous visit to this same room can pass this check. */
     [SERVER_EVENTS.ROOM_FRIENDS_UPDATE]: ({ room, token, players }) => {
         const store = useMinesweeperStore.getState();
         if (!store.playerJoined || store.room !== room) return;

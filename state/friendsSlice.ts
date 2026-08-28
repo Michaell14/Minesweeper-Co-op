@@ -37,6 +37,10 @@ export interface FriendsSlice {
      * the one that reflects it — putting "Add friend" back under somebody just
      * added. Comparing tokens is what tells the two apart; the room alone
      * cannot, because both are about the same room.
+     *
+     * `roomFriendsToken` is monotonic for the life of the tab; `seen` only
+     * ever moves forward, and `resetRoomFriends` jumps it to the token to
+     * retire what the visit being left is still owed.
      */
     roomFriendsToken: number;
     roomFriendsSeen: number;
@@ -56,7 +60,7 @@ export interface FriendsSlice {
     setRoomFriends: (players: RoomFriend[], token: number) => void;
     /** The next token to ask with. Monotonic for the life of the tab. */
     nextRoomFriendsToken: () => number;
-    /** Drops the offer without touching the counters. See `resetRoomFriends`. */
+    /** Drops the offer and retires the asks it left owing. */
     resetRoomFriends: () => void;
     setOnlineFriends: (ids: string[]) => void;
     setFriendOnline: (id: string, online: boolean) => void;
@@ -80,12 +84,15 @@ export const createFriendsSlice: StateCreator<FriendsSlice> = (set, get) => ({
     setRoomFriends: (roomFriends, roomFriendsSeen) => set({ roomFriends, roomFriendsSeen }),
 
     /*
-     * The list goes; the counters do NOT. Rejoining the same room would
-     * otherwise reuse the tokens of the visit just left, and an answer still
-     * in flight from that visit would be taken as this one's — former players,
-     * offered again.
+     * The list goes, and so does every ask still owed an answer: `seen`
+     * catches up to the last token handed out, which is the highest any reply
+     * from this visit can carry. The counter itself keeps counting.
+     *
+     * Rejoining the same room would otherwise let one through — same room,
+     * and a token nothing has seen yet — offering the last visit's players in
+     * this one.
      */
-    resetRoomFriends: () => set({ roomFriends: [] }),
+    resetRoomFriends: () => set({ roomFriends: [], roomFriendsSeen: get().roomFriendsToken }),
 
     nextRoomFriendsToken: () => {
         const roomFriendsToken = get().roomFriendsToken + 1;

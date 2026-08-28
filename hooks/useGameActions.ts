@@ -126,9 +126,9 @@ export function useGameActions(socket: AppSocket | null) {
         // board you were about to play alone.
         store.setPlayerStatsInRoom([]);
         // Co-players belong to the room being left just as the roster does,
-        // and an in-flight list for it may still be on its way back. The
-        // counters go with them, so the next room's first list is not weighed
-        // against a token from this one.
+        // and an in-flight list for it may still be on its way back. That list
+        // is retired with them, so rejoining this same room does not inherit
+        // the last visit's players.
         store.resetRoomFriends();
         store.setBoardConfig(DEFAULT_SIZE, DEFAULT_DIFFICULTY);
         store.clearAllHovers();

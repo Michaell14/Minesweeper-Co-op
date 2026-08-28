@@ -173,6 +173,29 @@ describe("a list arriving", () => {
         expect(state().roomFriends).toEqual([]);
     });
 
+    /*
+     * The harder half of the same thing: the visit ended with its ask still
+     * unanswered, so `seen` never rose to meet it. Leaving has to retire the
+     * ask itself, or the answer arrives into the new visit newer than
+     * anything taken and is believed.
+     */
+    test("from a previous visit that never answered is dropped", () => {
+        const handlers = useGameEvents(socketWith(), vi.fn());
+
+        const stranded = state().nextRoomFriendsToken();   // asked, never answered
+        state().resetRoomFriends();                        // the visit ends
+
+        arrives(handlers, listFor("wired-room", "Gone", stranded, "none"));
+
+        expect(state().roomFriends).toEqual([]);
+
+        // and this visit's own answer is still taken
+        const mine = state().nextRoomFriendsToken();
+        arrives(handlers, listFor("wired-room", "Here", mine, "none"));
+
+        expect(state().roomFriends.map((p) => p.name)).toEqual(["Here"]);
+    });
+
     test("is dropped once we are out of the room altogether", () => {
         const handlers = useGameEvents(socketWith(), vi.fn());
         state().setPlayerJoined(false);
