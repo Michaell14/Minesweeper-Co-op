@@ -23,7 +23,7 @@ const { io } = require('../utils/initializeClient');
 const { isDbEnabled } = require('../utils/initializePgClient');
 const roomRepo = require('../data/roomRepo');
 const friendsRepo = require('../data/friendsRepo');
-const { isValidRoomCode, isPlayerInRoom } = require('../validation');
+const { isValidRoomCode, isPlayerInRoom, isValidRequestToken } = require('../validation');
 const { SERVER_EVENTS } = require('../../shared/events');
 
 /** The account on a live socket, or null for a guest or a socket that is gone. */
@@ -50,7 +50,7 @@ const statusFor = (edge) => {
  * Sent to the ASKER alone, which is what lets "me" be excluded here rather than
  * by a client comparing socket ids it would first have to be told.
  */
-const sendRoomFriends = async (socket, room) => {
+const sendRoomFriends = async (socket, room, token) => {
     const me = socket.data?.user;
     if (!me || !isDbEnabled()) return;
     if (!isValidRoomCode(room)) return;
@@ -94,12 +94,15 @@ const sendRoomFriends = async (socket, room) => {
     }
 
     /*
-     * Stamped with the room it describes. These emits are ordered by when
-     * their Redis and Postgres work FINISHES, not by when they were asked
-     * for, so a list for a room the player has since left can land on top of
-     * the room they are actually in — offering strangers from the last game.
+     * Stamped with the room it describes and the token that asked for it.
+     * These emits are ordered by when their Redis and Postgres work FINISHES,
+     * not by when they were asked for, so an older list can land on top of a
+     * newer one: from a room the player has since left (offering strangers
+     * from the last game), or from before an add they have already made
+     * (putting "Add friend" back under somebody they just added). The client
+     * drops both, and needs the room and the token to tell.
      */
-    socket.emit(SERVER_EVENTS.ROOM_FRIENDS_UPDATE, { room, players });
+    socket.emit(SERVER_EVENTS.ROOM_FRIENDS_UPDATE, { room, token, players });
 };
 
 /**
@@ -111,10 +114,11 @@ const sendRoomFriends = async (socket, room) => {
  * refusal is silent for the same reason as everywhere else in this feature: a
  * block must not be distinguishable from anything else.
  */
-const addRoomFriend = async (socket, { room, playerId }) => {
+const addRoomFriend = async (socket, { room, playerId, token }) => {
     const me = socket.data?.user;
     if (!me || !isDbEnabled()) return;
     if (!isValidRoomCode(room) || typeof playerId !== 'string' || playerId === socket.id) return;
+    if (!isValidRequestToken(token)) return;
 
     try {
         const roomState = await roomRepo.getState(room);
@@ -127,16 +131,17 @@ const addRoomFriend = async (socket, { room, playerId }) => {
         if (!them || them.id === me.id) return;
 
         await friendsRepo.requestFriend(me.id, them.id);
-        await sendRoomFriends(socket, room);
+        await sendRoomFriends(socket, room, token);
     } catch (error) {
         console.error('Error adding a friend from a room:', error.message);
     }
 };
 
 /** The list, on request. Its own wrapper so the socket handler stays one line. */
-const roomFriends = async (socket, { room }) => {
+const roomFriends = async (socket, { room, token }) => {
     try {
-        await sendRoomFriends(socket, room);
+        if (!isValidRequestToken(token)) return;
+        await sendRoomFriends(socket, room, token);
     } catch (error) {
         console.error('Error listing room friends:', error.message);
     }

@@ -29,6 +29,18 @@ export interface FriendsSlice {
      */
     roomFriends: RoomFriend[];
     /**
+     * The counter sent with every ask for that list, and the one belonging to
+     * the newest list actually taken.
+     *
+     * The server answers when its Redis and Postgres work finishes rather than
+     * in the order it was asked, so a list from before an add can arrive after
+     * the one that reflects it — putting "Add friend" back under somebody just
+     * added. Comparing tokens is what tells the two apart; the room alone
+     * cannot, because both are about the same room.
+     */
+    roomFriendsToken: number;
+    roomFriendsSeen: number;
+    /**
      * The invitation on screen, or null. ONE at a time, not a queue: an invite
      * is a decision with a room attached, and stacking three of them would ask
      * somebody to pick a game from a pile while the first one fills up.
@@ -41,15 +53,19 @@ export interface FriendsSlice {
         mode: 'co-op' | 'pvp';
     } | null;
 
-    setRoomFriends: (players: RoomFriend[]) => void;
+    setRoomFriends: (players: RoomFriend[], token: number) => void;
+    /** The next token to ask with. Monotonic for the life of the tab. */
+    nextRoomFriendsToken: () => number;
     setOnlineFriends: (ids: string[]) => void;
     setFriendOnline: (id: string, online: boolean) => void;
     setFriendInvite: (invite: FriendsSlice['friendInvite']) => void;
 }
 
-export const createFriendsSlice: StateCreator<FriendsSlice> = (set) => ({
+export const createFriendsSlice: StateCreator<FriendsSlice> = (set, get) => ({
     onlineFriendIds: [],
     roomFriends: [],
+    roomFriendsToken: 0,
+    roomFriendsSeen: 0,
     friendInvite: null,
 
     // The snapshot is the truth as the server sees it right now; a client that
@@ -57,8 +73,15 @@ export const createFriendsSlice: StateCreator<FriendsSlice> = (set) => ({
     setOnlineFriends: (ids) => set({ onlineFriendIds: [...new Set(ids)] }),
 
     // Replaced wholesale: the server re-sends the list after every add, so
-    // there is never a local edit to preserve.
-    setRoomFriends: (roomFriends) => set({ roomFriends }),
+    // there is never a local edit to preserve. The token comes with it so the
+    // next arrival can tell whether it is newer than this one.
+    setRoomFriends: (roomFriends, roomFriendsSeen) => set({ roomFriends, roomFriendsSeen }),
+
+    nextRoomFriendsToken: () => {
+        const roomFriendsToken = get().roomFriendsToken + 1;
+        set({ roomFriendsToken });
+        return roomFriendsToken;
+    },
 
     setFriendOnline: (id, online) =>
         set((state) => {

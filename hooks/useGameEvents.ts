@@ -144,8 +144,13 @@ const belongsToCurrentRoom = (
  */
 const openSummary = (socket: AppSocket, dialog: DialogId) => {
     openDialog(dialog);
-    const { room, playerJoined } = useMinesweeperStore.getState();
-    if (room && playerJoined) socket.emit(CLIENT_EVENTS.ROOM_FRIENDS, { room });
+    const store = useMinesweeperStore.getState();
+    if (store.room && store.playerJoined) {
+        socket.emit(CLIENT_EVENTS.ROOM_FRIENDS, {
+            room: store.room,
+            token: store.nextRoomFriendsToken(),
+        });
+    }
 };
 
 /** Shared + co-op events. */
@@ -361,15 +366,18 @@ const coopHandlers = (socket: AppSocket, leaveRoom: () => void): SocketHandlers 
     /* Sent to this socket alone, and re-sent after every add — so it is always
      * the whole truth about who in this room can be added.
      *
-     * Dropped unless it is about the room we are in NOW. These emits are
-     * ordered by when their Redis and Postgres work finishes, not by when they
-     * were asked for, so leaving one room for another can land the old room's
-     * list on top of the new one's — offering people from the last game, whose
-     * socket ids the server then refuses. */
-    [SERVER_EVENTS.ROOM_FRIENDS_UPDATE]: ({ room, players }) => {
+     * Dropped unless it is the NEWEST list about the room we are in NOW.
+     * These emits are ordered by when their Redis and Postgres work finishes,
+     * not by when they were asked for, so an older one can land on top of a
+     * newer one two ways: from a room since left — offering people from the
+     * last game, whose socket ids the server then refuses — or from before an
+     * add already made, which puts "Add friend" back under somebody who is
+     * already a friend. The room catches the first, the token the second. */
+    [SERVER_EVENTS.ROOM_FRIENDS_UPDATE]: ({ room, token, players }) => {
         const store = useMinesweeperStore.getState();
         if (!store.playerJoined || store.room !== room) return;
-        store.setRoomFriends(players);
+        if (token <= store.roomFriendsSeen) return;
+        store.setRoomFriends(players, token);
     },
 });
 

@@ -25,6 +25,7 @@ import { beforeEach, describe, expect, test, vi } from "vitest";
 vi.mock("@/lib/confetti", () => ({ shootConfetti: vi.fn() }));
 
 import { useMinesweeperStore } from "@/app/store";
+import type { RoomFriend } from "@/state/friendsSlice";
 import { CLIENT_EVENTS, SERVER_EVENTS } from "@/shared/events";
 import { useGameEvents } from "./useGameEvents";
 import type { AppSocket } from "@/lib/initSocket";
@@ -35,9 +36,10 @@ const state = () => useMinesweeperStore.getState();
 const asks = (emit: ReturnType<typeof vi.fn>) =>
     emit.mock.calls.filter(([event]) => event === CLIENT_EVENTS.ROOM_FRIENDS);
 
-const listFor = (room: string, name: string) => ({
+const listFor = (room: string, name: string, token = 1, status: RoomFriend["status"] = "none") => ({
     room,
-    players: [{ id: `sock-${name}`, name, avatar: null, status: "none" as const }],
+    token,
+    players: [{ id: `sock-${name}`, name, avatar: null, status }],
 });
 
 const arrives = (handlers: ReturnType<typeof useGameEvents>, payload: unknown) =>
@@ -47,7 +49,7 @@ beforeEach(() => {
     state().setRoom("wired-room");
     state().setPlayerJoined(true);
     state().setMode("co-op");
-    state().setRoomFriends([]);
+    state().setRoomFriends([], 0);
 });
 
 describe("a game ending", () => {
@@ -60,7 +62,9 @@ describe("a game ending", () => {
 
         (handlers[event] as (p: unknown) => void)(payload);
 
-        expect(asks(emit)).toEqual([[CLIENT_EVENTS.ROOM_FRIENDS, { room: "wired-room" }]]);
+        expect(asks(emit)).toEqual([
+            [CLIENT_EVENTS.ROOM_FRIENDS, { room: "wired-room", token: expect.any(Number) }],
+        ]);
     });
 
     test("the race's endings ask too", () => {
@@ -106,12 +110,29 @@ describe("a list arriving", () => {
     test("for a room we have left does not overwrite the one we are in", () => {
         const handlers = useGameEvents(socketWith(), vi.fn());
 
-        arrives(handlers, listFor("room-a", "Alice"));   // asked for before the move
+        arrives(handlers, listFor("room-a", "Alice", 1));   // asked for before the move
         state().setRoom("room-b");
-        arrives(handlers, listFor("room-b", "Bob"));
-        arrives(handlers, listFor("room-a", "Alice"));   // A's answer, overtaken
+        arrives(handlers, listFor("room-b", "Bob", 2));
+        arrives(handlers, listFor("room-a", "Alice", 3));   // A's answer, overtaken
 
         expect(state().roomFriends.map((p) => p.name)).toEqual(["Bob"]);
+    });
+
+    /*
+     * The same race within ONE room, which the room guard cannot see: the
+     * game-end list is asked for, the player adds somebody, the add's reply
+     * lands with them as `friends` — and then the game-end reply, which read
+     * Postgres before the add, arrives saying `none`. The button would go back
+     * to "Add friend" under somebody who is already added, and stay wrong
+     * until the next game ended.
+     */
+    test("for the same room does not undo a newer one", () => {
+        const handlers = useGameEvents(socketWith(), vi.fn());
+
+        arrives(handlers, listFor("wired-room", "Alice", 2, "friends"));   // the add's reply
+        arrives(handlers, listFor("wired-room", "Alice", 1, "none"));      // asked first, back last
+
+        expect(state().roomFriends.map((p) => p.status)).toEqual(["friends"]);
     });
 
     test("is dropped once we are out of the room altogether", () => {

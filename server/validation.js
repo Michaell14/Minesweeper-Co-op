@@ -79,6 +79,15 @@ const isValidDailyToken = (token) =>
 const isValidSessionId = (id) =>
     typeof id === 'string' && id.length > 0 && id.length <= MAX_SESSION_ID_LENGTH;
 
+/**
+ * The client's own counter for a room-friends request, echoed back untouched.
+ *
+ * Purely an ordering handle: the client uses it to drop a list that its own
+ * later request has already superseded. Never used to address state, so the
+ * only thing worth checking is that it is a number the client can compare.
+ */
+const isValidRequestToken = (token) => Number.isSafeInteger(token) && token >= 0;
+
 /** The server's own YYYY-MM-DD (UTC) -- never trusted to gate state, only to
  * address it; a malformed date just fails to find any matching attempt. */
 const isValidDailyDate = (date) => typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date);
@@ -220,6 +229,7 @@ module.exports = {
     isValidAvatarId,
     isValidEmoteId,
     isValidUserId,
+    isValidRequestToken,
     isValidBoardConfig,
     isValidCoordinate,
     isValidHoverCoordinate,

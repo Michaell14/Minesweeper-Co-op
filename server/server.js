@@ -365,12 +365,12 @@ io.on('connection', async (socket) => {
         await inviteFriend(socket, { friendId, room });
     }))
 
-    socket.on(CLIENT_EVENTS.ROOM_FRIENDS, safe(async ({ room }) => {
-        await roomFriends(socket, { room });
+    socket.on(CLIENT_EVENTS.ROOM_FRIENDS, safe(async ({ room, token }) => {
+        await roomFriends(socket, { room, token });
     }))
 
-    socket.on(CLIENT_EVENTS.ADD_ROOM_FRIEND, safe(async ({ room, playerId }) => {
-        await addRoomFriend(socket, { room, playerId });
+    socket.on(CLIENT_EVENTS.ADD_ROOM_FRIEND, safe(async ({ room, playerId, token }) => {
+        await addRoomFriend(socket, { room, playerId, token });
     }))
 
     socket.on(CLIENT_EVENTS.PING_CELL, safe(async ({ room, row, col }) => {

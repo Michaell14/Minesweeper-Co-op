@@ -395,8 +395,8 @@ token** (the daily challenge) instead.
 | `sendEmote` | `{room, emote}` — `emote` is a `shared/emotes.js` id, never free text | `server.js` |
 | `pingCell` | `{room, row, col}` — a real cell; no `-1,-1` clear | `server.js` |
 | `inviteFriend` | `{friendId, room}` — account-addressed, not room-addressed | `friendInviteController.js` |
-| `roomFriends` | `{room}` — who here could be added | `roomFriendController.js` |
-| `addRoomFriend` | `{room, playerId}` — `playerId` is a SOCKET id | `roomFriendController.js` |
+| `roomFriends` | `{room, token}` — who here could be added | `roomFriendController.js` |
+| `addRoomFriend` | `{room, playerId, token}` — `playerId` is a SOCKET id | `roomFriendController.js` |
 | `cellHover` | `{room, row, col}` — `-1,-1` clears | `server.js:229` |
 | `resetGame` | `{room}` | `server.js:269` |
 | `startPvpGame` | `{room}` | `pvpController.js:7` |
@@ -439,7 +439,7 @@ Shapes are typed in `shared/socketPayloads.ts` (`ClientToServerEvents`).
 | `friendsOnline` | `{ids}` — which friends were already here, on connect |
 | `friendPresence` | `{id, online}` — one friend came or went |
 | `friendInvite` | `{fromId, fromName, fromAvatar, room, mode}` |
-| `roomFriendsUpdate` | `{players: [{id, name, avatar, status}]}` — to the ASKER alone |
+| `roomFriendsUpdate` | `{room, token, players: [{id, name, avatar, status}]}` — to the ASKER alone; `room`/`token` are echoed so the client can drop a list a later request superseded |
 | `playerHoverUpdate` | `{id, row, col, name}` (client derives color from `id`) |
 | `playerLeft` | `socketId` |
 | `achievementsUnlocked` | `{ids}` — catalog ids, to ONE socket, only what this result newly earned |

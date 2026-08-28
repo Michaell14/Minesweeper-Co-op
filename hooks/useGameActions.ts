@@ -126,8 +126,10 @@ export function useGameActions(socket: AppSocket | null) {
         // board you were about to play alone.
         store.setPlayerStatsInRoom([]);
         // Co-players belong to the room being left just as the roster does,
-        // and an in-flight list for it may still be on its way back.
-        store.setRoomFriends([]);
+        // and an in-flight list for it may still be on its way back. Seen goes
+        // back to 0 with them, so the next room's first list is not compared
+        // against a token from this one.
+        store.setRoomFriends([], 0);
         store.setBoardConfig(DEFAULT_SIZE, DEFAULT_DIFFICULTY);
         store.clearAllHovers();
         store.clearPlayerEmotes();
@@ -336,9 +338,14 @@ export function useGameActions(socket: AppSocket | null) {
      */
     const addRoomFriend = useCallback(
         (playerId: string) => {
-            const { room, playerJoined } = useMinesweeperStore.getState();
+            const store = useMinesweeperStore.getState();
+            const { room, playerJoined } = store;
             if (!socket || !room || !playerJoined) return;
-            socket.emit(CLIENT_EVENTS.ADD_ROOM_FRIEND, { room, playerId });
+            socket.emit(CLIENT_EVENTS.ADD_ROOM_FRIEND, {
+                room,
+                playerId,
+                token: store.nextRoomFriendsToken(),
+            });
         },
         [socket]
     );

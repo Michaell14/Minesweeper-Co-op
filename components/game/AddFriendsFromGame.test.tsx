@@ -22,8 +22,9 @@ import AddFriendsFromGame from './AddFriendsFromGame';
 
 const PAT: RoomFriend = { id: 'sock-pat', name: 'Pat', avatar: 'fox', status: 'none' };
 
+let token = 0;
 const roster = (...players: RoomFriend[]) =>
-    act(() => useMinesweeperStore.getState().setRoomFriends(players));
+    act(() => useMinesweeperStore.getState().setRoomFriends(players, ++token));
 
 const renderOffer = () => {
     const props = { addRoomFriend: vi.fn() };
@@ -33,7 +34,7 @@ const renderOffer = () => {
 
 beforeEach(() => {
     mockStatus.mockReturnValue('authenticated');
-    act(() => useMinesweeperStore.getState().setRoomFriends([]));
+    act(() => useMinesweeperStore.getState().setRoomFriends([], ++token));
 });
 
 afterEach(cleanup);

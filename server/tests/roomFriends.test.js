@@ -41,6 +41,7 @@ const { roomFriends, addRoomFriend } = require('../controllers/roomFriendControl
 const { SERVER_EVENTS } = require('../../shared/events');
 
 const ROOM = 'room-1';
+const TOKEN = 7;
 const ME_ACCOUNT = { id: 'uuid-me', displayName: 'Me', avatar: 'fox' };
 const THEM_ACCOUNT = { id: 'uuid-them', displayName: 'Them', avatar: 'frog' };
 
@@ -80,7 +81,7 @@ describe('the list', () => {
         socketFor('sock-them', THEM_ACCOUNT);
         roomHolds('sock-me', 'sock-them');
 
-        await roomFriends(me, { room: ROOM });
+        await roomFriends(me, { room: ROOM, token: TOKEN });
 
         const payload = listSentTo(me);
         expect(payload.players).toEqual([
@@ -101,9 +102,10 @@ describe('the list', () => {
         socketFor('sock-them', THEM_ACCOUNT);
         roomHolds('sock-me', 'sock-them');
 
-        await roomFriends(me, { room: ROOM });
+        await roomFriends(me, { room: ROOM, token: TOKEN });
 
         expect(listSentTo(me).room).toBe(ROOM);
+        expect(listSentTo(me).token).toBe(TOKEN);
     });
 
     test('and says so on the re-send after an add too', async () => {
@@ -111,9 +113,10 @@ describe('the list', () => {
         socketFor('sock-them', THEM_ACCOUNT);
         roomHolds('sock-me', 'sock-them');
 
-        await addRoomFriend(me, { room: ROOM, playerId: 'sock-them' });
+        await addRoomFriend(me, { room: ROOM, playerId: 'sock-them', token: TOKEN });
 
         expect(listSentTo(me).room).toBe(ROOM);
+        expect(listSentTo(me).token).toBe(TOKEN);
     });
 
     test('leaves out guests — there is no account to befriend', async () => {
@@ -121,7 +124,7 @@ describe('the list', () => {
         socketFor('sock-guest', null);
         roomHolds('sock-me', 'sock-guest');
 
-        await roomFriends(me, { room: ROOM });
+        await roomFriends(me, { room: ROOM, token: TOKEN });
 
         expect(listSentTo(me).players).toEqual([]);
     });
@@ -135,7 +138,7 @@ describe('the list', () => {
         const me = socketFor('sock-me', ME_ACCOUNT);
         roomHolds('sock-me', 'sock-departed');
 
-        await roomFriends(me, { room: ROOM });
+        await roomFriends(me, { room: ROOM, token: TOKEN });
 
         expect(listSentTo(me).players).toEqual([]);
     });
@@ -145,7 +148,7 @@ describe('the list', () => {
         socketFor('sock-my-other-tab', ME_ACCOUNT);
         roomHolds('sock-me', 'sock-my-other-tab');
 
-        await roomFriends(me, { room: ROOM });
+        await roomFriends(me, { room: ROOM, token: TOKEN });
 
         expect(listSentTo(me).players).toEqual([]);
     });
@@ -161,7 +164,7 @@ describe('the list', () => {
         roomHolds('sock-me', 'sock-them');
         mockFindEdges.mockResolvedValue(edge ? new Map([[THEM_ACCOUNT.id, edge]]) : new Map());
 
-        await roomFriends(me, { room: ROOM });
+        await roomFriends(me, { room: ROOM, token: TOKEN });
 
         expect(listSentTo(me).players[0].status).toBe(expected);
     });
@@ -176,7 +179,7 @@ describe('the list', () => {
         roomHolds('sock-me', 'sock-them');
         mockFindEdges.mockResolvedValue(new Map([[THEM_ACCOUNT.id, { status: 'blocked', direction }]]));
 
-        await roomFriends(me, { room: ROOM });
+        await roomFriends(me, { room: ROOM, token: TOKEN });
 
         expect(listSentTo(me).players).toEqual([]);
     });
@@ -185,7 +188,7 @@ describe('the list', () => {
         const guest = socketFor('sock-guest', null);
         roomHolds('sock-guest', 'sock-them');
 
-        await roomFriends(guest, { room: ROOM });
+        await roomFriends(guest, { room: ROOM, token: TOKEN });
 
         expect(guest.emit).not.toHaveBeenCalled();
     });
@@ -194,7 +197,7 @@ describe('the list', () => {
         const me = socketFor('sock-me', ME_ACCOUNT);
         roomHolds('sock-somebody-else');
 
-        await roomFriends(me, { room: ROOM });
+        await roomFriends(me, { room: ROOM, token: TOKEN });
 
         expect(me.emit).not.toHaveBeenCalled();
     });
@@ -206,7 +209,7 @@ describe('adding', () => {
         socketFor('sock-them', THEM_ACCOUNT);
         roomHolds('sock-me', 'sock-them');
 
-        await addRoomFriend(me, { room: ROOM, playerId: 'sock-them' });
+        await addRoomFriend(me, { room: ROOM, playerId: 'sock-them', token: TOKEN });
 
         expect(mockRequestFriend).toHaveBeenCalledWith(ME_ACCOUNT.id, THEM_ACCOUNT.id);
         expect(listSentTo(me)).toBeDefined();
@@ -222,7 +225,7 @@ describe('adding', () => {
         socketFor('sock-stranger', THEM_ACCOUNT);
         roomHolds('sock-me');
 
-        await addRoomFriend(me, { room: ROOM, playerId: 'sock-stranger' });
+        await addRoomFriend(me, { room: ROOM, playerId: 'sock-stranger', token: TOKEN });
 
         expect(mockRequestFriend).not.toHaveBeenCalled();
     });
@@ -232,16 +235,18 @@ describe('adding', () => {
         socketFor('sock-them', THEM_ACCOUNT);
         roomHolds('sock-them');
 
-        await addRoomFriend(me, { room: ROOM, playerId: 'sock-them' });
+        await addRoomFriend(me, { room: ROOM, playerId: 'sock-them', token: TOKEN });
 
         expect(mockRequestFriend).not.toHaveBeenCalled();
     });
 
     test.each([
-        ['a guest asker', null, { room: ROOM, playerId: 'sock-them' }],
-        ['yourself', ME_ACCOUNT, { room: ROOM, playerId: 'sock-me' }],
-        ['a malformed room', ME_ACCOUNT, { room: '', playerId: 'sock-them' }],
-        ['a missing player id', ME_ACCOUNT, { room: ROOM }],
+        ['a guest asker', null, { room: ROOM, playerId: 'sock-them', token: TOKEN }],
+        ['yourself', ME_ACCOUNT, { room: ROOM, playerId: 'sock-me', token: TOKEN }],
+        ['a malformed room', ME_ACCOUNT, { room: '', playerId: 'sock-them', token: TOKEN }],
+        ['a missing player id', ME_ACCOUNT, { room: ROOM, token: TOKEN }],
+        ['a missing token', ME_ACCOUNT, { room: ROOM, playerId: 'sock-them' }],
+        ['a junk token', ME_ACCOUNT, { room: ROOM, playerId: 'sock-them', token: 'soon' }],
     ])('refuses %s', async (_label, account, payload) => {
         const me = socketFor('sock-me', account);
         socketFor('sock-them', THEM_ACCOUNT);
@@ -258,7 +263,7 @@ describe('adding', () => {
         roomHolds('sock-me', 'sock-them');
         mockRequestFriend.mockRejectedValue(new Error('connection terminated'));
 
-        await expect(addRoomFriend(me, { room: ROOM, playerId: 'sock-them' })).resolves.toBeUndefined();
+        await expect(addRoomFriend(me, { room: ROOM, playerId: 'sock-them', token: TOKEN })).resolves.toBeUndefined();
     });
 });
 
@@ -275,7 +280,7 @@ describe('the cost of the list', () => {
         ids.forEach((id, i) => socketFor(id, { id: `uuid-${i}`, displayName: `P${i}`, avatar: null }));
         roomHolds('sock-me', ...ids);
 
-        await roomFriends(me, { room: ROOM });
+        await roomFriends(me, { room: ROOM, token: TOKEN });
 
         expect(mockFindEdges).toHaveBeenCalledTimes(1);
         expect(mockFindEdges.mock.calls[0][1]).toHaveLength(12);
