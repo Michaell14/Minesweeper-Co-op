@@ -283,3 +283,24 @@ describe('cells the player could never resolve', () => {
         expect(problems.join(' ')).toMatch(/resolve|finish/i);
     });
 });
+
+describe('a pattern read backwards', () => {
+    // A 1-2 mirrored is a 2-1, and reflection is a symmetry of the board — the
+    // gate must not care which way round the wall the player meets it.
+    test('accepts a 1-2 board whose only occurrence reads right-to-left', () => {
+        expect(validateDrill(drill({
+            lesson: 'one-two',
+            layout: ['#*21', '22#*', '*111'],
+            solution: { flag: [[0, 1], [1, 3], [2, 0]], open: [[0, 0], [1, 2]] },
+        }))).toEqual([]);
+    });
+
+    test('accepts one read bottom-to-top down a column', () => {
+        const problems = validateDrill(drill({
+            lesson: 'one-two',
+            layout: ['#2*', '*21', '2#1', '1*1'],
+            solution: { flag: [[0, 2], [1, 0], [3, 1]], open: [[0, 0], [2, 1]] },
+        }));
+        expect(problems.join(' ')).not.toMatch(/pattern/i);
+    });
+});

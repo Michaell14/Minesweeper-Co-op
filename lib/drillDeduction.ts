@@ -19,10 +19,17 @@ export interface LessonRules {
      */
     pattern?: string;
     /**
-     * What the FIRST subset step must prove. The 1-1 rule is the equal-counts
-     * case and proves cells safe; the 1-2 family differs by the count and
-     * proves mines. This is the one structural difference between them that
-     * does not depend on reading the digits.
+     * What the first subset step must prove, scanning the board the way
+     * `deduce` does — top-left onward. The 1-1 rule is the equal-counts case
+     * and proves cells safe; the 1-2 family differs by the count and proves
+     * mines.
+     *
+     * Deliberately scan-ORDER dependent, unlike `pattern`, which is
+     * reflection-invariant. A board and its mirror can lead with different
+     * steps and so belong to different lessons — which is the point: it forces
+     * a drill to be oriented so the lesson's own step is the one the player
+     * meets first. `one-one-c` and `one-two-a` are exactly such a mirror pair,
+     * and each is filed correctly.
      */
     firstSubset?: 'mine' | 'safe';
 }
@@ -204,11 +211,18 @@ export function adjacentMines(layout: readonly string[], r: number, c: number): 
         .filter(([nr, nc]) => layout[nr][nc] === '*').length;
 }
 
-/** Rows and columns as strings, so a pattern can be read in either direction. */
+/**
+ * Every way a pattern can be read off the board: each row and column, forwards
+ * and backwards. Reflection is a symmetry of Minesweeper — a 1-2 met from the
+ * other end is a 2-1 and the same pattern — so a gate that only scanned
+ * left-to-right and top-to-bottom would reject boards that teach it perfectly
+ * well.
+ */
 function lines(layout: readonly string[]): string[] {
     const cols = layout.length === 0 ? 0 : layout[0].length;
     const down = Array.from({ length: cols }, (_, c) => layout.map((row) => row[c]).join(''));
-    return [...layout, ...down];
+    const forward = [...layout, ...down];
+    return [...forward, ...forward.map((line) => [...line].reverse().join(''))];
 }
 
 const LEGAL = new Set(['.', '#', '*', '1', '2', '3', '4', '5', '6', '7', '8']);

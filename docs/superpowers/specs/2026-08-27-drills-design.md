@@ -262,12 +262,21 @@ checking code.
 they cannot tell 1-1 from 1-2-1, since both do. Two further fields in the same
 table narrow it:
 
-- `pattern` — digits that must appear in some row **or column** (`11`, `12`,
-  `121`, `1221`), so a vertical board passes on its own terms.
-- `firstSubset` — what the FIRST subset step must prove. This is the one
-  structural difference that does not depend on reading digits: the 1-1 rule is
-  the equal-counts case and proves cells **safe**, while the 1-2 family differs
-  by the count and proves **mines**.
+- `pattern` — digits that must appear in some row **or column**, read forwards
+  **or backwards** (`11`, `12`, `121`, `1221`). Reflection is a symmetry of the
+  board: a 1-2 met from the other end is a 2-1 and the same pattern, so scanning
+  one direction only would reject boards that teach it perfectly well.
+- `firstSubset` — what the first subset step must prove, scanning the way
+  `deduce` does. The 1-1 rule is the equal-counts case and proves cells
+  **safe**, while the 1-2 family differs by the count and proves **mines**.
+
+These two differ on purpose. `pattern` is reflection-invariant; `firstSubset` is
+scan-ORDER dependent, so a board and its mirror can lead with different steps and
+land in different lessons. That is the intent rather than a wart — it forces a
+drill to be oriented so the lesson's own step is the one the player meets first.
+`one-one-c` (`1121`/`#*#*`) and `one-two-a` (`1211`/`*#*#`) are an exact mirror
+pair, each filed correctly, and each containing BOTH a 1-1 and a 1-2 opportunity;
+only the order they are met in separates them.
 
 Both are needed, and both are **necessary rather than sufficient**: `1211`
 contains `11` exactly as `1121` contains `12`, so shape alone cannot separate
