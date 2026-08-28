@@ -31,14 +31,14 @@ describe('a lesson card', () => {
     });
 
     test('counts only this lesson’s drills', () => {
-        recordSolved('counting-a', 0);
-        recordSolved('one-two-one-a', 0);
+        recordSolved('counting-a', { mistakes: 0, hints: 0 });
+        recordSolved('one-two-one-a', { mistakes: 0, hints: 0 });
         render(<LessonCard lesson={LESSON} drillIds={['counting-a', 'counting-b']} />);
         expect(screen.getByText('1 of 2 solved')).toBeTruthy();
     });
 
     test('marks a finished lesson', () => {
-        recordSolved('counting-a', 0);
+        recordSolved('counting-a', { mistakes: 0, hints: 0 });
         render(<LessonCard lesson={LESSON} drillIds={['counting-a']} />);
         expect(screen.getByText(/Complete/i)).toBeTruthy();
     });

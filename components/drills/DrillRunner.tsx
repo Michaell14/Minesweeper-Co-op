@@ -1,8 +1,9 @@
 'use client';
 
 import React from 'react';
-import { Badge } from '@/components/ds';
+import { Badge, Button } from '@/components/ds';
 import type { Coord, Drill } from '@/lib/drills';
+import { explain, nextHint } from '@/lib/drillDeduction';
 import { recordSolved } from '@/lib/drillProgress';
 import DrillBoard, { initialMarks, type DrillMarks } from './DrillBoard';
 import type { DrillCellState } from './drillLabel';
@@ -25,10 +26,16 @@ const matches = (marks: DrillMarks, want: readonly Coord[], state: 'flagged' | '
 export default function DrillRunner({ drill, onSolved }: DrillRunnerProps) {
     const [marks, setMarks] = React.useState<DrillMarks>(() => initialMarks(drill.layout));
     const [mistakes, setMistakes] = React.useState(0);
+    const [hints, setHints] = React.useState(0);
+    const [message, setMessage] = React.useState<string | null>(null);
+    const [hintAt, setHintAt] = React.useState<Coord | null>(null);
 
     React.useEffect(() => {
         setMarks(initialMarks(drill.layout));
         setMistakes(0);
+        setHints(0);
+        setMessage(null);
+        setHintAt(null);
     }, [drill]);
 
     const solved = matches(marks, drill.solution.flag, 'flagged')
@@ -38,12 +45,31 @@ export default function DrillRunner({ drill, onSolved }: DrillRunnerProps) {
     React.useEffect(() => {
         if (!solved || recorded.current === drill.id) return;
         recorded.current = drill.id;
-        recordSolved(drill.id, mistakes);
+        recordSolved(drill.id, { mistakes, hints });
         onSolved?.(drill.id, mistakes);
-    }, [solved, drill.id, mistakes, onSolved]);
+    }, [solved, drill.id, mistakes, hints, onSolved]);
+
+    /** What the player has already worked out, so a hint moves them forward. */
+    const settled = (): Coord[] => {
+        const out: Coord[] = [];
+        marks.forEach((row, r) => row.forEach((mark, c) => {
+            if (mark === 'flagged' || mark === 'open') out.push([r, c]);
+        }));
+        return out;
+    };
+
+    const takeHint = () => {
+        const hint = nextHint(drill.layout, settled());
+        if (!hint) return;
+        setHints((n) => n + 1);
+        setHintAt(hint.at);
+        setMessage(`Look at row ${hint.at[0] + 1}, column ${hint.at[1] + 1}. ${hint.why.text}`);
+    };
 
     const move = (row: number, col: number, want: 'flagged' | 'open') => {
         if (solved) return;
+        setMessage(null);
+        setHintAt(null);
         const current = marks[row][col];
         // A flag protects the cell from being opened, as it does in the game.
         if (current === 'open' || (current === 'flagged' && want === 'open')) return;
@@ -52,7 +78,12 @@ export default function DrillRunner({ drill, onSolved }: DrillRunnerProps) {
             ? 'covered'
             : (drill.layout[row][col] === '*') === (want === 'flagged') ? want : 'wrong';
 
-        if (next === 'wrong') setMistakes((n) => n + 1);
+        if (next === 'wrong') {
+            setMistakes((n) => n + 1);
+            // The reason comes from the RULES, not from the layout's mines — a
+            // drill that just said "that was a mine" would teach nothing.
+            setMessage(explain(drill.layout, row, col)?.text ?? null);
+        }
         setMarks((prev) => prev.map((r, ri) =>
             ri === row ? r.map((cell, ci) => (ci === col ? next : cell)) : r));
     };
@@ -63,6 +94,7 @@ export default function DrillRunner({ drill, onSolved }: DrillRunnerProps) {
             <DrillBoard
                 layout={drill.layout}
                 marks={marks}
+                hintAt={hintAt}
                 onOpen={(r, c) => move(r, c, 'open')}
                 onFlag={(r, c) => move(r, c, 'flagged')}
             />
@@ -70,6 +102,17 @@ export default function DrillRunner({ drill, onSolved }: DrillRunnerProps) {
                 <p className="text-pixel-2xs text-ink-muted m-0" role="status">
                     {mistakes} mistake{mistakes === 1 ? '' : 's'}
                 </p>
+            )}
+            {message && (
+                <p
+                    className="text-pixel-2xs text-ink-muted m-0 max-w-md text-center"
+                    role="status"
+                    aria-label="Explanation">
+                    {message}
+                </p>
+            )}
+            {!solved && (
+                <Button size="sm" onClick={takeHint}>Hint</Button>
             )}
             {solved && (
                 <div className="flex flex-col items-center gap-2" role="status">

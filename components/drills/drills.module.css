@@ -5,3 +5,12 @@
 .wrong.wrong.wrong {
     background-color: var(--ms-intent-error);
 }
+
+/*
+ * The cell a hint is pointing at. An outline rather than a box-shadow, which
+ * would fight the bevel `.cell.closed` draws with two inset shadows.
+ */
+.hinted {
+    outline: var(--ms-border-width) solid var(--ms-intent-primary);
+    outline-offset: calc(-2 * var(--ms-border-width));
+}
