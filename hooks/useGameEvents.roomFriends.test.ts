@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /**
- * Where the add-friend list is asked for.
+ * Where the add-friend list is asked for, and which answers are believed.
  *
  * It used to be asked for by the component that draws it — which is mounted
  * once per summary DIALOG, and dialogs in this app are always rendered rather
@@ -8,6 +8,11 @@
  * anybody had played anything, and each one walked the room on the server.
  *
  * The ask belongs with the OPEN. These are the tests that keep it there.
+ *
+ * The answers are stamped with a room because they are NOT ordered by when
+ * they were asked for — each one is emitted when its Redis and Postgres work
+ * finishes, so the answer for a room you have left can overtake the one for
+ * the room you are in.
  */
 import { beforeEach, describe, expect, test, vi } from "vitest";
 /*
@@ -30,10 +35,19 @@ const state = () => useMinesweeperStore.getState();
 const asks = (emit: ReturnType<typeof vi.fn>) =>
     emit.mock.calls.filter(([event]) => event === CLIENT_EVENTS.ROOM_FRIENDS);
 
+const listFor = (room: string, name: string) => ({
+    room,
+    players: [{ id: `sock-${name}`, name, avatar: null, status: "none" as const }],
+});
+
+const arrives = (handlers: ReturnType<typeof useGameEvents>, payload: unknown) =>
+    (handlers[SERVER_EVENTS.ROOM_FRIENDS_UPDATE] as (p: unknown) => void)(payload);
+
 beforeEach(() => {
     state().setRoom("wired-room");
     state().setPlayerJoined(true);
     state().setMode("co-op");
+    state().setRoomFriends([]);
 });
 
 describe("a game ending", () => {
@@ -71,5 +85,41 @@ describe("not in a room", () => {
         (handlers[SERVER_EVENTS.GAME_WON] as () => void)();
 
         expect(asks(emit)).toEqual([]);
+    });
+});
+
+describe("a list arriving", () => {
+    test("is believed when it is about the room we are in", () => {
+        const handlers = useGameEvents(socketWith(), vi.fn());
+
+        arrives(handlers, listFor("wired-room", "Alice"));
+
+        expect(state().roomFriends.map((p) => p.name)).toEqual(["Alice"]);
+    });
+
+    /*
+     * The regression: room A is asked, the player moves to room B, B answers,
+     * and THEN A's answer lands. Believing it would offer somebody from the
+     * previous game — and the socket id it sends with B is one the server
+     * refuses, so the button is not merely wrong but dead.
+     */
+    test("for a room we have left does not overwrite the one we are in", () => {
+        const handlers = useGameEvents(socketWith(), vi.fn());
+
+        arrives(handlers, listFor("room-a", "Alice"));   // asked for before the move
+        state().setRoom("room-b");
+        arrives(handlers, listFor("room-b", "Bob"));
+        arrives(handlers, listFor("room-a", "Alice"));   // A's answer, overtaken
+
+        expect(state().roomFriends.map((p) => p.name)).toEqual(["Bob"]);
+    });
+
+    test("is dropped once we are out of the room altogether", () => {
+        const handlers = useGameEvents(socketWith(), vi.fn());
+        state().setPlayerJoined(false);
+
+        arrives(handlers, listFor("wired-room", "Alice"));
+
+        expect(state().roomFriends).toEqual([]);
     });
 });

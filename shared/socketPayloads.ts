@@ -249,6 +249,13 @@ export interface ServerToClientEvents {
      * relationship.
      */
     roomFriendsUpdate: (payload: {
+        /**
+         * The room this list describes. Present because these emits are
+         * ordered by when their server-side work finishes rather than by when
+         * they were asked for, so one for a room the player has left can
+         * arrive after the room they are in — the client drops those.
+         */
+        room: string;
         players: {
             /** SOCKET id. The account id is never sent. */
             id: string;

@@ -125,6 +125,9 @@ export function useGameActions(socket: AppSocket | null) {
         // looking at the landing page would otherwise show their record for a
         // board you were about to play alone.
         store.setPlayerStatsInRoom([]);
+        // Co-players belong to the room being left just as the roster does,
+        // and an in-flight list for it may still be on its way back.
+        store.setRoomFriends([]);
         store.setBoardConfig(DEFAULT_SIZE, DEFAULT_DIFFICULTY);
         store.clearAllHovers();
         store.clearPlayerEmotes();

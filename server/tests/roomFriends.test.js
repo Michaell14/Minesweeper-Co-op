@@ -90,6 +90,32 @@ describe('the list', () => {
         expect(JSON.stringify(payload)).not.toContain(THEM_ACCOUNT.id);
     });
 
+    /*
+     * The list is emitted when its Redis and Postgres work finishes, not when
+     * it was asked for, so one for a room the player has already left can
+     * arrive after the room they are in. The room travels with it so the
+     * client can tell the two apart; without it there is nothing to compare.
+     */
+    test('says which room it is about', async () => {
+        const me = socketFor('sock-me', ME_ACCOUNT);
+        socketFor('sock-them', THEM_ACCOUNT);
+        roomHolds('sock-me', 'sock-them');
+
+        await roomFriends(me, { room: ROOM });
+
+        expect(listSentTo(me).room).toBe(ROOM);
+    });
+
+    test('and says so on the re-send after an add too', async () => {
+        const me = socketFor('sock-me', ME_ACCOUNT);
+        socketFor('sock-them', THEM_ACCOUNT);
+        roomHolds('sock-me', 'sock-them');
+
+        await addRoomFriend(me, { room: ROOM, playerId: 'sock-them' });
+
+        expect(listSentTo(me).room).toBe(ROOM);
+    });
+
     test('leaves out guests — there is no account to befriend', async () => {
         const me = socketFor('sock-me', ME_ACCOUNT);
         socketFor('sock-guest', null);

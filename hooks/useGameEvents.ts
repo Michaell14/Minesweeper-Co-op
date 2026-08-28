@@ -359,9 +359,18 @@ const coopHandlers = (socket: AppSocket, leaveRoom: () => void): SocketHandlers 
         useMinesweeperStore.getState().setFriendInvite(invite),
 
     /* Sent to this socket alone, and re-sent after every add — so it is always
-     * the whole truth about who in this room can be added. */
-    [SERVER_EVENTS.ROOM_FRIENDS_UPDATE]: ({ players }) =>
-        useMinesweeperStore.getState().setRoomFriends(players),
+     * the whole truth about who in this room can be added.
+     *
+     * Dropped unless it is about the room we are in NOW. These emits are
+     * ordered by when their Redis and Postgres work finishes, not by when they
+     * were asked for, so leaving one room for another can land the old room's
+     * list on top of the new one's — offering people from the last game, whose
+     * socket ids the server then refuses. */
+    [SERVER_EVENTS.ROOM_FRIENDS_UPDATE]: ({ room, players }) => {
+        const store = useMinesweeperStore.getState();
+        if (!store.playerJoined || store.room !== room) return;
+        store.setRoomFriends(players);
+    },
 });
 
 /** PVP events. `socket` is needed to tell "I won" from "they won". */

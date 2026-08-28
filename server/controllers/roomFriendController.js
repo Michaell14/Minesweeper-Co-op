@@ -93,7 +93,13 @@ const sendRoomFriends = async (socket, room) => {
         });
     }
 
-    socket.emit(SERVER_EVENTS.ROOM_FRIENDS_UPDATE, { players });
+    /*
+     * Stamped with the room it describes. These emits are ordered by when
+     * their Redis and Postgres work FINISHES, not by when they were asked
+     * for, so a list for a room the player has since left can land on top of
+     * the room they are actually in — offering strangers from the last game.
+     */
+    socket.emit(SERVER_EVENTS.ROOM_FRIENDS_UPDATE, { room, players });
 };
 
 /**
