@@ -392,9 +392,28 @@ and ends in a completion state.
 | `one-two-one` | 4 | mine-safe-mine. |
 | `one-two-two-one` | 4 | safe-mine-mine-safe. |
 | `reduction` | 5 | Subset reduction — the rule all five above are instances of. |
+| `in-the-wild` | 5 | Spotting a taught pattern on a board that looks like a real game. |
 
 Ordering is deliberate: the named patterns first because they are what players
-search for, then the general rule that retires them.
+search for, then the general rule that retires them, then the lesson that asks
+you to FIND one.
+
+**`in-the-wild` is a different exercise, not a harder one.** Every other lesson
+hands you a board containing its pattern and nothing else, which teaches the
+rule but never the recognition — and recognition is the half that saves time in
+a real game. These boards are 6x6 or 7x7 so they read like a game, but hold only
+6-10 COVERED cells: the rule that every covered cell must be provable means the
+player clears the whole covered region, and a large one would turn a
+one-minute drill into a twenty-move sitting. `lib/drills.test.ts` pins both ends
+— at least 25 cells, at most 14 moves — because a board that quietly shrank back
+to a strip would still pass every other check while teaching nothing new.
+
+Its gate accepts ANY of the named patterns (`pattern` is a list) and omits
+`firstSubset`: on a board this size the first subset step lands wherever the
+scan reaches it, so pinning its direction would assert nothing. The boards were
+found the same way as the rest — a throwaway randomised search over clustered
+covered regions, filtered by `validateDrill`. Scattered covered cells were no
+use: they fall to plain counting, and the lesson requires subset reduction.
 
 ## 6. Phases
 

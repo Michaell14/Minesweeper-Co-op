@@ -12,12 +12,12 @@ export interface LessonRules {
     /** Dropping any one of these must leave the drill unsolved. */
     require: readonly RuleId[];
     /**
-     * Digits that must appear in a row or column of the board, so a drill
-     * actually shows the shape its lesson is named after. NECESSARY, not
-     * sufficient — '1211' contains '11' as well as '12' — which is why
-     * `firstSubset` carries the other half of the distinction.
+     * Digits, AT LEAST ONE of which must appear in a row or column, so a drill
+     * actually shows a shape it is meant to teach. NECESSARY, not sufficient —
+     * '1211' contains '11' as well as '12' — which is why `firstSubset` carries
+     * the other half of the distinction where a lesson names one pattern.
      */
-    pattern?: string;
+    pattern?: readonly string[];
     /**
      * What the first subset step must prove, scanning the board the way
      * `deduce` does — top-left onward. The 1-1 rule is the equal-counts case
@@ -36,12 +36,19 @@ export interface LessonRules {
 
 export const LESSON_RULES: Record<LessonId, LessonRules> = {
     'counting': { allow: ['counting'], require: ['counting'] },
-    'one-one': { allow: ALL_RULES, require: ['subset'], pattern: '11', firstSubset: 'safe' },
-    'one-two': { allow: ALL_RULES, require: ['subset'], pattern: '12', firstSubset: 'mine' },
-    'one-two-one': { allow: ALL_RULES, require: ['subset'], pattern: '121', firstSubset: 'mine' },
-    'one-two-two-one': { allow: ALL_RULES, require: ['subset'], pattern: '1221', firstSubset: 'mine' },
+    'one-one': { allow: ALL_RULES, require: ['subset'], pattern: ['11'], firstSubset: 'safe' },
+    'one-two': { allow: ALL_RULES, require: ['subset'], pattern: ['12'], firstSubset: 'mine' },
+    'one-two-one': { allow: ALL_RULES, require: ['subset'], pattern: ['121'], firstSubset: 'mine' },
+    'one-two-two-one': { allow: ALL_RULES, require: ['subset'], pattern: ['1221'], firstSubset: 'mine' },
     // The general rule, so neither shape nor direction is constrained.
     'reduction': { allow: ALL_RULES, require: ['subset'] },
+    /*
+     * Bigger boards where a taught pattern has to be FOUND. Any of the named
+     * shapes counts, and `firstSubset` is deliberately absent: on a board this
+     * size the first subset step lands wherever the scan reaches it, so pinning
+     * its direction would assert nothing.
+     */
+    'in-the-wild': { allow: ALL_RULES, require: ['subset'], pattern: ['11', '12', '121', '1221'] },
 };
 
 const COVERED = new Set(['#', '*']);
@@ -340,8 +347,8 @@ export function validateDrill(drill: Drill): string[] {
         }
     }
 
-    if (pattern && !lines(layout).some((line) => line.includes(pattern))) {
-        problems.push(`lesson ${drill.lesson} expects the pattern ${pattern} in some row or column, and it appears in none`);
+    if (pattern && !lines(layout).some((line) => pattern.some((p) => line.includes(p)))) {
+        problems.push(`lesson ${drill.lesson} expects the pattern ${pattern.join(' or ')} in some row or column, and it appears in none`);
     }
 
     if (firstSubset) {
