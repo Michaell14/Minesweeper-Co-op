@@ -11,14 +11,36 @@ export interface LessonRules {
     allow: readonly RuleId[];
     /** Dropping any one of these must leave the drill unsolved. */
     require: readonly RuleId[];
+    /**
+     * Digits that must appear in a row or column of the board, so a drill
+     * actually shows the shape its lesson is named after. NECESSARY, not
+     * sufficient — '1211' contains '11' as well as '12' — which is why
+     * `firstSubset` carries the other half of the distinction.
+     */
+    pattern?: string;
+    /**
+     * What the first subset step must prove, scanning the board the way
+     * `deduce` does — top-left onward. The 1-1 rule is the equal-counts case
+     * and proves cells safe; the 1-2 family differs by the count and proves
+     * mines.
+     *
+     * Deliberately scan-ORDER dependent, unlike `pattern`, which is
+     * reflection-invariant. A board and its mirror can lead with different
+     * steps and so belong to different lessons — which is the point: it forces
+     * a drill to be oriented so the lesson's own step is the one the player
+     * meets first. `one-one-c` and `one-two-a` are exactly such a mirror pair,
+     * and each is filed correctly.
+     */
+    firstSubset?: 'mine' | 'safe';
 }
 
 export const LESSON_RULES: Record<LessonId, LessonRules> = {
     'counting': { allow: ['counting'], require: ['counting'] },
-    'one-one': { allow: ALL_RULES, require: ['subset'] },
-    'one-two': { allow: ALL_RULES, require: ['subset'] },
-    'one-two-one': { allow: ALL_RULES, require: ['subset'] },
-    'one-two-two-one': { allow: ALL_RULES, require: ['subset'] },
+    'one-one': { allow: ALL_RULES, require: ['subset'], pattern: '11', firstSubset: 'safe' },
+    'one-two': { allow: ALL_RULES, require: ['subset'], pattern: '12', firstSubset: 'mine' },
+    'one-two-one': { allow: ALL_RULES, require: ['subset'], pattern: '121', firstSubset: 'mine' },
+    'one-two-two-one': { allow: ALL_RULES, require: ['subset'], pattern: '1221', firstSubset: 'mine' },
+    // The general rule, so neither shape nor direction is constrained.
     'reduction': { allow: ALL_RULES, require: ['subset'] },
 };
 
@@ -189,6 +211,20 @@ export function adjacentMines(layout: readonly string[], r: number, c: number): 
         .filter(([nr, nc]) => layout[nr][nc] === '*').length;
 }
 
+/**
+ * Every way a pattern can be read off the board: each row and column, forwards
+ * and backwards. Reflection is a symmetry of Minesweeper — a 1-2 met from the
+ * other end is a 2-1 and the same pattern — so a gate that only scanned
+ * left-to-right and top-to-bottom would reject boards that teach it perfectly
+ * well.
+ */
+function lines(layout: readonly string[]): string[] {
+    const cols = layout.length === 0 ? 0 : layout[0].length;
+    const down = Array.from({ length: cols }, (_, c) => layout.map((row) => row[c]).join(''));
+    const forward = [...layout, ...down];
+    return [...forward, ...forward.map((line) => [...line].reverse().join(''))];
+}
+
 const LEGAL = new Set(['.', '#', '*', '1', '2', '3', '4', '5', '6', '7', '8']);
 
 const fmt = ([r, c]: Coord) => `(${r},${c})`;
@@ -270,9 +306,22 @@ export function validateDrill(drill: Drill): string[] {
             }
         }
     }
+
+    /*
+     * A covered cell nothing can reach is never flagged and never opened, so
+     * the board can be "solved" with it still sitting there looking unfinished.
+     */
+    const settled = new Set([...provable.mines, ...provable.safe].map(([r, c]) => key(r, c)));
+    for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+            if (COVERED.has(at(r, c)) && !settled.has(key(r, c))) {
+                problems.push(`covered cell ${fmt([r, c])} can never be resolved, so the drill cannot be finished`);
+            }
+        }
+    }
     if (problems.length > 0) return problems;
 
-    const { allow, require } = LESSON_RULES[drill.lesson];
+    const { allow, require, pattern, firstSubset } = LESSON_RULES[drill.lesson];
     const solves = (rules: readonly RuleId[]) => {
         const p = deduce(layout, rules);
         const same = (found: Coord[], declared: readonly Coord[]) =>
@@ -288,6 +337,17 @@ export function validateDrill(drill: Drill): string[] {
         const without = allow.filter((r) => r !== rule);
         if (solves(without)) {
             problems.push(`lesson ${drill.lesson} never needs ${rule}: ${without.join(', ') || 'no rule'} already solves it`);
+        }
+    }
+
+    if (pattern && !lines(layout).some((line) => line.includes(pattern))) {
+        problems.push(`lesson ${drill.lesson} expects the pattern ${pattern} in some row or column, and it appears in none`);
+    }
+
+    if (firstSubset) {
+        const first = [...run(layout, allow).why.values()].find((w) => w.rule === 'subset');
+        if (first && first.verdict !== firstSubset) {
+            problems.push(`lesson ${drill.lesson} should open with a first subset step proving a ${firstSubset}, but this board's proves a cell ${first.verdict}`);
         }
     }
 
