@@ -239,19 +239,19 @@ export const DRILLS: readonly Drill[] = [
         id: 'one-two-two-one-c',
         lesson: 'one-two-two-one',
         prompt: 'Flag every mine and open every safe cell you can prove.',
-        layout: ['111221', '*##**#'],
-        solution: { flag: [[1, 0], [1, 3], [1, 4]], open: [[1, 1], [1, 2], [1, 5]] },
+        layout: ['1221', '#**#', '1221'],
+        solution: { flag: [[1, 1], [1, 2]], open: [[1, 0], [1, 3]] },
         explanation:
-            'Two patterns on one wall: a 1-1 settles the left half, and a 1-2-2-1 settles the right.',
+            'The pattern reads the same from above and from below, and both agree: the middle pair are the mines.',
     },
     {
         id: 'one-two-two-one-d',
         lesson: 'one-two-two-one',
         prompt: 'Flag every mine and open every safe cell you can prove.',
-        layout: ['1111221', '#*##**#'],
-        solution: { flag: [[1, 1], [1, 4], [1, 5]], open: [[1, 0], [1, 2], [1, 3], [1, 6]] },
+        layout: ['#**#', '1221', '....'],
+        solution: { flag: [[0, 1], [0, 2]], open: [[0, 0], [0, 3]] },
         explanation:
-            'Once you can see both patterns at once, a wall this long takes no guessing at all.',
+            'The same pattern with the wall above instead of below. The numbers do not care which side you read them from.',
     },
     {
         id: 'reduction-a',

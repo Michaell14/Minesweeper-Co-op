@@ -238,3 +238,48 @@ describe('nextHint', () => {
         expect(nextHint(LAYOUT, [[1, 2], [1, 0], [1, 1]])).toBeNull();
     });
 });
+
+describe('the pattern gate', () => {
+    test('rejects a drill whose lesson pattern is nowhere on the board', () => {
+        // 1221 is a real board, but it holds no 121 anywhere.
+        const problems = validateDrill(drill({
+            lesson: 'one-two-one',
+            layout: ['1221', '#**#'],
+            solution: { flag: [[1, 1], [1, 2]], open: [[1, 0], [1, 3]] },
+        }));
+        expect(problems.join(' ')).toMatch(/121/);
+        expect(problems.join(' ')).toMatch(/pattern/i);
+    });
+
+    test('rejects a 1-2 drill whose first subset step proves a cell safe, not a mine', () => {
+        // '1121' does contain '12', so only the DIRECTION of the first step
+        // separates this from a genuine 1-2 board.
+        const problems = validateDrill(drill({
+            lesson: 'one-two',
+            layout: ['1121', '#*#*'],
+            solution: { flag: [[1, 1], [1, 3]], open: [[1, 0], [1, 2]] },
+        }));
+        expect(problems.join(' ')).toMatch(/first subset/i);
+    });
+
+    test('accepts the pattern read down a column, not just along a row', () => {
+        expect(validateDrill(drill({
+            lesson: 'one-two-one',
+            layout: ['1*', '2#', '1*'],
+            solution: { flag: [[0, 1], [2, 1]], open: [[1, 1]] },
+        }))).toEqual([]);
+    });
+});
+
+describe('cells the player could never resolve', () => {
+    test('rejects a board holding a covered cell no number can reach', () => {
+        // (0,0) touches only covered cells, so nothing will ever prove it and
+        // the board can never be cleared.
+        const problems = validateDrill(drill({
+            layout: ['##.', '##.', '...'],
+            solution: { flag: [], open: [[0, 1], [1, 0], [1, 1]] },
+        }));
+        expect(problems.join(' ')).toMatch(/0,0/);
+        expect(problems.join(' ')).toMatch(/resolve|finish/i);
+    });
+});

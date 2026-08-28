@@ -205,7 +205,10 @@ export function validateDrill(drill: Drill): string[];   // [] means valid
   but it is absent from the solution, so the marked set can never equal the
   solution and the drill becomes unfinishable. This is §1's promise —
   *everything the drill asks for is deducible* — made mechanical;
-- either half of the lesson gate below.
+- **a covered cell nothing can reach** — one whose neighbours are all covered is
+  never flagged and never opened, so the board "solves" with it still sitting
+  there looking unfinished;
+- any part of the lesson gate below.
 
 `lib/drills.test.ts` runs `validateDrill` over the whole catalog. Node
 environment — no DOM.
@@ -254,6 +257,32 @@ left, nothing is provable), which is correct rather than merely convenient.
 The two bounds are why `require` is a list rather than a single rule: a third
 rule added later is gated in both directions by the same table, with no new
 checking code.
+
+**Which named pattern.** The bounds above prove a drill needs subset reduction;
+they cannot tell 1-1 from 1-2-1, since both do. Two further fields in the same
+table narrow it:
+
+- `pattern` — digits that must appear in some row **or column** (`11`, `12`,
+  `121`, `1221`), so a vertical board passes on its own terms.
+- `firstSubset` — what the FIRST subset step must prove. This is the one
+  structural difference that does not depend on reading digits: the 1-1 rule is
+  the equal-counts case and proves cells **safe**, while the 1-2 family differs
+  by the count and proves **mines**.
+
+Both are needed, and both are **necessary rather than sufficient**: `1211`
+contains `11` exactly as `1121` contains `12`, so shape alone cannot separate
+`one-one` from `one-two` — direction does. Nothing here separates `one-two` from
+`one-two-one` from `one-two-two-one`; all three open on a mine-proving step and
+`121` contains `12`. That last distinction remains an authoring judgement, and
+the spec should not be read as claiming otherwise.
+
+`reduction` constrains neither field. It is the general rule, so any shape and
+either direction is the lesson.
+
+This gate is not theoretical: it failed two drills already in the catalog
+(`one-two-two-one-c` and `-d`), both of which opened with a 1-1 step. Their own
+explanation text said so. No wall longer than the canonical `1221` survives it —
+a longer wall always has an equal-count pair further left that fires first.
 
 ### 4.4 Worked examples
 
@@ -462,6 +491,8 @@ drills depends on layout.
 | An authored drill teaches a wrong pattern | `validateDrill` over the whole catalog in CI, checking numbers, ground truth and solution completeness. This is the reason Phase 1 comes first. |
 | A drill is solvable only by a rule the lesson has not taught | The lesson gate's **upper** bound (§4.3.1): `deduce` re-run with only that lesson's `allow` rules must still reach the full solution. Solvability by `deduce` at large is not enough — it always runs both rules. |
 | A drill is unfinishable because a lucky flag lands on a mine the solution never asked for | `validateDrill` requires every `*` to be provable, not just the declared ones. Solved compares marks to the DECLARED solution while moves are judged against ground truth, and this is what keeps the two from ever disagreeing. |
+| A drill is filed under a pattern it does not actually teach | `pattern` and `firstSubset` in `LESSON_RULES` (§4.3.1). Necessary, not sufficient — it cannot separate the three members of the 1-2 family. |
+| A drill leaves a covered cell nobody can resolve | `validateDrill` requires every covered cell to be provable, not just every mine. |
 | A drill named after a pattern never exercises it | The lesson gate's **lower** bound (§4.3.1): dropping a `require`d rule must leave the drill unsolved. A 1-2-1 drill that plain counting cracks fails CI. |
 | `DrillCell` drifts from `Cell` and stops looking like the game | Both read `board.module.css`; only behaviour is reimplemented, never the treatment. |
 | Duplicating cell logic ages badly | Accepted knowingly. `Cell` is coupled to five store slices that do not exist here, and sharing it would mean editing the file board pings owns. Revisit only if a third board appears. |
