@@ -139,16 +139,36 @@ async function coop(page) {
         'a second copy means Grid.tsx is rendering the board per layout again');
     check(await page.evaluate(`return document.body.textContent.includes(${JSON.stringify(room)});`), 'room code is displayed');
 
-    // Desktop cells sit at the ceiling. The window here is 1440px, which has
-    // room to spare, so anything smaller means the fit maths is measuring the
-    // wrong box — the failure mode when 100cqw resolved against a container
-    // that had collapsed to zero, which floors every cell instead.
+    /*
+     * The board fits the window it is given — the whole point of the fit maths.
+     *
+     * This used to assert the cell sat exactly on the --ms-cell-size ceiling,
+     * which held while the clamp only answered the WIDTH question. It answers
+     * both axes now (components/game/board.module.css), and this window is
+     * 1440x900 with roughly 813px of usable height, so the height half is the
+     * one that binds and the ceiling is no longer the invariant.
+     *
+     * What is asserted instead is what a player actually gets, plus the floor
+     * the ceiling check was really guarding: cells collapsing to --ms-cell-min
+     * is the signature of the fit maths measuring a box that resolved to zero.
+     */
     const deskCell = parseFloat(await page.evaluate(
         `return getComputedStyle(document.querySelector('[role=gridcell]')).width;`));
     const deskMax = parseFloat(await page.evaluate(
         `return getComputedStyle(document.documentElement).getPropertyValue('--ms-cell-size');`));
-    check(deskCell === deskMax, `desktop cells are at the ceiling (${deskCell}px)`,
-        `cell is ${deskCell}px, not the ${deskMax}px ceiling — the fit maths is measuring the wrong box`);
+    const deskMin = parseFloat(await page.evaluate(
+        `return getComputedStyle(document.documentElement).getPropertyValue('--ms-cell-min');`));
+    check(deskCell > deskMin && deskCell <= deskMax,
+        `desktop cells are sized by the fit, not floored (${deskCell}px)`,
+        `cell is ${deskCell}px, outside (${deskMin}, ${deskMax}] — the fit maths is measuring the wrong box`);
+
+    const boardFits = await page.evaluate(`
+        const b = document.querySelector('[role=grid]');
+        const r = b.getBoundingClientRect();
+        return r.top >= 0 && r.bottom <= window.innerHeight;
+    `);
+    check(boardFits, 'the whole board is on screen without scrolling',
+        'the board runs past the fold — the height half of the fit clamp is not binding');
 
     const flagsRemaining = () => page.evaluate(`
         const el = [...document.querySelectorAll('strong')].find(e => /^\\s*-?\\d+\\s*$/.test(e.textContent));

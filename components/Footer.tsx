@@ -191,7 +191,7 @@ export default function Footer() {
                                 </a>
                             </p>
                         </div>
-                        <DialogClose aria-label="Close how to play dialog">Cancel</DialogClose>
+                        <DialogClose aria-label="Close how to play dialog">Close</DialogClose>
                     </>
                 }>
                 {/*

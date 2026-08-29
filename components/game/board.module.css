@@ -49,7 +49,34 @@
         (100cqw - var(--ms-board-inset) - (var(--board-cols-safe) + 1) * var(--cell-gap))
         / var(--board-cols-safe)
     );
-    --cell-size: clamp(var(--ms-cell-min), var(--cell-fit), var(--ms-cell-size));
+    /*
+     * The same sum down the other axis, so a board that fits across still fits
+     * DOWN. Without it the clamp only ever answered the width question: a 16x16
+     * board on a 1280x720 laptop kept its 40px ceiling and ran 160px past the
+     * fold, with 290px of unused width either side.
+     *
+     * Viewport units, not cqh: the container Grid.tsx marks is
+     * `container-type: inline-size`, which resolves cqw and NOT cqh. Sizing it
+     * both ways would need `container-type: size`, which demands a fixed block
+     * size the page does not have. So the page's own vertical chrome is
+     * subtracted by hand as --ms-board-reserve.
+     *
+     * Declared twice on purpose. dvh is the one that discounts mobile browser
+     * chrome, but on anything that does not know the unit the whole calc() is
+     * invalid, --cell-size resolves to nothing and every cell collapses to a
+     * non-square box. The vh line above it is what such a browser keeps.
+     */
+    --board-rows-safe: var(--board-rows, 16);
+    --cell-fit-h: calc(
+        (100vh - var(--ms-board-reserve) - (var(--board-rows-safe) + 1) * var(--cell-gap))
+        / var(--board-rows-safe)
+    );
+    --cell-fit-h: calc(
+        (100dvh - var(--ms-board-reserve) - (var(--board-rows-safe) + 1) * var(--cell-gap))
+        / var(--board-rows-safe)
+    );
+    /* The smaller of the two answers, then the usual floor and ceiling. */
+    --cell-size: clamp(var(--ms-cell-min), min(var(--cell-fit), var(--cell-fit-h)), var(--ms-cell-size));
     display: grid;
     gap: var(--cell-gap);
     width: fit-content;

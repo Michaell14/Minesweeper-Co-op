@@ -254,6 +254,19 @@
      * already excluded before this is subtracted.
      */
     --ms-board-inset: calc(2 * var(--ms-border-width) + 8px);
+    /*
+     * Vertical space the PAGE takes around the board, subtracted before the
+     * height half of the fit maths. The width half measures the board's own
+     * container, which already excludes its padding; the height half cannot —
+     * Grid.tsx's container is `container-type: inline-size`, so cqh does not
+     * resolve there and the maths has to fall back to the viewport.
+     *
+     * So this is an estimate, and deliberately a generous one: over-reserving
+     * costs a few pixels of cell, under-reserving puts the last row back under
+     * the fold. Covers Grid.tsx's xl:pt-20/pb-16 plus the heading and status
+     * strip above the board.
+     */
+    --ms-board-reserve: 200px;
     --ms-cell-closed: var(--ms-palette-cell-closed);
     --ms-cell-light: var(--ms-palette-cell-light);
     --ms-cell-shade: var(--ms-palette-cell-shade);

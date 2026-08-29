@@ -8,7 +8,7 @@
  * guest sent straight into a room with no name at all.
  */
 import React from 'react';
-import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, cleanup, fireEvent, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 
 const mockUseSession = vi.fn();
@@ -299,5 +299,28 @@ describe('when the profile fetch rejects outright', () => {
 
         await waitFor(() => expect(mockOpenDialog).toHaveBeenCalledWith(DIALOGS.nameCreate));
         expect(actions.createRoom).not.toHaveBeenCalled();
+    });
+});
+
+/*
+ * The landing page is the only route with no other way in: /drills and
+ * /how-to-play were reachable only from a dialog behind an unlabelled icon, so
+ * a link that quietly stops resolving here takes the page back off the map.
+ * Names, not hrefs alone — a link whose text disappears is still a link.
+ */
+describe('the site navigation', () => {
+    const LINKS: [string, string][] = [
+        ['How to play', '/how-to-play'],
+        ['Pattern drills', '/drills'],
+        ['Daily challenge', '/daily'],
+        ['No-guess boards', '/no-guess-minesweeper'],
+    ];
+
+    it.each(LINKS)('links to %s', (name, href) => {
+        signedOut();
+        renderLanding();
+
+        const nav = screen.getByRole('navigation', { name: 'Site' });
+        expect(within(nav).getByRole('link', { name }).getAttribute('href')).toBe(href);
     });
 });

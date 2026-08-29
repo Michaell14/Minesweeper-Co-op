@@ -21,6 +21,7 @@ export default function Board({ toggleFlag, openCell, chordCell, emitCellHover, 
     const cascadeOrigin = useMinesweeperStore((state) => state.cascadeOrigin);
     const boardRef = useRef<HTMLDivElement>(null);
     const cols = board[0]?.length || 0;
+    const rows = board.length;
 
     return (
         <div
@@ -28,8 +29,11 @@ export default function Board({ toggleFlag, openCell, chordCell, emitCellHover, 
             className={styles.gameBoard}
             /* Picks the cell-size CEILING; the stylesheet's fit clamp still rules. */
             data-cell-size={cellSize}
-            /* The stylesheet sizes cells to fit; only this component knows the shape. */
-            style={{ '--board-cols': cols } as React.CSSProperties}
+            /* The stylesheet sizes cells to fit; only this component knows the shape.
+               BOTH axes: the fit clamp takes the smaller of the width and height
+               answers, so a tall board on a short window shrinks rather than
+               running off the bottom. */
+            style={{ '--board-cols': cols, '--board-rows': rows } as React.CSSProperties}
             onMouseLeave={handleBoardLeave}
             role="grid"
             aria-label={`Minesweeper game board, ${board.length} rows by ${board[0]?.length || 0} columns`}>

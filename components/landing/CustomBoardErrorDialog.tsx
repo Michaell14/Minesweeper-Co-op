@@ -11,7 +11,7 @@ export default function CustomBoardErrorDialog() {
             title="There was an error with your customization:"
             alert
             actionsAlign="between"
-            actions={<DialogClose aria-label="Close error dialog">Cancel</DialogClose>}>
+            actions={<DialogClose aria-label="Close error dialog">Close</DialogClose>}>
             {/* Only the dimension range can be wrong: mines are derived from the
                 difficulty, so the mines-under-half rule cannot be broken. */}
             <p className="text-pixel-sm">
