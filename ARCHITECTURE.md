@@ -101,7 +101,15 @@ scripts/
   ui-smoke/               Headless-Chrome smoke test for the client (npm run test:ui)
   verify-deploy/          Plays a real game against the DEPLOYED backend (npm run verify:deploy)
 server/                   Separate npm package (own package.json, lockfile, node_modules)
-  server.js               Every socket.on handler + isValid() room/membership guard
+  server.js               Connection lifecycle only: HTTP mounts, auth middleware, disconnect
+  routes/
+    index.js              The route TABLE — one row per client event (validate, guard, handler)
+    register.js           The pipeline every row runs: rate limit -> validate -> guard -> handler
+    guards.js             NONE / ROOM_MEMBER / ROOM_MEMBER_SILENT
+    room.js               createRoom, joinRoom, playerLeave — own their refusals
+    cells.js              openCell, chordCell, toggleFlag, resetGame, emitConfetti
+    social.js             sendEmote, cellHover — rate-limited, refused silently
+    pvp.js daily.js match.js
   config.js               Env-resolved settings: allowed CORS origins, PORT
   validation.js           Pure socket payload validators (limits, coords, membership)
   data/
@@ -201,8 +209,13 @@ re-renders the page and the whole grid. Keep it that way when adding state.
 ### Module dependencies
 
 ```
-server.js ─→ initializeClient (io) , validation , playerUtils , gameUtils , game ,
-             data/* , pvpController , sessionController , dailyController
+server.js ─→ initializeClient (io) , routes , playerUtils , sessionController ,
+             matchmakingController , profileController , settingsController ,
+             themesController , statsController , config
+routes/index ─→ routes/{register,guards,room,cells,social,pvp,daily,match} , validation ,
+             domain/rateLimit                                  ← the table; server.js has no per-event knowledge
+routes/guards ─→ data/{roomRepo,playerRepo} , validation
+routes/* (handlers) ─→ game , gameUtils , playerUtils , controllers/* , data/*
 game/index ─→ game/coop , game/pvp , domain/pvpPlayer , data/*   ← co-op vs PVP only; daily is not dispatched here
 game/coop ─→ gameUtils , playerUtils , domain/{board,clock,boardGen} , data/* , io
 game/pvp ─→ playerUtils , domain/{board,clock,pvpPlayer} , data/* , io
@@ -253,7 +266,8 @@ The layers, lowest first — a module may import its own layer or below:
 | 4 | `utils/` — services over repos + io |
 | 5 | `game/` — per-mode cell actions |
 | 6 | `controllers/` — lifecycle flows |
-| 7 | `server.js` — socket wiring |
+| 7 | `routes/` — the socket route table and its pipeline |
+| 8 | `server.js` — connection lifecycle |
 
 `pvpForfeit` used to sit in `controllers/`, which made `playerUtils` (a util)
 import a controller. It handles no socket event — it is a timer over the repos —
@@ -264,8 +278,8 @@ inversion without inventing a layer.
 
 ### Request path
 
-1. Client emits → handler in `server.js`
-2. Payload validation via `server/validation.js` (pure, no I/O), then `isValid(room)` — room exists, player exists, player is in the room's `players` array
+1. Client emits → the matching row in `server/routes/index.js`, wrapped by `routes/register.js`
+2. The row's pipeline, in this order: its rate-limit bucket (if any) BEFORE anything touches Redis, then `validate` (pure, from `server/validation.js`), then its `guard` — room exists, player exists, player is in the room's `players` array. The guard passes the room state it read down to the handler
 3. `game/index.js` loads the room hash from Redis and **dispatches on `roomState.mode`** to `game/coop.js` or `game/pvp.js`
 4. An action lock is taken — the room's for co-op, that player's for PVP — and the room hash is **read again under it**. The snapshot from step 3 predates the lock, so it is only good for choosing the mode and (in PVP) the lock key. That fresh snapshot is what the mode module gets
 5. Board JSON is mutated and written back, and the lock released
@@ -386,19 +400,19 @@ token** (the daily challenge) instead.
 
 | Event | Payload | Handler |
 |---|---|---|
-| `createRoom` | `{room, numRows, numCols, numMines, name, mode}` | `server.js:12` |
-| `joinRoom` | `{room, name}` | `server.js:67` |
-| `openCell` | `{room, row, col}` | `server.js:170` |
-| `chordCell` | `{room, row, col}` | `server.js:187` |
-| `toggleFlag` | `{room, row, col}` | `server.js:202` |
-| `emitConfetti` | `{room}` | `server.js:217` |
-| `sendEmote` | `{room, emote}` — `emote` is a `shared/emotes.js` id, never free text | `server.js` |
-| `cellHover` | `{room, row, col}` — `-1,-1` clears | `server.js:229` |
-| `resetGame` | `{room}` | `server.js:269` |
-| `startPvpGame` | `{room}` | `pvpController.js:7` |
-| `resetMyBoard` | `{room}` | `pvpController.js:87` |
-| `pvpRematch` | `{room}` | `pvpController.js:146` |
-| `playerLeave` | — | `server.js:293` |
+| `createRoom` | `{room, numRows, numCols, numMines, name, mode}` | `routes/room.js` |
+| `joinRoom` | `{room, name}` | `routes/room.js` |
+| `openCell` | `{room, row, col}` | `routes/cells.js` |
+| `chordCell` | `{room, row, col}` | `routes/cells.js` |
+| `toggleFlag` | `{room, row, col}` | `routes/cells.js` |
+| `emitConfetti` | `{room}` | `routes/cells.js` |
+| `sendEmote` | `{room, emote}` — `emote` is a `shared/emotes.js` id, never free text | `routes/social.js` |
+| `cellHover` | `{room, row, col}` — `-1,-1` clears | `routes/social.js` |
+| `resetGame` | `{room}` | `routes/cells.js` |
+| `startPvpGame` | `{room}` | `routes/pvp.js` → `pvpController.js` |
+| `resetMyBoard` | `{room}` | `routes/pvp.js` → `pvpController.js` |
+| `pvpRematch` | `{room}` | `routes/pvp.js` → `pvpController.js` |
+| `playerLeave` | — | `routes/room.js` |
 | `findMatch` | `{name}` — no room; there is not one yet | `matchmakingController.js` |
 | `cancelMatch` | — | `matchmakingController.js` |
 | `startPracticeRace` | `{name}` — answered with a plain `joinRoomSuccess` | `matchmakingController.js` |
@@ -797,7 +811,7 @@ rebuilt **from the room**, since the old player record is already gone.
 Three gestures, all on an opened number. Both mouse buttons pressed together: `Cell.tsx` writes `leftClick`/`rightClick`/`r`/`c` into the store, `useChording` (mounted by `Grid.tsx`) watches for both being true and calls `chordCell(r, c)`, and `bothPressed` suppresses the open/flag that would otherwise fire on mouse-up. The middle button, straight from `Cell`'s mousedown. And the **secondary click** — right button, or the two-finger tap and ctrl-click a trackpad maps to it — fired from `Cell`'s mouse-**up**, since macOS raises `contextmenu` on mousedown and a right-then-left chord would otherwise fire twice. That third one exists because a trackpad has neither a second button nor a middle one, so the other two gestures are unreachable on one; it costs nothing because flagging an already-open cell is a no-op the server drops anyway. The server opens all unflagged neighbors when the flag count matches the cell's number.
 
 ### Hover presence (co-op only)
-`Cell` `onMouseEnter` → throttled 100ms → `cellHover` → server broadcasts `playerHoverUpdate` to everyone else → each client colors the cell using a hash of the socket id. Suppressed in PVP (`server.js:251`).
+`Cell` `onMouseEnter` → throttled 100ms → `cellHover` → server broadcasts `playerHoverUpdate` to everyone else → each client colors the cell using a hash of the socket id. Suppressed in PVP (`routes/social.js`, from the room state its guard read).
 
 **Rate limited on the server too, and that is not belt-and-braces.** This is the
 only message a client sends continuously rather than on purpose, and the only
@@ -1105,6 +1119,7 @@ through both modes and compares, so the two can't drift apart again.
 | Board sizes and difficulty densities | `shared/boardConfig.js` | — |
 | Board size/mine rules | `shared/boardConfig.js` | — |
 | Socket event names | `shared/events.js` | — |
+| What the server listens for | `server/routes/index.js` (the table) | `routes.test.js` fails if a row is missing, duplicated, or names an unknown guard |
 | Achievement catalog | `shared/achievements.js` | moment predicates in `server/domain/achievements.js`, matched to the catalog by `achievements.test.js` |
 | Redis key names | `server/data/keys.js` | — |
 | CORS origins | `server/config.js` | — |

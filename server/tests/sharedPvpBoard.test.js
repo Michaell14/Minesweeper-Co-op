@@ -30,7 +30,6 @@ const GUEST = 'sock-guest';
 let client;
 let stored;
 
-const isValid = async () => true;
 const io = { to: mockTo };
 
 /** Fields written to the room hash, merged in call order. */
@@ -67,7 +66,7 @@ beforeEach(async () => {
 
 describe('startPvpGame', () => {
     test('gives both players byte-identical boards', async () => {
-        await startPvpGame({ socket: { id: HOST }, room: ROOM, isValid, io });
+        await startPvpGame({ socket: { id: HOST }, room: ROOM, io });
 
         const fields = roomFields();
         expect(fields.player1Board).toBeDefined();
@@ -75,14 +74,14 @@ describe('startPvpGame', () => {
     });
 
     test('the shared board has the requested number of mines', async () => {
-        await startPvpGame({ socket: { id: HOST }, room: ROOM, isValid, io });
+        await startPvpGame({ socket: { id: HOST }, room: ROOM, io });
 
         const board = JSON.parse(roomFields().player1Board);
         expect(board.flat().filter((c) => c.isMine)).toHaveLength(10);
     });
 
     test('opens a shared starting cell, so neither player can lose on move one', async () => {
-        await startPvpGame({ socket: { id: HOST }, room: ROOM, isValid, io });
+        await startPvpGame({ socket: { id: HOST }, room: ROOM, io });
 
         const board = JSON.parse(roomFields().player1Board);
         const centre = board[4][4];
@@ -92,14 +91,14 @@ describe('startPvpGame', () => {
     });
 
     test('never opens a mine as part of the opening', async () => {
-        await startPvpGame({ socket: { id: HOST }, room: ROOM, isValid, io });
+        await startPvpGame({ socket: { id: HOST }, room: ROOM, io });
 
         const board = JSON.parse(roomFields().player1Board);
         expect(board.flat().filter((c) => c.isOpen && c.isMine)).toHaveLength(0);
     });
 
     test('both players start on level progress, matching the opening', async () => {
-        await startPvpGame({ socket: { id: HOST }, room: ROOM, isValid, io });
+        await startPvpGame({ socket: { id: HOST }, room: ROOM, io });
 
         const fields = roomFields();
         const opened = JSON.parse(fields.player1Board).flat().filter((c) => c.isOpen).length;
@@ -108,7 +107,7 @@ describe('startPvpGame', () => {
     });
 
     test('marks both boards initialised, since nothing is generated later', async () => {
-        await startPvpGame({ socket: { id: HOST }, room: ROOM, isValid, io });
+        await startPvpGame({ socket: { id: HOST }, room: ROOM, io });
 
         const fields = roomFields();
         expect(fields.player1Initialized).toBe('true');
@@ -116,7 +115,7 @@ describe('startPvpGame', () => {
     });
 
     test('the board sent to players carries no mine positions', async () => {
-        await startPvpGame({ socket: { id: HOST }, room: ROOM, isValid, io });
+        await startPvpGame({ socket: { id: HOST }, room: ROOM, io });
 
         const sent = mockEmit.mock.calls.filter((c) => c[0] === 'pvpBoardUpdate').map((c) => c[1].board);
         expect(sent.length).toBe(2);
@@ -128,7 +127,7 @@ describe('startPvpGame', () => {
     });
 
     test('keeps a pristine copy for later resets', async () => {
-        await startPvpGame({ socket: { id: HOST }, room: ROOM, isValid, io });
+        await startPvpGame({ socket: { id: HOST }, room: ROOM, io });
 
         const fields = roomFields();
         expect(fields.sharedBoard).toBe(fields.player1Board);
@@ -155,7 +154,7 @@ describe('resetMyBoard', () => {
      * hand-written one.
      */
     const arrangeReset = async () => {
-        await startPvpGame({ socket: { id: HOST }, room: ROOM, isValid, io });
+        await startPvpGame({ socket: { id: HOST }, room: ROOM, io });
         const started = roomFields();
         const shared = started.sharedBoard;
         const opened = parseInt(started.sharedOpenedCells, 10);
@@ -184,7 +183,7 @@ describe('resetMyBoard', () => {
                 : { name: 'Host', score: '0', pvpPlayerIndex: '0' }
         );
 
-        await resetMyBoard({ socket: { id: HOST }, room: ROOM, isValid, io });
+        await resetMyBoard({ socket: { id: HOST }, room: ROOM, io });
 
         const clocks = mockEmit.mock.calls.filter(([event]) => event === 'gameClock');
         expect(clocks).toHaveLength(1);
@@ -194,7 +193,7 @@ describe('resetMyBoard', () => {
     test('restores the shared starting position, not a blank grid', async () => {
         const { shared, opened } = await arrangeReset();
 
-        await resetMyBoard({ socket: { id: HOST }, room: ROOM, isValid, io });
+        await resetMyBoard({ socket: { id: HOST }, room: ROOM, io });
 
         const fields = roomFields();
         expect(fields.player1Board).toBe(shared);
@@ -218,7 +217,7 @@ describe('resetMyBoard', () => {
         const { opened } = await arrangeReset();
         const errors = jest.spyOn(console, 'error').mockImplementation(() => {});
 
-        await resetMyBoard({ socket: { id: HOST }, room: ROOM, isValid, io });
+        await resetMyBoard({ socket: { id: HOST }, room: ROOM, io });
 
         expect(errors).not.toHaveBeenCalled();
         errors.mockRestore();
@@ -240,7 +239,7 @@ describe('resetMyBoard', () => {
     test('restores the board under that player\'s action lock, and gives it back', async () => {
         await arrangeReset();
 
-        await resetMyBoard({ socket: { id: HOST }, room: ROOM, isValid, io });
+        await resetMyBoard({ socket: { id: HOST }, room: ROOM, io });
 
         expect(client.set).toHaveBeenCalledWith(`action_lock:${ROOM}:p0`, lockedBy(HOST), { NX: true, EX: 5 });
         expect(releasedLock(client, `action_lock:${ROOM}:p0`)).toBe(true);
@@ -254,7 +253,7 @@ describe('resetMyBoard', () => {
                 : { name: 'Guest', score: '0', pvpPlayerIndex: '1' }
         );
 
-        await resetMyBoard({ socket: { id: GUEST }, room: ROOM, isValid, io });
+        await resetMyBoard({ socket: { id: GUEST }, room: ROOM, io });
 
         expect(client.set).toHaveBeenCalledWith(`action_lock:${ROOM}:p1`, lockedBy(GUEST), { NX: true, EX: 5 });
         expect(roomFields().player2Board).toBeDefined();
@@ -276,7 +275,7 @@ describe('resetMyBoard', () => {
                 : { name: 'Stranger', score: '0' }   // no pvpPlayerIndex
         );
 
-        await resetMyBoard({ socket: { id: 'sock-stranger' }, room: ROOM, isValid, io });
+        await resetMyBoard({ socket: { id: 'sock-stranger' }, room: ROOM, io });
 
         expect(roomFields()).toEqual({});
         expect(client.set).not.toHaveBeenCalledWith(
@@ -308,7 +307,7 @@ describe('pvpRematch', () => {
     test('deals a fresh board that is still identical for both', async () => {
         arrangeRematch();
 
-        await pvpRematch({ socket: { id: HOST }, room: ROOM, isValid, io });
+        await pvpRematch({ socket: { id: HOST }, room: ROOM, io });
 
         const fields = roomFields();
         expect(fields.player1Board).toBe(fields.player2Board);
@@ -319,7 +318,7 @@ describe('pvpRematch', () => {
     test('holds BOTH players\' action locks, since it rewrites both boards', async () => {
         arrangeRematch();
 
-        await pvpRematch({ socket: { id: HOST }, room: ROOM, isValid, io });
+        await pvpRematch({ socket: { id: HOST }, room: ROOM, io });
 
         expect(client.set).toHaveBeenCalledWith(`action_lock:${ROOM}:p0`, lockedBy(HOST), { NX: true, EX: 5 });
         expect(client.set).toHaveBeenCalledWith(`action_lock:${ROOM}:p1`, lockedBy(HOST), { NX: true, EX: 5 });
@@ -336,7 +335,7 @@ describe('pvpRematch', () => {
     test('takes them in index order, p0 before p1', async () => {
         arrangeRematch();
 
-        await pvpRematch({ socket: { id: HOST }, room: ROOM, isValid, io });
+        await pvpRematch({ socket: { id: HOST }, room: ROOM, io });
 
         const locked = client.set.mock.calls
             .map((c) => c[0])
@@ -354,7 +353,7 @@ describe('pvpRematch', () => {
     test('is refused while the race is still undecided', async () => {
         arrangeRematch({ winnerSocket: '' });
 
-        await pvpRematch({ socket: { id: HOST }, room: ROOM, isValid, io });
+        await pvpRematch({ socket: { id: HOST }, room: ROOM, io });
 
         expect(roomFields()).toEqual({});
     });
@@ -364,7 +363,7 @@ describe('pvpRematch', () => {
         // the lobby has caught up. Nothing is in flight, so nothing is lost.
         arrangeRematch({ pvpStarted: 'false', winnerSocket: '' });
 
-        await pvpRematch({ socket: { id: HOST }, room: ROOM, isValid, io });
+        await pvpRematch({ socket: { id: HOST }, room: ROOM, io });
 
         expect(roomFields().player1Board).toBeDefined();
     });
@@ -372,7 +371,7 @@ describe('pvpRematch', () => {
     test('writes both boards while both locks are held', async () => {
         arrangeRematch();
 
-        await pvpRematch({ socket: { id: HOST }, room: ROOM, isValid, io });
+        await pvpRematch({ socket: { id: HOST }, room: ROOM, io });
 
         // Spelled out so the comparisons below cannot pass on an empty set:
         // Math.max() of no acquires is -Infinity, which every write beats.
