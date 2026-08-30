@@ -37,7 +37,7 @@ afterEach(() => {
 
 const now = () => Date.now();
 
-describe.each(["hud", "panel"] as const)("the %s timer", (variant) => {
+describe.each(["hud", "bar"] as const)("the %s timer", (variant) => {
     test("is reachable as a timer, not just as text on screen", () => {
         setClock(now() - 5_000, null);
         render(<Timer variant={variant} />);
