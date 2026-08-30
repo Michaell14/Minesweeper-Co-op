@@ -265,14 +265,17 @@
      * thing between it and the top of the viewport is Grid.tsx's chrome. The
      * emote tray below it may sit under the fold; the last row may not.
      *
-     * 228px is the measured 212 plus slack — xl:pt-20 (80) + the heading's
-     * 40px line box + xl:mt-16 (64) + the 28px mines/clock strip. The board's
-     * own frame is NOT in here: --ms-board-inset covers it on both axes.
+     * This is the value up to the FIRST LAYOUT only. Board.tsx then measures
+     * its own top offset and overrides it inline, because the chrome is not a
+     * constant: the status banner is 0px in play, 88px at game over and 119px
+     * in a PVP lobby, so any single number here is wrong in some state. 228 is
+     * the in-play desktop figure — xl:pt-20 (80) + the heading's 40px line box
+     * + xl:mt-16 (64) + the 28px mines/clock strip, plus slack — which is the
+     * right guess to render before the measurement lands.
      *
-     * Erring high is the safe direction — over-reserving costs a pixel or two
-     * of cell, under-reserving puts the last row back under the fold, which is
-     * what 200px did. `the whole board is on screen without scrolling` in
-     * scripts/ui-smoke/run.js is what keeps this honest when the chrome moves.
+     * The board's own frame is NOT in here: --ms-board-inset covers it on both
+     * axes. `the whole board is on screen without scrolling` in
+     * scripts/ui-smoke/run.js is what keeps the pair of them honest.
      */
     --ms-board-reserve: 228px;
     --ms-cell-closed: var(--ms-palette-cell-closed);

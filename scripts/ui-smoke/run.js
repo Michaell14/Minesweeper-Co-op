@@ -1104,6 +1104,26 @@ async function pvp(host, guest) {
     // and against a real deployment the guest can trail the host by a beat.
     check(await settles(guest, `document.body.textContent.includes('Waiting for host')`), 'the non-host is told to wait');
 
+    /*
+     * The lobby banner is the tallest chrome the board ever sits under — the
+     * opponent line plus the Start Game button is 119px that an in-play board
+     * never pays for. A fixed --ms-board-reserve cannot cover both, which is
+     * why Board.tsx measures its own top offset instead; this is the check that
+     * says so, and it fails on any reserve that went back to being a guess.
+     */
+    const lobbyFit = JSON.parse(await host.evaluate(`
+        const r = document.querySelector('[role=grid]').getBoundingClientRect();
+        return JSON.stringify({
+            top: Math.round(r.top + window.scrollY),
+            height: Math.round(r.height),
+            viewport: window.innerHeight,
+        });
+    `));
+    check(lobbyFit.top + lobbyFit.height <= lobbyFit.viewport,
+        `the board fits under the lobby banner (${lobbyFit.top + lobbyFit.height}px of ${lobbyFit.viewport}px)`,
+        `the board spans ${lobbyFit.top}-${lobbyFit.top + lobbyFit.height}px in a ${lobbyFit.viewport}px viewport — `
+        + 'the reserve is not tracking the status banner above the board');
+
     await host.evaluate(`
         const btn = [...document.querySelectorAll('button')].find(b => b.offsetParent !== null && b.textContent.includes('Start Game'));
         if (!btn) throw new Error('no Start Game button');

@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useLayoutEffect, useRef, useState } from 'react';
 import { useMinesweeperStore } from '@/app/store';
 import Cell from '@/components/game/Cell';
 import CursorLayer from '@/components/game/CursorLayer';
@@ -23,6 +23,37 @@ export default function Board({ toggleFlag, openCell, chordCell, emitCellHover, 
     const cols = board[0]?.length || 0;
     const rows = board.length;
 
+    /*
+     * How much page sits ABOVE the board, for the height half of the fit clamp
+     * in board.module.css — CSS cannot work it out, since Grid.tsx's container
+     * is `container-type: inline-size` and cqh does not resolve there.
+     *
+     * Measured, not the --ms-board-reserve constant, because the status banner
+     * makes it a variable: 0px in play, 88px at game over, 119px in a PVP
+     * lobby. The token is what applies up to the first layout.
+     */
+    const [reserve, setReserve] = useState<number | null>(null);
+    /*
+     * No dependency array: an observer bound once at mount kept watching a
+     * wrapper React had swapped out, and a detached node never resizes again.
+     * Measuring per render is what catches the banner; the observer and the
+     * resize listener cover shifts that arrive without one. Re-setting an
+     * unchanged reserve is a no-op in React, so this settles rather than loops.
+     */
+    useLayoutEffect(() => {
+        const el = boardRef.current;
+        if (!el) return;
+        const measure = () => setReserve(Math.ceil(el.getBoundingClientRect().top + window.scrollY));
+        measure();
+        const observer = new ResizeObserver(measure);
+        if (el.parentElement) observer.observe(el.parentElement);
+        window.addEventListener('resize', measure);
+        return () => {
+            observer.disconnect();
+            window.removeEventListener('resize', measure);
+        };
+    });
+
     return (
         <div
             ref={boardRef}
@@ -33,7 +64,11 @@ export default function Board({ toggleFlag, openCell, chordCell, emitCellHover, 
                BOTH axes: the fit clamp takes the smaller of the width and height
                answers, so a tall board on a short window shrinks rather than
                running off the bottom. */
-            style={{ '--board-cols': cols, '--board-rows': rows } as React.CSSProperties}
+            style={{
+                '--board-cols': cols,
+                '--board-rows': rows,
+                ...(reserve === null ? {} : { '--ms-board-reserve': `${reserve}px` }),
+            } as React.CSSProperties}
             onMouseLeave={handleBoardLeave}
             role="grid"
             aria-label={`Minesweeper game board, ${board.length} rows by ${board[0]?.length || 0} columns`}>
