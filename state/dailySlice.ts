@@ -1,5 +1,6 @@
 import { StateCreator } from 'zustand';
 import type { DailyLeaderboardEntry, DailyAttemptStatus } from '@/shared/socketPayloads';
+import type { LossDiagnosis } from '@/lib/lossDiagnosis';
 import type { MinesweeperState } from './store';
 
 /**
@@ -25,6 +26,8 @@ export interface DailySlice {
      * terminal event delivers them (older attempts never do). */
     dailyMilestones: number[] | null;
     dailyLeaderboard: DailyLeaderboardEntry[];
+    /** What the losing move missed. Null until a run ends on a mine. */
+    dailyDiagnosis: LossDiagnosis | null;
 
     setDailyActive: (active: boolean) => void;
     setDailyDate: (date: string) => void;
@@ -35,6 +38,7 @@ export interface DailySlice {
     setDailyTotalEntries: (total: number | null) => void;
     setDailyMilestones: (milestones: number[] | null) => void;
     setDailyLeaderboard: (entries: DailyLeaderboardEntry[]) => void;
+    setDailyDiagnosis: (diagnosis: LossDiagnosis | null) => void;
     resetDailyState: () => void;
 }
 
@@ -48,6 +52,7 @@ const initialDailyState = {
     dailyTotalEntries: null,
     dailyMilestones: null,
     dailyLeaderboard: [],
+    dailyDiagnosis: null,
 };
 
 export const createDailySlice: StateCreator<MinesweeperState, [], [], DailySlice> = (set) => ({
@@ -62,6 +67,7 @@ export const createDailySlice: StateCreator<MinesweeperState, [], [], DailySlice
     setDailyTotalEntries: (total) => set({ dailyTotalEntries: total }),
     setDailyMilestones: (milestones) => set({ dailyMilestones: milestones }),
     setDailyLeaderboard: (entries) => set({ dailyLeaderboard: entries }),
+    setDailyDiagnosis: (diagnosis) => set({ dailyDiagnosis: diagnosis }),
 
     /** Leaving the daily view (entering a room, or returning to Landing). */
     resetDailyState: () => set({ ...initialDailyState }),
