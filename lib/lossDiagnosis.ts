@@ -1,7 +1,7 @@
 /** Naming the deduction a lost run missed, and the drill that teaches it. */
 
 import type { Cell } from '@/shared/socketPayloads';
-import { LESSON_RULES, type Explanation } from './drillDeduction';
+import { LESSON_RULES, explain, nextHint, type Explanation } from './drillDeduction';
 import type { Coord, LessonId } from './drills';
 
 /**
@@ -88,4 +88,74 @@ export function classifyLesson(layout: readonly string[], why: Explanation): Les
         return lesson;
     }
     return 'reduction';
+}
+
+export interface LossDiagnosis {
+    /** Whether the mine they opened had a proof, or a proof sat elsewhere. */
+    kind: 'provable-mine' | 'guess';
+    lesson: LessonId;
+    text: string;
+    /** The opened numbers that prove it — outlined on the replay. */
+    clues: Coord[];
+    /** The mine they hit, or the safe cell they missed. */
+    target: Coord;
+    verdict: 'mine' | 'safe';
+}
+
+const SHORT_NAME: Record<LessonId, string> = {
+    'counting': 'a counting step',
+    'one-one': 'a 1-1',
+    'one-two': 'a 1-2',
+    'one-two-one': 'a 1-2-1',
+    'one-two-two-one': 'a 1-2-2-1',
+    'reduction': 'a subset reduction',
+    'in-the-wild': 'a pattern',
+};
+
+/** How the dialog says a lesson's name. */
+export const shortLessonName = (lesson: LessonId): string => SHORT_NAME[lesson];
+
+/** The mine the fatal move opened: open in the payload, covered before it. */
+function detonatedMine(preLoss: Cell[][], revealed: Cell[][]): Coord | null {
+    for (let r = 0; r < revealed.length; r++) {
+        for (let c = 0; c < revealed[r].length; c++) {
+            if (revealed[r][c].isMine && revealed[r][c].isOpen && !preLoss[r]?.[c]?.isOpen) {
+                return [r, c];
+            }
+        }
+    }
+    return null;
+}
+
+const from = (
+    kind: LossDiagnosis['kind'],
+    layout: readonly string[],
+    why: Explanation,
+    target: Coord,
+): LossDiagnosis => ({
+    kind,
+    lesson: classifyLesson(layout, why),
+    text: why.text,
+    clues: why.clues,
+    target,
+    verdict: why.verdict,
+});
+
+/**
+ * What the run should have done instead, or null if nothing was provable.
+ *
+ * Null should be unreachable on a no-guess board — more open cells never reduce
+ * what is deducible — but it must go quiet rather than claim something false.
+ */
+export function diagnoseLoss(preLoss: Cell[][], revealed: Cell[][]): LossDiagnosis | null {
+    const layout = positionToLayout(preLoss, revealed);
+
+    const mine = detonatedMine(preLoss, revealed);
+    if (mine) {
+        const why = explain(layout, mine[0], mine[1]);
+        if (why) return from('provable-mine', layout, why, mine);
+    }
+
+    const hint = nextHint(layout, []);
+    return hint ? from('guess', layout, hint.why, hint.at) : null;
 }

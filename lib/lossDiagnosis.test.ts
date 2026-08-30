@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import type { Cell } from '@/shared/socketPayloads';
-import { positionToLayout, classifyLesson } from './lossDiagnosis';
+import { positionToLayout, classifyLesson, diagnoseLoss, shortLessonName } from './lossDiagnosis';
 import type { Explanation } from './drillDeduction';
 import type { Coord } from './drills';
 
@@ -94,5 +94,82 @@ describe('naming the pattern behind a deduction', () => {
     test('falls back to reduction when the clues are not on one line', () => {
         expect(classifyLesson(['12', '21'], why('subset', 'mine', [[0, 0], [1, 1]])))
             .toBe('reduction');
+    });
+});
+
+/* Cells as the two boards hold them: `preLoss` is the client's own position
+   before the fatal move, `revealed` is the payload with every mine in it. */
+const pre = (isOpen: boolean, nearbyMines = 0): Cell =>
+    ({ isMine: false, isOpen, isFlagged: false, nearbyMines });
+const post = (isMine: boolean, isOpen: boolean, nearbyMines = 0): Cell =>
+    ({ isMine, isOpen, isFlagged: false, nearbyMines });
+
+describe('diagnosing a loss', () => {
+    /*
+     * A 1 with exactly one covered neighbour, which the player opened. The
+     * mine was provable by counting.
+     *   1 #        the # at (0,1) is the only cell the 1 can be counting
+     *   . .
+     */
+    test('reports the mine you opened when it was provable', () => {
+        const preLoss = [[pre(true, 1), pre(false)], [pre(true, 1), pre(true, 1)]];
+        const revealed = [[post(false, true, 1), post(true, true)], [post(false, true, 1), post(false, true, 1)]];
+
+        const result = diagnoseLoss(preLoss, revealed);
+
+        expect(result?.kind).toBe('provable-mine');
+        expect(result?.target).toEqual([0, 1]);
+        expect(result?.verdict).toBe('mine');
+        expect(result?.lesson).toBe('counting');
+        expect(result?.text.length).toBeGreaterThan(0);
+    });
+
+    /*
+     * The mine at (0,0) is genuinely undetermined — the two 1s below it both
+     * see exactly {(0,0), (0,1)} and want one mine, so neither cell can be
+     * separated from the other. Meanwhile the 0 at (0,3) proves three cells
+     * safe. The player opened (0,0) with that move still on the table.
+     *
+     * As a layout:  *##.#
+     *               11#..
+     *               .....
+     */
+    test('points at a move that was certain when the one you took was not', () => {
+        const preLoss = [
+            [pre(false), pre(false), pre(false), pre(true, 0), pre(false)],
+            [pre(true, 1), pre(true, 1), pre(false), pre(true, 0), pre(true, 0)],
+            [pre(true, 0), pre(true, 0), pre(true, 0), pre(true, 0), pre(true, 0)],
+        ];
+        const revealed = [
+            [post(true, true), post(false, false), post(false, false), post(false, true, 0), post(false, false)],
+            [post(false, true, 1), post(false, true, 1), post(false, false), post(false, true, 0), post(false, true, 0)],
+            [post(false, true, 0), post(false, true, 0), post(false, true, 0), post(false, true, 0), post(false, true, 0)],
+        ];
+
+        const result = diagnoseLoss(preLoss, revealed);
+
+        expect(result?.kind).toBe('guess');
+        expect(result?.verdict).toBe('safe');
+        expect(result?.lesson).toBe('counting');
+        // The 0 at (0,3) is scanned first and reaches (0,2) first.
+        expect(result?.target).toEqual([0, 2]);
+    });
+
+    /* Nothing opened means nothing proves anything. It must go quiet rather
+       than claim something false. */
+    test('returns null when nothing at all was provable', () => {
+        const preLoss = [[pre(false), pre(false)]];
+        const revealed = [[post(true, true), post(false, false)]];
+
+        expect(diagnoseLoss(preLoss, revealed)).toBeNull();
+    });
+});
+
+describe('how a lesson is said out loud', () => {
+    test('names the shapes the way a player would', () => {
+        expect(shortLessonName('one-two-one')).toBe('a 1-2-1');
+        expect(shortLessonName('one-two-two-one')).toBe('a 1-2-2-1');
+        expect(shortLessonName('counting')).toBe('a counting step');
+        expect(shortLessonName('reduction')).toBe('a subset reduction');
     });
 });
