@@ -6,6 +6,7 @@ import { useMinesweeperStore } from '@/app/store';
 import { Button, Field, Input } from "@/components/ds";
 import { DIALOGS, openDialog } from "@/lib/dialogs";
 import { ROOM_QUERY_PARAM } from "@/lib/roomLink";
+import { MAX_ROOM_CODE_LENGTH } from "@/lib/roomCode";
 
 export interface JoinRoomFormProps {
     /**
@@ -91,7 +92,7 @@ export default function JoinRoomForm({ joinRoom }: JoinRoomFormProps) {
                             <Input
                                 type="text"
                                 size="sm"
-                                maxLength={28}
+                                maxLength={MAX_ROOM_CODE_LENGTH}
                                 placeholder={"Enter Room Code"}
                                 invalid={!!errors.roomCode}
                                 aria-label="Room code to join"

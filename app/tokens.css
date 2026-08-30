@@ -254,6 +254,30 @@
      * already excluded before this is subtracted.
      */
     --ms-board-inset: calc(2 * var(--ms-border-width) + 8px);
+    /*
+     * Vertical space the PAGE takes ABOVE the board, subtracted before the
+     * height half of the fit maths. The width half measures the board's own
+     * container, which already excludes its padding; the height half cannot —
+     * Grid.tsx's container is `container-type: inline-size`, so cqh does not
+     * resolve there and the maths has to fall back to the viewport.
+     *
+     * Above, not around: what has to stay on screen is the BOARD, and the only
+     * thing between it and the top of the viewport is Grid.tsx's chrome. The
+     * emote tray below it may sit under the fold; the last row may not.
+     *
+     * This is the value up to the FIRST LAYOUT only. Board.tsx then measures
+     * its own top offset and overrides it inline, because the chrome is not a
+     * constant: the status banner is 0px in play, 88px at game over and 119px
+     * in a PVP lobby, so any single number here is wrong in some state. 228 is
+     * the in-play desktop figure — xl:pt-20 (80) + the heading's 40px line box
+     * + xl:mt-16 (64) + the 28px mines/clock strip, plus slack — which is the
+     * right guess to render before the measurement lands.
+     *
+     * The board's own frame is NOT in here: --ms-board-inset covers it on both
+     * axes. `the whole board is on screen without scrolling` in
+     * scripts/ui-smoke/run.js is what keeps the pair of them honest.
+     */
+    --ms-board-reserve: 228px;
     --ms-cell-closed: var(--ms-palette-cell-closed);
     --ms-cell-light: var(--ms-palette-cell-light);
     --ms-cell-shade: var(--ms-palette-cell-shade);

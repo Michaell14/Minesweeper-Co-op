@@ -73,8 +73,11 @@ function BoardPreview() {
     return (
         <div
             className={board.gameBoard}
-            /* The board sizes cells to fit; this preview is a single row of 11. */
-            style={{ '--board-cols': 11 } as React.CSSProperties}
+            /* The board sizes cells to fit, on BOTH axes; this preview is a
+               single row of 11. Rows matter as much as columns now — left to
+               the stylesheet's 16-row fallback, a one-row strip would be given
+               a sixteen-row height budget and shrink for no reason. */
+            style={{ '--board-cols': 11, '--board-rows': 1 } as React.CSSProperties}
         >
             <div className={board.gameRow}>
                 {NUMBERS.map((n) => (

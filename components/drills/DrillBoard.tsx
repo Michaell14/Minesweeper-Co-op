@@ -24,11 +24,14 @@ export interface DrillBoardProps {
 
 export default function DrillBoard({ layout, marks, hintAt, onOpen, onFlag }: DrillBoardProps) {
     const cols = layout.length === 0 ? 0 : layout[0].length;
+    const rows = layout.length;
 
     return (
         <div
             className={styles.gameBoard}
-            style={{ '--board-cols': cols } as React.CSSProperties}
+            /* Both axes: the shared fit clamp falls back to a 16-row board
+               otherwise, which sizes a 2-row drill far below what fits. */
+            style={{ '--board-cols': cols, '--board-rows': rows } as React.CSSProperties}
             role="grid"
         >
             {layout.map((row, r) => (

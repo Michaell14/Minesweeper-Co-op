@@ -22,6 +22,7 @@ export default function GameDialogs({ resetGame }: GameDialogsProps) {
     const gameOverName = useMinesweeperStore((state) => state.gameOverName);
     const gameWon = useMinesweeperStore((state) => state.gameWon);
     const setPlayerJoined = useMinesweeperStore((state) => state.setPlayerJoined);
+    const requestNewRoomCode = useMinesweeperStore((state) => state.requestNewRoomCode);
 
     return (
         <>
@@ -53,21 +54,43 @@ export default function GameDialogs({ resetGame }: GameDialogsProps) {
                 <GameSummary />
             </Dialog>
 
+            {/* Both room errors carry a way out. They used to be a bare title
+                over a button labelled "Cancel": a dead end, on the one screen
+                where the player has no idea what to do differently. */}
             <Dialog
                 id={DIALOGS.createRoomError}
-                title="This room already exists."
+                title="That room code is taken."
                 alert
                 actionsAlign="between"
-                actions={<DialogClose aria-label="Close error dialog">Cancel</DialogClose>}
-            />
+                actions={
+                    <>
+                        <DialogClose aria-label="Close error dialog">Close</DialogClose>
+                        {/* type="submit" so the dialog closes on the same click.
+                            Deliberately no "join it instead": the room holding
+                            that code is usually a stranger's. */}
+                        <Button
+                            type="submit"
+                            intent="primary"
+                            onClick={requestNewRoomCode}>
+                            Try a different code
+                        </Button>
+                    </>
+                }>
+                <p className="text-pixel-xs text-ink-muted">
+                    Someone is already using it. Pick another and create the room again.
+                </p>
+            </Dialog>
 
             <Dialog
                 id={DIALOGS.joinRoomError}
                 title="This room does not exist."
                 alert
                 actionsAlign="between"
-                actions={<DialogClose aria-label="Close error dialog">Cancel</DialogClose>}
-            />
+                actions={<DialogClose aria-label="Close error dialog">Close</DialogClose>}>
+                <p className="text-pixel-xs text-ink-muted">
+                    Check the code with whoever shared it, or create a room and invite them instead.
+                </p>
+            </Dialog>
 
             <Dialog
                 id={DIALOGS.roomDoesNotExist}
@@ -78,7 +101,7 @@ export default function GameDialogs({ resetGame }: GameDialogsProps) {
                     <DialogClose
                         onClick={() => setPlayerJoined(false)}
                         aria-label="Close error dialog">
-                        Cancel
+                        Close
                     </DialogClose>
                 }
             />

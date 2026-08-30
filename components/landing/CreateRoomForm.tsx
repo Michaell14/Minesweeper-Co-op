@@ -7,6 +7,7 @@ import { Button, Field, Input, RadioCard, RadioCardGroup } from "@/components/ds
 import { BOARD_SIZES, CUSTOM_SIZE, DIFFICULTY_LEVELS, isValidBoardConfig, mineCountFor } from "@/shared/boardConfig";
 import BestForBoard from '@/components/game/BestForBoard';
 import { DIALOGS, openDialog } from "@/lib/dialogs";
+import { MAX_ROOM_CODE_LENGTH, generateRoomCode } from "@/lib/roomCode";
 
 interface CreateFormValues {
     roomCode: string;
@@ -73,8 +74,46 @@ export default function CreateRoomForm({ createRoom }: CreateRoomFormProps) {
     const {
         register,
         handleSubmit,
+        setValue,
+        setFocus,
         formState: { errors },
     } = useForm<CreateFormValues>();
+
+    /*
+     * A suggestion, not a requirement — the field stays editable and the form
+     * still validates `required`, so clearing it is still an error rather than
+     * a silent fall back to the generated one.
+     *
+     * Generated in an effort rather than as `defaultValue` because the value is
+     * random: rendered during SSR it would differ from the client's first
+     * render and hydration would swap the field's contents under the cursor.
+     */
+    React.useEffect(() => {
+        setValue("roomCode", generateRoomCode());
+    }, [setValue]);
+
+    /**
+     * A fresh suggestion, into the field and focused so it is obvious what
+     * moved. Also what the collision dialog calls — the store's `roomCreateNonce`
+     * ticks when that dialog asks, which is what reaches this component.
+     */
+    const suggestAnother = React.useCallback(() => {
+        setValue("roomCode", generateRoomCode());
+        setFocus("roomCode");
+    }, [setValue, setFocus]);
+
+    /*
+     * The collision dialog lives at the app level (components/dialogs), so it
+     * cannot reach this form's state directly. It ticks a counter in the store
+     * instead and this is what listens — one number rather than a second copy
+     * of the room code that could drift from the field.
+     */
+    const retryNonce = useMinesweeperStore((state) => state.roomCreateNonce);
+    const firstNonce = React.useRef(retryNonce);
+    React.useEffect(() => {
+        if (retryNonce === firstNonce.current) return;
+        suggestAnother();
+    }, [retryNonce, suggestAnother]);
 
     /** Mines a difficulty would produce at the current dimensions — the card labels. */
     const minesAt = (difficultyTitle: string) => mineCountFor(numRows, numCols, difficultyTitle);
@@ -104,15 +143,27 @@ export default function CreateRoomForm({ createRoom }: CreateRoomFormProps) {
             <p className="text-pixel-xl">Create a New Room:</p>
             <form onSubmit={onSubmit} className="mt-2" aria-label="Create new room form">
                 <Field invalid={!!errors.roomCode} errorText={errors.roomCode?.message}>
-                    <Input
-                        size="sm"
-                        maxLength={28}
-                        type="text"
-                        placeholder={"Enter Room Code"}
-                        invalid={!!errors.roomCode}
-                        aria-label="Room code"
-                        aria-required="true"
-                        {...register("roomCode", { required: "Room Code is required." })} />
+                    <div className="flex items-start gap-3">
+                        <div className="flex-1">
+                            <Input
+                                size="sm"
+                                maxLength={MAX_ROOM_CODE_LENGTH}
+                                type="text"
+                                placeholder={"Enter Room Code"}
+                                invalid={!!errors.roomCode}
+                                aria-label="Room code"
+                                aria-required="true"
+                                {...register("roomCode", { required: "Room Code is required." })} />
+                        </div>
+                        <Button
+                            type="button"
+                            size="sm"
+                            className="shrink-0"
+                            onClick={suggestAnother}
+                            aria-label="Suggest a different room code">
+                            New code
+                        </Button>
+                    </div>
                 </Field>
 
                 <OptionRow

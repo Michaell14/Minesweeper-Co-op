@@ -322,7 +322,7 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
             <Dialog
                 id={DIALOGS.players}
                 title="Players Online!"
-                actions={<DialogClose aria-label="Close players dialog">Cancel</DialogClose>}>
+                actions={<DialogClose aria-label="Close players dialog">Close</DialogClose>}>
                 <div className="overflow-x-auto mt-6">
                     <ScoreTable nameWidthClass="max-w-60" />
                     <FlagCounter remainingFlags={remainingFlags} variant="dialog" />

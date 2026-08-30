@@ -147,18 +147,49 @@ async function coop(page) {
         'a second copy means Grid.tsx is rendering the board per layout again');
     check(await page.evaluate(`return document.body.textContent.includes(${JSON.stringify(room)});`), 'room code is displayed');
 
-    // Desktop cells sit at the ceiling. The window here is 1440px, which has
-    // room to spare, so anything smaller means the fit maths is measuring the
-    // wrong box — the failure mode when 100cqw resolved against a container
-    // that had collapsed to zero, which floors every cell instead.
+    /*
+     * The board fits the window it is given — the whole point of the fit maths.
+     *
+     * This used to assert the cell sat exactly on the --ms-cell-size ceiling,
+     * which held while the clamp only answered the WIDTH question. It answers
+     * both axes now (components/game/board.module.css), and this window is
+     * 1440x900 with roughly 813px of usable height, so the height half is the
+     * one that binds and the ceiling is no longer the invariant.
+     *
+     * What is asserted instead is what a player actually gets, plus the floor
+     * the ceiling check was really guarding: cells collapsing to --ms-cell-min
+     * is the signature of the fit maths measuring a box that resolved to zero.
+     */
     const deskCell = parseFloat(await page.evaluate(
         `return getComputedStyle(document.querySelector('[role=gridcell]')).width;`));
     // From the GRID: the cell-size setting overrides --ms-cell-size on
     // .gameBoard, so the root keeps the default whatever the preference is.
     const deskMax = parseFloat(await page.evaluate(
         `return getComputedStyle(document.querySelector('[role=grid]')).getPropertyValue('--ms-cell-size');`));
-    check(deskCell === deskMax, `desktop cells are at the ceiling (${deskCell}px)`,
-        `cell is ${deskCell}px, not the ${deskMax}px ceiling — the fit maths is measuring the wrong box`);
+    const deskMin = parseFloat(await page.evaluate(
+        `return getComputedStyle(document.querySelector('[role=grid]')).getPropertyValue('--ms-cell-min');`));
+    check(deskCell > deskMin && deskCell <= deskMax,
+        `desktop cells are sized by the fit, not floored (${deskCell}px)`,
+        `cell is ${deskCell}px, outside (${deskMin}, ${deskMax}] — the fit maths is measuring the wrong box`);
+
+    /*
+     * Absolute offsets, not the raw rect. getBoundingClientRect is relative to
+     * the SCROLL position, and entering a room leaves this page scrolled down —
+     * so a board hanging 20px past the fold measured as fitting, and this check
+     * passed on exactly the layout it exists to reject.
+     */
+    const boardFit = JSON.parse(await page.evaluate(`
+        const r = document.querySelector('[role=grid]').getBoundingClientRect();
+        return JSON.stringify({
+            top: Math.round(r.top + window.scrollY),
+            height: Math.round(r.height),
+            viewport: window.innerHeight,
+        });
+    `));
+    check(boardFit.top >= 0 && boardFit.top + boardFit.height <= boardFit.viewport,
+        `the whole board is on screen without scrolling (${boardFit.top + boardFit.height}px of ${boardFit.viewport}px)`,
+        `the board spans ${boardFit.top}-${boardFit.top + boardFit.height}px in a ${boardFit.viewport}px viewport — `
+        + '--ms-board-reserve no longer covers the chrome above it');
 
     const flagsRemaining = () => page.evaluate(`
         const el = [...document.querySelectorAll('strong')].find(e => /^\\s*-?\\d+\\s*$/.test(e.textContent));
@@ -350,8 +381,12 @@ async function desktopFit(page) {
     console.log('\n\x1b[1m--- DESKTOP FIT ---\x1b[0m');
     const room = 'smokedesk' + Date.now().toString().slice(-6);
 
+    // 1000 tall, not 900: this section is about the WIDTH axis at the xl
+    // breakpoint, and at 900 the height half of the clamp binds first, which
+    // takes cells off the ceiling for a reason that has nothing to do with the
+    // rails the checks below are about. The height axis is covered in CO-OP.
     await page.send('Emulation.setDeviceMetricsOverride', {
-        width: 1280, height: 900, deviceScaleFactor: 1, mobile: false,
+        width: 1280, height: 1000, deviceScaleFactor: 1, mobile: false,
     });
     // Resume would otherwise put this page back in the previous section's room.
     // The settings blob goes too: the profile in /tmp outlives the run, so a
@@ -1068,6 +1103,26 @@ async function pvp(host, guest) {
     // Poll rather than read once: the two clients render the lobby independently,
     // and against a real deployment the guest can trail the host by a beat.
     check(await settles(guest, `document.body.textContent.includes('Waiting for host')`), 'the non-host is told to wait');
+
+    /*
+     * The lobby banner is the tallest chrome the board ever sits under — the
+     * opponent line plus the Start Game button is 119px that an in-play board
+     * never pays for. A fixed --ms-board-reserve cannot cover both, which is
+     * why Board.tsx measures its own top offset instead; this is the check that
+     * says so, and it fails on any reserve that went back to being a guess.
+     */
+    const lobbyFit = JSON.parse(await host.evaluate(`
+        const r = document.querySelector('[role=grid]').getBoundingClientRect();
+        return JSON.stringify({
+            top: Math.round(r.top + window.scrollY),
+            height: Math.round(r.height),
+            viewport: window.innerHeight,
+        });
+    `));
+    check(lobbyFit.top + lobbyFit.height <= lobbyFit.viewport,
+        `the board fits under the lobby banner (${lobbyFit.top + lobbyFit.height}px of ${lobbyFit.viewport}px)`,
+        `the board spans ${lobbyFit.top}-${lobbyFit.top + lobbyFit.height}px in a ${lobbyFit.viewport}px viewport — `
+        + 'the reserve is not tracking the status banner above the board');
 
     await host.evaluate(`
         const btn = [...document.querySelectorAll('button')].find(b => b.offsetParent !== null && b.textContent.includes('Start Game'));
