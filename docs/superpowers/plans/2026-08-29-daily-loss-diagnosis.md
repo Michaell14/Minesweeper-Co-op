@@ -1175,15 +1175,26 @@ Expected: PASS. `Cell.test.tsx` is run to confirm the hot path is untouched.
 
 - [ ] **Step 7: Full verification**
 
-Run: `npm run test:client && npx tsc --noEmit && npm run lint && npm run build`
+Run: `npm run test:client && npx tsc --noEmit && npm run lint`
 Expected: all pass.
 
-Then, with `npm run dev:all` running in another terminal:
+Then, with `npm run dev:all` already running, run the browser suite BEFORE the
+production build:
 
 Run: `npm run test:ui`
 Expected: ALL CHECKS PASSED. `components/` and `hooks/` were both touched, and the suite asserts the board is mounted exactly once — a fourth child of `.gameBoard` must not have disturbed that.
 
 If the AVATARS section reports `CDP timeout`, re-run once: that section is unrelated to this change and the suite is documented as the flakiest thing in the pipeline.
+
+**`npm run build` LAST, and never while the dev server the smoke suite uses is
+running.** A production build overwrites `.next`, and the dev server then serves
+a mixture that sizes board cells wrongly — which surfaces as four failures in
+CO-OP, DESKTOP FIT and FOOTER CLEARANCE that look exactly like a layout
+regression and are not one. If that happens: stop the dev server, `rm -rf
+.next`, restart it, and re-run.
+
+Run: `npm run build`
+Expected: pass.
 
 - [ ] **Step 8: Commit**
 
