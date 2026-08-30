@@ -172,13 +172,24 @@ async function coop(page) {
         `desktop cells are sized by the fit, not floored (${deskCell}px)`,
         `cell is ${deskCell}px, outside (${deskMin}, ${deskMax}] — the fit maths is measuring the wrong box`);
 
-    const boardFits = await page.evaluate(`
-        const b = document.querySelector('[role=grid]');
-        const r = b.getBoundingClientRect();
-        return r.top >= 0 && r.bottom <= window.innerHeight;
-    `);
-    check(boardFits, 'the whole board is on screen without scrolling',
-        'the board runs past the fold — the height half of the fit clamp is not binding');
+    /*
+     * Absolute offsets, not the raw rect. getBoundingClientRect is relative to
+     * the SCROLL position, and entering a room leaves this page scrolled down —
+     * so a board hanging 20px past the fold measured as fitting, and this check
+     * passed on exactly the layout it exists to reject.
+     */
+    const boardFit = JSON.parse(await page.evaluate(`
+        const r = document.querySelector('[role=grid]').getBoundingClientRect();
+        return JSON.stringify({
+            top: Math.round(r.top + window.scrollY),
+            height: Math.round(r.height),
+            viewport: window.innerHeight,
+        });
+    `));
+    check(boardFit.top >= 0 && boardFit.top + boardFit.height <= boardFit.viewport,
+        `the whole board is on screen without scrolling (${boardFit.top + boardFit.height}px of ${boardFit.viewport}px)`,
+        `the board spans ${boardFit.top}-${boardFit.top + boardFit.height}px in a ${boardFit.viewport}px viewport — `
+        + '--ms-board-reserve no longer covers the chrome above it');
 
     const flagsRemaining = () => page.evaluate(`
         const el = [...document.querySelectorAll('strong')].find(e => /^\\s*-?\\d+\\s*$/.test(e.textContent));
@@ -370,8 +381,12 @@ async function desktopFit(page) {
     console.log('\n\x1b[1m--- DESKTOP FIT ---\x1b[0m');
     const room = 'smokedesk' + Date.now().toString().slice(-6);
 
+    // 1000 tall, not 900: this section is about the WIDTH axis at the xl
+    // breakpoint, and at 900 the height half of the clamp binds first, which
+    // takes cells off the ceiling for a reason that has nothing to do with the
+    // rails the checks below are about. The height axis is covered in CO-OP.
     await page.send('Emulation.setDeviceMetricsOverride', {
-        width: 1280, height: 900, deviceScaleFactor: 1, mobile: false,
+        width: 1280, height: 1000, deviceScaleFactor: 1, mobile: false,
     });
     // Resume would otherwise put this page back in the previous section's room.
     // The settings blob goes too: the profile in /tmp outlives the run, so a

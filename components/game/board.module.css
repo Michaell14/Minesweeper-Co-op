@@ -61,6 +61,11 @@
      * size the page does not have. So the page's own vertical chrome is
      * subtracted by hand as --ms-board-reserve.
      *
+     * --ms-board-inset is subtracted here as well as across, because the frame
+     * is on both axes: (rows + 1) * gap accounts for the 15 gaps and the 2px of
+     * padding, but not the border. Leaving it out cost the board its border on
+     * this axis alone, and that was 8 of the 20px it ran past the fold.
+     *
      * Declared twice on purpose. dvh is the one that discounts mobile browser
      * chrome, but on anything that does not know the unit the whole calc() is
      * invalid, --cell-size resolves to nothing and every cell collapses to a
@@ -68,11 +73,11 @@
      */
     --board-rows-safe: var(--board-rows, 16);
     --cell-fit-h: calc(
-        (100vh - var(--ms-board-reserve) - (var(--board-rows-safe) + 1) * var(--cell-gap))
+        (100vh - var(--ms-board-reserve) - var(--ms-board-inset) - (var(--board-rows-safe) + 1) * var(--cell-gap))
         / var(--board-rows-safe)
     );
     --cell-fit-h: calc(
-        (100dvh - var(--ms-board-reserve) - (var(--board-rows-safe) + 1) * var(--cell-gap))
+        (100dvh - var(--ms-board-reserve) - var(--ms-board-inset) - (var(--board-rows-safe) + 1) * var(--cell-gap))
         / var(--board-rows-safe)
     );
     /* The smaller of the two answers, then the usual floor and ceiling. */
