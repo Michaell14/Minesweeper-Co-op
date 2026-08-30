@@ -17,7 +17,7 @@ export interface AccountProfile {
 }
 
 /*
- * One fetch per sign-in, shared by every consumer — the Footer is in the
+ * One fetch per sign-in, shared by every consumer — the header is in the
  * layout and the landing page mounts this again, so without a shared copy
  * every page issues a GET per consumer. Only a SUCCESSFUL read is shared: a
  * null is not cached, so consumers on a page whose account API is down each

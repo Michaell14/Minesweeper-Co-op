@@ -24,7 +24,7 @@ export interface ProfileUser {
 
 /**
  * Fired on window with the fresh ProfileUser as detail whenever a profile
- * save answers. The Footer's avatar icon listens: it is mounted once in the
+ * save answers. The header's avatar icon listens: it is mounted once in the
  * layout, so without a signal it would show a stale avatar until a full
  * reload after the picker on /profile changed it.
  */

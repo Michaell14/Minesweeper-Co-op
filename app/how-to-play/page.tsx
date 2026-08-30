@@ -154,6 +154,21 @@ export default function HowToPlayPage() {
                         ))}
                     </dl>
                 </section>
+
+                {/* Rescued from the how-to-play dialog the header replaced,
+                    where it sat behind an unlabelled icon. */}
+                <section>
+                    <h2 className="text-pixel-md font-bold">Something missing?</h2>
+                    <p className="mt-3">
+                        Suggestions for new features are welcome —{' '}
+                        <a
+                            href="https://forms.gle/ALpScH8K7K2QsA8M7"
+                            target="_blank"
+                            rel="noopener noreferrer">
+                            fill out this form
+                        </a>.
+                    </p>
+                </section>
             </ProsePage>
         </>
     );

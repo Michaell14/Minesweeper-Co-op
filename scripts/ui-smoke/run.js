@@ -311,7 +311,7 @@ async function sizeAndDifficulty(page) {
 
     // Leaving resets BOTH axes, not just difficulty.
     // Scoped to the create form: the page has other radio groups (the palette
-    // picker lives in the footer), and this check is about mode/size/difficulty.
+    // picker lives on /settings), and this check is about mode/size/difficulty.
     const backToDefaults = await page.evaluate(`
         const form = document.querySelector('form[aria-label="Create new room form"]');
         return [...form.querySelectorAll('input[type=radio]')].filter(r => r.checked).map(r => r.value).join(',');
@@ -461,18 +461,16 @@ async function mobileFit(page) {
 
 
 /**
- * The floating footer icons must never sit over the board.
+ * Site navigation must never sit over the board.
  *
- * Absolutely positioned, the cluster anchors to the FIRST VIEWPORT of the
- * document — which at ~1300px widths with a wide board is exactly where the
- * bottom-right cells are, and an icon over a cell is a cell nobody can click.
- * The fix keeps floating for the landing page only; with a game mounted the
- * cluster joins normal flow below the board. Reproduced here at the worst
- * case this repo can produce: a 1320px viewport with large cells, which
- * pushes the board's right edge well under where the icons used to float.
+ * This replaced a cluster of icons floated over the bottom-right of the page,
+ * which at ~1300px widths with a wide board landed exactly on the bottom-right
+ * cells — and an icon over a cell is a cell nobody can click. The header is
+ * static and in normal flow, so it cannot repeat that; this holds it to it,
+ * at the worst case the repo can produce (1320px, large cells).
  */
-async function footerClearance(page) {
-    console.log('\n\x1b[1m--- FOOTER CLEARANCE ---\x1b[0m');
+async function headerClearance(page) {
+    console.log('\n\x1b[1m--- HEADER CLEARANCE ---\x1b[0m');
     const room = 'smokeftr' + Date.now().toString().slice(-6);
 
     await page.send('Emulation.setDeviceMetricsOverride', {
@@ -496,17 +494,19 @@ async function footerClearance(page) {
 
     const m = JSON.parse(await page.evaluate(`
         const board = document.querySelector('[role=grid]').getBoundingClientRect();
-        const github = document.querySelector('a[aria-label="View this project on GitHub"]');
-        const cluster = github && github.parentElement.getBoundingClientRect();
-        const overlaps = cluster && !(
-            cluster.right <= board.left || cluster.left >= board.right ||
-            cluster.bottom <= board.top || cluster.top >= board.bottom
+        const nav = document.querySelector('nav[aria-label="Main"]');
+        const rect = nav && nav.getBoundingClientRect();
+        const overlaps = rect && !(
+            rect.right <= board.left || rect.left >= board.right ||
+            rect.bottom <= board.top || rect.top >= board.bottom
         );
-        return JSON.stringify({ present: !!cluster, overlaps: !!overlaps });
+        const drills = !!(nav && nav.querySelector('a[href="/drills"]'));
+        return JSON.stringify({ present: !!rect, overlaps: !!overlaps, drills });
     `));
-    check(m.present, 'the footer icons still exist during a game');
-    check(!m.overlaps, 'the footer icons do not cover the board',
-        'the icon cluster intersects the board rect — cells behind it cannot be clicked');
+    check(m.present, 'the header is still there during a game');
+    check(m.drills, 'the header still reaches the content pages during a game');
+    check(!m.overlaps, 'the header does not cover the board',
+        'the header intersects the board rect — cells behind it cannot be clicked');
 
     await page.evaluate(`localStorage.removeItem('minesweeper_settings');`);
     await page.send('Emulation.clearDeviceMetricsOverride');
@@ -1357,7 +1357,7 @@ async function emotes(host, guest) {
         await coop(page);
         await sizeAndDifficulty(page);
         await mobileFit(page);
-        await footerClearance(page);
+        await headerClearance(page);
         await rejoinOnReload(page);
         await keyboardPlay(page);
         await daily(page);

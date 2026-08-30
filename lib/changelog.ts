@@ -139,7 +139,18 @@ export const CHANGELOG: ChangelogEntry[] = [
 
 export const LATEST_ENTRY_DATE = CHANGELOG[0]?.date ?? '';
 
+/** What the announcement banner draws. Null only if CHANGELOG is emptied. */
+export const LATEST_ENTRY: ChangelogEntry | null = CHANGELOG[0] ?? null;
+
 const STORAGE_KEY = 'minesweeper_changelog_last_seen';
+
+/*
+ * The banner's own key, deliberately not STORAGE_KEY: closing a strip is not
+ * reading the changelog, and sharing one would clear the star's unseen dot for
+ * someone who never opened it. Holds the dismissed entry's id, so the next
+ * release speaks to people who closed the last one.
+ */
+const BANNER_KEY = 'minesweeper_banner_dismissed';
 
 export function hasUnseenEntries(): boolean {
     if (typeof window === 'undefined') return false;
@@ -148,7 +159,7 @@ export function hasUnseenEntries(): boolean {
         return !lastSeen || lastSeen < LATEST_ENTRY_DATE; // ISO dates compare correctly as strings
     } catch {
         // Storage disabled (private mode, blocked cookies): these throw, and
-        // an uncaught throw here unmounts the app from the Footer's effect.
+        // an uncaught throw here unmounts the app from the header's effect.
         // No storage means no badge, not no game.
         return false;
     }
@@ -158,6 +169,25 @@ export function markChangelogSeen(): void {
     if (typeof window === 'undefined') return;
     try {
         localStorage.setItem(STORAGE_KEY, LATEST_ENTRY_DATE);
+    } catch {
+        // Persistence is optional when storage is unavailable or full.
+    }
+}
+
+export function isBannerDismissed(): boolean {
+    if (typeof window === 'undefined' || !LATEST_ENTRY) return false;
+    try {
+        return localStorage.getItem(BANNER_KEY) === LATEST_ENTRY.id;
+    } catch {
+        // No storage means the banner shows, not that the app breaks.
+        return false;
+    }
+}
+
+export function dismissBanner(): void {
+    if (typeof window === 'undefined' || !LATEST_ENTRY) return;
+    try {
+        localStorage.setItem(BANNER_KEY, LATEST_ENTRY.id);
     } catch {
         // Persistence is optional when storage is unavailable or full.
     }

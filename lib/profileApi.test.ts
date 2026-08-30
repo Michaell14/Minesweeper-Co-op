@@ -3,7 +3,7 @@
  * The profile-save queue. Serialisation is the CORRECTNESS mechanism for the
  * whole save path: with one request in flight at a time, in call order, a
  * response is always the newest server state when it arrives — which is what
- * lets the panel apply it and the Footer's event listener trust it without
+ * lets the panel apply it and the header's event listener trust it without
  * any ordering guards. These tests pin the two properties everything else
  * leans on: strict one-at-a-time ordering, and a failure not wedging the
  * queue shut.

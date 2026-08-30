@@ -2,7 +2,7 @@
 /**
  * The shared profile copy.
  *
- * The hook's own behaviour is covered through its consumers (Footer, Landing);
+ * The hook's own behaviour is covered through its consumers (SiteNav, Landing);
  * what needs its own file is the MODULE-LEVEL cache those consumers share,
  * because its failure mode is showing one account's identity to another and it
  * only happens across a sign-out.

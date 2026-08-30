@@ -7,7 +7,7 @@ import { DIALOGS, closeDialog, openDialog } from '@/lib/dialogs';
 import { providerLabel } from '@/lib/profileApi';
 
 /**
- * The sign-in and privacy dialogs, mounted on every route by Footer.
+ * The sign-in and privacy dialogs, mounted on every route by the layout.
  *
  * This used to be the whole account surface — rename, sign out, delete. All
  * of that now lives on /profile (app/profile/AccountPanel.tsx): signed in,
