@@ -144,6 +144,12 @@ const addPlayerToRoom = async (room, socketId, name, sessionId, avatar) => {
 
     // Was this browser previously here under a different socket?
     let reconnectedFrom = null;
+    /*
+     * The score this browser is owed, taken back off its session. Only a join
+     * the resume guard below accepts ever reads it, so a takeover cannot
+     * inherit one.
+     */
+    let carriedScore = 0;
     if (isValidSessionId(sessionId)) {
         const { socketId: holder, live } = await sessionHolder(sessionId);
 
@@ -163,6 +169,12 @@ const addPlayerToRoom = async (room, socketId, name, sessionId, avatar) => {
                 reconnectedFrom = holder;
                 await playerRepo.remove(holder);
             }
+            /*
+             * Taken BEFORE the save below, which rewrites the session hash.
+             * The disconnect that preceded this put the score here precisely
+             * because the player record it used to live on is already gone.
+             */
+            carriedScore = await sessionRepo.takeScore(sessionId, room);
             await sessionRepo.save(sessionId, { room, name, socketId });
         }
     }
@@ -180,6 +192,14 @@ const addPlayerToRoom = async (room, socketId, name, sessionId, avatar) => {
             sessionId: sessionId || '',
         });
     }
+
+    /*
+     * Everything else about a reconnect is carried across below — the room
+     * slot, the host role, the PVP board, the running clock. The score is the
+     * one thing that outlived nothing, so it is put back here from the session.
+     * updatePlayerStatsInRoom at the end of this function rebroadcasts it.
+     */
+    if (carriedScore) await playerRepo.setScore(socketId, carriedScore);
 
     const roomState = await roomRepo.getState(room);
     const mode = roomState.mode || 'co-op';
@@ -304,6 +324,18 @@ const removePlayer = async (socket, socketId) => {
         }
     }
     socket.leave(room);
+
+    /*
+     * Keep the score for the reload that may follow. A deliberate leave reaches
+     * this same function, and is told apart the same way the room itself is:
+     * only `playerLeave` calls sessionController.forgetRoom, which drops the
+     * stash along with the room. So a refresh keeps its score and a player who
+     * walked out does not carry one back in.
+     */
+    const sessionId = await playerRepo.getField(socketId, 'sessionId');
+    const score = await playerRepo.getScore(socketId);
+    if (sessionId && score > 0) await sessionRepo.stashScore(sessionId, { room, score });
+
     await playerRepo.remove(socketId);
 }
 

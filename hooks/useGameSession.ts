@@ -6,6 +6,7 @@ import { useGameActions } from "@/hooks/useGameActions";
 import { useGameEvents } from "@/hooks/useGameEvents";
 import { useMatchReconnect } from "@/hooks/useMatchReconnect";
 import { useConnectionStatus } from "@/hooks/useConnectionStatus";
+import { useRoomHistory } from "@/hooks/useRoomHistory";
 import type { AppSocket } from "@/lib/initSocket";
 
 /**
@@ -35,6 +36,8 @@ export function useGameSession(): {
     const actions = useGameActions(socket);
     useSocketEvents(socket, useGameEvents(socket, actions.leaveRoom));
     useMatchReconnect(socket, actions.findMatch);
+    // Back leaves the ROOM, not the site. Reads playerJoined, so inert on /daily.
+    useRoomHistory(actions.leaveRoom);
     useConnectionStatus(socket);
 
     return { socket, actions };
