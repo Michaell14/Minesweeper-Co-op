@@ -260,10 +260,17 @@ Styling goes in `board.module.css` with the other overlays, reading
 
 - **Adapter** (Vitest, Node): round-trip a known position to layout and back
   through `deduce`.
-- **Classifier** (Vitest, Node): the authored drills are free fixtures. Every
-  drill in `lib/drills.ts` carries the lesson it teaches, so the classifier
-  must agree with that label on every one. This is the same discipline
-  `validateDrill` already applies and it fails loudly when either side drifts.
+- **Classifier** (Vitest, Node): hand-built layouts, one per shape, plus the
+  cases that must *not* match — a shape elsewhere in the same row, and a
+  two-digit run whose verdict contradicts it.
+
+  The authored drills were considered as free fixtures — every drill carries
+  the lesson it teaches — and **cannot be used that way**. `run()` applies its
+  counting block before its subset block on every iteration, so on any drill
+  whose board also permits a counting step, that is the deduction that fires
+  first; a 1-2-1 drill would report `counting` and the assertion would encode
+  a false invariant. `in-the-wild` compounds it: it is a collection of boards,
+  not a shape, so no classification can ever equal that label.
 - **Both cases end to end** (Vitest, Node): a hand-built position where the
   detonated mine is provable → Case A; one where it is not but a safe move
   exists → Case B.
