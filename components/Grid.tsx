@@ -145,9 +145,10 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
                   * juggling: the cluster that does not belong to the current
                   * breakpoint is display:none and leaves the flex line entirely.
                   */}
-                {/* One gap at every desktop width: extra width already reaches
-                    the board as centring slack, so a wider gap only takes room. */}
-                <div className="flex flex-col items-center gap-0 mt-10 xl:flex-row xl:items-start xl:gap-10 xl:mt-16">
+                {/* 24px, not more: `xl:` turns this row on from a 1280px WINDOW
+                    and a classic scrollbar leaves 1263px to lay out in, which
+                    the board needs to reach its ceiling. */}
+                <div className="flex flex-col items-center gap-0 mt-10 xl:flex-row xl:items-start xl:gap-6 xl:mt-16">
 
                     {/* MOBILE: a compact HUD, pinned above the board. */}
                     <div className="xl:hidden sticky top-0 z-10 w-full bg-surface-page border-b-pixel border-edge flex items-center justify-between gap-3 px-2 py-1">

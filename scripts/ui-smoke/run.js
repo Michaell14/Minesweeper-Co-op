@@ -331,6 +331,10 @@ async function sizeAndDifficulty(page) {
  *
  * The HUD's position is only observable here — jsdom has no layout engine, so
  * nothing else can tell that it drifted back out to a side rail.
+ *
+ * A 17px scrollbar is forced so every machine measures the same worst case:
+ * `xl:` matches on the window, which counts the scrollbar, but the row lays
+ * out in what is left. macOS overlay scrollbars are 0px and hide that.
  */
 async function desktopFit(page) {
     console.log('\n\x1b[1m--- DESKTOP FIT ---\x1b[0m');
@@ -349,6 +353,16 @@ async function desktopFit(page) {
     await page.waitFor(`document.querySelectorAll('[role=gridcell]').length === 256`,
         { label: 'board renders at 1280px' });
 
+    // Styling ::-webkit-scrollbar opts out of overlay scrollbars, so it takes width.
+    await page.evaluate(`
+        const s = document.createElement('style');
+        s.id = 'smoke-classic-scrollbar';
+        s.textContent = 'html::-webkit-scrollbar{width:17px} html{overflow-y:scroll}';
+        document.head.appendChild(s);
+        return true;
+    `);
+    await sleep(300);
+
     const m = JSON.parse(await page.evaluate(`
         const doc = document.documentElement;
         const grid = document.querySelector('[role=grid]');
@@ -357,6 +371,7 @@ async function desktopFit(page) {
         const clock = visible('[role=timer]').getBoundingClientRect();
         return JSON.stringify({
             viewport: doc.clientWidth,
+            scrollbar: window.innerWidth - doc.clientWidth,
             scrollWidth: doc.scrollWidth,
             board: Math.round(board.width),
             container: grid.closest('[aria-label="Game board container"]').clientWidth,
@@ -368,18 +383,23 @@ async function desktopFit(page) {
         });
     `));
 
+    // Without it the checks below silently revert to the easy 1280px case.
+    check(m.scrollbar === 17, `the classic scrollbar is in force (${m.scrollbar}px, leaving ${m.viewport}px)`,
+        `expected a 17px scrollbar, got ${m.scrollbar}px — the checks below prove nothing`);
     check(m.scrollWidth <= m.viewport, `the game does not scroll sideways at ${m.viewport}px`,
         `scrollWidth ${m.scrollWidth}px vs viewport ${m.viewport}px — the rails do not fit beside the board`);
     check(m.board <= m.container, `the board fits its column (${m.board}px in ${m.container}px)`,
         `board ${m.board}px overflows its ${m.container}px column`);
     check(m.cell === m.ceiling, `cells are still at the ceiling at the breakpoint (${m.cell}px)`,
-        `cell is ${m.cell}px, not ${m.ceiling}px — the desktop gutters are taking room the board needs`);
+        `cell is ${m.cell}px, not ${m.ceiling}px — the board column is ${m.container}px and wants 707px, `
+        + 'so the gap either side of it is taking room the board needs');
     check(m.clockOnBoardEdge, "the clock sits on the board's top edge",
         "the timer is not within the board's width above it — the HUD has drifted back out to a side rail");
 
     // Leave, or the next section inherits a board instead of a landing page:
     // only leaving clears the room from the session.
     await page.evaluate(`
+        document.getElementById('smoke-classic-scrollbar')?.remove();
         const btn = [...document.querySelectorAll('button')]
             .find((b) => b.offsetParent !== null && b.textContent.includes('Return to Home'));
         btn.click();
