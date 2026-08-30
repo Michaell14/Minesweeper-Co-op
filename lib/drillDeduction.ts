@@ -82,6 +82,8 @@ export interface Explanation {
     verdict: 'mine' | 'safe';
     rule: RuleId;
     text: string;
+    /** The opened cells that prove it: one for counting, two for subset. */
+    clues: Coord[];
 }
 
 const where = ([r, c]: Coord) => `row ${r + 1}, column ${c + 1}`;
@@ -141,6 +143,7 @@ function run(layout: readonly string[], rules: readonly RuleId[]) {
                     changed = prove(unknown, 'safe', () => ({
                         verdict: 'safe',
                         rule: 'counting',
+                        clues: [con.at],
                         text: con.digit === 0
                             ? `The ${nameOf(0, con.at)} touches no mines at all, so every covered cell around it is safe.`
                             : `The ${nameOf(con.digit, con.at)} has already found ${plural(con.digit, 'its mine', 'all of its mines')}, so its remaining covered ${plural(unknown.length, 'cell is', 'cells are')} safe.`,
@@ -149,6 +152,7 @@ function run(layout: readonly string[], rules: readonly RuleId[]) {
                     changed = prove(unknown, 'mine', () => ({
                         verdict: 'mine',
                         rule: 'counting',
+                        clues: [con.at],
                         text: `The ${nameOf(con.digit, con.at)} still needs ${remaining} more ${plural(remaining, 'mine', 'mines')} and touches only ${unknown.length} covered ${plural(unknown.length, 'cell', 'cells')}, so ${plural(unknown.length, 'it is a mine', 'they are all mines')}.`,
                     })) || changed;
                 }
@@ -167,12 +171,14 @@ function run(layout: readonly string[], rules: readonly RuleId[]) {
                         changed = prove(extra, 'mine', () => ({
                             verdict: 'mine',
                             rule: 'subset',
+                            clues: [a.at, b.at],
                             text: `The ${nameOf(b.digit, b.at)} needs ${delta} more ${plural(delta, 'mine', 'mines')} than the ${nameOf(a.digit, a.at)}, and sees exactly ${extra.length} covered ${plural(extra.length, 'cell', 'cells')} that one cannot — so ${plural(extra.length, 'that cell is a mine', 'those cells are all mines')}.`,
                         })) || changed;
                     } else if (delta === 0) {
                         changed = prove(extra, 'safe', () => ({
                             verdict: 'safe',
                             rule: 'subset',
+                            clues: [a.at, b.at],
                             text: `The ${nameOf(a.digit, a.at)} and the ${nameOf(b.digit, b.at)} want the same number of mines, and every cell the first can see the second can see too — so the ${plural(extra.length, 'extra cell is', 'extra cells are')} safe.`,
                         })) || changed;
                     }

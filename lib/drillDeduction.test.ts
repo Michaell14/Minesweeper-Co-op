@@ -2,6 +2,7 @@
 
 import { describe, expect, test } from 'vitest';
 import { adjacentMines, deduce, explain, nextHint, validateDrill } from './drillDeduction';
+import { DRILLS } from './drills';
 import type { Drill } from './drills';
 
 describe('counting', () => {
@@ -326,5 +327,47 @@ describe('a lesson that accepts any of several patterns', () => {
             },
         }));
         expect(problems.join(' ')).toMatch(/pattern/i);
+    });
+});
+
+describe('an explanation names the cells that prove it', () => {
+    /* counting-a is ['*1.', '11.', '...'] — the scan reaches the 1 at (0,1)
+       first, and it is the only cell touching the mine at (0,0). */
+    test('a counting deduction cites the one number that proves it', () => {
+        const why = explain(['*1.', '11.', '...'], 0, 0);
+
+        expect(why?.rule).toBe('counting');
+        expect(why?.clues).toEqual([[0, 1]]);
+    });
+
+    test('a subset deduction cites both numbers', () => {
+        for (const drill of DRILLS) {
+            const { mines, safe } = deduce(drill.layout);
+            for (const [r, c] of [...mines, ...safe]) {
+                const why = explain(drill.layout, r, c);
+                if (why?.rule !== 'subset') continue;
+                expect({ id: drill.id, n: why.clues.length }).toEqual({ id: drill.id, n: 2 });
+            }
+        }
+    });
+
+    /* A clue is something the player can read off the board, so it must be an
+       opened cell — never one of the covered cells the deduction is about. */
+    test('every clue points at an opened cell', () => {
+        for (const drill of DRILLS) {
+            const { mines, safe } = deduce(drill.layout);
+            for (const [r, c] of [...mines, ...safe]) {
+                const why = explain(drill.layout, r, c);
+                expect(why).not.toBeNull();
+                for (const [cr, cc] of why!.clues) {
+                    expect({ id: drill.id, ch: drill.layout[cr][cc] }).not.toEqual(
+                        { id: drill.id, ch: '#' },
+                    );
+                    expect({ id: drill.id, ch: drill.layout[cr][cc] }).not.toEqual(
+                        { id: drill.id, ch: '*' },
+                    );
+                }
+            }
+        }
     });
 });
