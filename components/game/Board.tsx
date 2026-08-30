@@ -3,6 +3,7 @@ import { useMinesweeperStore } from '@/app/store';
 import Cell from '@/components/game/Cell';
 import CursorLayer from '@/components/game/CursorLayer';
 import KeyboardCursor from '@/components/game/KeyboardCursor';
+import DeductionLayer from '@/components/game/DeductionLayer';
 import styles from '@/components/game/board.module.css';
 
 export interface BoardProps {
@@ -51,6 +52,7 @@ export default function Board({ toggleFlag, openCell, chordCell, emitCellHover, 
             ))}
             <CursorLayer boardRef={boardRef} />
             <KeyboardCursor boardRef={boardRef} />
+            <DeductionLayer boardRef={boardRef} />
         </div>
     );
 }

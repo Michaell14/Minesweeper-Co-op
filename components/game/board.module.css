@@ -385,3 +385,41 @@
     color: var(--ms-num-8);
     font-weight: bold;
 }
+
+/* The missed deduction, over a finished daily board. Above the cursors: the
+   run is over, so nothing else on this board is live. */
+.deductionLayer {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 7;
+}
+
+.deductionClue,
+.deductionTarget {
+    position: absolute;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+}
+
+.deductionClue {
+    box-shadow: inset 0 0 0 var(--ms-border-width) var(--ms-intent-primary);
+}
+
+.deductionTarget {
+    box-shadow: inset 0 0 0 var(--ms-border-width) var(--ms-intent-error);
+    animation: deductionPulse var(--ms-duration-loop) ease-in-out infinite;
+}
+
+@keyframes deductionPulse {
+    0%, 100% { box-shadow: inset 0 0 0 var(--ms-border-width) var(--ms-intent-error); }
+    50% { box-shadow: inset 0 0 0 var(--ms-border-width) var(--ms-intent-error), 0 0 8px var(--ms-intent-error); }
+}
+
+/* The outline is the information; the pulse is decoration. */
+@media (prefers-reduced-motion: reduce) {
+    .deductionTarget {
+        animation: none;
+    }
+}
