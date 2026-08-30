@@ -1,7 +1,7 @@
 /** Naming the deduction a lost run missed, and the drill that teaches it. */
 
 import type { Cell } from '@/shared/socketPayloads';
-import { LESSON_RULES, explain, nextHint, type Explanation } from './drillDeduction';
+import { LESSON_RULES, deduce, explain, nextHint, type Explanation } from './drillDeduction';
 import type { Coord, LessonId } from './drills';
 
 /**
@@ -115,6 +115,27 @@ const SHORT_NAME: Record<LessonId, string> = {
 /** How the dialog says a lesson's name. */
 export const shortLessonName = (lesson: LessonId): string => SHORT_NAME[lesson];
 
+/** The four shapes worth naming over a plain counting or subset step. */
+const NAMED_LESSONS: ReadonlySet<LessonId> =
+    new Set(['one-one', 'one-two', 'one-two-one', 'one-two-two-one']);
+
+/**
+ * Case B's target: the first provable cell whose lesson names a pattern,
+ * scanning deduce()'s cells mines-then-safe, row-major within each — a
+ * counting step is provable on nearly every real board, so picking whichever
+ * cell the solver reaches first almost never surfaces the pattern that was
+ * actually there to teach. Null when nothing on the board names one, so the
+ * caller can fall back to the plain first-hint order.
+ */
+function namedPatternHint(layout: readonly string[]): { at: Coord; why: Explanation } | null {
+    const { mines, safe } = deduce(layout);
+    for (const [r, c] of [...mines, ...safe]) {
+        const why = explain(layout, r, c);
+        if (why && NAMED_LESSONS.has(classifyLesson(layout, why))) return { at: [r, c], why };
+    }
+    return null;
+}
+
 /** The mine the fatal move opened: open in the payload, covered before it. */
 function detonatedMine(preLoss: Cell[][], revealed: Cell[][]): Coord | null {
     for (let r = 0; r < revealed.length; r++) {
@@ -156,6 +177,6 @@ export function diagnoseLoss(preLoss: Cell[][], revealed: Cell[][]): LossDiagnos
         if (why) return from('provable-mine', layout, why, mine);
     }
 
-    const hint = nextHint(layout, []);
+    const hint = namedPatternHint(layout) ?? nextHint(layout, []);
     return hint ? from('guess', layout, hint.why, hint.at) : null;
 }

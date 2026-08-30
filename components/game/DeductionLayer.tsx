@@ -43,7 +43,7 @@ export default function DeductionLayer({ boardRef }: DeductionLayerProps) {
                 />
             ))}
             <div
-                className={styles.deductionTarget}
+                className={`${styles.deductionTarget} ${diagnosis.verdict === 'mine' ? styles.deductionTargetMine : styles.deductionTargetSafe}`}
                 data-deduction="target"
                 style={box(diagnosis.target)}
             />

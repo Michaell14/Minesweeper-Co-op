@@ -155,6 +155,37 @@ describe('diagnosing a loss', () => {
         expect(result?.target).toEqual([0, 2]);
     });
 
+    /*
+     * Same ambiguous mine and counting step as the test above, with a
+     * self-contained 1-2-1 ("1211" over "*#*#") stacked below it. Counting is
+     * still the FIRST thing `nextHint` would reach on its own — the blank at
+     * (0,3) proves (0,2) safe before the subset step below ever runs — but a
+     * named pattern is available elsewhere on the board, and that is the one
+     * worth teaching.
+     */
+    test('prefers a named pattern elsewhere over a counting step, for Case B', () => {
+        const preLoss = [
+            [pre(false), pre(false), pre(false), pre(true, 0)],
+            [pre(true, 1), pre(true, 1), pre(false), pre(true, 0)],
+            [pre(true, 0), pre(true, 0), pre(true, 0), pre(true, 0)],
+            [pre(true, 1), pre(true, 2), pre(true, 1), pre(true, 1)],
+            [pre(false), pre(false), pre(false), pre(false)],
+        ];
+        const revealed = [
+            [post(true, true), post(false, false), post(false, false), post(false, true, 0)],
+            [post(false, true, 1), post(false, true, 1), post(false, false), post(false, true, 0)],
+            [post(false, true, 0), post(false, true, 0), post(false, true, 0), post(false, true, 0)],
+            [post(false, true, 1), post(false, true, 2), post(false, true, 1), post(false, true, 1)],
+            [post(true, false), post(false, false), post(true, false), post(false, false)],
+        ];
+
+        const result = diagnoseLoss(preLoss, revealed);
+
+        expect(result?.kind).toBe('guess');
+        expect(result?.lesson).toBe('one-two-one');
+        expect(result?.target).toEqual([4, 2]);
+    });
+
     /* Nothing opened means nothing proves anything. It must go quiet rather
        than claim something false. */
     test('returns null when nothing at all was provable', () => {

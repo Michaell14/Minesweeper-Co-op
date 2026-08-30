@@ -222,11 +222,8 @@ export default function DailyDialogs({ submitDailyScore, getDailyLeaderboard }: 
                             )}
                         </p>
                         <p className="text-pixel-xs text-ink-muted">{dailyDiagnosis.text}</p>
-                        <ButtonLink
-                            href={`/drills/${dailyDiagnosis.lesson}`}
-                            size="sm"
-                            aria-label={`Practise ${shortLessonName(dailyDiagnosis.lesson)}`}>
-                            Drill it
+                        <ButtonLink href={`/drills/${dailyDiagnosis.lesson}`} size="sm">
+                            Drill {shortLessonName(dailyDiagnosis.lesson)}
                         </ButtonLink>
                     </div>
                 )}

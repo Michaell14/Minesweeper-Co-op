@@ -393,9 +393,9 @@ describe("dailyGameOver: the deduction the run missed", () => {
 
         const dialog = renderOpen(DIALOGS.dailyGameOver);
 
-        expect(within(dialog).getByText(/1-2-1/)).toBeDefined();
+        expect(within(dialog).getByText(/You missed/)).toBeDefined();
         expect(
-            screen.getByRole("link", { name: "Practise a 1-2-1" }).getAttribute("href"),
+            screen.getByRole("link", { name: "Drill a 1-2-1" }).getAttribute("href"),
         ).toBe("/drills/one-two-one");
     });
 
@@ -417,13 +417,13 @@ describe("dailyGameOver: the deduction the run missed", () => {
         const dialog = renderOpen(DIALOGS.dailyGameOver);
 
         expect(within(dialog).getByText(/Nothing proved that cell/)).toBeDefined();
-        expect(screen.getByRole("link", { name: "Practise a counting step" })).toBeDefined();
+        expect(screen.getByRole("link", { name: "Drill a counting step" })).toBeDefined();
     });
 
     test("adds nothing when there is no diagnosis", () => {
         renderOpen(DIALOGS.dailyGameOver);
 
-        expect(screen.queryByRole("link", { name: /Practise/ })).toBeNull();
+        expect(screen.queryByRole("link", { name: /Drill/ })).toBeNull();
     });
 });
 

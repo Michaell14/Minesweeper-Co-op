@@ -10,6 +10,7 @@ import React from 'react';
 import { useMinesweeperStore } from '@/app/store';
 import type { LossDiagnosis } from '@/lib/lossDiagnosis';
 import DeductionLayer from './DeductionLayer';
+import styles from './board.module.css';
 
 const sample: LossDiagnosis = {
     kind: 'provable-mine',
@@ -64,5 +65,28 @@ describe('the deduction overlay', () => {
 
         expect(container.querySelector('[data-deduction-layer]')?.getAttribute('aria-hidden'))
             .toBe('true');
+    });
+
+    /* verdict 'mine' is a real danger (the cell they hit); verdict 'safe' is
+       the opposite claim (they should have opened it) and must not share the
+       danger color, or the safest square on the board reads as the riskiest. */
+    test('paints a mine verdict with the error color', () => {
+        useMinesweeperStore.getState().setDailyDiagnosis({ ...sample, verdict: 'mine' });
+
+        const { container } = renderLayer();
+
+        const target = container.querySelector('[data-deduction="target"]');
+        expect(target?.classList.contains(styles.deductionTargetMine)).toBe(true);
+        expect(target?.classList.contains(styles.deductionTargetSafe)).toBe(false);
+    });
+
+    test('paints a safe verdict with the success color', () => {
+        useMinesweeperStore.getState().setDailyDiagnosis({ ...sample, verdict: 'safe' });
+
+        const { container } = renderLayer();
+
+        const target = container.querySelector('[data-deduction="target"]');
+        expect(target?.classList.contains(styles.deductionTargetSafe)).toBe(true);
+        expect(target?.classList.contains(styles.deductionTargetMine)).toBe(false);
     });
 });
