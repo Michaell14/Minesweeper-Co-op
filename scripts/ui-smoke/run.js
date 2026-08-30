@@ -123,6 +123,14 @@ async function coop(page) {
     // A cold `next dev` compiles on first request; wait for hydration, not just markup.
     await page.waitFor(`!!document.querySelector('form[aria-label="Create new room form"] button[type=submit]')`,
         { timeout: 60000, label: 'landing page compiles and renders' });
+    // The profile in /tmp outlives the run, so a large-cell preference an
+    // aborted one left behind would still be here. The ceiling check below
+    // assumes the default: at 1440px a large board is clamped under its own
+    // ceiling, which reads as the fit maths measuring the wrong box.
+    await page.evaluate(`localStorage.removeItem('minesweeper_settings'); return true;`);
+    await page.goto(CLIENT);
+    await page.waitFor(`!!document.querySelector('form[aria-label="Create new room form"] button[type=submit]')`,
+        { label: 'landing renders on the default settings' });
     pass('landing renders the create-room form');
 
     await enterRoom(page, { room, name: 'Alice' });
