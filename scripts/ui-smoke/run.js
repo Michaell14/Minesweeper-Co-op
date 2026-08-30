@@ -145,8 +145,10 @@ async function coop(page) {
     // that had collapsed to zero, which floors every cell instead.
     const deskCell = parseFloat(await page.evaluate(
         `return getComputedStyle(document.querySelector('[role=gridcell]')).width;`));
+    // From the GRID: the cell-size setting overrides --ms-cell-size on
+    // .gameBoard, so the root keeps the default whatever the preference is.
     const deskMax = parseFloat(await page.evaluate(
-        `return getComputedStyle(document.documentElement).getPropertyValue('--ms-cell-size');`));
+        `return getComputedStyle(document.querySelector('[role=grid]')).getPropertyValue('--ms-cell-size');`));
     check(deskCell === deskMax, `desktop cells are at the ceiling (${deskCell}px)`,
         `cell is ${deskCell}px, not the ${deskMax}px ceiling — the fit maths is measuring the wrong box`);
 
@@ -344,8 +346,11 @@ async function desktopFit(page) {
         width: 1280, height: 900, deviceScaleFactor: 1, mobile: false,
     });
     // Resume would otherwise put this page back in the previous section's room.
+    // The settings blob goes too: the profile in /tmp outlives the run, so a
+    // large-cell preference an aborted one left behind would still be here, and
+    // the ceiling check below reads as a layout regression when it is.
     await page.goto(CLIENT);
-    await page.evaluate(`sessionStorage.clear(); return true;`);
+    await page.evaluate(`sessionStorage.clear(); localStorage.removeItem('minesweeper_settings'); return true;`);
     await page.goto(CLIENT);
     await page.waitFor(`!!document.querySelector('form[aria-label="Create new room form"] button[type=submit]')`,
         { timeout: 60000, label: 'landing renders at 1280px' });
@@ -376,7 +381,7 @@ async function desktopFit(page) {
             board: Math.round(board.width),
             container: grid.closest('[aria-label="Game board container"]').clientWidth,
             cell: parseFloat(getComputedStyle(grid.querySelector('[role=gridcell]')).width),
-            ceiling: parseFloat(getComputedStyle(doc).getPropertyValue('--ms-cell-size')),
+            ceiling: parseFloat(getComputedStyle(grid).getPropertyValue('--ms-cell-size')),
             // Above the board, and inside its width: a rail fails both.
             clockOnBoardEdge: clock.bottom <= board.top
                 && clock.left >= board.left - 1 && clock.right <= board.right + 1,
@@ -578,35 +583,40 @@ async function footerClearance(page) {
         localStorage.setItem('minesweeper_settings', JSON.stringify({ version: 1, cellSize: 'large' }));
     `);
     await page.goto(CLIENT); // reload so hydration reads the blob
-    await page.waitFor(`!!document.querySelector('form[aria-label="Create new room form"] button[type=submit]')`,
-        { timeout: 60000, label: 'landing renders at 1320px' });
-    await enterRoom(page, { room, name: 'Clearance' });
-    await page.waitFor(`document.querySelectorAll('[role=gridcell]').length === 256`,
-        { label: 'board renders with large cells' });
+    // The removal has to run even if a wait above times out: the profile is
+    // reused across runs, so a leaked preference outlives this section.
+    try {
+        await page.waitFor(`!!document.querySelector('form[aria-label="Create new room form"] button[type=submit]')`,
+            { timeout: 60000, label: 'landing renders at 1320px' });
+        await enterRoom(page, { room, name: 'Clearance' });
+        await page.waitFor(`document.querySelectorAll('[role=gridcell]').length === 256`,
+            { label: 'board renders with large cells' });
 
-    const m = JSON.parse(await page.evaluate(`
-        const board = document.querySelector('[role=grid]').getBoundingClientRect();
-        const github = document.querySelector('a[aria-label="View this project on GitHub"]');
-        const cluster = github && github.parentElement.getBoundingClientRect();
-        const overlaps = cluster && !(
-            cluster.right <= board.left || cluster.left >= board.right ||
-            cluster.bottom <= board.top || cluster.top >= board.bottom
-        );
-        return JSON.stringify({
-            present: !!cluster, overlaps: !!overlaps,
-            viewport: document.documentElement.clientWidth,
-            scrollWidth: document.documentElement.scrollWidth,
-        });
-    `));
-    check(m.present, 'the footer icons still exist during a game');
-    check(!m.overlaps, 'the footer icons do not cover the board',
-        'the icon cluster intersects the board rect — cells behind it cannot be clicked');
-    // The widest board the app can produce — 52px cells on MAX_COLS — also has
-    // to fit beside the rails, and every check above passed while it did not.
-    check(m.scrollWidth <= m.viewport, `large cells do not scroll the page sideways (${m.viewport}px)`,
-        `scrollWidth ${m.scrollWidth}px vs viewport ${m.viewport}px with large cells`);
-
-    await page.evaluate(`localStorage.removeItem('minesweeper_settings');`);
+        const m = JSON.parse(await page.evaluate(`
+            const board = document.querySelector('[role=grid]').getBoundingClientRect();
+            const github = document.querySelector('a[aria-label="View this project on GitHub"]');
+            const cluster = github && github.parentElement.getBoundingClientRect();
+            const overlaps = cluster && !(
+                cluster.right <= board.left || cluster.left >= board.right ||
+                cluster.bottom <= board.top || cluster.top >= board.bottom
+            );
+            return JSON.stringify({
+                present: !!cluster, overlaps: !!overlaps,
+                viewport: document.documentElement.clientWidth,
+                scrollWidth: document.documentElement.scrollWidth,
+            });
+        `));
+        check(m.present, 'the footer icons still exist during a game');
+        check(!m.overlaps, 'the footer icons do not cover the board',
+            'the icon cluster intersects the board rect — cells behind it cannot be clicked');
+        // The widest board the app can produce — 52px cells on MAX_COLS — also has
+        // to fit beside the rails, and every check above passed while it did not.
+        check(m.scrollWidth <= m.viewport, `large cells do not scroll the page sideways (${m.viewport}px)`,
+            `scrollWidth ${m.scrollWidth}px vs viewport ${m.viewport}px with large cells`);
+    } finally {
+        // Swallowed: a cleanup that throws here would replace the real failure.
+        await page.evaluate(`localStorage.removeItem('minesweeper_settings');`).catch(() => {});
+    }
     await page.send('Emulation.clearDeviceMetricsOverride');
 }
 
