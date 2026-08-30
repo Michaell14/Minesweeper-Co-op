@@ -43,6 +43,12 @@ export default function Board({ toggleFlag, openCell, chordCell, emitCellHover, 
     useLayoutEffect(() => {
         const el = boardRef.current;
         if (!el) return;
+        // + scrollY CONVERTS the rect to a document offset, it does not add the
+        // scroll to it: rect.top falls by exactly what scrollY rises, so the sum
+        // is the same at any scroll position. That invariance is the point. The
+        // board has to fit at scroll 0, and rect.top alone answers a different
+        // question every time the page moves — scrolled far enough it goes
+        // negative, which would reserve nothing and size the board off the page.
         const measure = () => setReserve(Math.ceil(el.getBoundingClientRect().top + window.scrollY));
         measure();
         const observer = new ResizeObserver(measure);
