@@ -23,14 +23,30 @@ export const ROOM_HISTORY_MARKER = "msRoom";
  * from leaving, since that lands on the very entry this id names. A full reload
  * clears it, and the resume that follows pushes a fresh one.
  */
-let currentEntryId: number | null = null;
-let nextEntryId = 1;
+let currentEntryId: string | null = null;
+
+/**
+ * A fresh id, unique across DOCUMENTS and not merely within one.
+ *
+ * A counter was not enough, for the reason the whole file exists: a reload
+ * lands back ON the entry the previous document pushed, resume pushes another
+ * above it, and a counter that restarted at 1 gives the new entry the id the
+ * old one already carries. Back then reaches the old entry, `isCurrentRoomEntry`
+ * reads it as the one we just pushed, and the room is never left — the same
+ * silent nothing the bare boolean caused, restored by a refresh.
+ *
+ * `randomUUID` needs a secure context, which `/` always is in production and on
+ * localhost; the fallback is for a dev server reached over a plain-http LAN
+ * address, where an unguarded call would throw on join.
+ */
+const mintEntryId = (): string =>
+    globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
 /** The room-entry id on a history state object, or null for anything else. */
-const roomEntryId = (state: unknown): number | null => {
+const roomEntryId = (state: unknown): string | null => {
     if (!state || typeof state !== "object") return null;
     const id = (state as Record<string, unknown>)[ROOM_HISTORY_MARKER];
-    return typeof id === "number" ? id : null;
+    return typeof id === "string" ? id : null;
 };
 
 /** Whether a history state is the entry THIS join pushed, rather than an older one. */
@@ -65,7 +81,7 @@ export function useRoomHistory(leaveRoom: () => void): void {
 
     useEffect(() => {
         if (playerJoined && !wasJoined.current) {
-            currentEntryId = nextEntryId++;
+            currentEntryId = mintEntryId();
             window.history.pushState({ [ROOM_HISTORY_MARKER]: currentEntryId }, "");
         }
 

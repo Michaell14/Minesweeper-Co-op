@@ -57,8 +57,16 @@ const stashScore = async (sessionId, { room, score }) => {
 const takeScore = async (sessionId, room) => {
     const client = await redisClient;
     const state = await client.hGetAll(sessionKey(sessionId));
-    await client.hDel(sessionKey(sessionId), ['score', 'scoreRoom']);
-    if (!state || state.scoreRoom !== room) return 0;
+    /*
+     * The DELETE decides who gets it, not the read. Two tabs carrying the same
+     * session id can resume at once — co-op takes no join lock — and both read
+     * the stash before either delete lands, so a read-then-return would hand
+     * the same score to both. Redis runs the deletes one at a time and reports
+     * how many fields each one actually removed, so the caller that removed
+     * nothing lost the race and leaves with 0.
+     */
+    const claimed = await client.hDel(sessionKey(sessionId), ['score', 'scoreRoom']);
+    if (!claimed || state.scoreRoom !== room) return 0;
     return parseInt(state.score || '0', 10) || 0;
 };
 

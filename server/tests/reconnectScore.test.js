@@ -38,7 +38,7 @@ jest.mock('../utils/initializeRedisClient', () => ({
 }));
 
 const { addPlayerToRoom, removePlayer } = require('../utils/playerUtils');
-const { forgetRoom } = require('../controllers/sessionController');
+const { leave } = require('../routes/room');
 const { createEmptyBoard } = require('../domain/board');
 
 const ROOM = 'r-score';
@@ -124,9 +124,15 @@ describe('a PVP racer reloading', () => {
  * Leaving on purpose is not a reload, and must not bank a score for later.
  *
  * Both arrive at the same removePlayer and are indistinguishable there — what
- * separates them is that only a deliberate leave calls forgetRoom, which drops
- * the room AND the stash together. Without that a player could leave a room,
- * walk back in, and start on the score they left with.
+ * separates them is that only a deliberate leave clears the session's room, and
+ * a score is stashed only for a session that can still resume into the room it
+ * was earned in. Without that a player could leave a room, walk back in, and
+ * start on the score they left with.
+ *
+ * Through the real `playerLeave` route rather than its two halves by hand. The
+ * route clears the session BEFORE removePlayer runs, and calling them in the
+ * other order is what hid this: the stash was written after the clear that was
+ * supposed to drop it, and the assertion below passed anyway.
  */
 describe('leaving a room on purpose', () => {
     beforeEach(() => {
@@ -134,15 +140,68 @@ describe('leaving a room on purpose', () => {
         present(OLD, false);
     });
 
-    test('does not bank the score for the next join', async () => {
+    /** The socket the route is handed, session id and all. */
+    const leaver = () => {
         const socket = fakeSocket(OLD);
         socket.handshake = { auth: { sessionId: SESSION } };
+        return socket;
+    };
 
-        await removePlayer(socket, OLD);
-        await forgetRoom(socket);
+    test('does not bank the score for the next join', async () => {
+        await leave({ socket: leaver() });
         await addPlayerToRoom(ROOM, NEW, 'Ana', SESSION);
 
         expect(scoreOf(NEW)).toBe('0');
+    });
+
+    test('leaves nothing stashed on the session either', async () => {
+        await leave({ socket: leaver() });
+
+        // Not just unread — a stash left behind would be taken by a join to
+        // the same room from any later socket carrying this session.
+        expect(mockRedis.read(`session:${SESSION}`).score).toBeUndefined();
+    });
+});
+
+/*
+ * Two tabs can hold the same session id — duplicating a tab copies
+ * sessionStorage — and only one of them owns the session. The other joined as
+ * itself, so its score is its own and must not be banked onto a session the
+ * first tab is still going to resume with.
+ */
+describe('a second tab sharing the session id', () => {
+    test('does not stash its score onto the session it does not own', async () => {
+        seed();
+        present(OLD, true);           // the owner is still connected
+        mockRedis.seed(`player:${NEW}`, { room: ROOM, name: 'Ana', score: '40', sessionId: SESSION });
+
+        await removePlayer(fakeSocket(NEW), NEW);
+
+        expect(mockRedis.read(`session:${SESSION}`).score).toBeUndefined();
+    });
+});
+
+/*
+ * A score is restored ONCE.
+ *
+ * Co-op joins take no lock, so two tabs resuming the same session can both read
+ * the stash before either consumes it. Read-then-return handed the same number
+ * to both and doubled it across two player records; the delete has to be what
+ * decides. On fakeRedis, whose every command yields, so the two really overlap.
+ */
+describe('two sockets resuming the same session at once', () => {
+    test('restores the score to exactly one of them', async () => {
+        seed();
+        present(OLD, false);
+        await removePlayer(fakeSocket(OLD), OLD);
+
+        await Promise.all([
+            addPlayerToRoom(ROOM, NEW, 'Ana', SESSION),
+            addPlayerToRoom(ROOM, 'sock-third', 'Ana', SESSION),
+        ]);
+
+        const restored = [scoreOf(NEW), scoreOf('sock-third')].map(Number).sort((a, b) => b - a);
+        expect(restored).toEqual([107, 0]);
     });
 });
 

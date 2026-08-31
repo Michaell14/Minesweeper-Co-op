@@ -326,15 +326,28 @@ const removePlayer = async (socket, socketId) => {
     socket.leave(room);
 
     /*
-     * Keep the score for the reload that may follow. A deliberate leave reaches
-     * this same function, and is told apart the same way the room itself is:
-     * only `playerLeave` calls sessionController.forgetRoom, which drops the
-     * stash along with the room. So a refresh keeps its score and a player who
-     * walked out does not carry one back in.
+     * Keep the score for the reload that may follow — but only for a session
+     * that could still resume INTO this room on this socket, which is exactly
+     * what `offerResume` will ask of it later.
+     *
+     * The guard is not decoration. A deliberate leave reaches this same
+     * function, and `playerLeave` runs forgetRoom FIRST: writing a fresh stash
+     * here would rebuild the one that call just dropped, and the leaver would
+     * walk back into the room on their old score. Reading the session rather
+     * than trusting the call order also keeps the two ends of the rule in one
+     * place instead of split across a route.
+     *
+     * The socket check covers the other direction: a second tab holding the
+     * same session id joins as itself, and must not bank ITS score onto the
+     * session the first tab is still resuming with.
      */
     const sessionId = await playerRepo.getField(socketId, 'sessionId');
-    const score = await playerRepo.getScore(socketId);
-    if (sessionId && score > 0) await sessionRepo.stashScore(sessionId, { room, score });
+    if (sessionId) {
+        const score = await playerRepo.getScore(socketId);
+        const session = await sessionRepo.getState(sessionId);
+        const resumable = session.room === room && session.socketId === socketId;
+        if (score > 0 && resumable) await sessionRepo.stashScore(sessionId, { room, score });
+    }
 
     await playerRepo.remove(socketId);
 }

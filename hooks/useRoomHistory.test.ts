@@ -56,7 +56,7 @@ describe('joining a room', () => {
 
         expect(push).toHaveBeenCalled();
         expect(typeof (push.mock.calls[0][0] as Record<string, unknown>)[ROOM_HISTORY_MARKER])
-            .toBe('number');
+            .toBe('string');
     });
 
     /*
@@ -138,6 +138,56 @@ describe('pressing Back in a room', () => {
         rerender();
 
         pressBack(firstEntry);
+
+        expect(leaveRoom).toHaveBeenCalledTimes(1);
+    });
+});
+
+/*
+ * A reload is a second document standing on the FIRST document's entry.
+ *
+ * The ids have to survive that, and a counter did not: reloading reset it, the
+ * resumed join re-issued the id the entry underneath already carried, and Back
+ * read that older entry as the one it had just pushed — so the button did
+ * nothing, exactly the failure ids were introduced to fix.
+ *
+ * BOTH documents are loaded fresh, which is the whole point. Reloading only the
+ * second one lets the first inherit a counter the tests above already advanced,
+ * so the two ids differ for a reason no browser supplies and the collision
+ * never appears.
+ */
+describe('pressing Back after a reload', () => {
+    /** A freshly loaded copy of the module and everything it holds state in. */
+    const freshDocument = async () => {
+        vi.resetModules();
+        const [hook, store, renderer] = await Promise.all([
+            import('./useRoomHistory'),
+            import('@/app/store'),
+            import('@testing-library/react'),
+        ]);
+        return { useRoomHistory: hook.useRoomHistory, store, renderHook: renderer.renderHook };
+    };
+
+    /** Joins a room in the given document, and reports the entry it pushed. */
+    const joinIn = (doc: Awaited<ReturnType<typeof freshDocument>>, leaveRoom: () => void) => {
+        const push = vi.spyOn(window.history, 'pushState');
+        push.mockClear();
+        const view = doc.renderHook(() => doc.useRoomHistory(leaveRoom));
+        doc.store.useMinesweeperStore.getState().setPlayerJoined(true);
+        view.rerender();
+        return { view, entry: push.mock.calls[0][0] };
+    };
+
+    test('still leaves the room, rather than re-issuing the old entry id', async () => {
+        const before = await freshDocument();
+        const joined = joinIn(before, vi.fn());
+        joined.view.unmount();
+
+        const leaveRoom = vi.fn();
+        joinIn(await freshDocument(), leaveRoom);
+
+        // Back lands on the entry the document before the reload had pushed.
+        pressBack(joined.entry);
 
         expect(leaveRoom).toHaveBeenCalledTimes(1);
     });
