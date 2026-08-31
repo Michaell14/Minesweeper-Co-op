@@ -7,7 +7,8 @@ import "./globals.css";
 import { Analytics } from '@vercel/analytics/next';
 import { NO_FLASH_SCRIPT } from "@/lib/settings";
 import { OG_IMAGE, SITE_URL } from "@/lib/site";
-import Footer from "@/components/Footer";
+import SiteNav from "@/components/SiteNav";
+import AccountMenu from "@/components/AccountMenu";
 import AchievementToast from "@/components/AchievementToast";
 import AuthProvider from "@/components/AuthProvider";
 import SettingsSync from "@/components/SettingsSync";
@@ -148,11 +149,14 @@ export default function RootLayout({
         <SpriteDefsHost />
         <AuthProvider>
           <SettingsSync />
+          {/* The site's only navigation, on every route. */}
+          <SiteNav />
           {/* Signed in, board records come from the account rather than this
               browser; this is what fetches them. Renders nothing. */}
           <BestsSync />
           {children}
-          <Footer />
+          {/* Sign-in and privacy dialogs, opened imperatively from anywhere. */}
+          <AccountMenu />
           {/* Renders nothing until the server announces an unlock; here rather
               than on the game page so a toast survives navigating away. */}
           <AchievementToast />

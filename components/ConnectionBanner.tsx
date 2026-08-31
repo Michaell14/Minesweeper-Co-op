@@ -44,7 +44,14 @@ export default function ConnectionBanner() {
         <div
             role="status"
             aria-live="polite"
-            className="fixed inset-x-0 top-0 z-50 bg-surface-banner text-ink-banner border-b-pixel border-edge px-4 py-2 text-center text-pixel-2xs md:text-pixel-sm">
+            /*
+             * BOTTOM, not top: the site header lives at the top of every page
+             * and this would cover its links, and the game's mobile HUD is
+             * already sticky up there. Overlaps AchievementToast in principle
+             * only — an unlock arrives from the server this banner exists to
+             * say is unreachable.
+             */
+            className="fixed inset-x-0 bottom-0 z-50 bg-surface-banner text-ink-banner border-t-pixel border-edge px-4 py-2 text-center text-pixel-2xs md:text-pixel-sm">
             {status === 'unreachable'
                 ? "Can't reach the server — retrying. It may be waking up."
                 : 'Connection lost — reconnecting…'}

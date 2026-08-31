@@ -23,7 +23,7 @@ const CELL_SIZE_LABELS: Record<CellSize, { label: string; short: string }> = {
 /**
  * The settings page body. Each section is a titled Panel with a real heading,
  * so the page reads as a document and each area has an accessible landmark.
- * The account dialogs themselves are mounted by the Footer (in the layout,
+ * The account dialogs themselves are mounted by AccountMenu (in the layout,
  * so present here too) — the button just opens them.
  */
 export default function SettingsClient() {

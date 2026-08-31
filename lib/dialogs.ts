@@ -30,10 +30,7 @@ export const DIALOGS = {
     custom: 'dialog-custom',
     customError: 'dialog-custom-error',
 
-    // Owned by components/Footer.tsx
-    guide: 'dialog-guide',
-
-    // Owned by components/AccountMenu.tsx (mounted by Footer)
+    // Owned by components/AccountMenu.tsx (mounted by the layout)
     account: 'dialog-account',
     accountDelete: 'dialog-account-delete',
     privacy: 'dialog-privacy',

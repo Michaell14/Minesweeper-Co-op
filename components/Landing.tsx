@@ -1,5 +1,4 @@
 import React from 'react';
-import Link from 'next/link';
 import { useMinesweeperStore } from '@/app/store';
 import { useAccountProfile } from '@/hooks/useAccountProfile';
 import { Button, ButtonLink, CalendarIcon, Dialog, DialogClose, SwordsIcon } from "@/components/ds";
@@ -13,14 +12,6 @@ import NameDialog from '@/components/landing/NameDialog';
 import MatchSearchingDialog from '@/components/landing/MatchSearchingDialog';
 import CustomBoardDialog from '@/components/landing/CustomBoardDialog';
 import CustomBoardErrorDialog from '@/components/landing/CustomBoardErrorDialog';
-
-/** The secondary nav under the two play buttons. Order is by how new a visitor is. */
-const SITE_LINKS = [
-    { href: '/how-to-play', label: 'How to play' },
-    { href: '/drills', label: 'Pattern drills' },
-    { href: '/daily', label: 'Daily challenge' },
-    { href: '/no-guess-minesweeper', label: 'No-guess boards' },
-];
 
 interface LandingParams {
     createRoom: () => void;
@@ -149,30 +140,6 @@ export default function Landing({ createRoom, joinRoom, findMatch, cancelMatch, 
                         </span>
                     </Button>
                 </div>
-
-                {/* The only navigation the app shell has. /drills and
-                    /how-to-play were otherwise reachable only from the guide
-                    dialog, which sits behind an unlabelled icon in the footer
-                    cluster — built pages nobody could find. Deliberately NOT
-                    carried onto the game screen: the board is already fighting
-                    for vertical space there (components/game/board.module.css). */}
-                <nav aria-label="Site" className="mt-3 px-4">
-                    {/* Underlined, and separated by more than a space. Nothing
-                        in globals.css styles a bare <a>, so without both these
-                        four sat in body colour with no gap between them and
-                        read as one run of prose rather than four links. */}
-                    <ul className="flex flex-wrap justify-center gap-x-5 gap-y-1 text-body-sm">
-                        {SITE_LINKS.map(({ href, label }) => (
-                            <li key={href}>
-                                <Link
-                                    href={href}
-                                    className="text-ink-muted underline underline-offset-4 hover:text-ink">
-                                    {label}
-                                </Link>
-                            </li>
-                        ))}
-                    </ul>
-                </nav>
             </div>
 
             <JoinPendingIndicator />
