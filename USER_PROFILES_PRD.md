@@ -1,10 +1,13 @@
 # PRD: User Profiles & Customization
 
-**Status:** All six phases code-complete (2026-08-02) · **Owner:** Michael · **Created:** 2026-08-02
+**Status:** All six phases done · **LIVE in production** · **Owner:** Michael · **Created:** 2026-08-02
 
-Outstanding manual steps, both flagged in their phases: provision Heroku
-Postgres (Phase 0) and create the OAuth apps + set the five secrets (Phase 1).
-Until then every account feature degrades gracefully and the game is unchanged.
+Nothing outstanding. The two manual steps this document carried for four weeks
+— provision Heroku Postgres (Phase 0), create the OAuth apps and set the five
+secrets (Phase 1) — are both done; accounts shipped on 2026-08-02 per the
+changelog, and `/api/auth/providers` serves live Google and GitHub configs.
+Ticked here 2026-08-31, having been stale rather than pending for most of that
+time.
 
 A living document. Each phase has a checklist; check items off as they land and
 update the phase status line. Keep the *Decisions* table current — if a decision
@@ -153,13 +156,13 @@ leaderboard row shows the account display name.
 Order is dependency order. Every phase is independently deployable; signed-out
 play must never regress. Estimated total: **4–5 weeks** focused.
 
-### Phase 0 — Infrastructure ✔ Code done 2026-08-02 · awaiting Heroku provisioning
+### Phase 0 — Infrastructure ✔ Done 2026-08-02 · Postgres provisioned
 
 Small but load-bearing; everything stacks on it.
 
-- [ ] Provision Heroku Postgres; `DATABASE_URL` in Heroku config — **manual
-      step, Michael** (needs the Heroku account; everything below skips
-      harmlessly until it exists)
+- [x] Provision Heroku Postgres; `DATABASE_URL` in Heroku config — the manual
+      step. Done; confirmed 2026-08-31 by the release phase running two new
+      migrations on deploy and `/api/friends` answering 401 rather than 503.
 - [x] Add `pg` + `node-pg-migrate` to `server/package.json` (as regular deps —
       Heroku prunes only the root package's devDeps, but release-phase needs
       these at runtime)
@@ -189,13 +192,13 @@ Small but load-bearing; everything stacks on it.
       `fakeDb` waits until a concurrency test actually needs one (Phase 6).
       New `tests/pgClient.test.js` covers both modes of the real module
 
-### Phase 1 — Auth & identity ✔ Code done 2026-08-02 · awaiting OAuth apps + secrets
+### Phase 1 — Auth & identity ✔ Done 2026-08-02 · OAuth apps live
 
-- [ ] Create Google + GitHub OAuth apps; secrets into Vercel + Heroku —
-      **manual step, Michael**. Vercel additionally needs `NEXTAUTH_URL`,
-      `NEXTAUTH_SECRET`, and `AUTH_BRIDGE_SECRET`; Heroku needs the same
-      `AUTH_BRIDGE_SECRET`. Until set, the account dialog says sign-in is not
-      configured and everything else is unaffected
+- [x] Create Google + GitHub OAuth apps; secrets into Vercel + Heroku — the
+      manual step. Done; `https://www.minesweepercoop.com/api/auth/providers`
+      returns both providers configured. Vercel additionally needs
+      `NEXTAUTH_URL`, `NEXTAUTH_SECRET` and `AUTH_BRIDGE_SECRET`; Heroku needs
+      the same `AUTH_BRIDGE_SECRET`.
 - [x] Auth.js v4 in the Next app with the two providers
       (`lib/authOptions.ts`, `app/api/auth/[...nextauth]/route.ts` — the
       app's first API routes). Providers register only when their env pair is
@@ -253,9 +256,12 @@ display name anyway and it saves a lookup.
 - [x] `/settings` route: server-component wrapper (noindex metadata) +
       `SettingsClient` with titled Panel sections (Appearance, Account) and a
       gear icon in the Footer cluster linking to it
-- [ ] DS primitives (Slider, Select, Tabs) — **deliberately deferred** to the
-      phase that first consumes them (volume → Phase 4, selects → Phase 3):
-      a primitive built without a consumer gets designed twice
+- [x] DS primitives (Slider, Select, Tabs) — **deliberately deferred** to the
+      phase that first consumes them: a primitive built without a consumer gets
+      designed twice. Resolved as intended — Slider was built in Phase 4 when
+      the volume control arrived; Select and Tabs never got a consumer (Phase 3
+      used Switch rows and RadioCard instead) and so were never built. Ticked
+      2026-08-31: the rule was followed, not left pending.
 - [x] `NO_FLASH_SCRIPT` reads the settings blob (falling back to the legacy
       key), moved to `lib/settings.ts` with the rest of persistence
 - [x] Server sync: `user_settings` (JSONB, ON DELETE CASCADE — verified live:
@@ -482,14 +488,23 @@ derived palette is the only thing that ever reaches a style attribute.
 | Contributor setup friction (now needs Postgres) | `dev:all` auto-starts or clearly no-ops it; the game must run without a database for anyone not touching profiles. |
 | No rate limiting on `/api` | JWT verification is the only throttle today; the import endpoint is bounded (100 entries) and everything requires auth. Revisit with real traffic — an express-rate-limit on `/api` is a one-file change. Flagged at review (2026-08-02). |
 
-**Open (decide when reached):**
+**Open (decide when reached):** — none remain; all four were settled in code
+and ticked 2026-08-31.
 
-- [ ] Display-name rules (length/charset) — private-only, so minimal; decide in Phase 1
-- [ ] Whether the daily streak (the Wordle hook) ships in Phase 6 or later — the
-      `game_results` rows make it cheap to add
+- [x] Display-name rules (length/charset) — private-only, so minimal. Settled
+      in code: 1-50 characters, no charset restriction, trimmed before storage
+      (`isValidPlayerName` / `normalizePlayerName`, `server/validation.js`). The
+      trim is load-bearing rather than cosmetic — `'   '` passes a length check
+      and lands on the daily leaderboard as a row with no name in it.
+- [x] Whether the daily streak (the Wordle hook) ships in Phase 6 or later —
+      **shipped in Phase 6**: `server/domain/streak.js` (pure UTC day maths),
+      drawn by `app/profile/DailyHistoryPanel.tsx` beside the month calendar.
 - [x] Question-mark flags — **deferred at Phase 3** (2026-08-02): the cell-shape
       and projection ripple outweighs demand; revisit only if players ask
-- [ ] Recent-window size (default 50) — confirm before Phase 6
+- [x] Recent-window size — **confirmed at 50**, shipped in Phase 6.
+      `RECENT_WINDOW` is declared server-side in `server/data/statsRepo.js` and
+      mirrored in `lib/statsApi.ts`, since the server is CommonJS and cannot
+      export it to the client.
 
 ## 9. Progress log
 
