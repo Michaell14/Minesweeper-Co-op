@@ -74,12 +74,23 @@ const createFakeRedis = () => {
             return Object.keys(fields).length;
         },
 
+        /*
+         * One field or a list of them, like node-redis v4. Single-field only
+         * was a quiet lie: a repo deleting three fields at once dropped only
+         * the first here and passed every assertion about the other two.
+         */
         hDel: async (key, field) => {
             await tick();
             const hash = store.get(key);
-            if (!hash || hash[field] === undefined) return 0;
-            delete hash[field];
-            return 1;
+            if (!hash) return 0;
+            const fields = Array.isArray(field) ? field : [field];
+            let removed = 0;
+            for (const f of fields) {
+                if (hash[f] === undefined) continue;
+                delete hash[f];
+                removed++;
+            }
+            return removed;
         },
 
         exists: async (key) => {

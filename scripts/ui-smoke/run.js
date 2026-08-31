@@ -278,6 +278,43 @@ async function coop(page) {
     pass('resetGame closes every cell');
     check((await flagsRemaining()) === 40, 'flag counter returns to 40 after reset');
 
+    /*
+     * Back leaves the ROOM, not the site.
+     *
+     * The room is store state on `/` and changes no URL, so before
+     * hooks/useRoomHistory.ts the history stack still held whatever came
+     * before the site and Back walked out of a game in progress.
+     *
+     * Here rather than in the hook's unit tests because jsdom cannot answer
+     * it: this needs a real session history with our pushed entry in it, and a
+     * real traversal back across it. `history.back()` is the same traversal
+     * the toolbar button performs.
+     */
+    /*
+     * Fired on a timer so this evaluate returns BEFORE the navigation starts.
+     * Called inline, a back() that crosses documents tears down the execution
+     * context the evaluate is still waiting on, and CDP answers "Inspected
+     * target navigated or closed" instead of running the checks below.
+     *
+     * The assertions still carry the weight either way: a Back that reloaded
+     * the document would be resumed straight back into the room by
+     * sessionController, and the landing form below would never appear.
+     */
+    await page.evaluate(`setTimeout(() => window.history.back(), 0); return true;`);
+    await page.waitFor(`!!document.querySelector('form[aria-label="Create new room form"]')`,
+        { label: 'Back returns to the landing page' });
+    pass('the browser Back button leaves the room, not the site');
+
+    // Back out of a room is a real leave, so the board has to be gone with it —
+    // a landing page rendered over a room still joined would pass the check above.
+    check(await page.evaluate(`return ${gridCount};`) === 0,
+        'Back tore the board down too',
+        'the landing form is showing but the board is still mounted');
+
+    // Rejoin for the button's own path, which routes through the same entry.
+    await enterRoom(page, { room, name: 'Alice', mode: 'join' });
+    await page.waitFor(`${cellCount} >= 256`, { label: 'rejoined the room' });
+
     // Leave.
     await page.evaluate(`
         const btn = [...document.querySelectorAll('button')].find(b => b.offsetParent !== null && b.textContent.includes('Return to Home'));
@@ -707,9 +744,33 @@ async function rejoinOnReload(page) {
     await page.waitFor(`${revealedCount} > 1`, { label: 'a cascade opens' });
     const openedBefore = await page.evaluate(`return ${revealedCount};`);
 
+    /*
+     * The score on the board's own scoreboard, before and after the reload.
+     *
+     * Player records are keyed by socket id, so a rejoin deletes one record and
+     * creates another. Everything else about that seam was carried across and
+     * the score was not: a co-op player who refreshed came back at 0 with the
+     * clock still running and their cells still open, which reads as the game
+     * having forgotten them. Server-side coverage is in
+     * server/tests/reconnectScore.test.js; this is the end-to-end half.
+     */
+    const scoreOnBoard = () => page.evaluate(`
+        const table = [...document.querySelectorAll('table')].find(t => t.offsetParent !== null);
+        const row = table && table.querySelector('tbody tr');
+        return row ? parseInt(row.cells[1].textContent, 10) : null;
+    `);
+    const scoreBefore = await scoreOnBoard();
+    check(scoreBefore > 0, `there is a score to lose (${scoreBefore})`,
+        'the cascade scored nothing, so the reload check below would prove nothing');
+
     await page.goto(CLIENT);
     await page.waitFor(`${cellCount} === 256`, { timeout: 30000, label: 'the reload lands back in the room' });
     pass('a reload puts the player back in their room');
+
+    const scoreAfter = await scoreOnBoard();
+    check(scoreAfter === scoreBefore,
+        `the score survives the reload (${scoreAfter})`,
+        `had ${scoreBefore} before the reload and ${scoreAfter} after — the rejoin built a fresh player record and dropped the score`);
 
     const openedAfter = await page.evaluate(`return ${revealedCount};`);
     check(openedAfter === openedBefore,
