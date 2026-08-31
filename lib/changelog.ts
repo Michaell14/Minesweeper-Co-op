@@ -25,6 +25,71 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
     {
+        id: 'friends-and-pings',
+        date: '2026-08-31',
+        tag: 'New',
+        title: 'Friends, pings, and invites',
+        bullets: [
+            'Add friends by code, or straight from the summary of a game you just played together.',
+            'See which friends are online, and invite one into your room without sending a code.',
+            'Point at a cell with Shift+click to say "look here" — co-op only, since it would give a race away.',
+        ],
+    },
+    {
+        id: 'site-header',
+        date: '2026-08-30',
+        tag: 'Improved',
+        title: 'A header, and a board that fits',
+        bullets: [
+            'Every page is now reachable from a header instead of five unlabelled icons in a corner.',
+            'The board sizes itself to the screen it has, so a 16x16 game no longer runs past the bottom of a laptop.',
+            'Room codes are suggested for you, and a taken one offers a fresh code instead of an error.',
+            'Reloading mid-game keeps your score, and the browser Back button leaves the room properly.',
+        ],
+    },
+    {
+        id: 'drills',
+        date: '2026-08-28',
+        tag: 'New',
+        title: 'Drills: practice the patterns',
+        bullets: [
+            'A trainer at /drills for the shapes that decide most boards — 1-1, 1-2, counting, and more.',
+            'Get one wrong and it tells you why, and what would have got you unstuck.',
+            'Lose a daily challenge to a pattern and it will offer you the drill for it.',
+        ],
+    },
+    {
+        id: 'emotes',
+        date: '2026-08-22',
+        tag: 'New',
+        title: 'Reactions',
+        bullets: [
+            'Six things you can say to the room without typing a word.',
+            'They fade on their own, and you can turn receiving them off in Settings.',
+        ],
+    },
+    {
+        id: 'account-in-game',
+        date: '2026-08-21',
+        tag: 'Improved',
+        title: 'Your account, in the game',
+        bullets: [
+            'Signed in, you play under your account name and avatar rather than whatever the box remembered.',
+            'Your best times follow the account instead of the browser, so they survive a new device.',
+            'Four of the avatars now have to be earned.',
+        ],
+    },
+    {
+        id: 'avatars',
+        date: '2026-08-12',
+        tag: 'New',
+        title: 'Profile pictures',
+        bullets: [
+            'A catalog of pixel-art avatars for signed-in accounts, each animating when you hover it.',
+            'Your profile opens recent games at five and expands ten at a time.',
+        ],
+    },
+    {
         id: 'achievements',
         date: '2026-08-08',
         tag: 'New',

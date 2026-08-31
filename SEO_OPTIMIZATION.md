@@ -2,7 +2,13 @@
 
 ## 🎯 Target Keywords & Rankings
 
-This document outlines all SEO improvements made to maximize visibility on Google and other search engines.
+This document outlines the SEO work done to maximize visibility on Google and other search engines.
+
+> **Corrected 2026-08-31.** Sections 4 and 5 described files that no longer
+> exist — the static `public/robots.txt` and `public/sitemap.xml` were replaced
+> by Next route handlers, and `components/Footer.tsx` was deleted when the site
+> header landed. Both are now described as they actually ship. Nothing about
+> the keyword strategy changed.
 
 ### Primary Target Keywords (High Priority)
 1. **minesweeper** - Main keyword
@@ -75,17 +81,32 @@ This document outlines all SEO improvements made to maximize visibility on Googl
     - Play modes (CoOp, MultiPlayer)
 
 ### 4. Technical SEO Files
-- ✅ **robots.txt** (public/robots.txt)
-  - Allows all search engine crawlers
-  - Points to sitemap
-  - Proper crawl-delay configuration
 
-- ✅ **sitemap.xml** (public/sitemap.xml)
-  - XML sitemap for search engines
-  - Priority: 1.0 (highest)
-  - Change frequency: weekly
-  - Image sitemap included
-  - Last modified date
+Both are **Next route handlers**, not static files. The static
+`public/robots.txt` and `public/sitemap.xml` they replaced are gone; a
+hand-typed `lastmod` had been stale for over a year, which is the failure a
+generated sitemap cannot have.
+
+- ✅ **robots.txt** (`app/robots.ts`, served at `/robots.txt`)
+  - Allows all crawlers; disallows `/api/`
+  - Points to the sitemap, and sets `host`
+  - **No crawl-delay, deliberately.** Google ignores it and Bing obeys it, so
+    the only thing it ever did was throttle Bing
+  - `/ds`, `/settings` and `/profile` are **not** disallowed — they carry
+    `robots: { index: false }`, and a crawler blocked here would never fetch
+    the page to read that tag. Disallow keeps a URL out of the crawl; noindex
+    keeps it out of the index, and only one of the two can be doing the work
+
+- ✅ **sitemap.xml** (`app/sitemap.ts`, served at `/sitemap.xml`)
+  - Enumerates only indexable routes — listing a page you have told Google to
+    drop is a contradiction, not a hint
+  - `/` at priority 1.0 weekly; `/daily` at 0.9 **daily**, since the board
+    behind it is a different puzzle every day
+  - `/how-to-play`, `/no-guess-minesweeper`, `/drills` and one entry per drill
+    lesson, whose pattern names are the searched terms
+  - `lastModified` stamps the build rather than being typed by hand
+  - **No image sitemap.** Next only types `images` from 15 on, and the entry it
+    replaced pointed at the share card rather than page content
 
 ### 5. Content Optimization
 - ✅ **Landing Page** (components/Landing.tsx)
@@ -93,10 +114,15 @@ This document outlines all SEO improvements made to maximize visibility on Googl
   - Descriptive paragraph with keywords
   - Natural keyword integration
 
-- ✅ **Footer Dialog** (components/Footer.tsx)
-  - "How to Play" section with keyword-rich content
-  - Feature list highlighting benefits
+- ✅ **Content pages** (`app/how-to-play/`, `app/no-guess-minesweeper/`, `app/drills/`)
+  - The keyword-rich "How to Play" copy that used to live in a footer dialog is
+    now a real indexable page at `/how-to-play`
+  - `/no-guess-minesweeper` and `/drills` (plus a page per lesson) are the
+    long-tail surface — pattern names like "1-2-1" are searched terms
   - Keywords: free, online, multiplayer, unblocked, couples, teams
+  - Reached from the site header (`components/SiteNav.tsx`), which replaced the
+    five unlabelled floating icons. Pages published for search now have a front
+    door, which is a ranking input as well as a usability one
 
 - ✅ **README.md**
   - SEO-optimized for GitHub SEO
@@ -305,8 +331,9 @@ Potential translations:
 - [x] Open Graph tags (Facebook, LinkedIn)
 - [x] Twitter Card tags
 - [x] JSON-LD structured data
-- [x] robots.txt file
-- [x] XML sitemap
+- [x] robots.txt (generated — `app/robots.ts`)
+- [x] XML sitemap (generated — `app/sitemap.ts`)
+- [x] Indexable content pages with header navigation
 - [x] Canonical URL
 - [x] H1 tag with primary keyword
 - [x] Semantic HTML structure
@@ -342,7 +369,7 @@ All major SEO optimizations have been implemented. The website is now fully opti
 
 ✅ 35+ target keywords
 ✅ Rich meta tags and structured data
-✅ Technical SEO files (robots.txt, sitemap.xml)
+✅ Technical SEO files (generated robots.txt + sitemap.xml)
 ✅ Keyword-rich content
 ✅ Social media optimization
 ✅ Mobile-friendly and fast
