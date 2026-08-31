@@ -7,6 +7,7 @@ import { cursorColorForId } from "@/lib/theme";
 import { DIALOGS, openDialog, closeDialog } from "@/lib/dialogs";
 import { boardKey, playersForClear, recordBestTime } from "@/lib/bestTimes";
 import { recordDailyResult } from "@/lib/dailyHistory";
+import { diagnoseLoss } from "@/lib/lossDiagnosis";
 import { elapsedSeconds } from "@/lib/gameClock";
 import { practiceTargetFor } from "@/lib/practice";
 import { CLIENT_EVENTS, SERVER_EVENTS } from "@/shared/events";
@@ -467,8 +468,20 @@ const dailyHandlers = (): SocketHandlers => ({
 
     [SERVER_EVENTS.DAILY_UPDATE_CELLS]: applyCellUpdates,
 
-    /** Terminal states only -- the full board, with mines revealed/flagged. */
-    [SERVER_EVENTS.DAILY_BOARD_UPDATE]: ({ board }) => useMinesweeperStore.getState().setBoard(board),
+    /**
+     * Terminal states only -- the full board, with mines revealed/flagged.
+     *
+     * An open mine can only be a detonation -- a win flags the remaining mines
+     * without opening them. The store still holds the position the fatal move
+     * was made from until setBoard below replaces it.
+     */
+    [SERVER_EVENTS.DAILY_BOARD_UPDATE]: ({ board }) => {
+        const store = useMinesweeperStore.getState();
+        if (board.some((row) => row.some((cell) => cell.isOpen && cell.isMine))) {
+            store.setDailyDiagnosis(diagnoseLoss(store.board, board));
+        }
+        store.setBoard(board);
+    },
 
     [SERVER_EVENTS.DAILY_GAME_OVER]: ({ elapsedMs, milestones }) => {
         playSound('lose');

@@ -4,6 +4,7 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { useMinesweeperStore } from "@/app/store";
 import { DIALOGS } from "@/lib/dialogs";
 import { clearDailyHistory, recordDailyResult } from "@/lib/dailyHistory";
+import type { LossDiagnosis } from "@/lib/lossDiagnosis";
 import DailyDialogs from "./DailyDialogs";
 
 /**
@@ -373,6 +374,56 @@ describe("sharing a result", () => {
 
         expect(shared).toContain(`${window.location.origin}/daily`);
         expect(shared).not.toContain("?");
+    });
+});
+
+const diagnosis = (over: Partial<LossDiagnosis> = {}): LossDiagnosis => ({
+    kind: "provable-mine",
+    lesson: "one-two-one",
+    text: "The 2 at row 7, column 4 is flanked by two 1s.",
+    clues: [[6, 3], [6, 1]],
+    target: [6, 5],
+    verdict: "mine",
+    ...over,
+});
+
+describe("dailyGameOver: the deduction the run missed", () => {
+    test("names the pattern and links to its drill", () => {
+        useMinesweeperStore.getState().setDailyDiagnosis(diagnosis());
+
+        const dialog = renderOpen(DIALOGS.dailyGameOver);
+
+        expect(within(dialog).getByText(/You missed/)).toBeDefined();
+        expect(
+            screen.getByRole("link", { name: "Drill a 1-2-1" }).getAttribute("href"),
+        ).toBe("/drills/one-two-one");
+    });
+
+    test("explains why, in the engine's own words", () => {
+        useMinesweeperStore.getState().setDailyDiagnosis(diagnosis());
+
+        const dialog = renderOpen(DIALOGS.dailyGameOver);
+
+        expect(within(dialog).getByText(/flanked by two 1s/)).toBeDefined();
+    });
+
+    /* A guess and a misread read differently: one names what they missed on
+       the cell they took, the other points at the move they had instead. */
+    test("says something different when the cell they took was not provable", () => {
+        useMinesweeperStore.getState().setDailyDiagnosis(
+            diagnosis({ kind: "guess", lesson: "counting", verdict: "safe" }),
+        );
+
+        const dialog = renderOpen(DIALOGS.dailyGameOver);
+
+        expect(within(dialog).getByText(/Nothing proved that cell/)).toBeDefined();
+        expect(screen.getByRole("link", { name: "Drill a counting step" })).toBeDefined();
+    });
+
+    test("adds nothing when there is no diagnosis", () => {
+        renderOpen(DIALOGS.dailyGameOver);
+
+        expect(screen.queryByRole("link", { name: /Drill/ })).toBeNull();
     });
 });
 

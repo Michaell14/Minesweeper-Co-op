@@ -1,10 +1,11 @@
 import React from 'react';
 import { useMinesweeperStore } from '@/app/store';
-import { Button, DialogClose, Dialog, Field, Input, NameWithAvatar, Table } from '@/components/ds';
+import { Button, ButtonLink, DialogClose, Dialog, Field, Input, NameWithAvatar, Table } from '@/components/ds';
 import { DIALOGS, openDialog, closeDialog } from '@/lib/dialogs';
 import { buildDailyShareText, percentCleared, shareDailyResult } from '@/lib/dailyShare';
 import { dailyWinStreak, readDailyHistory } from '@/lib/dailyHistory';
 import { formatElapsed } from '@/lib/gameClock';
+import { shortLessonName } from '@/lib/lossDiagnosis';
 
 interface DailyDialogsParams {
     submitDailyScore: (name: string) => void;
@@ -23,6 +24,7 @@ export default function DailyDialogs({ submitDailyScore, getDailyLeaderboard }: 
     const dailyTotalEntries = useMinesweeperStore((state) => state.dailyTotalEntries);
     const dailyStatus = useMinesweeperStore((state) => state.dailyStatus);
     const dailyLeaderboard = useMinesweeperStore((state) => state.dailyLeaderboard);
+    const dailyDiagnosis = useMinesweeperStore((state) => state.dailyDiagnosis);
 
     const elapsedLabel = dailyElapsedMs !== null ? formatElapsed(dailyElapsedMs) : '--:--';
 
@@ -210,6 +212,21 @@ export default function DailyDialogs({ submitDailyScore, getDailyLeaderboard }: 
                     </>
                 }>
                 <p className="text-pixel-sm">You hit a mine at <strong>{elapsedLabel}</strong>. Come back tomorrow for a new puzzle!</p>
+                {dailyDiagnosis && (
+                    <div className="mt-4 flex flex-col items-start gap-2">
+                        <p className="text-pixel-sm">
+                            {dailyDiagnosis.kind === 'provable-mine' ? (
+                                <>You missed <strong>{shortLessonName(dailyDiagnosis.lesson)}</strong>.</>
+                            ) : (
+                                <>Nothing proved that cell — but <strong>{shortLessonName(dailyDiagnosis.lesson)}</strong> was there.</>
+                            )}
+                        </p>
+                        <p className="text-pixel-xs text-ink-muted">{dailyDiagnosis.text}</p>
+                        <ButtonLink href={`/drills/${dailyDiagnosis.lesson}`} size="sm">
+                            Drill {shortLessonName(dailyDiagnosis.lesson)}
+                        </ButtonLink>
+                    </div>
+                )}
             </Dialog>
 
             {/* Resumed after a refresh: attempt was already terminal (failed or completed). */}
