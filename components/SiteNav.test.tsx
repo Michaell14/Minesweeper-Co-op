@@ -55,11 +55,24 @@ describe('destinations', () => {
         ['Daily', '/daily'],
         ['Drills', '/drills'],
         ['How to play', '/how-to-play'],
+        ['No-guess', '/no-guess-minesweeper'],
         ["What's new", '/changelog'],
         ['Settings', '/settings'],
     ])('links %s to %s', (name, target) => {
         render(<SiteNav />);
         expect(href(name)).toBe(target);
+    });
+
+    /*
+     * Inherited from the landing page's own link row, which this header
+     * replaced. /no-guess-minesweeper is published for search and the header is
+     * now its only front door, so a name that quietly stops resolving takes the
+     * page back off the map.
+     */
+    it('exposes no-guess on every route, not just the landing page', () => {
+        mockUsePathname.mockReturnValue('/settings');
+        render(<SiteNav />);
+        expect(href('No-guess')).toBe('/no-guess-minesweeper');
     });
 
     /*
