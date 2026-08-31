@@ -1101,7 +1101,8 @@ holding a played board — and the *next* click would then generate a second boa
 over it. Which of the two lands first is genuinely ambiguous and both outcomes
 are fine; that either is complete before the other starts is the part that
 isn't. Note the lock is not reentrant, so nothing already holding it may call
-`resetGame`; the RESET_GAME handler in `server.js` is the only caller.
+`resetGame`; `cells.reset` in `server/routes/cells.js` — the row for
+`RESET_GAME` in `server/routes/index.js` — is the only caller.
 
 **Scoring, both modes.** One point per safe cell a move opens, cascades
 included, whether the move was a click or a chord and whether the room is co-op
