@@ -127,13 +127,29 @@ const NAMED_LESSONS: ReadonlySet<LessonId> =
  * actually there to teach. Null when nothing on the board names one, so the
  * caller can fall back to the plain first-hint order.
  */
-function namedPatternHint(layout: readonly string[]): { at: Coord; why: Explanation } | null {
+function namedPatternHint(
+    layout: readonly string[],
+    handled: readonly Coord[],
+): { at: Coord; why: Explanation } | null {
+    const done = new Set(handled.map(([r, c]) => `${r},${c}`));
     const { mines, safe } = deduce(layout);
     for (const [r, c] of [...mines, ...safe]) {
+        if (done.has(`${r},${c}`)) continue;
         const why = explain(layout, r, c);
         if (why && NAMED_LESSONS.has(classifyLesson(layout, why))) return { at: [r, c], why };
     }
     return null;
+}
+
+/**
+ * Provable mines the player had already flagged.
+ *
+ * A flag is the move, so these are moves they made, not ones they missed.
+ * Only mines: a flag on a provably SAFE cell is still a miss, and the
+ * deduction arithmetic keeps ignoring flags either way.
+ */
+function flaggedMines(preLoss: Cell[][], layout: readonly string[]): Coord[] {
+    return deduce(layout).mines.filter(([r, c]) => preLoss[r]?.[c]?.isFlagged);
 }
 
 /** The mine the fatal move opened: open in the payload, covered before it. */
@@ -177,6 +193,7 @@ export function diagnoseLoss(preLoss: Cell[][], revealed: Cell[][]): LossDiagnos
         if (why) return from('provable-mine', layout, why, mine);
     }
 
-    const hint = namedPatternHint(layout) ?? nextHint(layout, []);
+    const handled = flaggedMines(preLoss, layout);
+    const hint = namedPatternHint(layout, handled) ?? nextHint(layout, handled);
     return hint ? from('guess', layout, hint.why, hint.at) : null;
 }

@@ -99,8 +99,8 @@ describe('naming the pattern behind a deduction', () => {
 
 /* Cells as the two boards hold them: `preLoss` is the client's own position
    before the fatal move, `revealed` is the payload with every mine in it. */
-const pre = (isOpen: boolean, nearbyMines = 0): Cell =>
-    ({ isMine: false, isOpen, isFlagged: false, nearbyMines });
+const pre = (isOpen: boolean, nearbyMines = 0, isFlagged = false): Cell =>
+    ({ isMine: false, isOpen, isFlagged, nearbyMines });
 const post = (isMine: boolean, isOpen: boolean, nearbyMines = 0): Cell =>
     ({ isMine, isOpen, isFlagged: false, nearbyMines });
 
@@ -184,6 +184,34 @@ describe('diagnosing a loss', () => {
         expect(result?.kind).toBe('guess');
         expect(result?.lesson).toBe('one-two-one');
         expect(result?.target).toEqual([4, 2]);
+    });
+
+    /*
+     * The board above, with the mine that test lands on already flagged. A
+     * flag IS the move, so naming it as the one they missed is a lie: the
+     * scan has to pass over it and reach the 1-2-1's other mine instead.
+     */
+    test('skips a mine the player had already flagged', () => {
+        const preLoss = [
+            [pre(false), pre(false), pre(false), pre(true, 0)],
+            [pre(true, 1), pre(true, 1), pre(false), pre(true, 0)],
+            [pre(true, 0), pre(true, 0), pre(true, 0), pre(true, 0)],
+            [pre(true, 1), pre(true, 2), pre(true, 1), pre(true, 1)],
+            [pre(false), pre(false), pre(false, 0, true), pre(false)],
+        ];
+        const revealed = [
+            [post(true, true), post(false, false), post(false, false), post(false, true, 0)],
+            [post(false, true, 1), post(false, true, 1), post(false, false), post(false, true, 0)],
+            [post(false, true, 0), post(false, true, 0), post(false, true, 0), post(false, true, 0)],
+            [post(false, true, 1), post(false, true, 2), post(false, true, 1), post(false, true, 1)],
+            [post(true, false), post(false, false), post(true, false), post(false, false)],
+        ];
+
+        const result = diagnoseLoss(preLoss, revealed);
+
+        // (4,1), the safe cell of the same shape — a move they really did miss.
+        expect(result?.target).toEqual([4, 1]);
+        expect(result?.lesson).toBe('one-one');
     });
 
     /* Nothing opened means nothing proves anything. It must go quiet rather
