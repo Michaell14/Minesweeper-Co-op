@@ -60,12 +60,17 @@ export default function SiteNav() {
         <header className="border-b-pixel border-edge bg-surface-panel">
             <nav
                 aria-label="Main"
-                className="mx-auto flex w-full max-w-[1350px] flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
+                className="mx-auto flex w-full max-w-[1350px] flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 sm:gap-x-6">
 
+                {/* Short form below sm: a phone leaves this row 328px and the
+                    icons take 144, so the full wordmark (204px, 241 in the
+                    fallback face) wrapped to a third row. */}
                 <Link
                     href="/"
+                    aria-label="Minesweeper Co-op"
                     className={`order-1 text-pixel-sm whitespace-nowrap ${pointerClass}`}>
-                    Minesweeper Co-op
+                    <span className="sm:hidden">Minesweeper</span>
+                    <span className="hidden sm:inline">Minesweeper Co-op</span>
                 </Link>
 
                 {/* Right on both layouts; on mobile that is row one, beside the
@@ -128,8 +133,11 @@ export default function SiteNav() {
                 </div>
 
                 {/* Full width on mobile so it wraps to its own line, scrolling
-                    rather than stacking. Four items do not earn a drawer. */}
-                <ul className="order-3 flex w-full items-center gap-4 overflow-x-auto sm:order-2 sm:w-auto sm:gap-5">
+                    rather than stacking. Four items do not earn a drawer.
+                    Scrollbar hidden, not the overflow: the row wants 334px in
+                    328, so classic-scrollbar platforms charged the board 15px
+                    for a gutter macOS never draws. It still drags and wheels. */}
+                <ul className="order-3 flex w-full items-center gap-4 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:order-2 sm:w-auto sm:gap-5">
                     {LINKS.map(([target, label]) => (
                         <li key={target}>
                             <Link
