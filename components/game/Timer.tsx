@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { useMinesweeperStore } from '@/app/store';
-import { Panel } from '@/components/ds';
 import { elapsedSeconds, formatClock } from '@/lib/gameClock';
 
 /**
@@ -28,11 +27,11 @@ const useElapsedSeconds = (startedAt: number | null, endedAt: number | null) => 
 
 export interface TimerProps {
     /**
-     * Where it is being shown:
-     *   panel -> boxed, matching FlagCounter  (desktop side panel)
-     *   hud   -> bare, no box                 (mobile sticky bar)
+     * Where it is being shown, matching FlagCounter:
+     *   bar -> bare, larger type  (desktop HUD, on the board's edge)
+     *   hud -> bare, small type   (mobile sticky bar, daily row)
      */
-    variant: 'panel' | 'hud';
+    variant: 'bar' | 'hud';
 }
 
 /** How long the current run has been going. Frozen once it ends. */
@@ -58,19 +57,13 @@ export default function Timer({ variant }: TimerProps) {
      */
     const label = startedAt === null ? 'Timer not started' : `Elapsed time ${value}`;
 
-    if (variant === 'hud') {
-        return (
-            <p className="text-pixel-sm whitespace-nowrap" role="timer" aria-label={label}>
-                <span aria-hidden="true">⏱ {value}</span>
-            </p>
-        );
-    }
-
+    /* Bare in both bars — see FlagCounter, which they sit beside. */
     return (
-        <Panel centered className="mt-4" role="timer" aria-label={label}>
-            <p className="text-pixel-md m-0" aria-hidden="true">
-                ⏱ {value}
-            </p>
-        </Panel>
+        <p
+            className={`${variant === 'bar' ? 'text-pixel-md' : 'text-pixel-sm'} whitespace-nowrap`}
+            role="timer"
+            aria-label={label}>
+            <span aria-hidden="true">⏱ {value}</span>
+        </p>
     );
 }

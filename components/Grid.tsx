@@ -145,7 +145,10 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
                   * juggling: the cluster that does not belong to the current
                   * breakpoint is display:none and leaves the flex line entirely.
                   */}
-                <div className="flex flex-col items-center gap-0 mt-10 xl:flex-row xl:items-start xl:justify-around xl:gap-20 xl:mt-16">
+                {/* 24px, not more: `xl:` turns this row on from a 1280px WINDOW
+                    and a classic scrollbar leaves 1263px to lay out in, which
+                    the board needs to reach its ceiling. */}
+                <div className="flex flex-col items-center gap-0 mt-10 xl:flex-row xl:items-start xl:gap-6 xl:mt-16">
 
                     {/* MOBILE: a compact HUD, pinned above the board. */}
                     <div className="xl:hidden sticky top-0 z-10 w-full bg-surface-page border-b-pixel border-edge flex items-center justify-between gap-3 px-2 py-1">
@@ -186,22 +189,39 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
                       * overflow-auto, not -scroll: `scroll` reserves a gutter even
                       * when nothing overflows, costing the board 15px on
                       * classic-scrollbar platforms.
+                      *
+                      * On desktop this column is what the fit clamp measures —
+                      * the outer container counts room the rails are using.
+                      * `flex-1 min-w-0` gives it a width the contents cannot
+                      * affect, which is what makes the containment safe.
                       */}
                     <div
-                        className="overflow-auto xl:overflow-visible max-w-full"
+                        className="overflow-auto xl:overflow-visible max-w-full xl:flex-1 xl:min-w-0 xl:[container-type:inline-size]"
                         role="region"
                         aria-label="Game board container">
-                        <div className="hidden xl:block">
-                            <StatusBanner startPvpGame={startPvpGame} emitConfetti={emitConfetti} variant="desktop" />
+                        {/* Shrink-to-fit, so the HUD takes the BOARD's width. */}
+                        <div className="xl:w-fit xl:mx-auto">
+                            <div className="hidden xl:block">
+                                <StatusBanner startPvpGame={startPvpGame} emitConfetti={emitConfetti} variant="desktop" />
+                            </div>
+                            <div className="xl:hidden">
+                                <StatusBanner startPvpGame={startPvpGame} emitConfetti={emitConfetti} variant="mobile" />
+                            </div>
+                            {/* DESKTOP HUD: mines left, clock right. */}
+                            <div className="hidden xl:flex items-center gap-6 pb-2">
+                                <FlagCounter remainingFlags={remainingFlags} variant="bar" />
+                                {/* ml-auto, not justify-between: either number
+                                    can be switched off in settings. */}
+                                <div className="ml-auto">
+                                    <Timer variant="bar" />
+                                </div>
+                            </div>
+                            <Board {...boardProps} />
+                            {/* Under the board, inside the one container that
+                                both layouts share — so the tray is mounted once,
+                                the same rule the board itself follows. */}
+                            <EmoteBar sendEmote={sendEmote} />
                         </div>
-                        <div className="xl:hidden">
-                            <StatusBanner startPvpGame={startPvpGame} emitConfetti={emitConfetti} variant="mobile" />
-                        </div>
-                        <Board {...boardProps} />
-                        {/* Under the board, inside the one container that
-                            both layouts share — so the tray is mounted once,
-                            the same rule the board itself follows. */}
-                        <EmoteBar sendEmote={sendEmote} />
                     </div>
 
                     {/* MOBILE: everything else, below the board. */}
@@ -287,11 +307,14 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
                             </Panel>
                         }
 
-                        <div className="overflow-x-auto mt-6" role="region" aria-label="Player scores">
-                            {mode !== 'pvp' && <ScoreTable />}
-                            <FlagCounter remainingFlags={remainingFlags} variant="panel" />
-                            <Timer variant="panel" />
-                        </div>
+                        {/* Gated, not just emptied: PVP has no score table, and
+                            the region announced "Player scores" around a box
+                            holding nothing once the HUD left it. */}
+                        {mode !== 'pvp' &&
+                            <div className="overflow-x-auto mt-6" role="region" aria-label="Player scores">
+                                <ScoreTable />
+                            </div>
+                        }
                     </div>
                 </div>
             </div>
@@ -299,7 +322,7 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
             <Dialog
                 id={DIALOGS.players}
                 title="Players Online!"
-                actions={<DialogClose aria-label="Close players dialog">Cancel</DialogClose>}>
+                actions={<DialogClose aria-label="Close players dialog">Close</DialogClose>}>
                 <div className="overflow-x-auto mt-6">
                     <ScoreTable nameWidthClass="max-w-60" />
                     <FlagCounter remainingFlags={remainingFlags} variant="dialog" />

@@ -12,7 +12,7 @@ import FlagCounter from "./FlagCounter";
  * kind of thing that can stop resolving while the component still looks right.
  */
 
-describe.each(["panel", "dialog", "hud"] as const)("the %s counter", (variant) => {
+describe.each(["bar", "dialog", "hud"] as const)("the %s counter", (variant) => {
     test("announces what the number means, not just the number", () => {
         render(<FlagCounter remainingFlags={12} variant={variant} />);
 
@@ -38,9 +38,9 @@ describe.each(["panel", "dialog", "hud"] as const)("the %s counter", (variant) =
 });
 
 describe("what differs between them", () => {
-    /* The sticky mobile bar is tight on height, so it drops the panel chrome. */
-    test("the hud is bare text, with no panel around it", () => {
-        const { container } = render(<FlagCounter remainingFlags={5} variant="hud" />);
+    /* Both bars sit on a board that is already framed. */
+    test.each(["hud", "bar"] as const)("the %s is bare text, with no panel around it", (variant) => {
+        const { container } = render(<FlagCounter remainingFlags={5} variant={variant} />);
 
         expect(container.querySelector("p")?.parentElement).toBe(container);
     });
@@ -51,8 +51,9 @@ describe("what differs between them", () => {
         expect(screen.getByRole("status").textContent).toContain("left");
     });
 
-    test("the desktop panel shows the number alone", () => {
-        render(<FlagCounter remainingFlags={5} variant="panel" />);
+    /* Beside a flag sprite on the board, "left" is noise; in a dialog it is not. */
+    test("the desktop bar shows the number alone", () => {
+        render(<FlagCounter remainingFlags={5} variant="bar" />);
 
         expect(screen.getByRole("status").textContent).not.toContain("left");
     });

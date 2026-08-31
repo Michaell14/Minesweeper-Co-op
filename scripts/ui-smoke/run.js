@@ -123,6 +123,14 @@ async function coop(page) {
     // A cold `next dev` compiles on first request; wait for hydration, not just markup.
     await page.waitFor(`!!document.querySelector('form[aria-label="Create new room form"] button[type=submit]')`,
         { timeout: 60000, label: 'landing page compiles and renders' });
+    // The profile in /tmp outlives the run, so a large-cell preference an
+    // aborted one left behind would still be here. The ceiling check below
+    // assumes the default: at 1440px a large board is clamped under its own
+    // ceiling, which reads as the fit maths measuring the wrong box.
+    await page.evaluate(`localStorage.removeItem('minesweeper_settings'); return true;`);
+    await page.goto(CLIENT);
+    await page.waitFor(`!!document.querySelector('form[aria-label="Create new room form"] button[type=submit]')`,
+        { label: 'landing renders on the default settings' });
     pass('landing renders the create-room form');
 
     await enterRoom(page, { room, name: 'Alice' });
@@ -139,16 +147,49 @@ async function coop(page) {
         'a second copy means Grid.tsx is rendering the board per layout again');
     check(await page.evaluate(`return document.body.textContent.includes(${JSON.stringify(room)});`), 'room code is displayed');
 
-    // Desktop cells sit at the ceiling. The window here is 1440px, which has
-    // room to spare, so anything smaller means the fit maths is measuring the
-    // wrong box — the failure mode when 100cqw resolved against a container
-    // that had collapsed to zero, which floors every cell instead.
+    /*
+     * The board fits the window it is given — the whole point of the fit maths.
+     *
+     * This used to assert the cell sat exactly on the --ms-cell-size ceiling,
+     * which held while the clamp only answered the WIDTH question. It answers
+     * both axes now (components/game/board.module.css), and this window is
+     * 1440x900 with roughly 813px of usable height, so the height half is the
+     * one that binds and the ceiling is no longer the invariant.
+     *
+     * What is asserted instead is what a player actually gets, plus the floor
+     * the ceiling check was really guarding: cells collapsing to --ms-cell-min
+     * is the signature of the fit maths measuring a box that resolved to zero.
+     */
     const deskCell = parseFloat(await page.evaluate(
         `return getComputedStyle(document.querySelector('[role=gridcell]')).width;`));
+    // From the GRID: the cell-size setting overrides --ms-cell-size on
+    // .gameBoard, so the root keeps the default whatever the preference is.
     const deskMax = parseFloat(await page.evaluate(
-        `return getComputedStyle(document.documentElement).getPropertyValue('--ms-cell-size');`));
-    check(deskCell === deskMax, `desktop cells are at the ceiling (${deskCell}px)`,
-        `cell is ${deskCell}px, not the ${deskMax}px ceiling — the fit maths is measuring the wrong box`);
+        `return getComputedStyle(document.querySelector('[role=grid]')).getPropertyValue('--ms-cell-size');`));
+    const deskMin = parseFloat(await page.evaluate(
+        `return getComputedStyle(document.querySelector('[role=grid]')).getPropertyValue('--ms-cell-min');`));
+    check(deskCell > deskMin && deskCell <= deskMax,
+        `desktop cells are sized by the fit, not floored (${deskCell}px)`,
+        `cell is ${deskCell}px, outside (${deskMin}, ${deskMax}] — the fit maths is measuring the wrong box`);
+
+    /*
+     * Absolute offsets, not the raw rect. getBoundingClientRect is relative to
+     * the SCROLL position, and entering a room leaves this page scrolled down —
+     * so a board hanging 20px past the fold measured as fitting, and this check
+     * passed on exactly the layout it exists to reject.
+     */
+    const boardFit = JSON.parse(await page.evaluate(`
+        const r = document.querySelector('[role=grid]').getBoundingClientRect();
+        return JSON.stringify({
+            top: Math.round(r.top + window.scrollY),
+            height: Math.round(r.height),
+            viewport: window.innerHeight,
+        });
+    `));
+    check(boardFit.top >= 0 && boardFit.top + boardFit.height <= boardFit.viewport,
+        `the whole board is on screen without scrolling (${boardFit.top + boardFit.height}px of ${boardFit.viewport}px)`,
+        `the board spans ${boardFit.top}-${boardFit.top + boardFit.height}px in a ${boardFit.viewport}px viewport — `
+        + '--ms-board-reserve no longer covers the chrome above it');
 
     const flagsRemaining = () => page.evaluate(`
         const el = [...document.querySelectorAll('strong')].find(e => /^\\s*-?\\d+\\s*$/.test(e.textContent));
@@ -322,6 +363,103 @@ async function sizeAndDifficulty(page) {
 }
 
 /**
+ * The desktop layout has to fit the width it switches ON at.
+ *
+ * `xl:` is 1280px and the arrangement it turns on wanted ~1307, so the rails
+ * hung off the page at the commonest laptop width there is. Run at the
+ * breakpoint itself, where the margin is smallest. The ceiling check is half
+ * the point: a board that fits by shrinking its cells has not been fixed.
+ *
+ * The HUD's position is only observable here — jsdom has no layout engine, so
+ * nothing else can tell that it drifted back out to a side rail.
+ *
+ * A 17px scrollbar is forced so every machine measures the same worst case:
+ * `xl:` matches on the window, which counts the scrollbar, but the row lays
+ * out in what is left. macOS overlay scrollbars are 0px and hide that.
+ */
+async function desktopFit(page) {
+    console.log('\n\x1b[1m--- DESKTOP FIT ---\x1b[0m');
+    const room = 'smokedesk' + Date.now().toString().slice(-6);
+
+    // 1000 tall, not 900: this section is about the WIDTH axis at the xl
+    // breakpoint, and at 900 the height half of the clamp binds first, which
+    // takes cells off the ceiling for a reason that has nothing to do with the
+    // rails the checks below are about. The height axis is covered in CO-OP.
+    await page.send('Emulation.setDeviceMetricsOverride', {
+        width: 1280, height: 1000, deviceScaleFactor: 1, mobile: false,
+    });
+    // Resume would otherwise put this page back in the previous section's room.
+    // The settings blob goes too: the profile in /tmp outlives the run, so a
+    // large-cell preference an aborted one left behind would still be here, and
+    // the ceiling check below reads as a layout regression when it is.
+    await page.goto(CLIENT);
+    await page.evaluate(`sessionStorage.clear(); localStorage.removeItem('minesweeper_settings'); return true;`);
+    await page.goto(CLIENT);
+    await page.waitFor(`!!document.querySelector('form[aria-label="Create new room form"] button[type=submit]')`,
+        { timeout: 60000, label: 'landing renders at 1280px' });
+    await enterRoom(page, { room, name: 'Desk' });
+    await page.waitFor(`document.querySelectorAll('[role=gridcell]').length === 256`,
+        { label: 'board renders at 1280px' });
+
+    // Styling ::-webkit-scrollbar opts out of overlay scrollbars, so it takes width.
+    await page.evaluate(`
+        const s = document.createElement('style');
+        s.id = 'smoke-classic-scrollbar';
+        s.textContent = 'html::-webkit-scrollbar{width:17px} html{overflow-y:scroll}';
+        document.head.appendChild(s);
+        return true;
+    `);
+    await sleep(300);
+
+    const m = JSON.parse(await page.evaluate(`
+        const doc = document.documentElement;
+        const grid = document.querySelector('[role=grid]');
+        const board = grid.getBoundingClientRect();
+        const visible = (sel) => [...document.querySelectorAll(sel)].find((e) => e.offsetParent !== null);
+        const clock = visible('[role=timer]').getBoundingClientRect();
+        return JSON.stringify({
+            viewport: doc.clientWidth,
+            scrollbar: window.innerWidth - doc.clientWidth,
+            scrollWidth: doc.scrollWidth,
+            board: Math.round(board.width),
+            container: grid.closest('[aria-label="Game board container"]').clientWidth,
+            cell: parseFloat(getComputedStyle(grid.querySelector('[role=gridcell]')).width),
+            ceiling: parseFloat(getComputedStyle(grid).getPropertyValue('--ms-cell-size')),
+            // Above the board, and inside its width: a rail fails both.
+            clockOnBoardEdge: clock.bottom <= board.top
+                && clock.left >= board.left - 1 && clock.right <= board.right + 1,
+        });
+    `));
+
+    // Without it the checks below silently revert to the easy 1280px case.
+    check(m.scrollbar === 17, `the classic scrollbar is in force (${m.scrollbar}px, leaving ${m.viewport}px)`,
+        `expected a 17px scrollbar, got ${m.scrollbar}px — the checks below prove nothing`);
+    check(m.scrollWidth <= m.viewport, `the game does not scroll sideways at ${m.viewport}px`,
+        `scrollWidth ${m.scrollWidth}px vs viewport ${m.viewport}px — the rails do not fit beside the board`);
+    check(m.board <= m.container, `the board fits its column (${m.board}px in ${m.container}px)`,
+        `board ${m.board}px overflows its ${m.container}px column`);
+    check(m.cell === m.ceiling, `cells are still at the ceiling at the breakpoint (${m.cell}px)`,
+        `cell is ${m.cell}px, not ${m.ceiling}px — the board column is ${m.container}px and wants 707px, `
+        + 'so the gap either side of it is taking room the board needs');
+    check(m.clockOnBoardEdge, "the clock sits on the board's top edge",
+        "the timer is not within the board's width above it — the HUD has drifted back out to a side rail");
+
+    // Leave, or the next section inherits a board instead of a landing page:
+    // only leaving clears the room from the session.
+    await page.evaluate(`
+        document.getElementById('smoke-classic-scrollbar')?.remove();
+        const btn = [...document.querySelectorAll('button')]
+            .find((b) => b.offsetParent !== null && b.textContent.includes('Return to Home'));
+        btn.click();
+        return true;
+    `);
+    await page.waitFor(`!!document.querySelector('form[aria-label="Create new room form"]')`,
+        { label: 'returns to landing' });
+
+    await page.send('Emulation.clearDeviceMetricsOverride');
+}
+
+/**
  * The board has to fit the phone it is played on.
  *
  * This is the regression the board-first layout fixed: the default 16x16 board
@@ -486,29 +624,42 @@ async function headerClearance(page) {
         localStorage.setItem('minesweeper_settings', JSON.stringify({ version: 1, cellSize: 'large' }));
     `);
     await page.goto(CLIENT); // reload so hydration reads the blob
-    await page.waitFor(`!!document.querySelector('form[aria-label="Create new room form"] button[type=submit]')`,
-        { timeout: 60000, label: 'landing renders at 1320px' });
-    await enterRoom(page, { room, name: 'Clearance' });
-    await page.waitFor(`document.querySelectorAll('[role=gridcell]').length === 256`,
-        { label: 'board renders with large cells' });
+    // The removal has to run even if a wait above times out: the profile is
+    // reused across runs, so a leaked preference outlives this section.
+    try {
+        await page.waitFor(`!!document.querySelector('form[aria-label="Create new room form"] button[type=submit]')`,
+            { timeout: 60000, label: 'landing renders at 1320px' });
+        await enterRoom(page, { room, name: 'Clearance' });
+        await page.waitFor(`document.querySelectorAll('[role=gridcell]').length === 256`,
+            { label: 'board renders with large cells' });
 
-    const m = JSON.parse(await page.evaluate(`
-        const board = document.querySelector('[role=grid]').getBoundingClientRect();
-        const nav = document.querySelector('nav[aria-label="Main"]');
-        const rect = nav && nav.getBoundingClientRect();
-        const overlaps = rect && !(
-            rect.right <= board.left || rect.left >= board.right ||
-            rect.bottom <= board.top || rect.top >= board.bottom
-        );
-        const drills = !!(nav && nav.querySelector('a[href="/drills"]'));
-        return JSON.stringify({ present: !!rect, overlaps: !!overlaps, drills });
-    `));
-    check(m.present, 'the header is still there during a game');
-    check(m.drills, 'the header still reaches the content pages during a game');
-    check(!m.overlaps, 'the header does not cover the board',
-        'the header intersects the board rect — cells behind it cannot be clicked');
-
-    await page.evaluate(`localStorage.removeItem('minesweeper_settings');`);
+        const m = JSON.parse(await page.evaluate(`
+            const board = document.querySelector('[role=grid]').getBoundingClientRect();
+            const nav = document.querySelector('nav[aria-label="Main"]');
+            const rect = nav && nav.getBoundingClientRect();
+            const overlaps = rect && !(
+                rect.right <= board.left || rect.left >= board.right ||
+                rect.bottom <= board.top || rect.top >= board.bottom
+            );
+            const drills = !!(nav && nav.querySelector('a[href="/drills"]'));
+            return JSON.stringify({
+                present: !!rect, overlaps: !!overlaps, drills,
+                viewport: document.documentElement.clientWidth,
+                scrollWidth: document.documentElement.scrollWidth,
+            });
+        `));
+        check(m.present, 'the header is still there during a game');
+        check(m.drills, 'the header still reaches the content pages during a game');
+        check(!m.overlaps, 'the header does not cover the board',
+            'the header intersects the board rect — cells behind it cannot be clicked');
+        // The widest board the app can produce — 52px cells on MAX_COLS — also has
+        // to fit beside the rails, and every check above passed while it did not.
+        check(m.scrollWidth <= m.viewport, `large cells do not scroll the page sideways (${m.viewport}px)`,
+            `scrollWidth ${m.scrollWidth}px vs viewport ${m.viewport}px with large cells`);
+    } finally {
+        // Swallowed: a cleanup that throws here would replace the real failure.
+        await page.evaluate(`localStorage.removeItem('minesweeper_settings');`).catch(() => {});
+    }
     await page.send('Emulation.clearDeviceMetricsOverride');
 }
 
@@ -953,6 +1104,26 @@ async function pvp(host, guest) {
     // and against a real deployment the guest can trail the host by a beat.
     check(await settles(guest, `document.body.textContent.includes('Waiting for host')`), 'the non-host is told to wait');
 
+    /*
+     * The lobby banner is the tallest chrome the board ever sits under — the
+     * opponent line plus the Start Game button is 119px that an in-play board
+     * never pays for. A fixed --ms-board-reserve cannot cover both, which is
+     * why Board.tsx measures its own top offset instead; this is the check that
+     * says so, and it fails on any reserve that went back to being a guess.
+     */
+    const lobbyFit = JSON.parse(await host.evaluate(`
+        const r = document.querySelector('[role=grid]').getBoundingClientRect();
+        return JSON.stringify({
+            top: Math.round(r.top + window.scrollY),
+            height: Math.round(r.height),
+            viewport: window.innerHeight,
+        });
+    `));
+    check(lobbyFit.top + lobbyFit.height <= lobbyFit.viewport,
+        `the board fits under the lobby banner (${lobbyFit.top + lobbyFit.height}px of ${lobbyFit.viewport}px)`,
+        `the board spans ${lobbyFit.top}-${lobbyFit.top + lobbyFit.height}px in a ${lobbyFit.viewport}px viewport — `
+        + 'the reserve is not tracking the status banner above the board');
+
     await host.evaluate(`
         const btn = [...document.querySelectorAll('button')].find(b => b.offsetParent !== null && b.textContent.includes('Start Game'));
         if (!btn) throw new Error('no Start Game button');
@@ -1356,6 +1527,7 @@ async function emotes(host, guest) {
         const page = await attach(await newTarget('about:blank'));
         await coop(page);
         await sizeAndDifficulty(page);
+        await desktopFit(page);
         await mobileFit(page);
         await headerClearance(page);
         await rejoinOnReload(page);

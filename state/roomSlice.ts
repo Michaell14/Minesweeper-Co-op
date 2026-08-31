@@ -27,8 +27,18 @@ export interface RoomSlice {
     practiceTargetMs: number | null;
     /** Whether `practiceTargetMs` is the player's own record or the fixed par. */
     practiceTargetIsPersonal: boolean;
+    /**
+     * Ticks when the create-room collision dialog asks for a different code.
+     *
+     * A counter rather than the code itself: the create form owns the field
+     * (react-hook-form), and a second copy of the value in the store is a copy
+     * that can disagree with what is on screen. This only says "ask again".
+     */
+    roomCreateNonce: number;
 
     setRoom: (newRoom: string) => void;
+    /** Asks the create form for a fresh suggested room code. */
+    requestNewRoomCode: () => void;
     setPlayerJoined: (isPlayerJoined: boolean) => void;
     setName: (newName: string) => void;
     setPlayerStatsInRoom: (newStats: PlayerStats[]) => void;
@@ -59,8 +69,10 @@ export const createRoomSlice: StateCreator<MinesweeperState, [], [], RoomSlice> 
     matchOthersOnline: 0,
     practiceTargetMs: null,
     practiceTargetIsPersonal: false,
+    roomCreateNonce: 0,
 
     setRoom: (newRoom) => set({ room: newRoom }),
+    requestNewRoomCode: () => set((state) => ({ roomCreateNonce: state.roomCreateNonce + 1 })),
     setPlayerJoined: (isPlayerJoined) => set({ playerJoined: isPlayerJoined }),
     setName: (newName) => set({ name: newName }),
     setPlayerStatsInRoom: (newStats) => set({ playerStatsInRoom: newStats }),
