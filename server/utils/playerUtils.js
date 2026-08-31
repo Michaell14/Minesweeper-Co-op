@@ -173,8 +173,13 @@ const addPlayerToRoom = async (room, socketId, name, sessionId, avatar) => {
              * Taken BEFORE the save below, which rewrites the session hash.
              * The disconnect that preceded this put the score here precisely
              * because the player record it used to live on is already gone.
+             *
+             * Against the run it is rejoining, not just the room: the same room
+             * hosts one game after another, and a stash from the game before a
+             * reset belongs to none of them.
              */
-            carriedScore = await sessionRepo.takeScore(sessionId, room);
+            const run = (await roomRepo.getField(room, 'startedAt')) || '';
+            carriedScore = await sessionRepo.takeScore(sessionId, room, run);
             await sessionRepo.save(sessionId, { room, name, socketId });
         }
     }
@@ -340,13 +345,17 @@ const removePlayer = async (socket, socketId) => {
      * The socket check covers the other direction: a second tab holding the
      * same session id joins as itself, and must not bank ITS score onto the
      * session the first tab is still resuming with.
+     *
+     * The run stamp goes with it so the score can only come back to the game it
+     * was earned in — see `stashScore`.
      */
     const sessionId = await playerRepo.getField(socketId, 'sessionId');
     if (sessionId) {
         const score = await playerRepo.getScore(socketId);
         const session = await sessionRepo.getState(sessionId);
         const resumable = session.room === room && session.socketId === socketId;
-        if (score > 0 && resumable) await sessionRepo.stashScore(sessionId, { room, score });
+        const run = roomState.startedAt || '';
+        if (score > 0 && resumable) await sessionRepo.stashScore(sessionId, { room, score, run });
     }
 
     await playerRepo.remove(socketId);

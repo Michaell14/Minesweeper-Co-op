@@ -39,6 +39,7 @@ jest.mock('../utils/initializeRedisClient', () => ({
 
 const { addPlayerToRoom, removePlayer } = require('../utils/playerUtils');
 const { leave } = require('../routes/room');
+const { resetGame } = require('../utils/gameUtils');
 const { createEmptyBoard } = require('../domain/board');
 
 const ROOM = 'r-score';
@@ -56,6 +57,9 @@ const seed = (mode = 'co-op') => {
         gameWon: 'false',
         board: JSON.stringify(createEmptyBoard(2, 2)),
         numRows: '2', numCols: '2', numMines: '1',
+        // A real run stamp: with both ends blank the run check below would pass
+        // by agreeing that nothing had started.
+        startedAt: '1700000000000',
         players: JSON.stringify([OLD]),
     });
     mockRedis.seed(`player:${OLD}`, { room: ROOM, name: 'Ana', score: '107', sessionId: SESSION });
@@ -202,6 +206,44 @@ describe('two sockets resuming the same session at once', () => {
 
         const restored = [scoreOf(NEW), scoreOf('sock-third')].map(Number).sort((a, b) => b - a);
         expect(restored).toEqual([107, 0]);
+    });
+});
+
+/*
+ * A score belongs to a GAME, not just to a room.
+ *
+ * The room outlives the run: reset clears the clock and zeroes everyone still
+ * sitting there, and the next first click stamps a new one. A player who
+ * dropped out at 107 while that happened was not on the scoreboard to be
+ * zeroed, so without a run stamp on the stash they walked back into a fresh
+ * board already 107 points ahead of everybody on it.
+ *
+ * Through the real resetGame, since what has to line up is the field IT
+ * rewrites and the one the stash was pinned to.
+ */
+describe('rejoining a room that was reset while away', () => {
+    beforeEach(() => {
+        seed();
+        present(OLD, false);
+    });
+
+    test('starts the new game at zero', async () => {
+        await removePlayer(fakeSocket(OLD), OLD);
+        await resetGame(ROOM);
+
+        await addPlayerToRoom(ROOM, NEW, 'Ana', SESSION);
+
+        expect(scoreOf(NEW)).toBe('0');
+    });
+
+    test('does not leave the stash behind for the run after that', async () => {
+        await removePlayer(fakeSocket(OLD), OLD);
+        await resetGame(ROOM);
+        await addPlayerToRoom(ROOM, NEW, 'Ana', SESSION);
+
+        // Refused is not enough: left in place it would match again the moment
+        // this run's own startedAt happened to be read.
+        expect(mockRedis.read(`session:${SESSION}`).score).toBeUndefined();
     });
 });
 
