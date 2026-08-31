@@ -198,6 +198,69 @@
  * legible on every palette without a token of its own: whichever tone matches
  * the cell beneath, the other contrasts.
  */
+/*
+ * A ping: a ring on the cell somebody pointed at, in that player's cursor
+ * colour so the two read as the same person.
+ *
+ * Above the keyboard cursor (z-index 6) because it is transient and someone
+ * else's — it should not be the thing hidden when the two land on one cell.
+ * pointer-events stays off: the cell underneath must still be playable while
+ * the ring is on it.
+ */
+.pingRing {
+    position: absolute;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+    z-index: 7;
+    box-shadow:
+        0 0 0 var(--ms-border-width) var(--cursor-color),
+        inset 0 0 0 var(--ms-border-width) var(--cursor-color);
+    animation: pingPulse var(--ms-duration-loop) var(--ms-ease-step) infinite;
+}
+
+/*
+ * The label rides ABOVE the ring rather than inside it: a name over the cell
+ * would cover the number the ping is drawing attention to.
+ */
+.pingLabel {
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    margin-bottom: 2px;
+    background-color: var(--cursor-color);
+    color: var(--ms-cursor-label-ink);
+    font-size: 10px;
+    line-height: 1;
+    padding: 2px 6px;
+    border-radius: 3px;
+    max-width: 80px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/*
+ * Two steps, not a fade: this is a pixel interface, and the ring reads as
+ * blinking rather than breathing.
+ *
+ * Switched off by hand under reduced motion rather than left to the zeroed
+ * duration token, the same as the hover pulse above — a zero-duration INFINITE
+ * animation is still an animation. What remains is the solid ring, which is the
+ * information; the blink is only what draws the eye to it.
+ */
+@media (prefers-reduced-motion: reduce) {
+    .pingRing {
+        animation: none;
+    }
+}
+
+@keyframes pingPulse {
+    0%, 49% { opacity: 1; }
+    50%, 100% { opacity: 0.35; }
+}
+
 .kbCursor {
     position: absolute;
     top: 0;

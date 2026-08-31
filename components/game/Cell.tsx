@@ -190,6 +190,10 @@ const Cell = ({ cell, row, col, cascadeOrigin, toggleFlag, openCell, chordCell, 
             className={`${styles.cell} ${styles.mine} ${isHovered ? styles.hovered : ''}`}
             style={revealStyle()}
             role="gridcell"
+            /* Read by the board's ping interception, which addresses a cell
+               without having to be one — see Board.tsx. */
+            data-row={row}
+            data-col={col}
             aria-label={getAriaLabel()}
             onMouseEnter={handleMouseEnter}
             onMouseLeave={handleMouseLeave}
@@ -206,6 +210,10 @@ const Cell = ({ cell, row, col, cascadeOrigin, toggleFlag, openCell, chordCell, 
             <div
                 key={col}
                 role="gridcell"
+                /* Read by the board's ping interception, which addresses a cell
+                   without having to be one — see Board.tsx. */
+                data-row={row}
+                data-col={col}
                 aria-label={getAriaLabel()}
                 onContextMenu={(e) => {
                     e.preventDefault();
@@ -226,6 +234,10 @@ const Cell = ({ cell, row, col, cascadeOrigin, toggleFlag, openCell, chordCell, 
             <div
                 key={col}
                 role="gridcell"
+                /* Read by the board's ping interception, which addresses a cell
+                   without having to be one — see Board.tsx. */
+                data-row={row}
+                data-col={col}
                 aria-label={getAriaLabel()}
                 className={`${styles.cell} ${styles.flagged} ${isHovered ? styles.hovered : ''}`}
                 style={hoverStyle}
@@ -262,6 +274,10 @@ const Cell = ({ cell, row, col, cascadeOrigin, toggleFlag, openCell, chordCell, 
         <div
             key={col}
             role="gridcell"
+            /* Read by the board's ping interception, which addresses a cell
+               without having to be one — see Board.tsx. */
+            data-row={row}
+            data-col={col}
             aria-label={getAriaLabel()}
             // Also what the press state in board.module.css keys off: a board
             // waiting for the race to start must not depress under a click it

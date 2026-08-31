@@ -15,6 +15,7 @@ const { io } = require('./initializeClient');
 const { isDbEnabled } = require('./initializePgClient');
 const statsRepo = require('../data/statsRepo');
 const { SERVER_EVENTS } = require('../../shared/events');
+const { socketIdsOf } = require('./presence');
 const { boardKey, playersForClear } = require('../../shared/boardKeys');
 
 /**
@@ -45,23 +46,12 @@ const boardKeyOf = (board, mode, playersInRoom) => {
 /** The account behind a live socket, or null for guests and gone sockets. */
 const userOf = (socketId) => io.sockets.sockets.get(socketId)?.data?.user ?? null;
 
-/**
- * Every live socket belonging to an account, resolved NOW rather than assumed.
- *
- * A scan rather than a `user:<id>` room, which would be the idiomatic answer
- * anywhere else: room codes here are arbitrary strings (`validation.js` bounds
- * only the length), so `socket.join('user:<uuid>')` shares a namespace with
- * whatever players type into the join box — and anyone who knew a victim's id
- * could create that room and receive their announcements. Unlocks are rare and
- * the socket map is small, so the scan costs nothing worth protecting.
+/*
+ * The scan that turns an account back into its live sockets moved to
+ * utils/presence.js when presence started needing it too — two copies would be
+ * two places for the `user:<id>` room shortcut to creep back in. See the
+ * comment there for why it is a scan and not a room.
  */
-const socketIdsOf = (userId) => {
-    const ids = [];
-    for (const [socketId, socket] of io.sockets.sockets) {
-        if (socket?.data?.user?.id === userId) ids.push(socketId);
-    }
-    return ids;
-};
 
 /**
  * Tells a player what they just unlocked, once the transaction has COMMITTED —

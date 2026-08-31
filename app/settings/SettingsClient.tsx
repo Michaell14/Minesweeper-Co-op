@@ -89,7 +89,7 @@ export default function SettingsClient() {
                     <SettingRow
                         settingKey="emotes"
                         name="Show reactions"
-                        description="See the emotes other players send in your room. Turning this off does not stop you sending them."
+                        description="See the reactions and cell pings other players send in your room. Turning this off does not stop you sending them."
                     />
                     <SettingRow
                         settingKey="keyboardControls"

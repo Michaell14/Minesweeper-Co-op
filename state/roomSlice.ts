@@ -1,17 +1,25 @@
 import { StateCreator } from 'zustand';
-import type { PlayerEmote, PlayerHover, PlayerStats } from './types';
+import type { PlayerEmote, PlayerHover, PlayerPing, PlayerStats } from './types';
 import type { MinesweeperState } from './store';
 
 /** Who is in the room, their scores, and where their cursors are. */
 export interface RoomSlice {
     room: string;
     playerJoined: boolean;                      // true once this player is in a room
+    /**
+     * Whether this browser has ever LEFT a room on this socket. Latches: it is
+     * about the session's history, not its present. The only reader is the
+     * relay guard in `useGameEvents` — see `belongsToCurrentRoom`.
+     */
+    leftARoom: boolean;
     name: string;                               // this player's display name
     playerStatsInRoom: PlayerStats[];           // everyone's scores
     gameOverName: string;                       // who hit the mine
     playerHovers: Record<string, PlayerHover>;  // live hover state, by socket id
     /** Reactions still on screen, oldest first. Bounded — see `pushPlayerEmote`. */
     playerEmotes: PlayerEmote[];
+    /** Cells being pointed at, oldest first. Bounded the same way. */
+    playerPings: PlayerPing[];
     /** In the quick-match queue: waiting to be paired, not yet in a room.
      *  Lives here rather than in its own slice because the only thing it
      *  produces is a room, and it ends the moment `playerJoined` begins. */
@@ -47,24 +55,29 @@ export interface RoomSlice {
     setMatchOthersOnline: (others: number) => void;
     setPracticeTarget: (target: { ms: number; isPersonal: boolean } | null) => void;
     pushPlayerEmote: (emote: PlayerEmote) => void;
+    pushPlayerPing: (ping: PlayerPing) => void;
     /** Drops everything whose deadline has passed. Idempotent. */
     expirePlayerEmotes: (now: number) => void;
+    expirePlayerPings: (now: number) => void;
     updatePlayerHover: (id: string, row: number, col: number, name: string, color: string) => void;
     removePlayerHover: (id: string) => void;
     clearAllHovers: () => void;
     /** Separate from the hover clear: a board reset leaves reactions alone
      *  (they are about the moment, not the board), leaving the room does not. */
     clearPlayerEmotes: () => void;
+    clearPlayerPings: () => void;
 }
 
 export const createRoomSlice: StateCreator<MinesweeperState, [], [], RoomSlice> = (set) => ({
     room: '',
     playerJoined: false,
+    leftARoom: false,
     name: '',
     playerStatsInRoom: [],
     gameOverName: '',
     playerHovers: {},
     playerEmotes: [],
+    playerPings: [],
     matchSearching: false,
     matchOthersOnline: 0,
     practiceTargetMs: null,
@@ -73,7 +86,11 @@ export const createRoomSlice: StateCreator<MinesweeperState, [], [], RoomSlice> 
 
     setRoom: (newRoom) => set({ room: newRoom }),
     requestNewRoomCode: () => set((state) => ({ roomCreateNonce: state.roomCreateNonce + 1 })),
-    setPlayerJoined: (isPlayerJoined) => set({ playerJoined: isPlayerJoined }),
+    // Going false IS the leave: `leaveRoom` and the leave button are the only
+    // callers, and neither a reconnect nor a resume passes through here.
+    setPlayerJoined: (isPlayerJoined) => set(
+        isPlayerJoined ? { playerJoined: true } : { playerJoined: false, leftARoom: true },
+    ),
     setName: (newName) => set({ name: newName }),
     setPlayerStatsInRoom: (newStats) => set({ playerStatsInRoom: newStats }),
     setGameOverName: (gameOverName) => set({ gameOverName }),
@@ -94,12 +111,26 @@ export const createRoomSlice: StateCreator<MinesweeperState, [], [], RoomSlice> 
     pushPlayerEmote: (emote) =>
         set((state) => ({ playerEmotes: [...state.playerEmotes, emote].slice(-3) })),
 
+    /*
+     * Three, like the reactions, and for the same reason — but pings land ON
+     * the board, so an unbounded list is also a way to paper the grid with
+     * rings nobody can see through.
+     */
+    pushPlayerPing: (ping) =>
+        set((state) => ({ playerPings: [...state.playerPings, ping].slice(-3) })),
+
     expirePlayerEmotes: (now) =>
         set((state) => {
             const live = state.playerEmotes.filter((emote) => emote.expiresAt > now);
             // Same array when nothing expired, so a tick that changes nothing
             // does not re-render the feed.
             return live.length === state.playerEmotes.length ? {} : { playerEmotes: live };
+        }),
+
+    expirePlayerPings: (now) =>
+        set((state) => {
+            const live = state.playerPings.filter((ping) => ping.expiresAt > now);
+            return live.length === state.playerPings.length ? {} : { playerPings: live };
         }),
 
     updatePlayerHover: (id, row, col, name, color) =>
@@ -117,4 +148,6 @@ export const createRoomSlice: StateCreator<MinesweeperState, [], [], RoomSlice> 
     clearAllHovers: () => set({ playerHovers: {} }),
 
     clearPlayerEmotes: () => set({ playerEmotes: [] }),
+
+    clearPlayerPings: () => set({ playerPings: [] }),
 });

@@ -29,7 +29,11 @@ const mockOn = jest.fn();
 
 jest.mock('../utils/initializeClient', () => ({
     app: { use: jest.fn(), get: jest.fn(), post: jest.fn(), put: jest.fn(), delete: jest.fn() },
-    io: { on: mockOn, to: mockTo, use: jest.fn() },
+    // `sockets.sockets` is socket.io's live connection map, empty here for the
+    // same reason as in setup/mockInfra.js. Presence walks it on every connect
+    // (utils/presence.js); without it these suites boot the server against an
+    // `io` that socket.io could not produce, and log a caught failure per test.
+    io: { on: mockOn, to: mockTo, use: jest.fn() , sockets: { sockets: new Map() } },
     server: { listen: jest.fn() },
 }));
 

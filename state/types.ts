@@ -33,3 +33,18 @@ export interface PlayerEmote {
     emote: string;
     expiresAt: number;
 }
+
+/**
+ * A cell somebody pointed at. Shaped like PlayerEmote and expiring the same
+ * way, but it is not a reaction: it names a PLACE, which is why it is drawn on
+ * the board rather than in the feed and why the server refuses it in PVP.
+ */
+export interface PlayerPing {
+    key: string;
+    /** Sender's socket id — the ring takes the same colour as their cursor. */
+    id: string;
+    name: string;
+    row: number;
+    col: number;
+    expiresAt: number;
+}

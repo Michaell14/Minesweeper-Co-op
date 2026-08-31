@@ -14,11 +14,14 @@ import GameSummary from '@/components/game/GameSummary';
  * action row — so what is left here is only what differs between them.
  */
 export interface GameDialogsProps {
+    /** Threaded to every summary: the add-friend offer lives in it. */
+    addRoomFriend: (playerId: string) => void;
     /** Starts a fresh board. Same action as the side panel's Reset. */
     resetGame: () => void;
 }
 
-export default function GameDialogs({ resetGame }: GameDialogsProps) {
+export default function GameDialogs({ resetGame, addRoomFriend }: GameDialogsProps) {
+    const summaryProps = { addRoomFriend };
     const gameOverName = useMinesweeperStore((state) => state.gameOverName);
     const gameWon = useMinesweeperStore((state) => state.gameWon);
     const setPlayerJoined = useMinesweeperStore((state) => state.setPlayerJoined);
@@ -51,7 +54,7 @@ export default function GameDialogs({ resetGame }: GameDialogsProps) {
                 {!gameWon && (
                     <p><span className="underline decoration-2">{gameOverName}</span> hit a bomb.</p>
                 )}
-                <GameSummary />
+                <GameSummary {...summaryProps} />
             </Dialog>
 
             {/* Both room errors carry a way out. They used to be a bare title
@@ -136,7 +139,7 @@ export default function GameDialogs({ resetGame }: GameDialogsProps) {
                     <DialogClose intent="success" aria-label="Close dialog">Awesome!</DialogClose>
                 }>
                 <p>You completed your board first. You win!</p>
-                <GameSummary />
+                <GameSummary {...summaryProps} />
             </Dialog>
 
             <Dialog
@@ -145,7 +148,7 @@ export default function GameDialogs({ resetGame }: GameDialogsProps) {
                 alert
                 actions={<DialogClose aria-label="Close dialog">OK</DialogClose>}>
                 <p>Your opponent completed their board first.</p>
-                <GameSummary />
+                <GameSummary {...summaryProps} />
             </Dialog>
 
             <Dialog
@@ -156,7 +159,7 @@ export default function GameDialogs({ resetGame }: GameDialogsProps) {
                     <DialogClose intent="success" aria-label="Close dialog">Nice!</DialogClose>
                 }>
                 <p>Your opponent disconnected. You win by default!</p>
-                <GameSummary />
+                <GameSummary {...summaryProps} />
             </Dialog>
         </>
     );

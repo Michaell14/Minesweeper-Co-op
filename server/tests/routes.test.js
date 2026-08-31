@@ -81,14 +81,35 @@ describe('rate limits are fully specified', () => {
     const limited = ROUTES.filter((route) => route.rateLimit);
 
     test('the rate-limited routes are the ones that fan out on a client\'s say-so', () => {
-        expect(limited.map(eventOf).sort()).toEqual([CLIENT_EVENTS.CELL_HOVER, CLIENT_EVENTS.SEND_EMOTE].sort());
+        expect(limited.map(eventOf).sort()).toEqual(
+            [CLIENT_EVENTS.CELL_HOVER, CLIENT_EVENTS.SEND_EMOTE, CLIENT_EVENTS.PING_CELL].sort(),
+        );
+    });
+
+    /**
+     * The reason the assertion above is an equality rather than a containment.
+     *
+     * The three friend routes are room-scoped, client-driven and silent, which
+     * is the shape of thing that looks like it wants a bucket. It does not: an
+     * invite is bounded by its own per-pair cooldown, and the two roster routes
+     * answer only the socket that asked, so neither fans out. A bucket added
+     * here later should be a decision, not a copy-paste.
+     */
+    test('the room-scoped friend routes are deliberately not among them', () => {
+        const friendEvents = [
+            CLIENT_EVENTS.INVITE_FRIEND,
+            CLIENT_EVENTS.ROOM_FRIENDS,
+            CLIENT_EVENTS.ADD_ROOM_FRIEND,
+        ];
+        expect(limited.map(eventOf).filter((event) => friendEvents.includes(event))).toEqual([]);
     });
 
     /**
      * A bucket is keyed by CATEGORY, not by event — see domain/rateLimit.js.
-     * A second expressive event must reuse `expressionBucket`; giving it its
-     * own would let a client alternate the two and send at double the rate
-     * either was meant to allow.
+     * `pingCell` is the second expressive event, and reuses `expressionBucket`
+     * rather than taking one of its own; a bucket each would let a client
+     * alternate the two and send at double the rate either was meant to allow.
+     * That is what this pins.
      *
      * The rates come from the constants rather than being typed into the table,
      * so the limit has one definition and this catches a hand-typed number.
@@ -96,6 +117,7 @@ describe('rate limits are fully specified', () => {
     test.each([
         [CLIENT_EVENTS.CELL_HOVER, 'hoverBucket', HOVER_BURST, HOVER_PER_SECOND],
         [CLIENT_EVENTS.SEND_EMOTE, 'expressionBucket', EXPRESSION_BURST, EXPRESSION_PER_SECOND],
+        [CLIENT_EVENTS.PING_CELL, 'expressionBucket', EXPRESSION_BURST, EXPRESSION_PER_SECOND],
     ])('%s draws on %s at the rate its category defines', (event, key, burst, perSecond) => {
         const { rateLimit } = ROUTES.find((route) => route.event === event);
         expect(rateLimit).toEqual({ key, burst, perSecond });

@@ -72,6 +72,47 @@ describe("the tray", () => {
     });
 });
 
+describe("the ping button", () => {
+    afterEach(() => {
+        useMinesweeperStore.getState().setPingArmed(false);
+        useMinesweeperStore.getState().setMode("co-op");
+    });
+
+    it("arms a ping, and says so", () => {
+        render(<EmoteBar sendEmote={vi.fn()} />);
+
+        fireEvent.click(screen.getByRole("button", { name: "Ping a cell" }));
+
+        expect(useMinesweeperStore.getState().pingArmed).toBe(true);
+        // The name moves with the state: a toggle whose label never changes
+        // reads as a dead button to anyone not looking at the colour.
+        const armed = screen.getByRole("button", { name: "Cancel ping" });
+        expect(armed.getAttribute("aria-pressed")).toBe("true");
+    });
+
+    it("disarms when pressed again", () => {
+        render(<EmoteBar sendEmote={vi.fn()} />);
+
+        fireEvent.click(screen.getByRole("button", { name: "Ping a cell" }));
+        fireEvent.click(screen.getByRole("button", { name: "Cancel ping" }));
+
+        expect(useMinesweeperStore.getState().pingArmed).toBe(false);
+    });
+
+    /*
+     * Both racers play the same board, so the server refuses a ping in PVP —
+     * offering the control there would be offering one that does nothing.
+     * The reactions stay, because an emote carries no board information.
+     */
+    it("is not offered in a race, though the reactions are", () => {
+        act(() => useMinesweeperStore.getState().setMode("pvp"));
+        render(<EmoteBar sendEmote={vi.fn()} />);
+
+        expect(screen.queryByRole("button", { name: "Ping a cell" })).toBeNull();
+        expect(screen.getByRole("button", { name: "Nice" })).toBeTruthy();
+    });
+});
+
 describe("the feed", () => {
     it("shows who reacted", () => {
         render(<EmoteBar sendEmote={vi.fn()} />);

@@ -118,6 +118,19 @@ export interface ClientToServerEvents {
     emitConfetti: (payload: RoomPayload) => void;
     /** `emote` is an id from shared/emotes.js — never free text. */
     sendEmote: (payload: { room: string; emote: string }) => void;
+    /** "Look at this cell". Co-op only — the server suppresses it in PVP. */
+    pingCell: (payload: CellPayload) => void;
+    /** Ask a friend to join the room this socket is in. */
+    inviteFriend: (payload: { friendId: string; room: string }) => void;
+    /**
+     * Who in this room could be added as a friend.
+     *
+     * `token` is the client's own counter, echoed back untouched on the reply
+     * so it can drop a list one of its later requests has superseded.
+     */
+    roomFriends: (payload: { room: string; token: number }) => void;
+    /** `playerId` is the co-player's SOCKET id — account ids never leave the server. */
+    addRoomFriend: (payload: { room: string; playerId: string; token: number }) => void;
     resetGame: (payload: RoomPayload) => void;
 
     startPvpGame: (payload: RoomPayload) => void;
@@ -204,7 +217,61 @@ export interface ServerToClientEvents {
      * unlike hover: the sender should see the same artefact at the same
      * moment as the room, which is what confetti already does.
      */
-    playerEmote: (payload: { id: string; name: string; emote: string }) => void;
+    // `room` is optional only for deploy skew — see belongsToCurrentRoom.
+    playerEmote: (payload: { id: string; name: string; emote: string; room?: string }) => void;
+    /**
+     * Somebody pointed at a cell. Co-op only, for the same reason hover is:
+     * PVP racers play the SAME board, so a ping is a move hint.
+     *
+     * `room` rides along on both of these so the receiver can tell WHICH board
+     * the cell belongs to. A relay already in flight when its recipient leaves
+     * is still delivered, and without the room there is nothing to tell it
+     * apart from one belonging to the room they joined next — see the handlers
+     * in useGameEvents.
+     */
+    // `room` is optional only for deploy skew — see belongsToCurrentRoom.
+    playerPing: (payload: { id: string; name: string; row: number; col: number; room?: string }) => void;
+
+    // --- Friends ---
+    /** Which friends were already here, sent to a socket as it arrives. */
+    friendsOnline: (payload: { ids: string[] }) => void;
+    /** One friend came or went. A delta — see server/utils/presence.js. */
+    friendPresence: (payload: { id: string; online: boolean }) => void;
+    /** A friend asked you into their room. */
+    friendInvite: (payload: {
+        fromId: string;
+        fromName: string;
+        fromAvatar: string | null;
+        room: string;
+        mode: GameMode;
+    }) => void;
+    /**
+     * The signed-in players in this room, to the ASKER alone — so "me" is
+     * excluded server-side and a guest is told nothing at all.
+     *
+     * The whole list is re-sent after every add rather than a per-player
+     * result, so the client never merges two sources of truth about the same
+     * relationship.
+     */
+    roomFriendsUpdate: (payload: {
+        /**
+         * The room this list describes, and the request that asked for it.
+         *
+         * Present because these emits are ordered by when their server-side
+         * work finishes rather than by when they were asked for, so an older
+         * list can arrive after a newer one — from a room since left, or from
+         * before an add already made. The client drops both.
+         */
+        room: string;
+        token: number;
+        players: {
+            /** SOCKET id. The account id is never sent. */
+            id: string;
+            name: string;
+            avatar: string | null;
+            status: 'none' | 'requested' | 'incoming' | 'friends';
+        }[];
+    }) => void;
     /** Co-op only; the server suppresses hover in PVP. */
     playerHoverUpdate: (payload: { id: string; row: number; col: number; name: string }) => void;
     /**

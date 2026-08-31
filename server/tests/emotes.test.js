@@ -18,7 +18,11 @@ const mockOn = jest.fn();
 
 jest.mock('../utils/initializeClient', () => ({
     app: { use: jest.fn(), get: jest.fn(), post: jest.fn(), put: jest.fn(), delete: jest.fn() },
-    io: { on: mockOn, to: mockTo, use: jest.fn() },
+    // `sockets.sockets` is socket.io's live connection map, empty here for the
+    // same reason as in setup/mockInfra.js. Presence walks it on every connect
+    // (utils/presence.js); without it these suites boot the server against an
+    // `io` that socket.io could not produce, and log a caught failure per test.
+    io: { on: mockOn, to: mockTo, use: jest.fn() , sockets: { sockets: new Map() } },
     server: { listen: jest.fn() },
 }));
 
@@ -90,7 +94,7 @@ describe('a valid emote', () => {
         // io.to, not socket.to: everyone's copy of the feed should agree, and
         // the sender seeing their own is what confetti already does.
         expect(mockTo).toHaveBeenCalledWith(ROOM);
-        expect(emotesSent()).toEqual([{ id: ALICE, name: 'Alice', emote: 'nice' }]);
+        expect(emotesSent()).toEqual([{ id: ALICE, name: 'Alice', emote: 'nice', room: ROOM }]);
     });
 
     test('carries the stored name, not one the client supplied', async () => {
@@ -206,6 +210,6 @@ describe('the rate limit', () => {
 
         await bobEmote({ room: ROOM, emote: 'wave' });
 
-        expect(emotesSent()).toEqual([{ id: 'sock-bob', name: 'Bob', emote: 'wave' }]);
+        expect(emotesSent()).toEqual([{ id: 'sock-bob', name: 'Bob', emote: 'wave', room: ROOM }]);
     });
 });

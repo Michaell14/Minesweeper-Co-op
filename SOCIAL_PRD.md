@@ -1,6 +1,6 @@
 # PRD: Social — Emotes, Pings & Friends
 
-**Status:** Phase 1 (emotes) done 2026-08-21 · Phases 2–5 proposed · **Owner:** Michael · **Created:** 2026-08-21
+**Status:** All five phases done 2026-08-22 · landed on `main` 2026-08-31 · **Owner:** Michael · **Created:** 2026-08-21
 
 A living document, same contract as `USER_PROFILES_PRD.md`: each phase has a
 checklist; check items off as they land and update the phase status line. The
@@ -47,6 +47,7 @@ that.
 | Rate limiting | **One shared token bucket for emotes + pings** | Separate buckets would let a client alternate the two and send at double the intended rate. Reuses `server/domain/rateLimit.js`. |
 | Adding a friend | **By friend code, plus "players from your last game"** | Not by display-name search. Names are not unique and `USER_PROFILES_PRD.md` deliberately deleted name-uniqueness and public profiles; name search would reintroduce both, plus enumeration and harassment. |
 | Friend graph shape | **Mutual, both sides accept** | Not follows. A one-way edge that can invite you into a room is a spam primitive. |
+| Blocks | **Invisible to the blocked, listed for the blocker** | Amended in Phase 3. A block placed ON you answers exactly like an unknown code; one you placed is listed so you can lift it, since otherwise blocking is a one-way door. |
 | Presence | **Derived from live sockets, never stored** | Same scan pattern as `utils/statsRecorder.js`; nothing to prune on disconnect. |
 | Invites | **Only from accepted friends, rate-limited per pair** | This is the whole anti-spam design; there is no other inbound channel to a stranger. |
 | Friend data on game paths | **Best-effort, like every other Postgres write** | A database outage must not slow or break a game. Only the friends UI itself may fail visibly. |
@@ -227,8 +228,10 @@ and OAuth steps outstanding from `USER_PROFILES_PRD.md` are still pending.
 - [x] `isValidEmoteId` in `server/validation.js`.
 - [x] Shared expression bucket in `server/domain/rateLimit.js` (1/s sustained,
       burst 3) on `socket.data.expressionBucket`.
-- [x] Handler in `server.js` mirroring `cellHover`: bucket → validate →
-      membership inline → name → `io.to(room)`. Silent drops throughout.
+- [x] Handler mirroring `cellHover`: bucket → validate → membership → name →
+      `io.to(room)`. Silent drops throughout. Landed in `server.js`; moved to
+      `server/routes/social.js` when #153 made the protocol a table, where the
+      first four steps are now the row rather than the handler.
 - [x] Client: tray under the board, mounted once for both layouts; a feed of
       the last three reactions above it; polite live-region announcement.
 - [x] `settings.emotes` (receive) in `lib/settings.ts` + `/settings` toggle +
@@ -246,48 +249,144 @@ on `ScoreTable` (see §4.1). And the chip's lifetime cannot be a
 asked for *no motion*. It is a plain timer in `lib/emotes.ts`, with the
 float-and-fade layered on top as the part that may be zeroed.
 
-### Phase 2 — Board pings
+### Phase 2 — Board pings ✔ Done 2026-08-22
 
-- [ ] Verify Alt/Option+click collides with nothing in `Cell.tsx`, chording, or
-      `swapMouseButtons`, and pick the touch and keyboard bindings.
-- [ ] `PING_CELL` + `PLAYER_PING` events, all four places.
-- [ ] Handler reusing `isValidHoverCoordinate` and the Phase 1 bucket, with the
-      **`mode === 'pvp'` early return** and a test that asserts it.
-- [ ] `PingLayer` beside `CursorLayer`, sharing `useCellMetrics`; ring + name,
-      ~2s, token-driven; announced in the live region.
-- [ ] Tests: PVP suppression, coordinate bounds, shared-bucket exhaustion
-      across both event types.
+- [x] Bindings verified and chosen — **Shift+click** on desktop, a one-shot
+      **arm** from the tray for touch, **P** on the keyboard cursor's cell.
+      *Alt was rejected*: free in this codebase, but Linux window managers
+      commonly grab Alt+click to move a window, so the page may never see it.
+      Ctrl is the macOS secondary click, which is already the flag. A keyboard
+      modifier was never available — `useKeyboardControls` drops every
+      keystroke carrying Ctrl, Meta or Alt.
+- [x] `PING_CELL` + `PLAYER_PING` events, all four places.
+- [x] Handler on the Phase 1 bucket with the **`mode === 'pvp'` early return**,
+      and a test that fails without it — re-checked by deleting the guard after
+      the port, which fails two cases. Validates with `isValidCoordinate`, not
+      `isValidHoverCoordinate` — the `-1,-1` clear is hover's, and a ping has no
+      such state. Now `social.ping` in `server/routes/social.js`, one row in the
+      table, sharing `expressionBucket` with `sendEmote` by declaration rather
+      than by both handlers remembering to.
+- [x] `PingLayer` beside `CursorLayer`, sharing `useCellMetrics`; ring + name in
+      the sender's cursor colour, ~2s, token-driven, announced in its own live
+      region.
+- [x] Tests: 14 server (PVP suppression beside the emote that is allowed from
+      the same room, coordinate bounds, the bucket shared across both events),
+      22 client (interception across all four of Cell's branches, the hotkey,
+      the arm's one-shot disarm, ring expiry, announcement wording), and the
+      smoke scenario extended.
 
-### Phase 3 — Friend graph
+**The interception is on the grid, not in `Cell`.** Cell has four render
+branches acting from four different handlers, so a modifier check per branch is
+four chances to miss one — and a missed branch means a ping that opens the cell
+it points at. One capture listener on the grid sits ahead of all of them, reads
+`data-row`/`data-col`, and hooks **mousedown** because the opened-cell branch
+acts on mouse up.
 
-- [ ] Migrations: `users.friend_code`, `friendships`.
-- [ ] `server/data/friendsRepo.js` — request, accept, decline, block, remove,
+**One bug worth recording.** The mouseup and click that follow were swallowed by
+re-asking "is a ping armed?" — but the arm is one-shot and clears the moment the
+ping is sent, so by mouseup the answer had changed: the ping fired *and* the cell
+opened under it. The tail of the gesture now runs off a latch. The smoke suite
+caught it; the unit test had not, because its mock `pingCell` never disarmed
+anything the way the real action does. That mock now disarms, and the test fails
+without the latch.
+
+### Phase 3 — Friend graph ✔ Done 2026-08-22
+
+- [x] Migrations: `users.friend_code`, `friendships`. Run up against a real
+      Postgres 14, along with every migration before them.
+- [x] `server/data/friendsRepo.js` — request, accept, decline, block, remove,
       list-with-caps. Direction-preserving, cap-enforcing.
-- [ ] `server/controllers/friendsController.js` — the four routes under
+- [x] `server/controllers/friendsController.js` — the four routes under
       `requireUser`.
-- [ ] `lib/friendsApi.ts` + a Friends panel on `/profile` beside
-      `AchievementsPanel`, showing avatars from `shared/avatars.js`.
-- [ ] Friend code shown on `/profile` with copy-to-clipboard.
-- [ ] Tests: repo cap and duplicate/reciprocal-request behaviour, block
-      semantics, route auth, panel rendering.
+- [x] `lib/friendsApi.ts` + a Friends panel on `/profile`. It fetches its own
+      graph rather than riding the profile payload: friends fail independently,
+      and folding them together would make a friends outage look like a broken
+      profile.
+- [x] Friend code shown on `/profile` with copy-to-clipboard.
+- [x] Tests: 63 server (the pure code module, repo semantics, routes) and 15
+      client, plus a live harness driving the real SQL against real Postgres —
+      constraints, cascade, and both sides of a block.
 
-### Phase 4 — Presence & invites
+**Three things this phase settled.**
 
-- [ ] Presence resolution on connect/disconnect via the `io.sockets` scan;
-      **no `user:<id>` rooms**.
-- [ ] `FRIEND_PRESENCE` push to a user's friends' live sockets.
-- [ ] `INVITE_FRIEND` / `FRIEND_INVITE` events with friendship + room-capacity
-      checks and a per-pair cooldown.
-- [ ] Invite toast with Join, reusing the achievement toast's presentation.
-- [ ] "Invite a friend" entry point in `RoomPanel`, signed-in only.
-- [ ] Tests: invite refused for non-friends, for blocks, for a full or missing
-      room, and past the cooldown.
+The friend-code rule could not live in `validation.js`. That file sits BELOW
+`domain/` in the enforced layer order, so it cannot re-export the shape check
+the way it re-exports `isValidBoardConfig` from `shared/` — `shared/` is exempt
+from the layering test and `domain/` is not. Splitting the pattern from the
+alphabet to satisfy the import direction would have left two copies of the same
+32 symbols to drift apart, so the rule lives beside the alphabet in
+`domain/friendCode.js`. `tests/layering.test.js` caught the first attempt.
 
-### Phase 5 — Recent players (optional)
+The route id is the OTHER ACCOUNT's, not the friendship row's. The client
+already knows who it is acting on, and a row id is a handle it has no other
+reason to hold.
 
-- [ ] Offer "add friend" for signed-in players you just finished a game with,
-      from the game summary — the lowest-friction path onto the graph, and the
-      one that decides whether Phase 3 gets used at all.
+**Blocks had to become visible to the blocker**, which this PRD had wrong. §2
+said a block is "a thing you do, not a list you maintain" and `listGraph`
+returned none. That makes blocking a one-way door: their code simply stops
+working, with nothing on screen to explain it or lift it. Blocks you PLACED are
+now listed and only you can lift them; a block placed ON you is still invisible
+and still answers exactly like a code nobody holds, which is the half that
+actually protects anybody.
+
+### Phase 4 — Presence & invites ✔ Done 2026-08-22
+
+- [x] Presence on connect/disconnect via the `io.sockets` scan, in
+      `server/utils/presence.js`; **no `user:<id>` rooms**. `statsRecorder`
+      imports the scan rather than keeping its own copy.
+- [x] `FRIENDS_ONLINE` snapshot to an arriving socket, `FRIEND_PRESENCE` delta
+      to its online friends. Two events, because a client that just connected
+      has no prior state to apply a delta to, while recomputing every
+      recipient's whole list would be one query per friend per connect.
+- [x] `INVITE_FRIEND` / `FRIEND_INVITE` with friendship, sender-in-room,
+      capacity and a per-pair cooldown. All refusals silent.
+- [x] Invite toast with Join, mounted in the layout beside `AchievementToast`.
+- [x] "Invite a friend" entry point in `RoomPanel`, signed-in only.
+- [x] Tests: 25 server (presence including the two-tab case and the guest cost,
+      every invite refusal, the cooldown in both directions), 22 client.
+
+**Three things this phase settled.**
+
+*A second tab must not look like leaving.* A player with the game open twice
+closing one would otherwise wink out for their friends while still playing, so
+a departure is announced only when the disconnecting socket is the account's
+LAST — and an arrival only when it is the first.
+
+*Guests must cost nothing.* Presence runs on every connect, so a query per
+anonymous socket is a query per visitor. `onConnect` returns before touching
+Postgres when the socket has no account.
+
+*Accepting an invite is a NAVIGATION*, not a socket call. The `?room=` join
+flow already fills the code, prompts for a name and copes with a room that
+filled up; a join emitted from the toast would be a second, worse copy of all
+of it — and the invited player may be mid-game somewhere else, which that flow
+already handles and this one would not.
+
+The invite dialog is mounted ONCE by `Grid`, not by `RoomPanel`: the panel
+renders in both layout clusters, and two `<dialog>` elements sharing an id is
+one `openDialog` away from opening the wrong one.
+
+### Phase 5 — Recent players ✔ Done 2026-08-22
+
+- [x] Offer "add friend" for signed-in players you just finished a game with,
+      from the game summary — both modes, since a quick match pairs strangers
+      and that is the case this exists for.
+- [x] Tests: 20 server (the list's four filters, both membership checks, every
+      status), 8 client.
+
+**Account ids never leave the server**, which is the decision the whole phase
+turns on. The client names a co-player by SOCKET id — something it already sees
+on every hover, reaction and ping — and the server resolves the account only
+after checking BOTH sockets are in the room. The obvious alternative, putting
+account ids in the room roster, would hand every player in a room a permanent
+handle for everybody else, which is exactly what §2's code-only rule exists to
+prevent.
+
+Two consequences worth knowing. The account is resolved from the LIVE socket,
+so somebody who closed their tab as the race ended is not offered at all —
+honest, rather than a button that silently does nothing. And every add answers
+by re-sending the whole list rather than a per-player result, so the client
+never holds two sources of truth about one relationship.
 
 ## 8. Risks & open questions
 
@@ -309,5 +408,11 @@ float-and-fade layered on top as the part that may be zeroed.
 
 | Date | Change |
 |---|---|
+| 2026-08-31 | **Landed on `main`.** Phases 2-5 had been merged into feature branches rather than the trunk, so all of the above was finished and unshipped for nine days while `main` moved 51 commits — including #153, which turned the socket protocol into a table and rewrote the file these handlers were written against. Ported rather than merged: `pingCell` is now `social.ping` beside `hover`, and the three room-scoped friend routes are `routes/friends.js`, each a row declaring its own `validate` and `ROOM_MEMBER_SILENT` — the guard that was inline membership plus a silent drop in every one of them. The shared expression bucket is now a declaration two rows apart rather than a comment asking each handler to remember. `playerEmote` and `playerPing` keep the `room` field the client's `belongsToCurrentRoom` needs. 1417 server + 1658 client tests, lint, tsc, build and 127 smoke assertions green, and CI gained a `base-branch` job so a PR aimed anywhere but `main` fails in five seconds. |
 | 2026-08-21 | PRD drafted. Decisions in §2 proposed, none confirmed; §8 carries three open questions (per-player mute, ping binding, friends leaderboard). |
+| 2026-08-22 | Manager review fixes, all three about work that is cheap once and expensive when multiplied. The add-friend list was asked for by the component that draws it — mounted once per summary dialog, and dialogs here are always rendered, so it fired FOUR times on room join rather than once at game end (measured); the ask moved to where the summary opens. `sendRoomFriends` was an edge query per player over an unbounded co-op room; it batches through a new `friendsRepo.findEdges`, verified against real Postgres to agree with the `findEdge` it replaced. Presence scanned the whole socket map per friend per connect; it indexes once per call. Each fix has a test that fails without it, including a walk-counter that keeps presence from silently regressing. |
+| 2026-08-22 | Phase 5 complete, and with it the PRD: the add-friend offer in the game summary, addressed by socket id so account ids never reach a client, filtered server-side for guests, blocks and departed sockets. 1263 server + 1445 client tests, lint, tsc, build and the guest smoke suite green. Same caveat as Phases 3–4: nothing signed-in has been exercised in a browser, because OAuth remains outstanding from USER_PROFILES_PRD.md. |
+| 2026-08-22 | Phase 4 complete: presence derived from the live socket map (never stored, never a `user:<id>` room), a snapshot on connect and deltas to online friends, invites gated on friendship + sender-in-room + capacity + a per-pair cooldown with every refusal silent, an invite toast whose Join is a link into the existing `?room=` flow, and a signed-in-only entry point in RoomPanel. 1229 server + 1437 client tests, lint, tsc, build and the guest smoke suite green. NOT verified in a browser: presence and invites both need two signed-in accounts, and OAuth is still one of the two manual steps outstanding from USER_PROFILES_PRD.md. |
+| 2026-08-22 | Phase 3 complete: `friendCode` domain module (32 symbols, no O/0/I/1), two migrations, `friendsRepo` with both caps and the reciprocal-accept rule, four routes under `requireUser`, and a Friends panel that fetches its own graph. 1192 server + 1412 client tests, lint, tsc and build green. Verified against a REAL Postgres 14 in a throwaway cluster: every migration up, then the actual repo SQL — code minting and its race, reciprocal accept landing one row rather than two, the graph from both sides, block semantics in both directions, the three table constraints, and the delete cascade. Two corrections recorded in the phase: the validation rule cannot live in `validation.js` (layering), and blocks must be visible to the blocker. |
+| 2026-08-22 | Phase 2 complete: `pingCell`/`playerPing` on the shared expression bucket, suppressed in PVP with a test that fails without the guard; grid-level capture interception across all four of Cell's render branches; `PingLayer` rings in the sender's cursor colour; three input paths (Shift+click, tray arm, P). Alt rejected as a binding — Linux window managers grab it. 1114 server + 1396 client tests, lint, tsc and the smoke suite green; verified live in a real browser that the pinged cell is NOT opened by the click that pinged it. Two bugs found by the browser and not the unit tests: the one-shot disarm racing the tail of its own gesture, and this layer's live region shadowing the keyboard cursor's (both now addressed by explicit markers rather than DOM order). |
 | 2026-08-21 | Phase 1 complete: six-glyph catalog in `shared/`, token-painted art on `/ds`, the `sendEmote`/`playerEmote` pair through all four places, an expression bucket shared with whatever Phase 2 adds, tray + three-chip feed mounted once under the board, `settings.emotes` as a receive-only opt-out, and a synthesised blip. 1044 server + 1292 client tests, lint, tsc, production build and the full ui-smoke suite green — the new EMOTES scenario exchanges a reaction between two real browsers and watches it expire. Verified live in the browser: one tray in the DOM, all six glyphs resolve their tokens on default, Game Boy, C64 and every seasonal palette, and the live region carries "Emoter: Nice". Corrected two draft assumptions (see the phase). |

@@ -29,6 +29,10 @@ const CLIENT_EVENTS = Object.freeze({
     TOGGLE_FLAG: 'toggleFlag',
     EMIT_CONFETTI: 'emitConfetti',
     SEND_EMOTE: 'sendEmote',
+    PING_CELL: 'pingCell',
+    INVITE_FRIEND: 'inviteFriend',
+    ROOM_FRIENDS: 'roomFriends',
+    ADD_ROOM_FRIEND: 'addRoomFriend',
     CELL_HOVER: 'cellHover',
     RESET_GAME: 'resetGame',
     START_PVP_GAME: 'startPvpGame',
@@ -72,6 +76,14 @@ const SERVER_EVENTS = Object.freeze({
     // Presence and fun
     RECEIVE_CONFETTI: 'receiveConfetti',
     PLAYER_EMOTE: 'playerEmote',
+    PLAYER_PING: 'playerPing',
+
+    // Friends. Not room-scoped: a friend's presence and an invitation to a
+    // room you are NOT in are both about the account, not the game.
+    FRIENDS_ONLINE: 'friendsOnline',
+    FRIEND_PRESENCE: 'friendPresence',
+    FRIEND_INVITE: 'friendInvite',
+    ROOM_FRIENDS_UPDATE: 'roomFriendsUpdate',
     PLAYER_HOVER_UPDATE: 'playerHoverUpdate',
     GAME_CLOCK: 'gameClock',
     SESSION_RESUME: 'sessionResume',

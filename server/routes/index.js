@@ -39,6 +39,8 @@ const {
     isValidCoordinate,
     isValidHoverCoordinate,
     isValidEmoteId,
+    isValidUserId,
+    isValidRequestToken,
     isValidDailyToken,
     isValidDailyDate,
 } = require('../validation');
@@ -48,6 +50,7 @@ const { registerRoutes } = require('./register');
 const room = require('./room');
 const cells = require('./cells');
 const social = require('./social');
+const friends = require('./friends');
 const pvp = require('./pvp');
 const daily = require('./daily');
 const match = require('./match');
@@ -100,10 +103,14 @@ const ROUTES = [
     /*
      * --- Expression: rate-limited, and refused in silence ---
      *
-     * The only two routes a client sends unprompted and that fan out to the
-     * room. Both take the SILENT guard: answering a refused hover with an error
-     * would hand a flooding client an amplifier, and evicting the sender would
-     * end a live game over a cosmetic message.
+     * The three routes a client sends unprompted and that fan out to the room.
+     * All take the SILENT guard: answering a refused hover with an error would
+     * hand a flooding client an amplifier, and evicting the sender would end a
+     * live game over a cosmetic message.
+     *
+     * Two of them share ONE bucket. The bucket is keyed by CATEGORY rather than
+     * by event precisely so that adding a third expressive message cannot widen
+     * the limit — see domain/rateLimit.js.
      */
     {
         event: CLIENT_EVENTS.SEND_EMOTE,
@@ -113,12 +120,55 @@ const ROUTES = [
         handler: social.emote,
     },
     {
+        event: CLIENT_EVENTS.PING_CELL,
+        // The SAME bucket as sendEmote, deliberately. Expression is rate
+        // limited as a category: a client handed one bucket per event could
+        // alternate the two and send at double the rate either allows.
+        rateLimit: { key: 'expressionBucket', burst: EXPRESSION_BURST, perSecond: EXPRESSION_PER_SECOND },
+        // A real cell, unlike hover: there is no (-1,-1) clear to accept. The
+        // handler then bounds it against this room's own board.
+        validate: roomAndCell,
+        guard: GUARDS.ROOM_MEMBER_SILENT,
+        handler: social.ping,
+    },
+    {
         event: CLIENT_EVENTS.CELL_HOVER,
         rateLimit: { key: 'hoverBucket', burst: HOVER_BURST, perSecond: HOVER_PER_SECOND },
         // row/col of -1 means "no hover", which isValidCoordinate refuses.
         validate: ({ room: code, row, col }) => isValidRoomCode(code) && isValidHoverCoordinate(row, col),
         guard: GUARDS.ROOM_MEMBER_SILENT,
         handler: social.hover,
+    },
+
+    /*
+     * --- Friends, in a room: silent, and never rate-limited here ---
+     *
+     * The graph's own surface is REST (`/api/friends`). These three are the
+     * room-scoped half, and take the SILENT guard for a different reason than
+     * the expression routes above: not flood control, but that a refusal must
+     * not be distinguishable from "they blocked you". See routes/friends.js.
+     *
+     * No bucket: an invite is bounded by its own per-pair cooldown, and the two
+     * roster routes answer only the socket that asked.
+     */
+    {
+        event: CLIENT_EVENTS.INVITE_FRIEND,
+        validate: ({ room: code, friendId }) => isValidRoomCode(code) && isValidUserId(friendId),
+        guard: GUARDS.ROOM_MEMBER_SILENT,
+        handler: friends.invite,
+    },
+    {
+        event: CLIENT_EVENTS.ROOM_FRIENDS,
+        validate: ({ room: code, token }) => isValidRoomCode(code) && isValidRequestToken(token),
+        guard: GUARDS.ROOM_MEMBER_SILENT,
+        handler: friends.list,
+    },
+    {
+        event: CLIENT_EVENTS.ADD_ROOM_FRIEND,
+        validate: ({ room: code, playerId, token }) =>
+            isValidRoomCode(code) && isValidRequestToken(token) && typeof playerId === 'string' && playerId.length > 0,
+        guard: GUARDS.ROOM_MEMBER_SILENT,
+        handler: friends.add,
     },
 
     // --- PVP lifecycle ---

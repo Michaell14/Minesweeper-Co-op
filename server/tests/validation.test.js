@@ -16,6 +16,7 @@ const {
     isValidBoardConfig,
     isValidCoordinate,
     isValidHoverCoordinate,
+    isCoordinateOnBoard,
     isValidEmoteId,
     isPlayerInRoom,
     isValidBestImport,
@@ -162,6 +163,36 @@ describe('isValidHoverCoordinate', () => {
     ])('rejects %s', (_label, row, col) =>
         expect(isValidHoverCoordinate(row, col)).toBe(false)
     );
+});
+
+describe('isCoordinateOnBoard', () => {
+    // Redis hands every field back as a string.
+    const room = { numRows: '9', numCols: '9' };
+
+    test.each([
+        ['the first cell', 0, 0],
+        ['the last cell', 8, 8],
+        ['somewhere inside', 4, 7],
+    ])('accepts %s', (_label, row, col) => expect(isCoordinateOnBoard(room, row, col)).toBe(true));
+
+    /*
+     * The bound is EXCLUSIVE: a 9x9 board's rows are 0..8, so row 9 is the
+     * first one past the end rather than the last one on it.
+     */
+    test.each([
+        ['one row past the end', 9, 0],
+        ['one column past the end', 0, 9],
+        ['a negative row', -1, 0],
+        ['the hover clear sentinel', -1, -1],
+    ])('rejects %s', (_label, row, col) => expect(isCoordinateOnBoard(room, row, col)).toBe(false));
+
+    // No dimensions means nothing to bound against, which must refuse rather
+    // than fall through to the global cap.
+    test.each([
+        ['a room with no dimensions', {}],
+        ['a missing room', undefined],
+        ['non-numeric dimensions', { numRows: 'lots', numCols: '9' }],
+    ])('rejects %s', (_label, state) => expect(isCoordinateOnBoard(state, 0, 0)).toBe(false));
 });
 
 describe('isValidEmoteId', () => {

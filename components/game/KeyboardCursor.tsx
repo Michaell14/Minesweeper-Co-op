@@ -56,7 +56,10 @@ export default function KeyboardCursor({ boardRef }: KeyboardCursorProps) {
                     }}
                 />
             )}
-            <div className="sr-only" role="status" aria-live="polite">
+            {/* Marked, not found by position: the board carries a second
+                polite region for pings, and picking by DOM order makes
+                whichever layer mounts first the one that answers. */}
+            <div className="sr-only" role="status" aria-live="polite" data-kb-announcer>
                 {cell !== undefined && kbCursor !== null
                     ? cellAriaLabel(cell, kbCursor.r, kbCursor.c, minesRevealed)
                     : null}

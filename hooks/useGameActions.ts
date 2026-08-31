@@ -125,9 +125,19 @@ export function useGameActions(socket: AppSocket | null) {
         // looking at the landing page would otherwise show their record for a
         // board you were about to play alone.
         store.setPlayerStatsInRoom([]);
+        // Co-players belong to the room being left just as the roster does,
+        // and an in-flight list for it may still be on its way back. That list
+        // is retired with them, so rejoining this same room does not inherit
+        // the last visit's players.
+        store.resetRoomFriends();
         store.setBoardConfig(DEFAULT_SIZE, DEFAULT_DIFFICULTY);
         store.clearAllHovers();
         store.clearPlayerEmotes();
+        store.clearPlayerPings();
+        // The rendered pings belong to the room; so does the ARM. A one-shot
+        // left standing is spent on the first cell of the next room, which
+        // pings it instead of opening it.
+        store.setPingArmed(false);
         store.resetPvpState(); // also resets gameOver/gameWon
         store.setMode("co-op");
         // The clock is the record of the run THIS browser played, and
@@ -272,6 +282,74 @@ export function useGameActions(socket: AppSocket | null) {
         [socket]
     );
 
+    /**
+     * Point at a cell for everyone in the room.
+     *
+     * Disarms first, and unconditionally: the arm is one-shot, so it must clear
+     * even on a click the guards below drop — otherwise a ping sent while
+     * disconnected leaves the board silently in a mode where the next click
+     * does not play the cell.
+     *
+     * No `settings.emotes` check, same as sending a reaction: that setting
+     * governs what reaches YOUR screen.
+     */
+    const pingCell = useCallback(
+        (row: number, col: number) => {
+            const { room, playerJoined, mode, setPingArmed } = useMinesweeperStore.getState();
+            setPingArmed(false);
+            if (!socket || !room || !playerJoined) return;
+            // The server refuses this in PVP anyway; not emitting keeps a
+            // racer's pointless click off the wire and out of their bucket.
+            if (mode === 'pvp') return;
+            socket.emit(CLIENT_EVENTS.PING_CELL, { room, row, col });
+        },
+        [socket]
+    );
+
+    /**
+     * Ask a friend into the room this player is in.
+     *
+     * Every real check is the SERVER's — friendship, the room being one this
+     * socket is in, capacity, the per-pair cooldown — because each of them is
+     * about state the client either cannot see or should not be trusted about.
+     * The two here are the ones that would otherwise send a message that could
+     * not possibly mean anything.
+     */
+    const inviteFriend = useCallback(
+        (friendId: string) => {
+            const { room, playerJoined } = useMinesweeperStore.getState();
+            if (!socket || !room || !playerJoined) return;
+            socket.emit(CLIENT_EVENTS.INVITE_FRIEND, { friendId, room });
+        },
+        [socket]
+    );
+
+    /**
+     * Add somebody from the room just played.
+     *
+     * The co-player is addressed by SOCKET id — the same id every hover and
+     * reaction already carries. Account ids never reach the client, so this is
+     * the only handle there is, and the server turns it back into an account
+     * only after checking both sockets are in the room.
+     *
+     * Asking for the LIST is not here: it happens where the summary opens
+     * (hooks/useGameEvents.ts), so it fires once per game rather than once per
+     * mounted summary dialog.
+     */
+    const addRoomFriend = useCallback(
+        (playerId: string) => {
+            const store = useMinesweeperStore.getState();
+            const { room, playerJoined } = store;
+            if (!socket || !room || !playerJoined) return;
+            socket.emit(CLIENT_EVENTS.ADD_ROOM_FRIEND, {
+                room,
+                playerId,
+                token: store.nextRoomFriendsToken(),
+            });
+        },
+        [socket]
+    );
+
     const emitCellHover = useCallback(
         (row: number, col: number) => {
             const { room, playerJoined, settings } = useMinesweeperStore.getState();
@@ -404,6 +482,9 @@ export function useGameActions(socket: AppSocket | null) {
         resetGame,
         emitConfetti,
         sendEmote,
+        pingCell,
+        inviteFriend,
+        addRoomFriend,
         startPvpGame,
         resetMyBoard,
         pvpRematch,
