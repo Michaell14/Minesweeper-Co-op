@@ -226,6 +226,28 @@ describe('a database outage', () => {
         mockSockets.delete('s1');
         await expect(presence.onDisconnect(alice)).resolves.toBeUndefined();
     });
+
+    /*
+     * Sending nothing is the failure that LOOKS safe.
+     *
+     * A reconnecting client keeps whatever it last held, and this snapshot is
+     * the only thing that would have corrected it — which is the whole reason
+     * it is a snapshot rather than a delta. Stay silent and friends who left
+     * during the outage stay lit, with an invite button beside them that does
+     * nothing when pressed, because the send path asks Postgres the same
+     * question that just failed here.
+     *
+     * Empty is what the module's contract already promises: an outage means
+     * friends appear offline.
+     */
+    test('still sends a snapshot, and it is empty', async () => {
+        const alice = connect('s1', ALICE);
+        mockQuery.mockRejectedValue(new Error('connection terminated'));
+
+        await presence.onConnect(alice);
+
+        expect(alice.emit).toHaveBeenCalledWith(SERVER_EVENTS.FRIENDS_ONLINE, { ids: [] });
+    });
 });
 
 describe('the cost of a connect', () => {

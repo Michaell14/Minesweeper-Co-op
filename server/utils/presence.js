@@ -119,12 +119,28 @@ const emitToUser = (userId, event, payload) => {
  */
 const sendPresenceSnapshot = async (socket) => {
     const userId = socket?.data?.user?.id;
-    if (!userId || !isDbEnabled()) return;
+    if (!userId) return;
+
+    let ids = [];
     try {
-        socket.emit(SERVER_EVENTS.FRIENDS_ONLINE, { ids: await onlineFriendIds(userId) });
+        ids = await onlineFriendIds(userId);
     } catch (error) {
-        console.error('Presence snapshot failed:', error.message);
+        // Fall through to the EMPTY snapshot rather than returning.
+        //
+        // Sending nothing looks like the safe failure and is the opposite. A
+        // reconnecting client keeps whatever it last held, and this is the one
+        // message that would have corrected it — the reason the snapshot is a
+        // snapshot rather than a delta is that a reconnect's state may be
+        // arbitrarily stale. Silence leaves friends lit who may be long gone,
+        // and the invite beside them does nothing when pressed, because the
+        // send path asks Postgres the same question that just failed.
+        //
+        // Empty is also what this module's contract already promises: an
+        // outage means friends appear offline, never that anything about a
+        // game changes.
+        console.error('Presence snapshot failed, sending an empty one:', error.message);
     }
+    socket.emit(SERVER_EVENTS.FRIENDS_ONLINE, { ids });
 };
 
 /**
