@@ -13,6 +13,7 @@ import { markAchievementsSeen, newlyEarned } from '@/lib/achievementsSeen';
 import AccountPanel from './AccountPanel';
 import AchievementsPanel from './AchievementsPanel';
 import DailyHistoryPanel from './DailyHistoryPanel';
+import FriendsPanel from './FriendsPanel';
 
 /**
  * The private dashboard over what the SERVER recorded — the page has no way
@@ -173,6 +174,11 @@ export default function ProfileClient() {
                             </p>
                         </Panel>
                     </section>
+
+                    {/* Fetches its own graph: friends fail independently of
+                        the profile payload, and folding them together would
+                        make a friends outage look like a broken profile. */}
+                    <FriendsPanel />
 
                     <AchievementsPanel
                         achievements={profile.achievements ?? []}

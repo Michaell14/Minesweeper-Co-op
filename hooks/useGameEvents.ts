@@ -4,7 +4,7 @@ import { useMinesweeperStore } from "@/app/store";
 import { shootConfetti } from "@/lib/confetti";
 import { playSound } from "@/lib/sound";
 import { cursorColorForId } from "@/lib/theme";
-import { DIALOGS, openDialog, closeDialog } from "@/lib/dialogs";
+import { DIALOGS, openDialog, closeDialog, type DialogId } from "@/lib/dialogs";
 import { boardKey, playersForClear, recordBestTime } from "@/lib/bestTimes";
 import { recordDailyResult } from "@/lib/dailyHistory";
 import { diagnoseLoss } from "@/lib/lossDiagnosis";
@@ -12,7 +12,7 @@ import { elapsedSeconds } from "@/lib/gameClock";
 import { practiceTargetFor } from "@/lib/practice";
 import { CLIENT_EVENTS, SERVER_EVENTS } from "@/shared/events";
 import { emoteArtById } from "@/components/ds/emoteArt";
-import { EMOTE_LIFETIME_MS } from "@/lib/emotes";
+import { EMOTE_LIFETIME_MS, PING_LIFETIME_MS } from "@/lib/emotes";
 import type { AppSocket } from "@/lib/initSocket";
 import type { CellUpdate } from "@/shared/socketPayloads";
 import type { SocketHandlers } from "./useSocketEvents";
@@ -92,6 +92,68 @@ const applyCellUpdates = (updates: CellUpdate[]) => {
 let emoteSequence = 0;
 const nextEmoteKey = () => String(++emoteSequence);
 
+/**
+ * Whether a relayed reaction or ping belongs to the board on screen NOW.
+ *
+ * A relay already on the wire when its recipient leaves is still delivered —
+ * the server broadcast it before the leave was processed, and the socket
+ * outlives the room. `leaveRoom` clears what has already been stored, but it
+ * cannot refuse what has not arrived yet, so an emote or ping from the room
+ * just left would land afterwards and draw on the room joined next: a ring on
+ * a cell nobody pointed at, under a name that is not in the room.
+ *
+ * `playerJoined` is half the check, not decoration. `room` also holds whatever
+ * is being TYPED into the landing form, so the code alone matches again the
+ * moment somebody types their way back towards the room they left.
+ *
+ * A payload with NO room is let through, but only until this browser leaves a
+ * room. Both halves deploy from `main` and neither waits for the other, so for
+ * the length of a deploy a new client talks to a server that has not started
+ * sending `room` yet; comparing against `undefined` there would refuse every
+ * relay and turn reactions and pings silently off. `leftARoom` is what keeps
+ * that from re-opening the hole above: a stale relay can only arrive after a
+ * leave, so once one has happened a roomless payload is no longer provably
+ * from the room on screen and is refused. Somebody who joins one room and
+ * stays — nearly everybody — keeps their reactions through the window; anybody
+ * who switches rooms inside it loses them until they reload, which is the safe
+ * direction to fail.
+ *
+ * All of this is dead the moment the server catches up: every payload carries
+ * a room from then on, and the strict comparison is the only branch that runs.
+ */
+const belongsToCurrentRoom = (
+    store: { room: string; playerJoined: boolean; leftARoom: boolean },
+    room: string | undefined,
+) => {
+    if (!store.playerJoined) return false;
+    if (room === undefined) return !store.leftARoom;
+    return store.room === room;
+};
+
+/**
+ * Opens a game-over dialog, and asks who in this room could be added.
+ *
+ * The ask belongs HERE, with the open, rather than in the component that draws
+ * the offer: every summary dialog contains one, and dialogs in this app are
+ * always rendered (they are native <dialog>s opened imperatively), so a
+ * component-owned fetch ran four times — on ROOM JOIN, before anybody had
+ * played anything. Measured at four, which is also four walks of the room on
+ * the server.
+ *
+ * A guest's ask is a no-op the server drops, which is cheaper than teaching
+ * this table what a session is.
+ */
+const openSummary = (socket: AppSocket, dialog: DialogId) => {
+    openDialog(dialog);
+    const store = useMinesweeperStore.getState();
+    if (store.room && store.playerJoined) {
+        socket.emit(CLIENT_EVENTS.ROOM_FRIENDS, {
+            room: store.room,
+            token: store.nextRoomFriendsToken(),
+        });
+    }
+};
+
 /** Shared + co-op events. */
 const coopHandlers = (socket: AppSocket, leaveRoom: () => void): SocketHandlers => ({
     // --- Game state ---
@@ -110,7 +172,7 @@ const coopHandlers = (socket: AppSocket, leaveRoom: () => void): SocketHandlers 
         playSound('win');
         useMinesweeperStore.getState().setGameWon(true);
         recordClear();
-        openDialog(DIALOGS.gameSummary);
+        openSummary(socket, DIALOGS.gameSummary);
     },
 
     [SERVER_EVENTS.GAME_OVER]: (name) => {
@@ -118,7 +180,7 @@ const coopHandlers = (socket: AppSocket, leaveRoom: () => void): SocketHandlers 
         const store = useMinesweeperStore.getState();
         store.setGameOver(true);
         store.setGameOverName(name);
-        openDialog(DIALOGS.gameSummary);
+        openSummary(socket, DIALOGS.gameSummary);
     },
 
     [SERVER_EVENTS.RESET_EVERYONE]: () => {
@@ -218,9 +280,10 @@ const coopHandlers = (socket: AppSocket, leaveRoom: () => void): SocketHandlers 
      * setting means "no reactions on my screen", and an exception for your own
      * would leave you emoting into what you believe is a quiet room.
      */
-    [SERVER_EVENTS.PLAYER_EMOTE]: ({ id, name, emote }) => {
+    [SERVER_EVENTS.PLAYER_EMOTE]: ({ id, name, emote, room }) => {
         const store = useMinesweeperStore.getState();
         if (!store.settings.emotes) return;
+        if (!belongsToCurrentRoom(store, room)) return;
         // An id this build cannot draw is dropped rather than shown as
         // something else — see emoteArtById.
         if (!emoteArtById(emote)) return;
@@ -231,6 +294,30 @@ const coopHandlers = (socket: AppSocket, leaveRoom: () => void): SocketHandlers 
             name,
             emote,
             expiresAt: Date.now() + EMOTE_LIFETIME_MS,
+        });
+        playSound('emote');
+    },
+
+    /*
+     * Somebody pointed at a cell. Co-op only — the server suppresses it in PVP,
+     * where both racers share a board and a ping would be a move hint.
+     *
+     * Gated on the same setting as reactions: "show me what other players
+     * send" is one preference, and splitting it would mean a second toggle for
+     * the same class of thing.
+     */
+    [SERVER_EVENTS.PLAYER_PING]: ({ id, name, row, col, room }) => {
+        const store = useMinesweeperStore.getState();
+        if (!store.settings.emotes) return;
+        if (!belongsToCurrentRoom(store, room)) return;
+
+        store.pushPlayerPing({
+            key: `${id}-${nextEmoteKey()}`,
+            id,
+            name,
+            row,
+            col,
+            expiresAt: Date.now() + PING_LIFETIME_MS,
         });
         playSound('emote');
     },
@@ -254,6 +341,52 @@ const coopHandlers = (socket: AppSocket, leaveRoom: () => void): SocketHandlers 
      */
     [SERVER_EVENTS.ACHIEVEMENTS_UNLOCKED]: ({ ids }) =>
         useMinesweeperStore.getState().pushUnlocked(ids),
+
+    /*
+     * --- Friends ---
+     *
+     * Not room-scoped, unlike the reaction and ping relays above: presence and
+     * an invitation into a room you are NOT in are about the account, and
+     * dropping them for not matching the room on screen would drop exactly the
+     * ones worth having.
+     */
+    [SERVER_EVENTS.FRIENDS_ONLINE]: ({ ids }) =>
+        useMinesweeperStore.getState().setOnlineFriends(ids),
+
+    [SERVER_EVENTS.FRIEND_PRESENCE]: ({ id, online }) =>
+        useMinesweeperStore.getState().setFriendOnline(id, online),
+
+    /*
+     * One invite at a time, newest wins. Two friends asking at once is a
+     * choice between two rooms, and the second arriving is the more likely to
+     * still have space.
+     */
+    [SERVER_EVENTS.FRIEND_INVITE]: (invite) =>
+        useMinesweeperStore.getState().setFriendInvite(invite),
+
+    /* Sent to this socket alone, and re-sent after every add — so it is always
+     * the whole truth about who in this room can be added.
+     *
+     * Dropped unless it is the NEWEST list about the room we are in NOW.
+     * These emits are ordered by when their Redis and Postgres work finishes,
+     * not by when they were asked for, so an older one can land on top of a
+     * newer one two ways: from a room since left — offering people from the
+     * last game, whose socket ids the server then refuses — or from before an
+     * add already made, which puts "Add friend" back under somebody who is
+     * already a friend. The room catches the first, the token the second.
+     *
+     * Newer than what we HAVE, not newest of what we asked: a request the
+     * server refuses is answered with silence, so waiting for the newest ask
+     * would discard the last good answer whenever the ask after it was
+     * dropped. Leaving is what closes that door on the visit being left —
+     * `resetRoomFriends` retires its outstanding asks — so nothing from a
+     * previous visit to this same room can pass this check. */
+    [SERVER_EVENTS.ROOM_FRIENDS_UPDATE]: ({ room, token, players }) => {
+        const store = useMinesweeperStore.getState();
+        if (!store.playerJoined || store.room !== room) return;
+        if (token <= store.roomFriendsSeen) return;
+        store.setRoomFriends(players, token);
+    },
 });
 
 /** PVP events. `socket` is needed to tell "I won" from "they won". */
@@ -296,7 +429,7 @@ const pvpHandlers = (socket: AppSocket): SocketHandlers => ({
         const store = useMinesweeperStore.getState();
         store.setGameOver(true);
         store.setPvpOpponentStatus("playing"); // Opponent might still be playing
-        openDialog(DIALOGS.pvpGameOver);
+        openSummary(socket, DIALOGS.pvpGameOver);
     },
 
     [SERVER_EVENTS.PVP_OPPONENT_FAILED]: () => useMinesweeperStore.getState().setPvpOpponentStatus("failed"),
@@ -313,10 +446,10 @@ const pvpHandlers = (socket: AppSocket): SocketHandlers => ({
             store.setGameWon(true);
             // Winning a race means clearing the board, so it counts.
             recordClear();
-            openDialog(DIALOGS.pvpYouWon);
+            openSummary(socket, DIALOGS.pvpYouWon);
         } else {
             playSound('lose');
-            openDialog(DIALOGS.pvpOpponentWon);
+            openSummary(socket, DIALOGS.pvpOpponentWon);
         }
     },
 
@@ -331,7 +464,7 @@ const pvpHandlers = (socket: AppSocket): SocketHandlers => ({
         shootConfetti();
         playSound('win');
         store.setGameWon(true);
-        openDialog(DIALOGS.pvpOpponentDisconnected);
+        openSummary(socket, DIALOGS.pvpOpponentDisconnected);
     },
 
     [SERVER_EVENTS.PVP_OPPONENT_LEFT_BEFORE_START]: () => {

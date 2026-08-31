@@ -119,6 +119,35 @@ const TROPHY = {
     ],
 } as const;
 
+const PING = {
+    /*
+     * Token-painted, unlike the brand icons above: this one rides in the
+     * reaction tray beside the emotes, on whichever palette the player runs.
+     */
+    palette: {
+        "#": "var(--ms-ink-strong)",
+        "o": "var(--ms-cell-open)",
+    },
+    rows: [
+        "                ",
+        "     ######     ",
+        "   ##oooooo##   ",
+        "  #oo######oo#  ",
+        " #oo##oooo##oo# ",
+        " #o##o####o##o# ",
+        " #o#o#oooo#o#o# ",
+        " #o#o#o##o#o#o# ",
+        " #o#o#o##o#o#o# ",
+        " #o#o#oooo#o#o# ",
+        " #o##o####o##o# ",
+        " #oo##oooo##oo# ",
+        "  #oo######oo#  ",
+        "   ##oooooo##   ",
+        "     ######     ",
+        "                ",
+    ],
+} as const;
+
 export const GithubIcon = (props: PixelIconProps) => <PixelIcon art={GITHUB} {...props} />;
 export const CoinIcon = (props: PixelIconProps) => <PixelIcon art={COIN} {...props} />;
 export const TrophyIcon = (props: PixelIconProps) => <PixelIcon art={TROPHY} {...props} />;
@@ -281,3 +310,4 @@ const SWORDS = {
 
 export const CalendarIcon = (props: PixelIconProps) => <PixelIcon art={CALENDAR} {...props} />;
 export const SwordsIcon = (props: PixelIconProps) => <PixelIcon art={SWORDS} {...props} />;
+export const PingIcon = (props: PixelIconProps) => <PixelIcon art={PING} {...props} />;

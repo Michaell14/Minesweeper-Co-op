@@ -4,7 +4,7 @@ import { act, render } from "@testing-library/react";
 import { useMinesweeperStore } from "@/app/store";
 import { DEFAULT_SETTINGS } from "@/lib/settings";
 import type { Cell } from "@/state/types";
-import { useKeyboardControls } from "./useKeyboardControls";
+import { useKeyboardControls, type KeyboardActions } from "./useKeyboardControls";
 
 /**
  * Keyboard play. The hook owns window listeners and reads the store at event
@@ -30,9 +30,10 @@ const actions = () => ({
     toggleFlag: vi.fn(),
     chordCell: vi.fn(),
     emitCellHover: vi.fn(),
+    pingCell: vi.fn(),
 });
 
-const Probe = (props: ReturnType<typeof actions>) => {
+const Probe = (props: KeyboardActions) => {
     useKeyboardControls(props);
     return null;
 };
@@ -239,6 +240,86 @@ describe("actions", () => {
 
         expect(a.openCell).not.toHaveBeenCalled();
         expect(a.toggleFlag).not.toHaveBeenCalled();
+    });
+});
+
+describe("pinging with P", () => {
+    /*
+     * A plain key, not a modifier: the guard at the top of the handler drops
+     * every keystroke carrying Ctrl, Meta or Alt, so a modifier binding would
+     * be dead on arrival — and Shift, the one that gets through, is the MOUSE
+     * shortcut. No arming step either: the cursor already says which cell.
+     */
+    test("points at the cell under the cursor", () => {
+        const props = actions();
+        render(<Probe {...props} />);
+        key("ArrowRight");   // shows the cursor at the centre
+
+        key("p");
+
+        expect(props.pingCell).toHaveBeenCalledWith(1, 1);
+    });
+
+    test("does nothing with no cursor on the board", () => {
+        const props = actions();
+        render(<Probe {...props} />);
+
+        key("p");
+
+        expect(props.pingCell).not.toHaveBeenCalled();
+    });
+
+    // Both racers share a board, so a ping is a move hint; the server refuses
+    // it and the client does not spend a rate-limit token finding out.
+    test("is inert in PVP", () => {
+        const props = actions();
+        render(<Probe {...props} />);
+        key("ArrowRight");
+        act(() => {
+            state().setMode("pvp");
+            state().setPvpStarted(true);
+        });
+
+        key("p");
+
+        expect(props.pingCell).not.toHaveBeenCalled();
+    });
+
+    // The daily passes no handler at all: single-player, nobody to point at.
+    test("does nothing where no ping action was given", () => {
+        const props = actions();
+        const { pingCell, ...withoutPing } = props;
+        render(<Probe {...withoutPing} />);
+        key("ArrowRight");
+
+        key("p");
+
+        expect(pingCell).not.toHaveBeenCalled();
+    });
+
+    test("auto-repeat does not machine-gun the room", () => {
+        const props = actions();
+        render(<Probe {...props} />);
+        key("ArrowRight");
+
+        key("p");
+        key("p", { repeat: true });
+
+        expect(props.pingCell).toHaveBeenCalledTimes(1);
+    });
+
+    // P is a letter, so it must stay out of the way of anything being typed.
+    test("does not fire while a text field has focus", () => {
+        const props = actions();
+        render(<Probe {...props} />);
+        key("ArrowRight");
+        const input = document.createElement("input");
+        document.body.appendChild(input);
+        input.focus();
+
+        key("p");
+
+        expect(props.pingCell).not.toHaveBeenCalled();
     });
 });
 

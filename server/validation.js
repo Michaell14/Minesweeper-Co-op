@@ -54,6 +54,16 @@ const isValidAvatarId = (avatar) => AVATAR_IDS.includes(avatar);
  */
 const isValidEmoteId = (emote) => EMOTE_IDS.includes(emote);
 
+/**
+ * An account id as it arrives in a URL.
+ *
+ * Checked for SHAPE before it reaches Postgres: `users.id` is a uuid column,
+ * so a malformed one is a type error from the driver — a 503 that reads as
+ * "the database is down" for what is really a bad request.
+ */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const isValidUserId = (id) => typeof id === 'string' && UUID_RE.test(id);
+
 /** Opaque client-generated id for a daily attempt -- same shape as a room code. */
 const isValidDailyToken = (token) =>
     typeof token === 'string' && token.length > 0 && token.length <= MAX_DAILY_TOKEN_LENGTH;
@@ -68,6 +78,15 @@ const isValidDailyToken = (token) =>
  */
 const isValidSessionId = (id) =>
     typeof id === 'string' && id.length > 0 && id.length <= MAX_SESSION_ID_LENGTH;
+
+/**
+ * The client's own counter for a room-friends request, echoed back untouched.
+ *
+ * Purely an ordering handle: the client uses it to drop a list that its own
+ * later request has already superseded. Never used to address state, so the
+ * only thing worth checking is that it is a number the client can compare.
+ */
+const isValidRequestToken = (token) => Number.isSafeInteger(token) && token >= 0;
 
 /** The server's own YYYY-MM-DD (UTC) -- never trusted to gate state, only to
  * address it; a malformed date just fails to find any matching attempt. */
@@ -95,6 +114,22 @@ const isValidHoverCoordinate = (row, col) => {
     if (!Number.isInteger(row) || !Number.isInteger(col)) return false;
     if (row === NO_HOVER && col === NO_HOVER) return true;
     return row >= 0 && row <= MAX_COORDINATE && col >= 0 && col <= MAX_COORDINATE;
+};
+
+/**
+ * Whether a coordinate lands on THIS room's board.
+ *
+ * `isValidCoordinate` only bounds a coordinate globally, at 0..100, because it
+ * runs before any room is loaded. That is enough for a cell action, which then
+ * indexes the stored board and finds nothing — but a ping is broadcast raw, so
+ * a 2x3 room would happily relay (2, 3) and every client would draw a marker
+ * at a cell that does not exist. Dimensions come back from Redis as strings.
+ */
+const isCoordinateOnBoard = (roomState, row, col) => {
+    const numRows = parseInt(roomState?.numRows, 10);
+    const numCols = parseInt(roomState?.numCols, 10);
+    if (!Number.isInteger(numRows) || !Number.isInteger(numCols)) return false;
+    return row >= 0 && row < numRows && col >= 0 && col < numCols;
 };
 
 /**
@@ -193,9 +228,12 @@ module.exports = {
     isValidMode,
     isValidAvatarId,
     isValidEmoteId,
+    isValidUserId,
+    isValidRequestToken,
     isValidBoardConfig,
     isValidCoordinate,
     isValidHoverCoordinate,
+    isCoordinateOnBoard,
     isPlayerInRoom,
     isValidDailyToken,
     isValidSessionId,

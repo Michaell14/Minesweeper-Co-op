@@ -26,7 +26,7 @@ export { default as Sprite, SpriteDefs } from "./sprites";
 export { default as Switch } from "./Switch";
 export { default as Table } from "./Table";
 export { RadioCard, RadioCardGroup } from "./RadioCard";
-export { CalendarIcon, CoinIcon, GearIcon, GithubIcon, StarIcon, SwordsIcon, TrophyIcon, UserIcon, UserSignedInIcon } from "./icons";
+export { CalendarIcon, CoinIcon, GearIcon, GithubIcon, PingIcon, StarIcon, SwordsIcon, TrophyIcon, UserIcon, UserSignedInIcon } from "./icons";
 export type { PixelIconProps } from "./icons";
 export { pointerClass } from "./pointer";
 

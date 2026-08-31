@@ -21,7 +21,10 @@ const mockUse = jest.fn();
 
 jest.mock('../utils/initializeClient', () => ({
     app: { use: jest.fn(), get: jest.fn(), post: jest.fn(), put: jest.fn(), delete: jest.fn() },
-    io: { on: mockOn, to: mockTo, use: mockUse },
+    // `sockets.sockets` is the live socket map. Presence scans it on every
+    // connect now (utils/presence.js), so a mock without one is a mock of a
+    // socket.io that never existed.
+    io: { on: mockOn, to: mockTo, use: mockUse, sockets: { sockets: new Map() } },
     server: { listen: jest.fn() },
 }));
 

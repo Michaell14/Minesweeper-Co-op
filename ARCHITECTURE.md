@@ -407,7 +407,11 @@ token** (the daily challenge) instead.
 | `toggleFlag` | `{room, row, col}` | `routes/cells.js` |
 | `emitConfetti` | `{room}` | `routes/cells.js` |
 | `sendEmote` | `{room, emote}` — `emote` is a `shared/emotes.js` id, never free text | `routes/social.js` |
+| `pingCell` | `{room, row, col}` — a real cell; no `-1,-1` clear | `routes/social.js` |
 | `cellHover` | `{room, row, col}` — `-1,-1` clears | `routes/social.js` |
+| `inviteFriend` | `{room, friendId}` — account-addressed, but sent from a room | `routes/friends.js` → `friendInviteController.js` |
+| `roomFriends` | `{room, token}` — who here could be added | `routes/friends.js` → `roomFriendController.js` |
+| `addRoomFriend` | `{room, playerId, token}` — `playerId` is a SOCKET id | `routes/friends.js` → `roomFriendController.js` |
 | `resetGame` | `{room}` | `routes/cells.js` |
 | `startPvpGame` | `{room}` | `routes/pvp.js` → `pvpController.js` |
 | `resetMyBoard` | `{room}` | `routes/pvp.js` → `pvpController.js` |
@@ -445,6 +449,11 @@ Shapes are typed in `shared/socketPayloads.ts` (`ClientToServerEvents`).
 | `resetEveryone` | — |
 | `receiveConfetti` | — |
 | `playerEmote` | `{id, name, emote}` — to the whole room, sender included |
+| `playerPing` | `{id, name, row, col, room}` — co-op only, suppressed in PVP like hover |
+| `friendsOnline` | `{ids}` — which friends were already here, on connect |
+| `friendPresence` | `{id, online}` — one friend came or went |
+| `friendInvite` | `{fromId, fromName, fromAvatar, room, mode}` |
+| `roomFriendsUpdate` | `{room, token, players: [{id, name, avatar, status}]}` — to the ASKER alone; `room`/`token` are echoed so the client can drop a list a later request superseded |
 | `playerHoverUpdate` | `{id, row, col, name}` (client derives color from `id`) |
 | `playerLeft` | `socketId` |
 | `achievementsUnlocked` | `{ids}` — catalog ids, to ONE socket, only what this result newly earned |
@@ -858,6 +867,154 @@ A chip's lifetime (`EMOTE_LIFETIME_MS`, `lib/emotes.ts`) is a plain timer, NOT a
 `prefers-reduced-motion`, and somebody who asked for no motion still has to be
 able to read the message. The float-and-fade on top of it is the part that may
 be zeroed.
+
+### Pings (co-op only)
+
+"Look at this cell", as a ring on the board for ~2s. Same handler shape as an
+emote and the same **shared** expression bucket — but **suppressed in PVP**,
+exactly like hover and unlike an emote: both racers play the same board, so a
+cell somebody points at is a move hint delivered to their opponent's screen.
+`server/tests/pings.test.js` asserts both halves of that rule side by side.
+
+**The interception is on the GRID, in the capture phase** (`Board.tsx`), not in
+`Cell`. Cell has four render branches acting from four different handlers —
+`onClick` on two inner hit areas, `onMouseUp` on an opened cell, `onContextMenu`
+on a flagged one — so a modifier check per branch is four chances to miss one,
+and a missed branch means a ping that opens the cell it points at. One capture
+listener sits ahead of all of them, on the component mounted once rather than
+512 times, and reads the cell's `data-row`/`data-col`.
+
+It hooks **mousedown**, not click: the opened-cell branch acts on mouse UP, so a
+handler waiting for the click would fire after the chord it was replacing. The
+mouseup and click that follow are swallowed off a **latch** rather than by
+re-asking whether a ping is armed — the arm is one-shot and clears the moment
+the ping is sent, so by mouseup the answer has already changed. That bug shipped
+briefly and did exactly what the design warns about: the ping fired *and* the
+cell opened under it. The smoke suite caught it; the unit test had not, because
+its mock `pingCell` never disarmed anything.
+
+Three ways in, one for each kind of input: **Shift+click** (desktop), the tray's
+one-shot **arm** then a click or tap (the only path a touch screen has), and
+**P** on the keyboard cursor's cell. Alt was rejected for the desktop shortcut —
+it is free in this codebase, but Linux window managers commonly grab Alt+click
+to move a window, so the page may never see it. Ctrl is the macOS secondary
+click, which is the flag.
+
+### Friends
+
+A **mutual** graph — both sides accept — reachable only by **friend code**.
+Neither choice is incidental:
+
+- A one-way edge that can invite you into a room is a spam primitive, so a
+  friendship exists only once both have agreed. The only spam vector left is
+  papering inboxes with requests, which is what the 20-outstanding cap is for.
+- Adding is by code rather than by name search. Display names here are not
+  unique and there are no public profiles (a decision from
+  `USER_PROFILES_PRD.md`); a search box would reintroduce both, plus
+  enumeration and a harassment surface. The alphabet omits O/0/I/1 because a
+  code is read off one screen and typed into somebody else's box —
+  `server/domain/friendCode.js`.
+
+**Direction is preserved rather than normalised** into (least, greatest),
+because a pending row has to know who asked. "My friends" is therefore the
+union of both directions where status is `accepted`. The reciprocal case — B
+asks A while A's request to B is pending — is an ACCEPT of the existing row,
+not a second row facing the other way; without that, the pair key turns two
+people doing exactly what the feature asks into a unique-violation.
+
+**Blocks are asymmetric on purpose.** Blocking deletes whatever the pair held
+and stores one row on the blocker's side, in a transaction — leaving an
+accepted row behind would list two people as friends while one had blocked the
+other. A block placed ON you is invisible and answers exactly like a code
+nobody holds, so the refusal itself cannot tell you that you were blocked or by
+whom. A block you placed IS listed, and only you can lift it: the PRD had blocks
+unlisted entirely, which made blocking a one-way door — the other person's code
+just stopped working with nothing on screen to explain it.
+
+Caps (`friendsRepo`): **100 friends**, **20 outstanding requests**. Both are
+about fan-out rather than storage — presence pushes and invites walk the friend
+list. The friend cap is re-checked *inside* the accept statement, so an account
+that filled up while requests sat pending cannot exceed it by accepting the
+backlog.
+
+Routes are `/api/friends` (GET the graph + your own code, POST a code) and
+`/api/friends/:id` (PUT accept/decline/block, DELETE unfriend/cancel/unblock),
+all under `requireUser`. The `:id` is the OTHER ACCOUNT's, not the row's — the
+client already knows who it is acting on, and row ids are a handle it has no
+other reason to hold.
+
+### Presence and invites
+
+**Presence is derived, never stored.** It is exactly "does this account have a
+live socket", and the socket map already knows — so there is nothing to write
+on connect, nothing to prune on disconnect, and no state that can survive a
+crash and report a ghost as online. `server/utils/presence.js` owns the scan;
+`statsRecorder` imports it rather than keeping a second copy, because two
+copies are two places for the `user:<id>` room shortcut to creep back in.
+
+**It is a scan and not a socket room, and that is a security property.** Room
+codes here are arbitrary player-typed strings bounded only by length, so
+`socket.join('user:<uuid>')` would share a namespace with the join box: anyone
+who knew an account id could create that room and receive their traffic.
+
+Every presence path INDEXES the socket map once per call
+(`indexSocketsByUser`) rather than scanning it per question. Asking "is this
+friend online" and then "which sockets are theirs" one friend at a time made a
+single connect O(friends x sockets) — two hundred walks of the map at the
+friend cap, on the connection path.
+
+A **snapshot** goes to an arriving socket (`friendsOnline`) and a **delta** to
+its online friends (`friendPresence`). A client that just connected has no
+prior state to apply deltas to; recomputing every recipient's whole list would
+be one query per friend per connect. Neither fires for a guest — presence runs
+on every connect, so a query per anonymous socket would be a query per visitor
+— and a second tab announces nothing, or a player closing one of two would wink
+out for their friends while still playing.
+
+**An invite is the one message this protocol lets an account send to another
+account** rather than to a room, so every guard is about proving it was wanted:
+an accepted friendship, a room the SENDER is in (otherwise an account could
+send a friend into any room code it can name), space in it (PVP is full at
+two), and a one-per-pair-per-minute cooldown held in memory. Every refusal is
+silent, for the same reason the friends API answers a block like an unknown
+code: "not your friend", "blocked you" and "not online" are each a fact about
+somebody who did not choose to share it.
+
+Accepting is a **navigation** into the existing `?room=` join flow, not a
+socket call — that flow already fills the code, prompts for a name, and copes
+with a room that filled up, and the invited player may be mid-game somewhere
+else.
+
+### Adding a friend from a game
+
+The third and narrowest door onto the graph, after the code and the reciprocal
+accept — and the one that decides whether the other two matter. A code is a
+fine way to add somebody you already know; it is a terrible way to add the
+stranger a quick match just paired you with, which is the one moment two people
+have a reason to.
+
+**Account ids never leave the server.** The client addresses a co-player by
+SOCKET id — something it already sees on every hover, reaction and ping — and
+`roomFriendController` turns that back into an account, but only after checking
+that BOTH sockets are in the room. Without that second check it is a way to add
+any account whose socket id you can name. Putting account ids in the room roster
+instead would hand every player in a room a permanent handle for everybody
+else, which is exactly what the code-only rule exists to prevent.
+
+The list is asked for where the summary dialog is OPENED, not by the component
+that draws it: dialogs here are always rendered, so a component-owned fetch ran
+once per summary dialog — four times, on room join, before anybody had played
+anything. It is computed per ASKER, which is what lets "me" be excluded
+server-side rather than by a client comparing socket ids it would first have to
+be told. It
+leaves out guests (no account to befriend), anybody either party has blocked (a
+button that silently failed would be the one place a block leaked), and anybody
+whose socket has gone — the account is resolved from the LIVE socket, so
+somebody who closed their tab the moment the race ended is simply not offered,
+which is honest rather than a button that does nothing.
+
+Every add answers by re-sending the whole list rather than a per-player result,
+so the client never holds two sources of truth about one relationship.
 
 ### Accounts and the auth bridge
 

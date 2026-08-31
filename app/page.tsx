@@ -42,6 +42,8 @@ export default function Home() {
                     chordCell={actions.chordCell}
                     emitConfetti={actions.emitConfetti}
                     sendEmote={actions.sendEmote}
+                    pingCell={actions.pingCell}
+                    inviteFriend={actions.inviteFriend}
                     emitCellHover={actions.emitCellHover}
                     handleBoardLeave={actions.handleBoardLeave}
                     startPvpGame={actions.startPvpGame}
@@ -50,7 +52,10 @@ export default function Home() {
                 />
             )}
 
-            <GameDialogs resetGame={actions.resetGame} />
+            <GameDialogs
+                resetGame={actions.resetGame}
+                addRoomFriend={actions.addRoomFriend}
+            />
         </>
     );
 };

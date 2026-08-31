@@ -6,7 +6,9 @@ const { leaveQueue, broadcastOnlineCount } = require('./controllers/matchmakingC
 const { resolveSocketUser, registerProfileRoutes } = require('./controllers/profileController');
 const { registerSettingsRoutes } = require('./controllers/settingsController');
 const { registerThemesRoutes } = require('./controllers/themesController');
+const { registerFriendsRoutes } = require('./controllers/friendsController');
 const { registerStatsRoutes } = require('./controllers/statsController');
+const presence = require('./utils/presence');
 const { register: registerSocketRoutes } = require('./routes');
 const { PORT } = require('./config');
 
@@ -18,6 +20,7 @@ app.use('/api', express.json());
 registerProfileRoutes(app);
 registerSettingsRoutes(app);
 registerThemesRoutes(app);
+registerFriendsRoutes(app);
 registerStatsRoutes(app);
 
 /**
@@ -69,6 +72,11 @@ io.on('connection', async (socket) => {
         // Last, so a cosmetic refresh cannot delay the cleanup above, and after
         // `leaveQueue` so a leaver is never sent their own departure.
         await broadcastOnlineCount();
+
+        // Best-effort and last: a friend's presence is cosmetic, and a Postgres
+        // outage must not hold up a disconnect. Only announces when this was
+        // the account's LAST socket — see utils/presence.js.
+        await presence.onDisconnect(socket);
     });
 
     // After the routes, deliberately: this can prompt the client to send
@@ -83,6 +91,9 @@ io.on('connection', async (socket) => {
     // After the resume, which a reloading player is waiting on: this socket now
     // counts towards "how many are here", and anyone queued is one behind.
     await broadcastOnlineCount();
+
+    // Guests fall straight through this; it needs an account to have a graph.
+    await presence.onConnect(socket);
 });
 
 /**

@@ -18,6 +18,23 @@ import { emoteLabel } from "@/shared/emotes";
 export const EMOTE_LIFETIME_MS = 2600;
 
 /**
+ * How long a ping's ring stays on the board.
+ *
+ * Shorter than a reaction on purpose: a ping means "look HERE, now", and one
+ * that outstays the moment is a ring over a cell somebody is trying to click.
+ * A timer for the same reason as the reaction's — see above.
+ */
+export const PING_LIFETIME_MS = 2000;
+
+/**
+ * What a screen reader hears for a ping. Rows and columns are announced
+ * ONE-BASED, the same as `cellAriaLabel`, so the two agree about which cell is
+ * which — the whole point of a ping is that both players mean the same square.
+ */
+export const pingAnnouncement = (name: string, row: number, col: number): string =>
+    `${name} pinged row ${row + 1}, column ${col + 1}`;
+
+/**
  * What a screen reader hears — "Alex: Nice", the shape of a thing said rather
  * than a description of a picture.
  *

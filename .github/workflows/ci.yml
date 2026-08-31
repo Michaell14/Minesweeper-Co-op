@@ -14,6 +14,54 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # The cheapest check here, and the one that exists because of a specific
+  # failure: PRs #145-148 were each merged into a FEATURE branch rather than
+  # main. GitHub reports all four as MERGED, so the open-PR list looked empty
+  # while ~6,600 tested lines sat unshipped on claude/friends-graph for a week
+  # — long enough for main to rewrite the file they touched.
+  #
+  # main is the trunk and the only branch anything deploys from (CLAUDE.md), so
+  # a PR based on anything else is either a mistake or a deliberate stack. This
+  # tells the two apart by asking: a stack declares itself with the `stacked`
+  # label, and everything else fails here in about five seconds.
+  base-branch:
+    name: based on main
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - name: The base is main, or the PR says why not
+        env:
+          BASE: ${{ github.base_ref }}
+          LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+        run: |
+          if [ "$BASE" = "main" ]; then
+            echo "base is main"
+            exit 0
+          fi
+
+          case ",$LABELS," in
+            *,stacked,*)
+              echo "base is '$BASE', but this PR is labelled 'stacked' — allowed."
+              echo "Merging it lands nothing on main. Whatever sits at the top"
+              echo "of the stack still needs its own PR into main."
+              exit 0
+              ;;
+          esac
+
+          echo "This PR targets '$BASE', not main."
+          echo
+          echo "main is the trunk and the only branch that deploys. Merging this"
+          echo "will mark the PR MERGED while shipping nothing, which is exactly"
+          echo "how four PRs of finished work went missing once already."
+          echo
+          echo "Either retarget it at main:"
+          echo "    gh pr edit <number> --base main"
+          echo
+          echo "or, if the stack is deliberate, label it and re-run:"
+          echo "    gh pr edit <number> --add-label stacked"
+          exit 1
+
   checks:
     name: lint, types, tests, build
     runs-on: ubuntu-latest

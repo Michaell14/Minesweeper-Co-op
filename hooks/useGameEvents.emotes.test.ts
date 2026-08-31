@@ -15,14 +15,23 @@ import type { AppSocket } from "@/lib/initSocket";
 const fakeSocket = () => ({ id: "sock-me", emit: vi.fn() }) as unknown as AppSocket;
 const state = () => useMinesweeperStore.getState();
 
-const receive = (payload: { id: string; name: string; emote: string }) => {
+const ROOM = "room-a";
+
+/** Defaults to the room this browser is in, which is the ordinary case. */
+const receive = (payload: { id: string; name: string; emote: string; room?: string }) => {
     const handlers = useGameEvents(fakeSocket(), vi.fn());
-    (handlers[SERVER_EVENTS.PLAYER_EMOTE] as (p: unknown) => void)(payload);
+    (handlers[SERVER_EVENTS.PLAYER_EMOTE] as (p: unknown) => void)({ room: ROOM, ...payload });
 };
 
 beforeEach(() => {
     state().clearPlayerEmotes();
     state().setSetting("emotes", true);
+    // `leftARoom` latches for the life of the session, so a test that leaves a
+    // room would otherwise carry that into the next one. The store is shared.
+    useMinesweeperStore.setState({ leftARoom: false });
+    // A reaction is scoped to a room, so the receiver has to be IN one.
+    state().setRoom(ROOM);
+    state().setPlayerJoined(true);
 });
 
 describe("an incoming reaction", () => {
@@ -85,6 +94,85 @@ describe("with reactions switched off", () => {
         receive({ id: "sock-me", name: "Me", emote: "wave" });
 
         expect(state().playerEmotes).toEqual([]);
+    });
+});
+
+describe("a reaction from a room this browser is no longer in", () => {
+    /*
+     * The relay is delivered even though the room is gone: the server
+     * broadcast it before the leave was processed, and the socket outlives the
+     * room. `leaveRoom` clears what is already stored but cannot refuse what
+     * has not arrived, so without the room on the payload this lands in the
+     * NEXT room's feed under a name nobody there recognises.
+     */
+    test("does not land in the room joined next", () => {
+        state().setRoom("room-b");
+
+        receive({ id: "sock-alex", name: "Alex", emote: "nice", room: "room-a" });
+
+        expect(state().playerEmotes).toEqual([]);
+    });
+
+    // The other half of the window: still on Landing, joined to nothing. The
+    // code alone is not enough there — `room` also holds what is being TYPED
+    // into the join form, so it matches again mid-keystroke.
+    test("does not land while typing that room's code on Landing", () => {
+        state().setPlayerJoined(false);
+
+        receive({ id: "sock-alex", name: "Alex", emote: "nice" });
+
+        expect(state().playerEmotes).toEqual([]);
+    });
+});
+
+/*
+ * The frontend and the game server both deploy from `main` and neither waits
+ * for the other, so a new client spends the length of a deploy talking to a
+ * server that has not started sending `room` yet. Refusing those would turn
+ * reactions off across the whole window with nothing on screen to say why.
+ */
+describe("a reaction from a server too old to send the room", () => {
+    test("lands while this browser has only ever been in this room", () => {
+        receive({ id: "sock-alex", name: "Alex", emote: "nice", room: undefined });
+
+        expect(state().playerEmotes.map((e) => e.name)).toEqual(["Alex"]);
+    });
+
+    /*
+     * The reason the fallback is latched rather than unconditional. A stale
+     * relay can only arrive AFTER a leave, so once one has happened a roomless
+     * payload is no longer provably from the room on screen — and accepting it
+     * would put an emote from the room just left into the room joined next,
+     * which is the very thing the room field was added to stop.
+     */
+    test("is refused once this browser has left a room, even back in one", () => {
+        state().setPlayerJoined(false);   // left room-a
+        state().setRoom("room-b");
+        state().setPlayerJoined(true);    // and joined room-b
+
+        receive({ id: "sock-alex", name: "Alex", emote: "nice", room: undefined });
+
+        expect(state().playerEmotes).toEqual([]);
+    });
+
+    // The other half still holds: no room on the payload is not a reason to
+    // draw on a board this browser is not sitting at.
+    test("is still refused when this browser is in no room at all", () => {
+        state().setPlayerJoined(false);
+
+        receive({ id: "sock-alex", name: "Alex", emote: "nice", room: undefined });
+
+        expect(state().playerEmotes).toEqual([]);
+    });
+
+    // A payload that NAMES another room is refused whatever the history.
+    test("does not soften the check for a payload that names another room", () => {
+        receive({ id: "sock-alex", name: "Alex", emote: "nice", room: "room-a" });
+        expect(state().playerEmotes.map((e) => e.name)).toEqual(["Alex"]);
+
+        state().setRoom("room-b");
+        receive({ id: "sock-jo", name: "Jo", emote: "nice", room: "room-a" });
+        expect(state().playerEmotes.map((e) => e.name)).toEqual(["Alex"]);
     });
 });
 

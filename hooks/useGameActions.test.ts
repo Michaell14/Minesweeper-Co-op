@@ -63,6 +63,24 @@ describe("leaveRoom", () => {
         expect(state().playerStatsInRoom).toEqual([]);
     });
 
+    /*
+     * The ARM is room state too, not just the pings it draws. A one-shot left
+     * standing across a leave is spent on the first cell of the NEXT room,
+     * which is pinged instead of opened — and the arm has no visible trace on
+     * a board that has not been clicked yet.
+     */
+    test("disarms the ping, so the next room's first click plays its cell", () => {
+        act(() => {
+            state().setMode("co-op");
+            state().setPingArmed(true);
+        });
+
+        const { leaveRoom } = actions();
+        act(() => leaveRoom());
+
+        expect(state().pingArmed).toBe(false);
+    });
+
     test("still leaves the room", () => {
         const socket = fakeSocket();
 
@@ -325,5 +343,56 @@ describe("daily actions on a terminal attempt", () => {
                 ([event]) => event === CLIENT_EVENTS.DAILY_OPEN_CELL,
             ),
         ).toBe(true);
+    });
+});
+
+describe("pingCell", () => {
+    beforeEach(() => {
+        act(() => {
+            state().setRoom("room-1");
+            state().setMode("co-op");
+            state().setPingArmed(true);
+        });
+    });
+
+    test("emits the cell it was given", () => {
+        const socket = fakeSocket();
+        const { pingCell } = actions(socket);
+
+        act(() => pingCell(2, 5));
+
+        expect(socket.emit).toHaveBeenCalledWith(CLIENT_EVENTS.PING_CELL, { room: "room-1", row: 2, col: 5 });
+    });
+
+    test("disarms after one ping — the arm is one-shot", () => {
+        const { pingCell } = actions();
+
+        act(() => pingCell(2, 5));
+
+        expect(state().pingArmed).toBe(false);
+    });
+
+    /*
+     * Disarming has to happen even on a click that goes nowhere. Left armed by
+     * a refusal, the board sits in a mode where the next click does not play
+     * the cell — invisible, and with nothing to undo it but another click.
+     */
+    test("disarms even when there is no socket to send on", () => {
+        const { pingCell } = actions(null);
+
+        act(() => pingCell(2, 5));
+
+        expect(state().pingArmed).toBe(false);
+    });
+
+    test("disarms even in PVP, where it never emits", () => {
+        const socket = fakeSocket();
+        act(() => state().setMode("pvp"));
+        const { pingCell } = actions(socket);
+
+        act(() => pingCell(2, 5));
+
+        expect(socket.emit).not.toHaveBeenCalled();
+        expect(state().pingArmed).toBe(false);
     });
 });

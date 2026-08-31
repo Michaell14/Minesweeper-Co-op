@@ -1369,7 +1369,7 @@ async function keyboardPlay(page) {
     // The cursor's live region announces the selected cell — it doubles as the
     // scenario's way of knowing what is under the cursor.
     const cursorLabel = () => page.evaluate(
-        `return document.querySelector('[role=grid] [role=status]')?.textContent || '';`);
+        `return document.querySelector('[data-kb-announcer]')?.textContent || '';`);
 
     await page.key('ArrowRight', { code: 'ArrowRight', keyCode: 39 });
     await page.waitFor(`!!document.querySelector('[data-kb-cursor]')`, { label: 'arrow key shows the cursor' });
@@ -1573,11 +1573,76 @@ async function emotes(host, guest) {
         'it is announced as speech, not as a picture',
         'the live region never carried the reaction');
 
+    /* PingLayer keeps its own region, addressed by its own marker: the grid
+       also holds the keyboard cursor's, and picking by DOM order would make
+       this pass or fail on the order two layers happen to be mounted in. */
+    const pingAnnouncement = `(() => {
+        const live = document.querySelector('[data-ping-announcer]');
+        return live ? live.textContent : '';
+    })()`;
+
     // The lifetime is a plain timer, so this is the one assertion that has to
     // wait in real time. Generous: the check is that it clears at all.
     check(await settles(guest, `!${feedText}.includes('Emoter')`, 8000),
         'it clears itself without anyone dismissing it',
         'the chip is still on screen well past its lifetime');
+
+    /*
+     * Pings. The half that needs a real browser is the CLICK: the interception
+     * runs in the capture phase on the grid, ahead of four different handlers
+     * across Cell's four render branches, and what it has to prove is a
+     * negative — that the cell it pointed at did not also get played.
+     */
+    const openCount = `document.querySelectorAll('[role=gridcell][aria-label^="Unrevealed"]').length`;
+    const closedBefore = await host.evaluate(`return ${openCount};`);
+
+    await host.evaluate(`
+        const btn = document.querySelector('[aria-label="Ping a cell"]');
+        if (!btn) throw new Error('no ping button in the tray');
+        btn.click();
+        return true;
+    `);
+    check(await host.evaluate(`return !!document.querySelector('[aria-label="Cancel ping"]');`),
+        'the tray arms a ping and renames the button',
+        'the button did not change state');
+
+    /*
+     * A REAL press, not `.click()`: that dispatches a click and nothing else,
+     * and the interception listens on mousedown — the opened-cell branch acts
+     * on mouse up, so waiting for the click would be too late to stop it. The
+     * sequence below is what a browser actually sends, which is the thing
+     * under test.
+     */
+    await host.evaluate(`
+        const cell = document.querySelector('[role=gridcell][data-row="2"][data-col="3"]');
+        if (!cell) throw new Error('no cell at 2,3');
+        const target = cell.firstElementChild || cell;
+        for (const type of ['mousedown', 'mouseup', 'click']) {
+            target.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, button: 0 }));
+        }
+        return true;
+    `);
+
+    check(await settles(guest, `document.querySelectorAll('[data-ping]').length > 0`),
+        'the other player sees a ring on the pinged cell',
+        'no ring appeared on the second client');
+
+    check(await settles(guest, `${pingAnnouncement}.includes('Emoter pinged row 3, column 4')`),
+        'the ping is announced with the same 1-based cell the label uses',
+        'the live region never named the pinged cell');
+
+    // The negative that matters: pointing at a cell must not play it.
+    check(await host.evaluate(`return ${openCount};`) === closedBefore,
+        'the pinged cell was not opened by the click that pinged it',
+        'the ping opened the cell — the capture interception let a handler through');
+
+    check(await host.evaluate(`return !!document.querySelector('[aria-label="Ping a cell"]');`),
+        'the arm is one-shot and clears itself',
+        'the board is still armed after the ping');
+
+    check(await settles(guest, `document.querySelectorAll('[data-ping]').length === 0`, 8000),
+        'the ring clears itself without anyone dismissing it',
+        'the ring is still on the board well past its lifetime');
 }
 
 (async () => {
