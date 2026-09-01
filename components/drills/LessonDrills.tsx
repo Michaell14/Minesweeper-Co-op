@@ -21,7 +21,7 @@ export default function LessonDrills({ drills }: LessonDrillsProps) {
 
     return (
         <div className="flex flex-col items-center gap-4">
-            <p className="text-pixel-2xs text-ink-muted m-0">
+            <p className="ms-pixel text-pixel-2xs text-ink-muted m-0">
                 Drill {index + 1} of {drills.length}
             </p>
             {/* Keyed, so advancing mounts a clean runner rather than reusing this one. */}
@@ -34,7 +34,7 @@ export default function LessonDrills({ drills }: LessonDrillsProps) {
                 <Button size="sm" onClick={() => setIndex((i) => i + 1)}>Next drill</Button>
             )}
             {solved && last && (
-                <p className="text-pixel-xs m-0" role="status">Lesson complete</p>
+                <p className="ms-pixel text-pixel-xs m-0" role="status">Lesson complete</p>
             )}
         </div>
     );

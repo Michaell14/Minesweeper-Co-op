@@ -36,7 +36,7 @@ export default function ProsePage({ title, lede, children, cta }: ProsePageProps
             <div className="mt-8 space-y-6 text-body">{children}</div>
 
             {cta && (
-                <div className="mt-10">
+                <div className="mt-10 ms-pixel">
                     <ButtonLink href={cta.href} intent="primary" size="sm">
                         {cta.label}
                     </ButtonLink>

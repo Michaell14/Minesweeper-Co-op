@@ -90,7 +90,7 @@ export default function DrillRunner({ drill, onSolved }: DrillRunnerProps) {
 
     return (
         <div className="flex flex-col items-center gap-4">
-            <p className="text-pixel-sm text-center m-0">{drill.prompt}</p>
+            <p className="text-body text-center m-0">{drill.prompt}</p>
             <DrillBoard
                 layout={drill.layout}
                 marks={marks}
@@ -99,13 +99,13 @@ export default function DrillRunner({ drill, onSolved }: DrillRunnerProps) {
                 onFlag={(r, c) => move(r, c, 'flagged')}
             />
             {mistakes > 0 && (
-                <p className="text-pixel-2xs text-ink-muted m-0" role="status">
+                <p className="ms-pixel text-pixel-2xs text-ink-muted m-0" role="status">
                     {mistakes} mistake{mistakes === 1 ? '' : 's'}
                 </p>
             )}
             {message && (
                 <p
-                    className="text-pixel-2xs text-ink-muted m-0 max-w-md text-center"
+                    className="text-body-sm text-ink-muted m-0 max-w-md text-center"
                     role="status"
                     aria-label="Explanation">
                     {message}
@@ -116,8 +116,8 @@ export default function DrillRunner({ drill, onSolved }: DrillRunnerProps) {
             )}
             {solved && (
                 <div className="flex flex-col items-center gap-2" role="status">
-                    <Badge intent="success">Solved</Badge>
-                    <p className="text-pixel-xs text-center m-0">{drill.explanation}</p>
+                    <Badge intent="success" className="ms-pixel">Solved</Badge>
+                    <p className="text-body-sm text-center m-0 max-w-md">{drill.explanation}</p>
                 </div>
             )}
         </div>

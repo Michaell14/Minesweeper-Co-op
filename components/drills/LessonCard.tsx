@@ -2,16 +2,21 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { Badge, Panel } from '@/components/ds';
+import { Panel } from '@/components/ds';
 import { readProgress } from '@/lib/drillProgress';
 import type { Lesson } from '@/lib/drills';
+import styles from './LessonCard.module.css';
+
+const classes = (...parts: Array<string | false | undefined>) => parts.filter(Boolean).join(' ');
 
 export interface LessonCardProps {
     lesson: Lesson;
+    /** Its place in the ladder, 1-based. Drawn as a board number. */
+    ordinal: number;
     drillIds: readonly string[];
 }
 
-export default function LessonCard({ lesson, drillIds }: LessonCardProps) {
+export default function LessonCard({ lesson, ordinal, drillIds }: LessonCardProps) {
     // After mount, never during render: the server has no localStorage, and a
     // count read while rendering would not match what it sent.
     const [solved, setSolved] = React.useState(0);
@@ -20,21 +25,58 @@ export default function LessonCard({ lesson, drillIds }: LessonCardProps) {
         setSolved(drillIds.filter((id) => done.has(id)).length);
     }, [drillIds]);
 
-    const complete = drillIds.length > 0 && solved === drillIds.length;
+    const total = drillIds.length;
+    const complete = total > 0 && solved === total;
+
+    // The classic number colours only run to 8; past that the digit stays ink.
+    const numClass = ordinal <= 8 ? styles[`num${ordinal}`] : undefined;
 
     return (
-        <Panel>
-            <h2 className="text-pixel-sm font-bold m-0">
-                <Link href={`/drills/${lesson.id}`}>{lesson.title}</Link>
-            </h2>
-            <p className="text-body-sm text-ink-muted mt-2 mb-0">{lesson.blurb}</p>
-            <p className="text-pixel-2xs text-ink-muted mt-3 mb-0">
-                {drillIds.length === 0
-                    ? <span>Coming soon</span>
-                    : complete
-                        ? <Badge intent="success">Complete</Badge>
-                        : <span>{solved} of {drillIds.length} solved</span>}
-            </p>
-        </Panel>
+        <li>
+            <Panel className={classes(styles.row, total === 0 && styles.rowEmpty)}>
+                <span
+                    className={classes('ms-pixel', styles.ordinal, numClass, complete && styles.ordinalDone)}
+                    aria-hidden="true">
+                    {ordinal}
+                </span>
+
+                <div className={styles.body}>
+                    <h2 className={styles.title}>
+                        {total === 0
+                            ? lesson.title
+                            : (
+                                <Link href={`/drills/${lesson.id}`} className={styles.link}>
+                                    {lesson.title}
+                                </Link>
+                            )}
+                    </h2>
+                    <p className={styles.blurb}>{lesson.blurb}</p>
+
+                    {total > 0 && (
+                        <p className={`ms-pixel ${styles.progress}`}>
+                            {/* One square per drill. The caption beside them is
+                                what says so — unlabelled, they were just shapes. */}
+                            <span className={styles.pips} aria-hidden="true">
+                                {drillIds.map((id, i) => (
+                                    <span key={id} className={classes(styles.pip, i < solved && styles.pipDone)} />
+                                ))}
+                            </span>
+                            {complete ? 'Complete' : `${solved} of ${total} solved`}
+                        </p>
+                    )}
+                </div>
+
+                {total === 0 ? (
+                    <span className={`ms-pixel ${styles.soon}`}>Coming soon</span>
+                ) : (
+                    // aria-hidden: the link already names the lesson, and the
+                    // verb read aloud after it would announce a second control.
+                    <span className={`ms-pixel ${styles.action}`} aria-hidden="true">
+                        {complete ? 'Review' : solved > 0 ? 'Resume' : 'Start'}
+                        <span>&gt;</span>
+                    </span>
+                )}
+            </Panel>
+        </li>
     );
 }

@@ -20,13 +20,37 @@
  * Specificity is load-bearing and not an accident: `:is()` takes the
  * specificity of its most specific argument, so the heading rule (0,1,1) beats
  * the blanket `.ms-prose *` (0,1,0) below it.
+ *
+ * The descendant half of that rule is load-bearing too. A heading is often a
+ * link, and the `<a>` matches `.ms-prose *` while `.ms-prose :is(h1, h2, h3)`
+ * does not reach it — so a linked heading silently rendered in Inter while the
+ * plain one beside it stayed pixel. That is what the /drills lesson cards did.
  */
 .ms-prose,
 .ms-prose * {
     font-family: var(--font-inter), system-ui, sans-serif;
 }
 
-.ms-prose :is(h1, h2, h3) {
+.ms-prose :is(h1, h2, h3),
+.ms-prose :is(h1, h2, h3) * {
+    font-family: var(--font-press-start-2p), serif;
+}
+
+/*
+ * The opt-out's own opt-out: chrome, not sentences.
+ *
+ * A content page is not only prose. /drills carries counters, action labels and
+ * a playable board, all sized on the PIXEL scale — and 10px of Inter is not a
+ * small label, it is unreadable body copy. The drill board's own numbers were
+ * rendering in Inter for the same reason, which is a game cell in the wrong
+ * face on the page teaching the game.
+ *
+ * Controls are matched by element so nothing has to remember; `.ms-pixel` is
+ * for the rest, since a design-system button that renders an <a> cannot be
+ * picked out from here without matching a hashed CSS-module class name.
+ */
+.ms-prose :is(button, .ms-pixel),
+.ms-prose :is(button, .ms-pixel) * {
     font-family: var(--font-press-start-2p), serif;
 }
 
