@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { Button } from '@/components/ds';
+import { readProgress } from '@/lib/drillProgress';
 import type { Drill } from '@/lib/drills';
 import DrillRunner from './DrillRunner';
 
@@ -12,6 +13,14 @@ export interface LessonDrillsProps {
 export default function LessonDrills({ drills }: LessonDrillsProps) {
     const [index, setIndex] = React.useState(0);
     const [solvedIds, setSolvedIds] = React.useState<readonly string[]>([]);
+
+    // After mount, never during render: the server has no localStorage. The
+    // index card offers "Resume", so land on the first drill still unsolved.
+    React.useEffect(() => {
+        const done = new Set(readProgress().completed);
+        const next = drills.findIndex((d) => !done.has(d.id));
+        if (next > 0) setIndex(next);
+    }, [drills]);
 
     if (drills.length === 0) return null;
 
