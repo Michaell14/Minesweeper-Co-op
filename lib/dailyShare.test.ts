@@ -68,11 +68,11 @@ describe("buildDailyShareText: losses", () => {
 
 describe("buildDailyShareText: the link", () => {
     /*
-     * Regression pin for lib/dailyIntent.ts's rule: starting consumes the
-     * reader's one attempt for the day, so intent must come from a gesture in
-     * their tab — a query parameter would let a pasted link spend it for them.
+     * /daily reads no parameters. A share link that grew one would be state the
+     * sender chose for the reader, on a puzzle that is meant to arrive the same
+     * way for everybody.
      */
-    test("carries no query string that could auto-start an attempt", () => {
+    test("carries no query string", () => {
         const url = buildDailyShareText({ ...base, rank: 1, totalEntries: 2, streak: 9 })
             .split("\n")
             .at(-1)!;

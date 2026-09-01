@@ -6,6 +6,7 @@ import { DIALOGS } from "@/lib/dialogs";
 import { clearDailyHistory, recordDailyResult } from "@/lib/dailyHistory";
 import type { LossDiagnosis } from "@/lib/lossDiagnosis";
 import DailyDialogs from "./DailyDialogs";
+import { hasSeenDailyExplainer } from "@/lib/dailyExplainerSeen";
 
 /**
  * The daily challenge's four dialogs mix DialogClose and plain Button
@@ -54,6 +55,68 @@ beforeEach(() => {
 afterEach(() => {
     const store = useMinesweeperStore.getState();
     store.resetDailyState();
+});
+
+/*
+ * The first-visit explainer. /daily opens straight onto the board, so this is
+ * the only thing that says what the rules are — and its dismissal is what
+ * writes the once-ever flag, including the Escape path a button never sees.
+ */
+describe("dailyIntro: the rules, once per browser", () => {
+    test("Got it is a DialogClose -- a plain button would leave the rules on screen", () => {
+        const dialog = renderOpen(DIALOGS.dailyIntro);
+
+        const gotIt = within(dialog).getByRole("button", {
+            name: "Close the rules and play today's puzzle",
+        });
+
+        expect(gotIt.getAttribute("type")).toBe("submit");
+    });
+
+    test("says the three things a newcomer cannot recover from not knowing", () => {
+        const dialog = renderOpen(DIALOGS.dailyIntro);
+        const text = dialog.textContent ?? "";
+
+        expect(text).toContain("same board");
+        expect(text).toContain("One attempt");
+        expect(text).toContain("first click");
+    });
+
+    test("offers the full rules to someone who has never played Minesweeper", () => {
+        const dialog = renderOpen(DIALOGS.dailyIntro);
+
+        const link = within(dialog).getByRole("link", { name: /how to play/i });
+
+        expect(link.getAttribute("href")).toBe("/how-to-play");
+    });
+
+    /*
+     * Both dismissals write the flag, and each is covered separately because
+     * neither mechanism covers both. Escape never reaches a click handler; the
+     * `close` event does not fire in every engine (it does not fire at all in
+     * Claude Code's embedded Chrome), so the click cannot be left to onClose.
+     * Either one failing quietly brings the explainer back every morning.
+     */
+    test("pressing Got it records that this browser has seen it", () => {
+        localStorage.removeItem("minesweeper_daily_explainer_seen");
+        const dialog = renderOpen(DIALOGS.dailyIntro);
+
+        fireEvent.click(within(dialog).getByRole("button", {
+            name: "Close the rules and play today's puzzle",
+        }));
+
+        expect(hasSeenDailyExplainer()).toBe(true);
+    });
+
+    test("dismissing with Escape records it too", () => {
+        localStorage.removeItem("minesweeper_daily_explainer_seen");
+        const dialog = renderOpen(DIALOGS.dailyIntro);
+
+        // What a platform close request reaches the component as.
+        fireEvent(dialog, new Event("cancel"));
+
+        expect(hasSeenDailyExplainer()).toBe(true);
+    });
 });
 
 describe("dailyGameOver: hit a mine, no retry today", () => {
@@ -367,9 +430,9 @@ describe("sharing a result", () => {
         expect(await shareAndCapture(DIALOGS.dailyGameOver)).toContain("🟩🟩💥⬜⬜⬜⬜⬜⬜⬜");
     });
 
-    /* Pins lib/dailyIntent.ts's rule at the integration level: the pasted link
-     * must land on the intro, never spend the reader's attempt. */
-    test("links to /daily with no auto-start parameter", async () => {
+    /* The same rule as lib/dailyShare.test.ts, at the integration level: the
+     * pasted link is the plain route, carrying nothing the sender chose. */
+    test("links to /daily with no query string", async () => {
         const shared = await shareAndCapture(DIALOGS.dailyGameOver);
 
         expect(shared).toContain(`${window.location.origin}/daily`);

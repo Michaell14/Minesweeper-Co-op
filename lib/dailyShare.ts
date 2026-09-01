@@ -72,8 +72,10 @@ export function percentCleared(board: Cell[][]): number | null {
  * whoever reads it. Progress and streak are about when, not where, which is
  * what keeps them shareable.
  *
- * The link is plain /daily, never an auto-start parameter: starting consumes
- * the reader's one attempt for the day (see lib/dailyIntent.ts).
+ * The link is the canonical /daily URL, never a parameterised one. The route
+ * takes no parameters and reads none, so anything appended is either dead or a
+ * way for a pasted link to make one reader's arrival differ from everyone
+ * else's — on a puzzle whose whole premise is that it does not.
  */
 export function buildDailyShareText({ date, status, elapsedMs, rank, totalEntries, streak, progressPercent, milestones }: ShareableDailyResult): string {
     const origin = typeof window !== "undefined" ? window.location.origin : "";

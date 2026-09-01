@@ -1412,46 +1412,94 @@ async function keyboardPlay(page) {
 }
 
 /**
- * /daily is a page of prose that becomes a board on request.
+ * /daily opens on the board, with the prose kept below it.
  *
- * The load-bearing check is the negative one: arriving must NOT mount a board.
- * A visitor from a search result gets one attempt a day, and auto-starting it
- * would spend that attempt before they had decided to play — with nothing on
- * screen to say so. jsdom covers the component's own branch; only a real browser
- * proves the route serves the intro and that the button reaches the server.
+ * Three things only a real browser can prove. That the route mounts a board
+ * with no click — the whole point of the page. That the prose is still SERVED
+ * and sits BELOW the board rather than in front of it, which is a layout fact
+ * jsdom has no engine to measure. And that the first-visit explainer is keyed
+ * to real localStorage: showing it once is the entire contract, and both ways
+ * to break it (never, or every morning) look identical in the markup.
  */
 async function daily(page) {
     console.log('\n\x1b[1m--- DAILY ---\x1b[0m');
 
+    /*
+     * A browser that has never played, forced. The smoke run shares one profile
+     * across sections, so an earlier visit would otherwise decide this.
+     */
     await page.goto(`${CLIENT}/daily`);
-    await page.waitFor(`!!document.querySelector('h1')`, { timeout: 60000, label: 'the daily page renders' });
+    await page.evaluate(`localStorage.removeItem('minesweeper_daily_explainer_seen'); return true`);
+    await page.goto(`${CLIENT}/daily`);
 
-    const heading = await page.evaluate(`return document.querySelector('h1').textContent`);
-    check(/daily challenge/i.test(heading), `the intro heading renders ("${heading}")`,
-        `unexpected h1: ${heading}`);
-
-    const cellsOnArrival = await page.evaluate(`return document.querySelectorAll('[role=gridcell]').length`);
-    check(cellsOnArrival === 0, 'no board is mounted on arrival',
-        `${cellsOnArrival} cells were already on screen — the attempt starts itself`);
-
-    await page.click(`[aria-label^="Play today's daily challenge"]`);
     await page.waitFor(`document.querySelectorAll('[role=gridcell]').length > 0`,
-        { label: 'the play button starts a board' });
-    pass('the play button starts a board');
+        { timeout: 60000, label: 'arriving at /daily mounts the board with no click' });
+    pass('arriving at /daily mounts the board with no click');
 
     // The board mounts exactly once here too — same invariant Grid.tsx has.
     const boards = await page.evaluate(`return document.querySelectorAll('[role=grid]').length`);
     check(boards === 1, 'the daily board mounts exactly once', `found ${boards} grids`);
 
     /*
-     * The other arrival: the front page's button carries the play intent, so it
-     * has to land on the BOARD. It shipped landing on the intro instead —
-     * a page of copy and a second button reading exactly what was just pressed.
+     * The prose is why /daily is a route rather than a flag. It has to survive
+     * the board being in front of it — served, and below the fold, not deleted.
      */
+    const prose = await page.evaluate(`
+        const copy = document.querySelector('.ms-prose');
+        const grid = document.querySelector('[role=grid]');
+        if (!copy || !grid) return { served: !!copy };
+        return {
+            served: true,
+            belowBoard: copy.getBoundingClientRect().top > grid.getBoundingClientRect().bottom,
+            headings: [...copy.querySelectorAll('h1')].length,
+        };
+    `);
+    check(prose.served, 'the indexable prose is still served',
+        '/daily lost the copy that is the reason it is a route');
+    check(prose.belowBoard, 'the prose sits below the board',
+        'the copy is in front of the puzzle again');
+    check(prose.headings === 0, 'the prose leaves the page one h1',
+        `the copy still carries ${prose.headings} h1s alongside the board's`);
+
     /*
-     * Arm the landing page rather than inherit one. Same reason rejoinOnReload
-     * does it: a tab that ended inside a room lands straight back in it, and
-     * this section arrives holding whatever the previous one left.
+     * The rules moved into this dialog when the page stopped explaining itself,
+     * so a first-time player who never sees it is handed an unexplained
+     * one-shot timed board.
+     */
+    const introOpen = await page.evaluate(
+        `return !!document.querySelector('#dialog-daily-intro[open]')`);
+    check(introOpen, 'the explainer greets a browser that has never played',
+        'a newcomer gets the board with nothing saying it is one attempt');
+
+    await page.click(`[aria-label="Close the rules and play today's puzzle"]`);
+    await page.waitFor(`!document.querySelector('#dialog-daily-intro[open]')`,
+        { label: 'Got it dismisses the explainer' });
+    pass('Got it dismisses the explainer');
+
+    /*
+     * Closing it has to WRITE the flag, not just hide the dialog. The button
+     * marks it seen itself rather than leaving that to Dialog's onClose,
+     * because the <dialog> `close` event does not fire in every engine — it
+     * never fires in Claude Code's embedded Chrome, where this was found.
+     */
+    const stored = await page.evaluate(
+        `return localStorage.getItem('minesweeper_daily_explainer_seen')`);
+    check(stored === 'true', 'dismissing records that this browser has seen it',
+        `the flag is ${stored} — the explainer will greet this player again`);
+
+    await page.goto(`${CLIENT}/daily`);
+    await page.waitFor(`document.querySelectorAll('[role=gridcell]').length > 0`,
+        { timeout: 60000, label: 'the daily reloads' });
+    await sleep(500);
+    const introAgain = await page.evaluate(
+        `return !!document.querySelector('#dialog-daily-intro[open]')`);
+    check(!introAgain, 'the explainer stays gone on the next visit',
+        'a returning player is re-read the rules every morning');
+
+    /*
+     * The front page's link. Plain /daily, never a parameterised one: the route
+     * reads none, so anything appended is state a sender chose for a reader on
+     * a puzzle whose premise is that it arrives the same way for everybody.
      */
     await page.goto(CLIENT);
     await sleep(1500);
@@ -1464,11 +1512,6 @@ async function daily(page) {
     await page.waitFor(`!!document.querySelector('[aria-label^="Play today\\'s daily challenge"]')`,
         { timeout: 60000, label: 'the landing page renders its daily button' });
 
-    /*
-     * The intent is the PRESS, never the URL. A shareable `?play=1` would spend
-     * the reader's one attempt for the day the moment they opened it, so the
-     * href stays plain and the click is what carries the choice.
-     */
     const href = await page.evaluate(
         `return document.querySelector('[aria-label^="Play today\\'s daily challenge"]').getAttribute('href')`);
     check(href === '/daily', `the landing button links to plain /daily (${href})`,
@@ -1476,30 +1519,8 @@ async function daily(page) {
 
     await page.click(`[aria-label^="Play today's daily challenge"]`);
     await page.waitFor(`document.querySelectorAll('[role=gridcell]').length > 0`,
-        { label: 'the landing button lands on the board, not the intro' });
-    pass('the landing button lands on the board, not the intro');
-
-    const introShown = await page.evaluate(`return !!document.querySelector('.ms-prose')`);
-    check(!introShown, 'the intro copy is not shown on the way through',
-        'the daily intro rendered for a player who had already pressed play');
-
-    const search = await page.evaluate(`return window.location.search`);
-    check(search === '', 'no query parameter is left behind', `location.search is "${search}"`);
-
-    /*
-     * The other half of the same rule: a link someone could paste anywhere must
-     * not start anything. This is a real page load, so nothing carries over.
-     */
-    await page.goto(`${CLIENT}/daily?play=1`);
-    await page.waitFor(`!!document.querySelector('h1')`, { timeout: 60000, label: '/daily?play=1 loads' });
-    await sleep(2500);
-    const forged = await page.evaluate(`return {
-        cells: document.querySelectorAll('[role=gridcell]').length,
-        intro: !!document.querySelector('.ms-prose'),
-    }`);
-    check(forged.cells === 0 && forged.intro,
-        'a ?play=1 link starts nothing and still shows the intro',
-        `cells=${forged.cells} intro=${forged.intro} — a pasted link can spend someone's attempt`);
+        { label: 'the landing button lands on the board' });
+    pass('the landing button lands on the board');
 }
 
 /**

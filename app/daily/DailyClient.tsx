@@ -8,7 +8,8 @@ import ConnectionBanner from "@/components/ConnectionBanner";
 import DailyChallenge from "@/components/DailyChallenge";
 import DailyDialogs from "@/components/dialogs/DailyDialogs";
 import { useGameSession } from "@/hooks/useGameSession";
-import { consumePlayIntent } from "@/lib/dailyIntent";
+import { hasSeenDailyExplainer } from "@/lib/dailyExplainerSeen";
+import { DIALOGS, openDialog } from "@/lib/dialogs";
 
 /**
  * How long to wait for the server to answer an automatic start before handing
@@ -22,11 +23,19 @@ const AUTO_START_TIMEOUT_MS = 15_000;
 /**
  * The interactive half of /daily.
  *
- * The attempt is NOT started on mount, deliberately. Arriving here from a search
- * result would otherwise consume the visitor's one attempt for the day before
- * they had decided to play, and it would hand a crawler a grid of empty cells in
- * place of the page's text. The intro (server-rendered, in page.tsx) is what
- * both of them see first; `startDaily` runs on the click.
+ * The attempt starts on MOUNT. It did not always: the intro used to stand in
+ * front of it because starting consumes the day's one attempt even with no move
+ * made (the fresh-attempt branch in server/controllers/dailyController.js). What
+ * makes that safe to skip is the rest of that branch — a fresh attempt is stored
+ * with `startedAt: null` and resumes under the same browser token, so arriving
+ * and not playing costs a visitor nothing they could have had otherwise; the
+ * board is the same for everyone all day and was never rerollable. What the
+ * intro did cost was a page of prose and a button in front of a route whose
+ * whole purpose is one puzzle.
+ *
+ * The prose still renders — below the board, and server-side, so /daily keeps
+ * the indexable text that is the reason it is a route rather than a flag. The
+ * rules it used to carry are now a dialog, shown once per browser.
  *
  * Leaving navigates. `leaveDaily` alone only clears the daily state, which used
  * to be the whole job when the daily was a branch of `/` — it landed the player
@@ -91,13 +100,9 @@ export default function DailyClient({ intro }: { intro: React.ReactNode }) {
     }, [socket, leaveRoom, cancelMatch]);
 
     /*
-     * `startDaily` is a silent no-op until `useSocket`'s effect has run, and the
-     * button is live from the moment the page hydrates. The gap is short — a
-     * commit and a passive-effect flush — but a click landing in it does
-     * nothing at all and says nothing, on the page's only call to action. So
-     * the intent is held rather than dropped, and fires when the socket lands.
-     * Disabling the button instead would grey out the CTA on every load for the
-     * same interval, which is the worse trade.
+     * `startDaily` is a silent no-op until `useSocket`'s effect has run, so the
+     * start is held rather than dropped and fires when the socket lands. That
+     * also covers the retry button below, which is live from hydration.
      */
     const startPending = React.useRef(false);
 
@@ -116,22 +121,17 @@ export default function DailyClient({ intro }: { intro: React.ReactNode }) {
     }, [socket, startDaily]);
 
     /*
-     * Arriving on a press of "Play Today's Puzzle" (lib/dailyIntent.ts) skips
-     * the intro entirely: that control already said play, and meeting it with
-     * prose and a second button of the same name reads as the first click not
-     * having worked.
-     *
-     * `autoStarting` is separate from the pending-click ref because it also has
-     * to suppress the intro. Waiting for the board without it would leave the
-     * whole page of copy on screen for a socket round trip, which is the flash
-     * this exists to remove — one frame of it survives regardless, since the
-     * route is statically rendered and the intro is what hydrates.
+     * `autoStarting` is separate from the pending ref because it also has to
+     * suppress the intro: waiting for the board without it would leave the page
+     * of copy on screen for a socket round trip, which is the flash this exists
+     * to remove — one frame of it survives regardless, since the route is
+     * statically rendered and the intro is what hydrates.
      */
     const [autoStarting, setAutoStarting] = React.useState(false);
     const autoStarted = React.useRef(false);
 
     React.useEffect(() => {
-        if (autoStarted.current || !consumePlayIntent()) return;
+        if (autoStarted.current) return;
         autoStarted.current = true;
         setAutoStarting(true);
         requestStart();
@@ -143,14 +143,31 @@ export default function DailyClient({ intro }: { intro: React.ReactNode }) {
      * `startDaily`'s handler emits nothing on failure — its catch only logs —
      * so a dropped socket or a Redis blip leaves nothing to wait for. Without
      * this the player is left on a loading line with no board, no intro and no
-     * button: a dead end where the pre-auto-start version simply still had the
-     * button to press. Falling back to the intro IS the retry.
+     * button: a dead end. Falling back to the intro IS the retry.
      */
     React.useEffect(() => {
         if (!autoStarting || attemptLoaded) return;
         const timer = setTimeout(() => setAutoStarting(false), AUTO_START_TIMEOUT_MS);
         return () => clearTimeout(timer);
     }, [autoStarting, attemptLoaded]);
+
+    /*
+     * The rules, once per browser, over the board that is already there.
+     *
+     * Held open until the board exists rather than fired on mount: the dialog
+     * explains a puzzle, and opening it over a loading line explains one the
+     * player cannot yet see. Marking it seen belongs to the dialog's `onClose`
+     * (components/dialogs/DailyDialogs.tsx) rather than here — Escape dismisses
+     * it too, and a flag written on open would burn the one showing on a player
+     * who reloaded before reading it.
+     */
+    const explainerShown = React.useRef(false);
+
+    React.useEffect(() => {
+        if (!attemptLoaded || explainerShown.current) return;
+        explainerShown.current = true;
+        if (!hasSeenDailyExplainer()) openDialog(DIALOGS.dailyIntro);
+    }, [attemptLoaded]);
 
     const leaveDaily = React.useCallback(() => {
         clearDailyState();
@@ -161,13 +178,19 @@ export default function DailyClient({ intro }: { intro: React.ReactNode }) {
         <>
             <ConnectionBanner />
             {attemptLoaded ? (
-                <DailyChallenge
-                    leaveDaily={leaveDaily}
-                    dailyOpenCell={actions.dailyOpenCell}
-                    dailyChordCell={actions.dailyChordCell}
-                    dailyToggleFlag={actions.dailyToggleFlag}
-                    getDailyLeaderboard={actions.getDailyLeaderboard}
-                />
+                <>
+                    <DailyChallenge
+                        leaveDaily={leaveDaily}
+                        dailyOpenCell={actions.dailyOpenCell}
+                        dailyChordCell={actions.dailyChordCell}
+                        dailyToggleFlag={actions.dailyToggleFlag}
+                        getDailyLeaderboard={actions.getDailyLeaderboard}
+                    />
+                    {/* Below the board, and below the fold: the board's own
+                        container is min-h-[94vh]. Here for crawlers and for
+                        anyone who scrolls, not in the player's way. */}
+                    {intro}
+                </>
             ) : autoStarting ? (
                 <p
                     role="status"

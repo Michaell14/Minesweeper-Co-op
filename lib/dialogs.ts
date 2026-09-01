@@ -40,6 +40,7 @@ export const DIALOGS = {
     privacy: 'dialog-privacy',
 
     // Owned by components/dialogs/DailyDialogs.tsx
+    dailyIntro: 'dialog-daily-intro',
     dailySubmit: 'dialog-daily-submit',
     dailyGameOver: 'dialog-daily-game-over',
     dailyAlreadyPlayed: 'dialog-daily-already-played',
