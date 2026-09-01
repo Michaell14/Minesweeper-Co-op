@@ -19,13 +19,14 @@ export interface LessonCardProps {
 export default function LessonCard({ lesson, ordinal, drillIds }: LessonCardProps) {
     // After mount, never during render: the server has no localStorage, and a
     // count read while rendering would not match what it sent.
-    const [solved, setSolved] = React.useState(0);
+    const [done, setDone] = React.useState<ReadonlySet<string>>(() => new Set());
     React.useEffect(() => {
-        const done = new Set(readProgress().completed);
-        setSolved(drillIds.filter((id) => done.has(id)).length);
+        const completed = new Set(readProgress().completed);
+        setDone(new Set(drillIds.filter((id) => completed.has(id))));
     }, [drillIds]);
 
     const total = drillIds.length;
+    const solved = done.size;
     const complete = total > 0 && solved === total;
 
     // The classic number colours only run to 8; past that the digit stays ink.
@@ -57,8 +58,8 @@ export default function LessonCard({ lesson, ordinal, drillIds }: LessonCardProp
                             {/* One square per drill. The caption beside them is
                                 what says so — unlabelled, they were just shapes. */}
                             <span className={styles.pips} aria-hidden="true">
-                                {drillIds.map((id, i) => (
-                                    <span key={id} className={classes(styles.pip, i < solved && styles.pipDone)} />
+                                {drillIds.map((id) => (
+                                    <span key={id} className={classes(styles.pip, done.has(id) && styles.pipDone)} />
                                 ))}
                             </span>
                             {complete ? 'Complete' : `${solved} of ${total} solved`}
