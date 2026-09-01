@@ -2,6 +2,7 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import LessonDrills from './LessonDrills';
+import { recordSolved } from '@/lib/drillProgress';
 import type { Drill } from '@/lib/drills';
 
 vi.mock('@/lib/sound', () => ({ playSound: vi.fn() }));
@@ -46,6 +47,21 @@ describe('working through a lesson', () => {
         expect(screen.getByText(/Drill 2 of 2/)).toBeTruthy();
         expect(screen.queryByText(second.explanation)).toBeNull();
         expect(screen.getByRole('gridcell', { name: 'Unrevealed cell at row 1, column 1' })).toBeTruthy();
+    });
+
+    // The index card says "Resume" once a drill is solved. Landing back on
+    // drill 1 is that promise broken, and nothing else in the app catches it.
+    test('resumes at the first drill still unsolved', () => {
+        recordSolved(first.id, { mistakes: 0, hints: 0 });
+        render(<LessonDrills drills={[first, second]} />);
+        expect(screen.getByText(/Drill 2 of 2/)).toBeTruthy();
+    });
+
+    test('starts over once every drill is solved, for a review pass', () => {
+        recordSolved(first.id, { mistakes: 0, hints: 0 });
+        recordSolved(second.id, { mistakes: 0, hints: 0 });
+        render(<LessonDrills drills={[first, second]} />);
+        expect(screen.getByText(/Drill 1 of 2/)).toBeTruthy();
     });
 
     test('the last drill ends the lesson instead of offering another', () => {
