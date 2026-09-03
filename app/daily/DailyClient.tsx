@@ -111,6 +111,15 @@ export default function DailyClient({ intro }: { intro: React.ReactNode }) {
     }, [socket, leaveRoom, cancelMatch]);
 
     /*
+     * `autoStarting` is separate from the pending ref because it also has to
+     * suppress the intro: waiting for the board without it would leave the page
+     * of copy on screen for a socket round trip, which is the flash this exists
+     * to remove — one frame of it survives regardless, since the route is
+     * statically rendered and the intro is what hydrates.
+     */
+    const [autoStarting, setAutoStarting] = React.useState(false);
+
+    /*
      * `startDaily` is a silent no-op until `useSocket`'s effect has run, so the
      * start is held rather than dropped and fires when the socket lands. That
      * also covers the retry button below, which is live from hydration.
@@ -118,6 +127,11 @@ export default function DailyClient({ intro }: { intro: React.ReactNode }) {
     const startPending = React.useRef(false);
 
     const requestStart = React.useCallback(() => {
+        // Raised here rather than beside the mount call, so a press of the
+        // retry button gets the loading line and a fresh timeout as well —
+        // otherwise the second attempt at a server that is still down looks
+        // like a button that does nothing at all.
+        setAutoStarting(true);
         if (!socket) {
             startPending.current = true;
             return;
@@ -131,20 +145,11 @@ export default function DailyClient({ intro }: { intro: React.ReactNode }) {
         startDaily();
     }, [socket, startDaily]);
 
-    /*
-     * `autoStarting` is separate from the pending ref because it also has to
-     * suppress the intro: waiting for the board without it would leave the page
-     * of copy on screen for a socket round trip, which is the flash this exists
-     * to remove — one frame of it survives regardless, since the route is
-     * statically rendered and the intro is what hydrates.
-     */
-    const [autoStarting, setAutoStarting] = React.useState(false);
     const autoStarted = React.useRef(false);
 
     React.useEffect(() => {
         if (autoStarted.current) return;
         autoStarted.current = true;
-        setAutoStarting(true);
         requestStart();
     }, [requestStart]);
 
@@ -154,7 +159,8 @@ export default function DailyClient({ intro }: { intro: React.ReactNode }) {
      * `startDaily`'s handler emits nothing on failure — its catch only logs —
      * so a dropped socket or a Redis blip leaves nothing to wait for. Without
      * this the player is left on a loading line with no board, no intro and no
-     * button: a dead end. Falling back to the intro IS the retry.
+     * button: a dead end. Falling back to the intro IS the retry, and pressing
+     * it re-arms this timer through `requestStart`.
      */
     React.useEffect(() => {
         if (!autoStarting || attemptLoaded) return;

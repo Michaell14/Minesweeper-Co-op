@@ -137,6 +137,31 @@ describe('/daily on arrival', () => {
         expect(startDaily).toHaveBeenCalledTimes(1);
     });
 
+    /*
+     * A retry against a server that is still down has to look like a retry.
+     * Without the pending state the click leaves the prose and the button
+     * exactly where they were, and arms no second timeout to fall back from.
+     */
+    test('the retry button shows the loading line again, and can time out again', () => {
+        vi.useFakeTimers();
+
+        render(<DailyClient intro={intro} />);
+        act(() => {
+            vi.advanceTimersByTime(20_000);
+        });
+
+        fireEvent.click(screen.getByRole('button', { name: /daily challenge/i }));
+        expect(screen.getByText(/Loading today/)).toBeTruthy();
+        expect(introHeading()).toBeNull();
+
+        act(() => {
+            vi.advanceTimersByTime(20_000);
+        });
+
+        expect(screen.queryByText(/Loading today/)).toBeNull();
+        expect(screen.getByRole('button', { name: /daily challenge/i })).toBeTruthy();
+    });
+
     test('does not fall back once the board has arrived', () => {
         vi.useFakeTimers();
 
