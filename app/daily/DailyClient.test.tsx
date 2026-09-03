@@ -177,6 +177,24 @@ describe('the first-visit explainer', () => {
     });
 
     /*
+     * A terminal resume loads a board through the same field, and
+     * DAILY_ALREADY_ATTEMPTED opens the submit / already-played dialog itself.
+     * Both are showModal'd, so an explainer that fires here lands on top of the
+     * result the player came back for.
+     */
+    test.each(['won_pending_submit', 'completed', 'failed'] as const)(
+        'stays shut on a terminal resume (%s), where a result dialog is already up',
+        (status) => {
+            render(<DailyClient intro={intro} />);
+            act(() => {
+                useMinesweeperStore.getState().setDailyStatus(status);
+            });
+
+            expect(explainerIsOpen()).toBe(false);
+        },
+    );
+
+    /*
      * Dismissal is what writes the flag, via the dialog's own onClose — Escape
      * closes a native <dialog> without submitting any form, so a flag written
      * on the button alone would bring the explainer back forever.

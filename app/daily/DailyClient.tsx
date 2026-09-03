@@ -55,7 +55,18 @@ export default function DailyClient({ intro }: { intro: React.ReactNode }) {
      * daily view is showing" (state/dailySlice.ts), and on this route the intro
      * is the daily view just as much as the board is.
      */
-    const attemptLoaded = useMinesweeperStore((state) => state.dailyStatus !== "idle");
+    const dailyStatus = useMinesweeperStore((state) => state.dailyStatus);
+    const attemptLoaded = dailyStatus !== "idle";
+
+    /*
+     * A board that can still be played, as opposed to one being read back.
+     *
+     * A terminal resume loads through the same field: `DAILY_ALREADY_ATTEMPTED`
+     * opens the submit or already-played dialog itself, so the explainer below
+     * has to sit those out or it lands modally on top of the result the player
+     * came back for.
+     */
+    const attemptPlayable = dailyStatus === "ready" || dailyStatus === "in_progress";
 
     const { leaveDaily: clearDailyState, leaveRoom, cancelMatch, startDaily } = actions;
 
@@ -154,9 +165,10 @@ export default function DailyClient({ intro }: { intro: React.ReactNode }) {
     /*
      * The rules, once per browser, over the board that is already there.
      *
-     * Held open until the board exists rather than fired on mount: the dialog
-     * explains a puzzle, and opening it over a loading line explains one the
-     * player cannot yet see. Marking it seen belongs to the dialog's `onClose`
+     * Held open until a PLAYABLE board exists rather than fired on mount: the
+     * dialog explains a puzzle, and opening it over a loading line explains one
+     * the player cannot yet see — or, on a terminal resume, covers the result
+     * dialog that handler just opened. Marking it seen belongs to `onClose`
      * (components/dialogs/DailyDialogs.tsx) rather than here — Escape dismisses
      * it too, and a flag written on open would burn the one showing on a player
      * who reloaded before reading it.
@@ -164,10 +176,10 @@ export default function DailyClient({ intro }: { intro: React.ReactNode }) {
     const explainerShown = React.useRef(false);
 
     React.useEffect(() => {
-        if (!attemptLoaded || explainerShown.current) return;
+        if (!attemptPlayable || explainerShown.current) return;
         explainerShown.current = true;
         if (!hasSeenDailyExplainer()) openDialog(DIALOGS.dailyIntro);
-    }, [attemptLoaded]);
+    }, [attemptPlayable]);
 
     const leaveDaily = React.useCallback(() => {
         clearDailyState();
