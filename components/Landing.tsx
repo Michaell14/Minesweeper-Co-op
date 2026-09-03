@@ -2,7 +2,6 @@ import React from 'react';
 import { useMinesweeperStore } from '@/app/store';
 import { useAccountProfile } from '@/hooks/useAccountProfile';
 import { Button, ButtonLink, CalendarIcon, Dialog, DialogClose, SwordsIcon } from "@/components/ds";
-import { markPlayIntent } from "@/lib/dailyIntent";
 import { DIALOGS, openDialog } from "@/lib/dialogs";
 import AnnouncementBanner from '@/components/landing/AnnouncementBanner';
 import JoinRoomForm from '@/components/landing/JoinRoomForm';
@@ -112,13 +111,9 @@ export default function Landing({ createRoom, joinRoom, findMatch, cancelMatch, 
                     now, with nothing to fill in and nobody to coordinate with. */}
                 <div className="mt-3 flex flex-wrap justify-center gap-2">
                     {/* A link, not a button: the daily is its own page now, and
-                        this is how it gets crawled and opened in a new tab.
-                        The press is what says "play" — deliberately not a URL
-                        parameter, which anyone could share and thereby spend a
-                        stranger's one attempt for the day (lib/dailyIntent.ts). */}
+                        this is how it gets crawled and opened in a new tab. */}
                     <ButtonLink
                         href="/daily"
-                        onClick={markPlayIntent}
                         intent="primary"
                         size="sm"
                         aria-label="Play today's daily challenge — same board for everyone, ranked by time, one attempt">

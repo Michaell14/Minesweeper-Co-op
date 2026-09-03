@@ -4,6 +4,7 @@ import { Button, ButtonLink, DialogClose, Dialog, Field, Input, NameWithAvatar, 
 import { DIALOGS, openDialog, closeDialog } from '@/lib/dialogs';
 import { buildDailyShareText, percentCleared, shareDailyResult } from '@/lib/dailyShare';
 import { dailyWinStreak, readDailyHistory } from '@/lib/dailyHistory';
+import { markDailyExplainerSeen } from '@/lib/dailyExplainerSeen';
 import { formatElapsed } from '@/lib/gameClock';
 import { shortLessonName } from '@/lib/lossDiagnosis';
 
@@ -138,6 +139,46 @@ export default function DailyDialogs({ submitDailyScore, getDailyLeaderboard }: 
                 label change on the button itself is not reliably picked up, same
                 as RoomPanel's Copy Link. */}
             <span className="sr-only" aria-live="polite">{shareFeedback}</span>
+
+            {/*
+                First visit only: /daily opens straight onto the board, so this
+                is the only thing that says what the rules are. Opened by
+                app/daily/DailyClient.tsx, which owns the once-ever flag; the
+                clock has not started while it is up, so reading it is free.
+            */}
+            <Dialog
+                id={DIALOGS.dailyIntro}
+                title="Today's Puzzle"
+                onClose={markDailyExplainerSeen}
+                actionsAlign="between"
+                actions={
+                    <>
+                        <ButtonLink href="/how-to-play" size="sm">
+                            How to play
+                        </ButtonLink>
+                        {/*
+                            Marks seen on the CLICK as well as on onClose. The
+                            two cover different dismissals and neither covers
+                            both: `close` does not fire in every engine (it does
+                            not in Claude Code's embedded Chrome at all), and a
+                            click handler never sees Escape. Idempotent, as
+                            Dialog's onClose contract requires.
+                        */}
+                        <DialogClose
+                            intent="primary"
+                            onClick={markDailyExplainerSeen}
+                            aria-label="Close the rules and play today's puzzle">
+                            Got it
+                        </DialogClose>
+                    </>
+                }>
+                <ul className="text-pixel-sm flex flex-col gap-2">
+                    <li>Everyone in the world plays the same board today.</li>
+                    <li>One attempt — hit a mine and the run is over.</li>
+                    <li>The clock starts on your first click, not now.</li>
+                    <li>Clear it and your time goes on today&apos;s leaderboard.</li>
+                </ul>
+            </Dialog>
 
             {/* Won: enter a name to add today's time to the leaderboard. */}
             <Dialog
