@@ -1,9 +1,8 @@
 // @vitest-environment jsdom
 /**
- * The sound engine's GATES — the part that fails silently in both directions:
- * a beep from a player who never opted in, or an opted-in player hearing
- * nothing. The synthesis itself is exercised against a fake AudioContext that
- * records scheduling, since jsdom ships no Web Audio at all.
+ * The sound engine's GATES, which fail silently both ways: a beep nobody opted
+ * into, or silence for someone who did. Synthesis runs against a fake
+ * AudioContext, since jsdom has no Web Audio.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { playSound, resetSoundForTests } from './sound';

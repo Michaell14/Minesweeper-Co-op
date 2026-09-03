@@ -1,25 +1,14 @@
 /*
- * A lesson on the /drills index.
- *
- * The lessons are a ladder, not a set — the last one is explicitly "the general
- * rule every pattern above is a special case of" — so they are numbered and
- * stacked rather than tiled two-up, and the number is drawn as a board cell.
- * Closed while there is anything left to solve, opened once the lesson is done:
- * the same state change the game itself uses, so completion needs no label.
- *
- * The box, the border and the fill come from <Panel>. Only the row layout and
- * the pressable states live here.
+ * A lesson on the /drills index. The lessons are a ladder, so they are numbered
+ * and stacked rather than tiled, with the number drawn as a board cell: closed
+ * while there is anything left to solve, opened once done. The box, border and
+ * fill come from <Panel>; only the row layout and pressable states live here.
  */
 
 /*
- * Doubled to beat `.panel`'s own padding, which is sized for a region rather
- * than a list row. Same trick board.module.css uses for `.cell.hovered.hovered`
- * — it says "a lesson row is tighter than a panel" outright, instead of
- * depending on which stylesheet the bundler happened to emit last.
- *
- * Narrow first: three columns on a phone squeezed the blurb to five lines and
- * left the verb hanging in a gutter, so the verb drops under the text and only
- * rejoins the line when there is room for it.
+ * Doubled to beat `.panel`'s own padding without depending on stylesheet
+ * order (same trick as `.cell.hovered.hovered`). Narrow first: three columns
+ * on a phone squeezed the blurb, so the verb drops under the text.
  */
 .row.row {
     display: grid;
@@ -45,14 +34,9 @@
 }
 
 /*
- * The lift. Offsetting the row and dropping a solid rectangle behind it is the
- * same illusion .notched draws for a button, which is what makes a card the
- * whole page treats as one big target read as pressable rather than printed.
- *
- * Deliberately not a fill change as well. --ms-surface-option-selected is the
- * obvious candidate and is the same near-black green as the ink on Game Boy,
- * so a hovered row would lose its own text on one of the twelve palettes. The
- * lift carries the state on all of them.
+ * The lift: the same illusion .notched draws for a button. Not a fill change
+ * as well, since --ms-surface-option-selected is the Game Boy ink colour and a
+ * hovered row would lose its own text there.
  */
 .row.row:hover,
 .row.row:focus-within {
@@ -78,8 +62,7 @@
 
 /*
  * The lesson number, on a covered cell. Bevel copied from board.module.css
- * rather than imported: this is one cell outside the grid, and pulling in the
- * board stylesheet would drag --cell-size and the whole fit clamp with it.
+ * rather than imported, which would drag the whole fit clamp along.
  */
 .ordinal {
     grid-area: ordinal;
@@ -120,9 +103,8 @@
 }
 
 /*
- * The whole row is the target, not just these few words. The overlay sits on
- * the link so the accessible name, the href and keyboard activation all stay on
- * one real anchor — a click handler on the row would give none of them.
+ * The whole row is the target. The overlay sits on the link so the accessible
+ * name, href and keyboard activation stay on one real anchor.
  */
 .link {
     color: inherit;
@@ -148,13 +130,9 @@
 }
 
 /*
- * One square per drill: how long the lesson is, and how far in you are.
- *
- * The hairline is load-bearing, not trim. On Game Boy --ms-intent-success,
- * --ms-cell-closed and --ms-surface-panel are all #8bac0f, so without an edge a
- * solved pip is an invisible square on an invisible square. A 1px rule rather
- * than --ms-border-width, which is 4px and would leave a 12px pip all edge —
- * the same trade the palette swatches in ThemeCards make.
+ * One square per drill. The hairline is load-bearing: on Game Boy the success,
+ * closed-cell and panel colours are all #8bac0f. 1px rather than
+ * --ms-border-width, which would leave a 12px pip all edge.
  */
 .progress {
     display: flex;
@@ -188,13 +166,9 @@
 }
 
 /*
- * What clicking does, said in words. A row that only lifts on hover still looks
- * printed until the pointer is already on it, and this page's whole job is
- * getting someone into a lesson. The verb carries the state the pips only draw:
- * Start, Resume, Review.
- *
- * The arrow is the pixel face's own `>` rather than an icon, so it needs no
- * addition to icons.tsx and matches the type beside it exactly.
+ * What clicking does, in words: Start, Resume, Review. A row that only lifts
+ * on hover looks printed until the pointer is on it. The arrow is the pixel
+ * face's own `>` so it needs nothing in icons.tsx.
  */
 .action {
     grid-area: action;

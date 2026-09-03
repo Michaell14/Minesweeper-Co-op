@@ -8,8 +8,7 @@ export interface ShareableDailyResult {
     elapsedMs: number | null;
     rank: number | null;
     totalEntries: number | null;
-    /** Consecutive daily wins ending on `date`. Only shown from 2 up — a
-     * one-day "streak" is just the win the line above already reports. */
+    /** Consecutive daily wins ending on `date`. Shown from 2 up; a one-day streak is just the win. */
     streak?: number | null;
     /** How much of the board a LOSS cleared. Ignored on a win (it is 100%). */
     progressPercent?: number | null;
@@ -18,12 +17,10 @@ export interface ShareableDailyResult {
 }
 
 /**
- * The pace bar: one emoji per tenth of the board's safe cells — 🟩 on pace or
- * faster, 🟨 slower than the run's average, a loss truncated with 💥 and ⬜.
- * Same spoiler rule as everything here: pacing is about WHEN, so it is
- * shareable; the board is about WHERE, so it never is.
- *
- * Null whenever the data can't honestly support a bar.
+ * The pace bar: one emoji per tenth of the safe cells — 🟩 on pace, 🟨 slower
+ * than the run's average, a loss truncated with 💥 and ⬜. Pacing is about WHEN,
+ * so it is shareable; the board is about WHERE, so it never is. Null whenever
+ * the data cannot support a bar.
  */
 export function buildPaceBar(milestones: number[], won: boolean): string | null {
     const ms = milestones
@@ -35,10 +32,8 @@ export function buildPaceBar(milestones: number[], won: boolean): string | null 
     if (!won && ms.length === 0) return null; // died inside the first decile — no pace to show
 
     /*
-     * The board's free opening stamps its deciles at elapsed 0, so a plain
-     * mean over ALL deciles is dragged low enough that a perfectly steady run
-     * reads as slow everywhere. Average over the deciles that took real time;
-     * the free ones are trivially on-pace.
+     * The free opening stamps its deciles at elapsed 0, which drags a plain
+     * mean low. Average over the deciles that took real time.
      */
     const durations = ms.map((stamp, i) => stamp - (i > 0 ? ms[i - 1] : 0));
     const paced = durations.filter((d) => d > 0).length;
@@ -53,11 +48,9 @@ export function buildPaceBar(milestones: number[], won: boolean): string | null 
 }
 
 /**
- * Percentage of safe cells opened, from a TERMINAL board — one delivered with
- * `revealMines: true`, so closed cells carry a truthful `isMine`. On a live
- * projected board the projection zeroes that flag and this would overcount
- * the denominator; terminal states are the only place a share happens. Null
- * when there is no board to read.
+ * Percentage of safe cells opened, from a TERMINAL board (`revealMines: true`,
+ * so closed cells carry a truthful `isMine`). A live projected board zeroes
+ * that flag and would overcount the denominator. Null with no board.
  */
 export function percentCleared(board: Cell[][]): number | null {
     const { opened, total } = safeProgress(board);
@@ -66,14 +59,10 @@ export function percentCleared(board: Cell[][]): number | null {
 }
 
 /**
- * Wordle-style share text: outcome, time and pace only, never the board.
- * Everyone plays the identical seeded board today, so printing anything
- * POSITIONAL — opened cells, flag placements — would spoil the puzzle for
- * whoever reads it. Progress and streak are about when, not where, which is
- * what keeps them shareable.
- *
- * The link is plain /daily, never an auto-start parameter: starting consumes
- * the reader's one attempt for the day (see lib/dailyIntent.ts).
+ * Wordle-style share text: outcome, time and pace, never the board. Everyone
+ * plays the same seeded board, so anything POSITIONAL would spoil it. The link
+ * is plain /daily, never an auto-start: starting consumes the reader's one
+ * attempt (lib/dailyIntent.ts).
  */
 export function buildDailyShareText({ date, status, elapsedMs, rank, totalEntries, streak, progressPercent, milestones }: ShareableDailyResult): string {
     const origin = typeof window !== "undefined" ? window.location.origin : "";
@@ -106,10 +95,7 @@ export function buildDailyShareText({ date, status, elapsedMs, rank, totalEntrie
     return lines.join("\n");
 }
 
-/**
- * Native share sheet first, clipboard as the fallback. Mirrors Grid.tsx's
- * copyRoomLink: a denial is a silent no-op, not an error worth surfacing.
- */
+/** Native share sheet first, clipboard as fallback. As in Grid.tsx's copyRoomLink, a denial is a silent no-op. */
 export async function shareDailyResult(text: string): Promise<"shared" | "copied" | "failed"> {
     if (typeof navigator === "undefined") return "failed";
 
@@ -118,8 +104,7 @@ export async function shareDailyResult(text: string): Promise<"shared" | "copied
             await navigator.share({ text });
             return "shared";
         } catch {
-            // Cancelling the sheet rejects too -- a valid outcome, so fall
-            // through to the clipboard rather than report a failure.
+            // Cancelling the sheet rejects too, so fall through to the clipboard.
         }
     }
 

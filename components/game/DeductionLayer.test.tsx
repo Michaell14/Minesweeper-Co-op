@@ -1,9 +1,5 @@
 // @vitest-environment jsdom
-/**
- * jsdom has no layout engine, so this asserts what is mounted and how many —
- * never where. The geometry is the same measured-metrics technique CursorLayer
- * and KeyboardCursor use and is checked by eye.
- */
+/** jsdom has no layout engine, so this asserts what is mounted and how many, never where. */
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { cleanup, render } from '@testing-library/react';
 import React from 'react';
@@ -56,8 +52,7 @@ describe('the deduction overlay', () => {
         expect(container.querySelectorAll('[data-deduction="target"]').length).toBe(1);
     });
 
-    /* Decorative: the dialog carries the same information as text, and a
-       screen reader should not have to walk three empty boxes. */
+    /* Decorative: the dialog says the same in text; a screen reader need not walk three empty boxes. */
     test('is hidden from assistive tech', () => {
         useMinesweeperStore.getState().setDailyDiagnosis(sample);
 
@@ -67,9 +62,8 @@ describe('the deduction overlay', () => {
             .toBe('true');
     });
 
-    /* verdict 'mine' is a real danger (the cell they hit); verdict 'safe' is
-       the opposite claim (they should have opened it) and must not share the
-       danger color, or the safest square on the board reads as the riskiest. */
+    /* A 'safe' verdict is the opposite claim to 'mine' and must not share the
+       danger color, or the safest square reads as the riskiest. */
     test('paints a mine verdict with the error color', () => {
         useMinesweeperStore.getState().setDailyDiagnosis({ ...sample, verdict: 'mine' });
 

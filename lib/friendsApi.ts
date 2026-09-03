@@ -1,11 +1,7 @@
 /**
  * The friend-graph REST calls, shaped like lib/themesApi.ts: null means "not
- * available" (signed out, server down, accounts unconfigured) and the panel
- * shows that state rather than an empty graph — an empty friend list and a
- * broken one look identical otherwise.
- *
- * A refusal that a person needs to READ (an unknown code, a full list) comes
- * back as a message instead, because those are answers rather than failures.
+ * available", since an empty friend list and a broken one otherwise look the
+ * same. A refusal a person needs to READ comes back as a message instead.
  */
 
 import { serverURL } from "@/lib/initSocket";
@@ -25,11 +21,7 @@ export interface FriendGraph {
     incoming: FriendProfile[];
     /** Requests waiting on somebody else. */
     outgoing: FriendProfile[];
-    /**
-     * People I have blocked. Only ever MINE — a block placed on me is never
-     * reported, which is the point of one. Listed so it can be lifted:
-     * otherwise blocking is a one-way door.
-     */
+    /** People I have blocked; only MINE, never a block on me. Listed so it can be lifted. */
     blocked: FriendProfile[];
     /** This account's own code, minted on first read. */
     code: string | null;
@@ -75,12 +67,7 @@ export async function fetchFriends(): Promise<FriendGraph | null> {
     };
 }
 
-/**
- * What an add attempt did. `ok` is whether the graph moved; `message` is what
- * to tell the person either way, which is not the same question — "you are
- * already friends" is not a failure, and "no account with that code" is not a
- * crash.
- */
+/** `ok` is whether the graph moved; `message` is what to tell the person either way. */
 export interface AddFriendResult {
     ok: boolean;
     message: string;

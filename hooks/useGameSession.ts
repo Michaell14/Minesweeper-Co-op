@@ -10,23 +10,14 @@ import { useRoomHistory } from "@/hooks/useRoomHistory";
 import type { AppSocket } from "@/lib/initSocket";
 
 /**
- * The whole client half of the socket protocol, wired once.
+ * The whole client half of the socket protocol, wired once, by every route
+ * that talks to the server. One hook because the order matters:
+ * `useSocketEvents` connects only after the handler table from
+ * `useGameEvents` is attached, which needs `useGameActions`'s emits.
  *
- * Every route that talks to the server calls this — currently `/` and `/daily`.
- * The order matters and is the reason this is one hook rather than five lines
- * copied twice: `useSocketEvents` connects the socket only after the handler
- * table is attached, and the table comes from `useGameEvents`, which needs the
- * emits from `useGameActions`.
- *
- * Each route gets its OWN socket, and navigating between them redials. That is
- * fine, and deliberate rather than tolerated: `/daily` is not a room (see
- * ARCHITECTURE.md §5) — an attempt is addressed by a localStorage token and is
- * built to survive a reconnect, which is the same path a reload already takes.
- * Hoisting the socket into a shared layout to avoid the redial would buy nothing
- * and couple the two routes' lifetimes together.
- *
- * `useMatchReconnect` is included everywhere because it reads `matchSearching`
- * and does nothing unless a quick-match search is actually running.
+ * Each route gets its OWN socket and navigating redials; `/daily` is not a
+ * room (ARCHITECTURE.md §5) and an attempt survives a reconnect anyway.
+ * `useMatchReconnect` does nothing unless a quick-match search is running.
  */
 export function useGameSession(): {
     socket: AppSocket | null;

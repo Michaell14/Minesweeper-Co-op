@@ -1,7 +1,6 @@
 /**
  * Reading the run clock. The server sends two timestamps and the client derives
- * everything from them here, so the live timer and the end-of-game summary
- * cannot disagree on what "elapsed" and "02:07" mean.
+ * everything here, so the timer and the summary cannot disagree on "elapsed".
  */
 
 /** Seconds since the run began, frozen at `endedAt` once it is set. */
@@ -18,14 +17,9 @@ export const formatClock = (totalSeconds: number) => {
 };
 
 /**
- * The same reading for a duration in MILLISECONDS, and without the leading zero
- * on the minutes — "2:05", not "02:05".
- *
- * Two renderings on purpose, and they live together so the difference is a
- * choice rather than a coincidence. `formatClock` drives the ticking timer,
- * which pads so the digits keep a fixed width and do not jump as the minute
- * rolls over. This one goes in prose and in table cells, where a padded minute
- * reads like a typo. Everything that shows a time picks one of these two.
+ * The same reading for MILLISECONDS, without the leading zero on minutes.
+ * `formatClock` pads so the ticking timer keeps a fixed width; this one goes
+ * in prose and table cells, where a padded minute reads like a typo.
  */
 export const formatElapsed = (ms: number) => {
     const totalSeconds = Math.floor(Math.max(ms, 0) / 1000);

@@ -1,13 +1,8 @@
 /**
- * WCAG contrast, measured against what the browser actually painted.
- *
- * Every colour is a custom property a theme can redefine, so the only
- * trustworthy reading resolves the pair in the DOM rather than computing it from
- * the token source: a palette that looks fine as swatches can still put muted
- * text below 4.5:1 on a panel.
- *
- * The maths is separated from the DOM lookup so it can be tested — a transposed
- * coefficient would produce plausible, wrong, unfalsifiable output forever.
+ * WCAG contrast, measured against what the browser actually painted: every
+ * colour is a custom property a theme can redefine, so only resolving the pair
+ * in the DOM is trustworthy. The maths is separated from the DOM lookup so it
+ * can be tested; a transposed coefficient would be plausible and wrong forever.
  */
 
 export type Rgb = readonly [number, number, number];
@@ -68,10 +63,7 @@ export function measure(pairs: ContrastPair[]): ContrastResult[] {
     return results;
 }
 
-/**
- * Every button intent, derived rather than listed — adding a sixth intent must
- * not be able to escape the audit by someone forgetting to add a row here.
- */
+/** Every button intent, derived rather than listed, so a new intent cannot escape the audit. */
 const INTENT_PAIRS: ContrastPair[] = ["primary", "success", "warning", "error"].flatMap(
     (intent) => [
         {
@@ -80,9 +72,8 @@ const INTENT_PAIRS: ContrastPair[] = ["primary", "success", "warning", "error"].
             bg: `var(--ms-intent-${intent})`,
         },
         {
-            // Hover is a state a user reads text in, so it needs auditing too.
-            // Leaving it out is what let the default palette ship a hover fill
-            // that failed AA while its resting fill passed.
+            // Hover is a state a user reads text in; leaving it out once let a
+            // hover fill ship failing AA while its resting fill passed.
             label: `${intent} button, hover`,
             fg: `var(--ms-intent-${intent}-ink)`,
             bg: `var(--ms-intent-${intent}-hover)`,

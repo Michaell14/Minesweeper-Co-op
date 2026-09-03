@@ -1,20 +1,12 @@
 /**
- * PVP mode: two players race on their own separate boards.
+ * PVP mode: two players race separate boards (player1Board / player2Board)
+ * with the SAME mine layout, built once by startPvpGame with a shared opening
+ * revealed; there is no per-player generation on first click (ARCHITECTURE.md
+ * §5). Updates go to one socket, not the room.
  *
- * Everything is addressed per player — board state lives under player1Board /
- * player2Board, and updates go to a single socket rather than the room.
- *
- * Both players race the SAME mine layout: startPvpGame builds one board and
- * hands it to both, with a shared opening already revealed. There is no
- * per-player generation on first click — that is what used to make the two
- * layouts differ. See ARCHITECTURE.md §5.
- *
- * Nothing here takes the lock it needs: game/index.js holds that player's action
- * lock across the call and reads the snapshot it passes in under it. Every
- * function below rewrites a whole board field, so calling one without it lets a
- * player's own two moves erase each other.
- *
- * Lifecycle events (start, reset, rematch) live in controllers/pvpController.js.
+ * Nothing here takes the lock it needs: game/index.js holds that player's
+ * action lock across the call. Every function rewrites a whole board field.
+ * Lifecycle (start, reset, rematch) lives in controllers/pvpController.js.
  */
 
 const { updatePlayerStatsInRoom } = require('../utils/playerUtils');
@@ -37,22 +29,15 @@ const playerIndexOf = (playerData, socketId) => {
     return playerIndex;
 };
 
-/**
- * Stops one player's clock. Sent to that socket alone and never written to room
- * state — the opponent's clock must keep running. The start still comes from the
- * room, which is why it is read back rather than invented here.
- */
+/** Stops one player's clock. Sent to that socket alone; the opponent's keeps running. */
 const stopFor = async (room, socketId) => {
     const startedAt = readStamp(await roomRepo.getField(room, 'startedAt'));
     io.to(socketId).emit(SERVER_EVENTS.GAME_CLOCK, { startedAt, endedAt: Date.now() });
 };
 
 /**
- * Stops the clock for BOTH players, because a winner ends the race for both.
- *
- * The loser's is the easy one to forget: they are still mid-board, so nothing on
- * their side ends. Left running, their timer counts on under a dialog saying the
- * game is over, and the summary has no finish time to show.
+ * Stops both clocks. The loser is still mid-board, so nothing on their side
+ * would stop theirs, and it would count on under the game-over dialog.
  */
 const stopRace = async (room) => {
     const startedAt = readStamp(await roomRepo.getField(room, 'startedAt'));
@@ -60,10 +45,8 @@ const stopRace = async (room) => {
 };
 
 /**
- * Reveals cells from (r, c) on ONE player's board. Hitting a mine ends the game
- * for that player only; the opponent keeps playing and is told they failed.
- *
- * Returns the number of safe cells revealed, or -1 if a mine was hit.
+ * Reveals from (r, c) on ONE player's board; a mine ends the game for that
+ * player only. Returns safe cells revealed, or -1 on a mine.
  */
 const reveal = async (board, r, c, room, socketId, toUpdate, playerIndex) => {
     const { hitMine, cellsRevealed } = revealFrom(board, r, c, toUpdate);
@@ -76,18 +59,10 @@ const reveal = async (board, r, c, room, socketId, toUpdate, playerIndex) => {
     io.to(socketId).emit(SERVER_EVENTS.PVP_GAME_OVER);
 
     /*
-     * Deliberately NOT revealMines, unlike co-op and the daily.
-     *
-     * A PVP loss is not terminal: `resetMyBoard` puts this player back on the
-     * SAME shared layout to carry on racing. Revealing here therefore handed
-     * them the answer key mid-race -- die on the second click, read all ten
-     * mines, reset, clear the board with perfect knowledge, take the win off an
-     * opponent who was playing it straight. Reproduced end to end.
-     *
-     * They still see where they died: `revealFrom` opens the mine it hits, and
-     * projection tells the truth about open cells, so that one is visible and
-     * the rest are not. The whole board arrives at the moment the race is
-     * actually decided -- see `revealToLoser`.
+     * NOT revealMines, unlike co-op and the daily: a PVP loss is not terminal.
+     * `resetMyBoard` puts this player back on the SAME layout, so revealing
+     * here handed them the answer key mid-race. `revealFrom` opens the mine
+     * they hit, so that one shows; the rest arrive in `revealToLoser`.
      */
     io.to(socketId).emit(SERVER_EVENTS.PVP_BOARD_UPDATE, {
         board: projectBoard(board),
@@ -115,32 +90,22 @@ const broadcastProgressUpdate = async (room, socketId, newProgress) => {
 };
 
 /**
- * Whether the race is already decided. The winner's own flags stop THEM, but
- * nothing stopped the other player: their `gameOver`/`gameWon` are both still
- * false, so they could carry on opening cells on a board whose race had ended,
- * broadcasting progress into a game nobody was watching — and, since the loss
- * now reveals their board, doing it with every mine on screen.
+ * Whether the race is decided. The winner's flags stop THEM, but the other
+ * player's `gameOver`/`gameWon` stay false and they could keep opening cells,
+ * with every mine on screen, into a finished game.
  */
 const raceIsOver = (roomState) => Boolean(roomState.winnerSocket);
 
 /**
- * Shows the loser the board they were racing on.
- *
- * This is the ONLY place a PVP board is revealed, and the reason is that this
- * is the only moment a PVP game is genuinely over. Detonating is not: that
- * player can `resetMyBoard` and keep racing the same layout, which is why the
- * reveal there was an exploit rather than a courtesy.
- *
- * Their own board, not the winner's — the two have diverged through play, and
- * projection is allowed to reveal it only because the race is now over for them
- * too (ARCHITECTURE.md §3.1).
+ * Shows the loser their own board. The ONLY place a PVP board is revealed,
+ * because it is the only moment a PVP game is over: a detonated player can
+ * `resetMyBoard` and race on. Their board, not the winner's, since the two
+ * diverged through play (ARCHITECTURE.md §3.1).
  */
 const revealToLoser = async (room, winnerSocketId) => {
     const roomState = await roomRepo.getState(room);
 
-    // Found through the SLOTS, not the players list: the slot is what owns the
-    // board being revealed, so asking anything else for "the other player" is
-    // two sources for one answer.
+    // Through the SLOTS: the slot owns the board being revealed.
     const winnerSlot = roomRepo.pvpSlotOf(roomState, winnerSocketId);
     if (winnerSlot === undefined) return;
 
@@ -192,10 +157,8 @@ const checkWin = async (board, room, socketId, playerIndex) => {
 
                 await revealToLoser(room, socketId);
 
-                // A decided race is a game for BOTH racers' stats: a win for
-                // this socket, a loss for the other slot. Forfeits (opponent
-                // disconnected) deliberately record nothing — that game was
-                // never played out. Fire-and-forget.
+                // A win for this socket and a loss for the other slot. Forfeits
+                // record nothing: that game was never played out. Fire-and-forget.
                 try {
                     const winnerSlot = roomRepo.pvpSlotOf(roomState, socketId);
                     const loserSocket =
@@ -220,9 +183,8 @@ const checkWin = async (board, room, socketId, playerIndex) => {
                 await roomRepo.releaseWinnerLock(room);
             }
         } else {
-            // Someone else already won, so `stopRace` stopped this player's clock
-            // when the race actually ended. Stamping it again would push their
-            // finish out to whenever they filled in the rest of their board.
+            // `stopRace` already stopped this clock; stamping again would push
+            // the finish out to when they filled in the rest of the board.
             await roomRepo.setFields(room, { [gameWonKey]: 'true' });
         }
     }
@@ -245,9 +207,8 @@ const openCell = async (row, col, room, socketId, roomState, playerScore, player
     const numCols = parseInt(roomState.numCols, 10);
     if (row < 0 || row >= numRows || col < 0 || col >= numCols) return;
 
-    // Boards are created for both players by startPvpGame, so one always exists
-    // by the time a cell can be clicked. There is no per-player lazy generation:
-    // that is what used to give the two players different mine layouts.
+    // Both boards come from startPvpGame; lazy per-player generation is what
+    // gave the two players different layouts.
     if (roomState[initializedKey] !== 'true') {
         console.error(`[PVP] board not initialised for player ${playerIndex}`);
         return;
@@ -377,8 +338,7 @@ const toggleFlag = async (row, col, room, socketId, roomState) => {
         col,
     }];
 
-    // The toggled cell is still CLOSED, so projecting keeps a flag from leaking
-    // whether that cell is a mine.
+    // The cell is still CLOSED: projecting keeps the flag from leaking whether it is a mine.
     io.to(socketId).emit(SERVER_EVENTS.PVP_UPDATE_CELLS, projectCells(toUpdate));
     await roomRepo.setPvpBoard(room, playerIndex, board);
 };

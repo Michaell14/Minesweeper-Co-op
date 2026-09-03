@@ -1,9 +1,8 @@
 // @vitest-environment jsdom
 /**
  * The host's one non-obvious job: a returning player's pin must paint on the
- * FIRST frame. The store hydrates in a post-paint effect, so a host that only
- * read the store would draw follow-the-palette art for a frame — the sprite
- * version of the flash the theme's no-flash script exists to prevent.
+ * FIRST frame. The store hydrates in a post-paint effect, so reading only the
+ * store would flash follow-the-palette art for a frame.
  */
 import React from 'react';
 import { flushSync } from 'react-dom';
@@ -53,13 +52,11 @@ describe('before the store hydrates', () => {
     });
 
     /*
-     * The WHEN, not just the WHAT. The pin must land in a LAYOUT effect —
-     * before the browser paints — and RTL's act() flushes layout and passive
-     * effects alike, so the tests above pass even with useEffect. jsdom never
-     * paints, but the boundary is still observable: rendering under flushSync
-     * runs layout effects inside the commit, while passive effects wait for a
-     * task. Asserting synchronously after flushSync therefore fails on
-     * useEffect — this is the one test that pins the fix itself.
+     * The WHEN, not just the WHAT: the pin must land in a LAYOUT effect, and
+     * RTL's act() flushes layout and passive effects alike, so the tests above
+     * pass even with useEffect. Under flushSync, layout effects run inside the
+     * commit while passive effects wait for a task, so asserting synchronously
+     * after it fails on useEffect. This is the one test that pins the fix.
      */
     it('applies the stored pin in the same commit, before any paint could happen', () => {
         writeStoredSettings({ ...DEFAULT_SETTINGS, spriteSet: 'naval' });

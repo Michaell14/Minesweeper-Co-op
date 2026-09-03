@@ -1,9 +1,8 @@
 // @vitest-environment jsdom
 /**
- * The sprite-set picker against the real store. What fails silently: a card
- * whose accessible name stops resolving, a selection that stops writing the
- * setting, a group that stops reflecting what the blob holds — or a seasonal
- * set leaking back into the options, which is the whole point of the split.
+ * The sprite-set picker against the real store. What fails silently: a name
+ * that stops resolving, a selection that stops writing, a seasonal set leaking
+ * back into the options.
  */
 import React from 'react';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
@@ -42,8 +41,7 @@ describe('the sprite-set picker', () => {
         }
     });
 
-    // An unpinned blob is null, and null resolves to the default pair. Without
-    // this the picker renders with nothing checked for everyone who never chose.
+    // An unpinned blob is null, which resolves to the default pair; otherwise nothing is checked.
     it('shows Classic for a stored null — no pin is the default pair', () => {
         render(<SpriteSetCards name="test-sprites" />);
 

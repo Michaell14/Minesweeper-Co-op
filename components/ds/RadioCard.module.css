@@ -1,11 +1,7 @@
 /*
- * Option cards — Mode, Board Size, Difficulty.
- *
- * Each card is a <label> wrapping a real radio input. That is not incidental:
- * the smoke test reads `input[type=radio]` .checked/.value to assert which
- * option is live, and clicks the <label> to change it. Keeping the native
- * control also means keyboard arrow-key navigation and form semantics come
- * free rather than being re-implemented.
+ * Option cards. Each is a <label> wrapping a real radio input: the smoke test
+ * reads `input[type=radio]` to assert which option is live and clicks the
+ * <label> to change it, and the native control gives arrow-key navigation free.
  */
 .group {
     display: flex;
@@ -15,8 +11,7 @@
     max-width: 100%;
 }
 
-/* Cards scroll rather than wrap on narrow screens — wrapping would reflow the
- * whole create form and push the submit button off-screen. */
+/* Cards scroll rather than wrap on narrow screens; wrapping pushes the submit button off-screen. */
 .scrollable {
     overflow-x: scroll;
 }
@@ -28,10 +23,9 @@
 }
 
 /*
- * For groups of unbounded length. `.scrollable` clips above 48em rather than
- * scrolling, so options past the fold are unreachable, not just awkward.
- * Grid, not flex-wrap: wrapped flex sizes each row to its own contents and came
- * out ragged. The 172px floor fits the longest option name.
+ * For groups of unbounded length: `.scrollable` clips above 48em, so options
+ * past the fold would be unreachable. Grid, not flex-wrap, which came out
+ * ragged. The 172px floor fits the longest option name.
  */
 .wrap {
     display: grid;
@@ -40,12 +34,10 @@
 }
 
 /*
- * `position: relative` is load-bearing, not decoration: it makes the card the
- * containing block for the clipped `.input` below. Without it the input resolves
- * against the initial containing block, so a card scrolled past the viewport put
- * its input's overflow on the DOCUMENT rather than inside `.scrollable` —
- * widening the layout viewport, which every `position: fixed` element then
- * centres on. See the note on `.input`.
+ * `position: relative` is load-bearing: it makes the card the containing block
+ * for the clipped `.input`. Without it a card scrolled past the viewport put
+ * its input's overflow on the DOCUMENT, widening the layout viewport that every
+ * `position: fixed` element centres on.
  */
 .card {
     position: relative;
@@ -57,15 +49,10 @@
 }
 
 /*
- * Not choosable. Muted INK rather than the disabled surface every other control
- * here uses: this card already spends its background on selected-vs-not, and
- * --ms-surface-disabled sits a hair off --ms-surface-option-selected, so a
- * locked card read as a chosen one. On Game Boy it is worse — ash and mist are
- * the same green, and the state disappeared outright.
- *
- * The card keeps the unselected fill and greys its text. A caller whose card
- * carries artwork dims that itself; leaving it to this rule would fade the one
- * line saying why the card is locked.
+ * Not choosable. Muted INK rather than the disabled surface: this card spends
+ * its background on selected-vs-not, and --ms-surface-disabled sits a hair off
+ * --ms-surface-option-selected (on Game Boy the same green). A caller whose
+ * card carries artwork dims that itself.
  */
 .cardDisabled {
     cursor: not-allowed;
@@ -76,8 +63,7 @@
 }
 
 /* The native input drives state and focus but is never seen. Its containing
- * block must stay the card — `clip` hides it but does not stop it counting
- * towards scrollable overflow. */
+ * block must stay the card: `clip` hides it but it still counts as overflow. */
 .input {
     position: absolute;
     width: 1px;

@@ -1,14 +1,8 @@
 /**
- * PVP players race one identical board.
- *
- * Boards used to be generated lazily around each player's own first click, which
- * is precisely why the two differed — the layout depended on where you clicked.
- * Now startPvpGame builds one board, no-guess verified around a shared start
- * cell, opens that cell, and hands the same thing to both players.
- *
- * The first-click guarantee still holds, but it moves: instead of "your first
- * click is safe", the game opens a safe cell for both of you before either
- * clicks. Nobody can lose on move one.
+ * PVP players race one identical board. Boards used to be generated lazily
+ * around each player's first click, which is why the two differed. Now
+ * startPvpGame builds one no-guess board around a shared start cell, opens
+ * it, and hands the same thing to both, so nobody can lose on move one.
  */
 
 const mockEmit = jest.fn();
@@ -148,11 +142,7 @@ describe('resetMyBoard', () => {
         sharedOpenedCells: String(opened),
     });
 
-    /**
-     * Plays a real startPvpGame, then re-points the mocks at the room it
-     * produced, so a reset runs against a genuine shared board rather than a
-     * hand-written one.
-     */
+    /** Plays a real startPvpGame, then re-points the mocks at the room it produced. */
     const arrangeReset = async () => {
         await startPvpGame({ socket: { id: HOST }, room: ROOM, io });
         const started = roomFields();
@@ -170,10 +160,8 @@ describe('resetMyBoard', () => {
     };
 
     /**
-     * REGRESSION. Hitting a mine stops that player's clock (pvp.js `stopFor`),
-     * and a retry puts them straight back into the race — so the clock has to
-     * restart. It did not, and their timer sat frozen at the moment they died
-     * for the rest of the game while they kept playing.
+     * REGRESSION. A mine stops that player's clock (pvp.js `stopFor`) and a
+     * retry puts them back in the race, so the clock has to restart. It did not.
      */
     test('restarts this player\'s clock from the room\'s shared start', async () => {
         await arrangeReset();
@@ -202,16 +190,10 @@ describe('resetMyBoard', () => {
     });
 
     /**
-     * REGRESSION. This handler used to build the opponent's progress payload from
-     * undeclared `numRows`/`numCols`. The ReferenceError landed in the handler's
-     * own catch, so the board restore above still passed while everything after
-     * it silently never ran: the opponent was never told about the reset and
-     * their view of this player's progress bar stayed frozen at the pre-reset
-     * value. The board write happens BEFORE the throw, which is exactly why
-     * asserting on it alone did not notice.
-     *
-     * The `console.error` assertion is the load-bearing one — it is what fails if
-     * anything in here throws into that catch again.
+     * REGRESSION. This built the opponent's payload from undeclared
+     * `numRows`/`numCols`; the ReferenceError landed in the handler's own catch
+     * after the board write, so asserting on the board alone passed. The
+     * `console.error` assertion is the load-bearing one.
      */
     test('tells the opponent the reset happened, and what the progress now is', async () => {
         const { opened } = await arrangeReset();
@@ -261,11 +243,8 @@ describe('resetMyBoard', () => {
     });
 
     /**
-     * REGRESSION. This read `pvpPlayerIndex || '0'`, so a socket that startPvpGame
-     * never assigned an index fell through to index 0 — resetting PLAYER ONE's
-     * board, and (once resets took a lock) taking player one's lock to do it.
-     * pvp.js has refused that fallback since the same bug bit there; this is the
-     * one place it survived.
+     * REGRESSION. `pvpPlayerIndex || '0'` sent an unassigned socket to index 0,
+     * resetting PLAYER ONE's board under player one's lock.
      */
     test('an unassigned socket resets nobody\'s board', async () => {
         await arrangeReset();
@@ -285,11 +264,7 @@ describe('resetMyBoard', () => {
 });
 
 describe('pvpRematch', () => {
-    /**
-     * A race that has FINISHED — a rematch is refused while one is still live,
-     * since a host could otherwise rebuild both boards out from under a race
-     * they were losing. `winnerSocket` is what marks it settled.
-     */
+    /** A FINISHED race; a rematch is refused while one is live. `winnerSocket` marks it settled. */
     const arrangeRematch = (extra = {}) => {
         client.hGetAll.mockImplementation(async (key) =>
             key.startsWith('room:')
@@ -327,10 +302,8 @@ describe('pvpRematch', () => {
     });
 
     /**
-     * Deadlock freedom rests on this. A move only ever holds its own player's
-     * lock and never asks for a second, so the only way to build a cycle is for
-     * two multi-lock callers to disagree on the order — take p1 here and p0
-     * elsewhere and the two wedge each other until both leases expire.
+     * Deadlock freedom rests on this: a move holds only its own lock, so the
+     * only possible cycle is two multi-lock callers disagreeing on the order.
      */
     test('takes them in index order, p0 before p1', async () => {
         arrangeRematch();
@@ -344,11 +317,8 @@ describe('pvpRematch', () => {
     });
 
     /*
-     * The Rematch button only appears once a winner exists, so a rematch during
-     * a live race can only come from something other than the UI. Ungated, the
-     * host could rebuild both boards — new layout, clock back to zero — out from
-     * under a race they were losing, and the opponent's own board would change
-     * mid-move with nothing to explain it.
+     * The Rematch button only appears once a winner exists. Ungated, a host
+     * could rebuild both boards out from under a race they were losing.
      */
     test('is refused while the race is still undecided', async () => {
         arrangeRematch({ winnerSocket: '' });
@@ -359,8 +329,7 @@ describe('pvpRematch', () => {
     });
 
     test('a race nobody has started yet is not a race to protect', async () => {
-        // Equivalent to startPvpGame, and reachable if the host clicks before
-        // the lobby has caught up. Nothing is in flight, so nothing is lost.
+        // Equivalent to startPvpGame; nothing is in flight, so nothing is lost.
         arrangeRematch({ pvpStarted: 'false', winnerSocket: '' });
 
         await pvpRematch({ socket: { id: HOST }, room: ROOM, io });
@@ -373,9 +342,8 @@ describe('pvpRematch', () => {
 
         await pvpRematch({ socket: { id: HOST }, room: ROOM, io });
 
-        // Spelled out so the comparisons below cannot pass on an empty set:
-        // Math.max() of no acquires is -Infinity, which every write beats.
-        // Releases are `eval`, not `del` — see setup/lockAssertions.js.
+        // Spelled out so the comparisons cannot pass on an empty set (Math.max()
+        // of nothing is -Infinity). Releases are `eval`; see setup/lockAssertions.js.
         expect(client.set.mock.invocationCallOrder).toHaveLength(2);
         expect(client.eval.mock.invocationCallOrder).toHaveLength(2);
 

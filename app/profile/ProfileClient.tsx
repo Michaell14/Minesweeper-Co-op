@@ -16,19 +16,13 @@ import DailyHistoryPanel from './DailyHistoryPanel';
 import FriendsPanel from './FriendsPanel';
 
 /**
- * The private dashboard over what the SERVER recorded — the page has no way
- * to add a game, which is the whole server-authoritative point. The one
- * write it offers is the guest import: this browser's localStorage bests,
- * folded in keep-if-faster.
+ * The private dashboard over what the SERVER recorded; the page cannot add a
+ * game. Its one write is the guest import: localStorage bests, folded in keep-if-faster.
  */
 
 const MODE_LABELS = { 'co-op': 'Co-op', pvp: 'PVP', daily: 'Daily' } as const;
 
-/*
- * How much of the recent window the panel shows before you ask for more. The
- * server still sends all RECENT_WINDOW of them; the strip and the table draw
- * the same slice, so expanding moves both.
- */
+/* How much of the recent window shows before "more"; the strip and the table draw the same slice. */
 const RECENT_INITIAL = 5;
 const RECENT_STEP = 10;
 
@@ -41,14 +35,10 @@ export default function ProfileClient() {
     const [state, setState] = React.useState<'loading' | 'ready' | 'unavailable'>('loading');
 
     /*
-     * Which achievements are new since this browser last looked. Captured at
-     * load and held in state, then the watermark advances immediately: reading
-     * it during render instead would clear the badges on the first re-render,
-     * before anyone had a chance to see them.
-     *
-     * Once per VISIT, not once per fetch. `load` runs again after the guest
-     * import, and a second pass would compare against the watermark it just
-     * wrote and blank the badges while the player was still reading them.
+     * Achievements new since this browser last looked, captured at load and
+     * held in state before the watermark advances; reading it during render
+     * would clear the badges on the first re-render. Once per VISIT, not per
+     * fetch: `load` runs again after the guest import.
      */
     const [freshAchievements, setFreshAchievements] = React.useState<Set<string>>(new Set());
     const seenMarked = React.useRef(false);
@@ -87,13 +77,10 @@ export default function ProfileClient() {
         const ok = await importBests(bestsForImport(MAX_BEST_IMPORT));
         setImportState(ok ? 'done' : 'failed');
         if (!ok) return;
-        // Same fold-in BestsSync does silently on sign-in; marking it here
-        // stops the automatic one repeating work this player asked for.
+        // Same fold-in BestsSync does on sign-in; marking it stops the automatic one repeating it.
         markBestsImported();
         load();
-        // The GAME reads the account's records, not this page's payload — so
-        // without this the banner on the board would keep showing what the
-        // account held before the import until the next sign-in.
+        // The GAME reads the account's records, not this page's payload.
         void fetchBoardBests().then(setAccountBests);
     };
 
@@ -175,9 +162,7 @@ export default function ProfileClient() {
                         </Panel>
                     </section>
 
-                    {/* Fetches its own graph: friends fail independently of
-                        the profile payload, and folding them together would
-                        make a friends outage look like a broken profile. */}
+                    {/* Fetches its own graph, so a friends outage does not look like a broken profile. */}
                     <FriendsPanel />
 
                     <AchievementsPanel
@@ -186,9 +171,7 @@ export default function ProfileClient() {
                         highlighted={freshAchievements}
                     />
 
-                    {/* The ?? fallbacks cover a backend that briefly predates
-                        these payload fields — the two halves deploy from the
-                        same trunk but never land atomically. */}
+                    {/* The ?? fallbacks cover a backend that briefly predates these fields. */}
                     <DailyHistoryPanel
                         history={profile.dailyHistory ?? []}
                         dailyCurrentStreak={profile.stats.dailyCurrentStreak ?? 0}
@@ -287,9 +270,7 @@ export default function ProfileClient() {
                                     </Table>
                                     {recentGames.length > RECENT_INITIAL && (
                                         <div className="mt-4">
-                                            {/* role=status so the count is announced
-                                                after a click — the button vanishes on
-                                                the last one and takes focus with it. */}
+                                            {/* role=status: the button vanishes on the last click and takes focus with it. */}
                                             <p
                                                 className="text-pixel-xs text-ink-muted mb-2"
                                                 role="status">
@@ -314,11 +295,8 @@ export default function ProfileClient() {
                 </>
             )}
 
-            {/* Account management follows the stats — and renders even when the
-                stats are unavailable, because sign-out must stay reachable.
-                The achievements ride along for the avatar picker's locks, and
-                are undefined in exactly the cases that keep this mounted: the
-                stats still loading, or gone. */}
+            {/* Renders even when stats are unavailable, because sign-out must stay
+                reachable. The achievements feed the avatar picker's locks. */}
             {status === 'authenticated' && (
                 <AccountPanel achievements={profile?.achievements} stats={profile?.stats} />
             )}

@@ -1,9 +1,8 @@
 import React from 'react';
 import styles from "./board.module.css";
 import { useMinesweeperStore, Cell as CellType } from '@/app/store';
-// Direct, not via the @/components/ds barrel: this component renders once per
-// cell (256+ on a medium board) and has no business pulling in Dialog, Button
-// and the icon sprites to get one class name.
+// Direct, not via the ds barrel: 256+ instances have no business pulling in
+// Dialog and Button for one class name.
 import { pointerClass } from '@/components/ds/pointer';
 import Sprite from '@/components/ds/sprites';
 import { cascadeBand, type CascadeOrigin } from '@/lib/motion';
@@ -21,8 +20,7 @@ interface CellParams {
 }
 
 const Cell = ({ cell, row, col, cascadeOrigin, toggleFlag, openCell, chordCell, emitCellHover }: CellParams) => {
-    // Subscribes to hovers on THIS cell only. for...in rather than Object.values
-    // so a hot path with 512 instances allocates no array per render.
+    // Hovers on THIS cell only. for...in so 512 instances allocate no array per render.
     const cellHover = useMinesweeperStore((state) => {
         const hovers = state.playerHovers;
         for (const key in hovers) {
@@ -34,11 +32,9 @@ const Cell = ({ cell, row, col, cascadeOrigin, toggleFlag, openCell, chordCell, 
         return null;
     });
 
-    // One selector per value, so an unrelated write does not re-render the
-    // board. Only state that changes what the cell LOOKS like is subscribed;
-    // anything read purely by an event handler (bothPressed, isChecked, the
-    // swap and chording settings) comes from getState() at event time instead —
-    // subscribed, those re-rendered every mounted cell twice per chord.
+    // One selector per value so an unrelated write does not re-render the
+    // board. Only state that changes the cell's LOOK is subscribed; handler-only
+    // state (bothPressed, isChecked, swap, chording) is read from getState().
     const gameOver = useMinesweeperStore((state) => state.gameOver);
     const mode = useMinesweeperStore((state) => state.mode);
     const pvpStarted = useMinesweeperStore((state) => state.pvpStarted);
@@ -47,16 +43,10 @@ const Cell = ({ cell, row, col, cascadeOrigin, toggleFlag, openCell, chordCell, 
     const isDisabled = mode === 'pvp' && !pvpStarted;
 
     /*
-     * Whether this board's mines are on show. The server decides it — closed
-     * cells report `isMine: false` unless it deliberately revealed them — but
-     * the flag is still needed, because a revealed mine is CLOSED and would
-     * otherwise render as an ordinary covered square.
-     *
-     * `gameOver` alone missed the player who lost a RACE: they never hit a mine,
-     * so nothing about their own state is over, yet the race is decided and the
-     * server has just sent them their board with every mine in it. Reading
-     * `gameOver` here rather than `pvpWinner` too is why that board came back
-     * looking exactly as it did mid-game.
+     * Whether mines are on show. The server decides (closed cells report
+     * `isMine: false` unless revealed), but a revealed mine is CLOSED and would
+     * otherwise render covered. `gameOver` alone missed the player who lost a
+     * RACE: nothing in their own state is over, yet their mines were sent.
      */
     const minesRevealed = gameOver || (mode === 'pvp' && pvpWinner !== null);
     const isHovered = cellHover !== null;
@@ -67,13 +57,10 @@ const Cell = ({ cell, row, col, cascadeOrigin, toggleFlag, openCell, chordCell, 
         : undefined;
 
     /*
-     * Only revealed cells call this — building the delay for all 512 would be
-     * wasted work in the one component with a real render budget.
-     *
-     * The origin arrives as a PROP rather than through a selector: a subscription
-     * would re-run in all 512 cells on every reveal, and `arePropsEqual` ignores
-     * it, so only the cells that actually changed read the new one. Those are
-     * exactly the cells about to animate; the rest have already swept.
+     * Only revealed cells call this; building the delay for all 512 is wasted.
+     * The origin is a PROP, not a selector: a subscription would re-run in every
+     * cell on each reveal, and `arePropsEqual` ignores it so only changed cells
+     * (the ones about to animate) read the new one.
      */
     const revealStyle = (): React.CSSProperties => ({
         ...hoverStyle,
@@ -81,10 +68,9 @@ const Cell = ({ cell, row, col, cascadeOrigin, toggleFlag, openCell, chordCell, 
     } as React.CSSProperties);
 
     /*
-     * The swap setting exchanges what the two buttons MEAN, not what they do
-     * mechanically: chording still needs both buttons and the bothPressed
-     * latch, so mousedown keeps recording physical buttons and only the
-     * action each release fires is swapped.
+     * The swap setting exchanges what the buttons MEAN, not their mechanics:
+     * chording still needs both buttons, so mousedown records physical buttons
+     * and only the action each release fires is swapped.
      */
     const primaryAction = (r: number, c: number) => {   // left button
         if (useMinesweeperStore.getState().settings.swapMouseButtons) toggleFlag(r, c);
@@ -96,22 +82,16 @@ const Cell = ({ cell, row, col, cascadeOrigin, toggleFlag, openCell, chordCell, 
     };
 
     /*
-     * The button that OPENS. The press affordance follows the action rather than
-     * the physical button, so under the swap setting it is the right one — a
-     * cell that sinks like it is about to open, and then gets a flag, is telling
-     * the player the wrong thing about the button they are holding.
-     *
-     * This is why the press is not plain `:active`. CSS cannot ask which button
-     * is down, so `:active` covers all three: it depressed the cell for a flag
-     * and for a chord as readily as for an open.
+     * The button that OPENS. The press affordance follows the action, so under
+     * swap it is the right button: a cell that sinks and then takes a flag
+     * misleads. Plain `:active` cannot ask which button is down.
      */
     const isOpenButton = (button: number) =>
         button === (useMinesweeperStore.getState().settings.swapMouseButtons ? 2 : 0);
 
     /*
-     * Written straight to the DOM, not held in state. A press must not cost a
-     * render in the one component with 512 instances, and there is nothing for
-     * React to reconcile — the attribute exists only for the stylesheet.
+     * Written straight to the DOM: a press must not cost a render across 512
+     * instances, and the attribute exists only for the stylesheet.
      */
     const releasePress = (event: React.MouseEvent<HTMLElement>) => {
         delete event.currentTarget.dataset.pressed;
@@ -122,10 +102,8 @@ const Cell = ({ cell, row, col, cascadeOrigin, toggleFlag, openCell, chordCell, 
     };
 
     /*
-     * Every branch wires this, which is what bounds how long a stray press mark
-     * can outlive its press: the cell can change branch mid-press (it opens, or
-     * takes a flag) and lose the mouseup handler that would have cleared it, but
-     * the pointer has to leave sooner or later.
+     * Every branch wires this, which bounds how long a stray press mark can
+     * outlive its press when the cell changes branch mid-press.
      */
     const handleMouseLeave = (event: React.MouseEvent<HTMLElement>) => {
         releasePress(event);
@@ -147,8 +125,8 @@ const Cell = ({ cell, row, col, cascadeOrigin, toggleFlag, openCell, chordCell, 
         }
     };
 
-    // Wired only on the opened-cell branch, where both mapped actions are
-    // no-ops the server ignores — which is what frees the secondary click below.
+    // Only on the opened-cell branch, where both mapped actions are server
+    // no-ops, which frees the secondary click below.
     const handleMouseUp = (event: React.MouseEvent) => {
         if (isDisabled) return;
 
@@ -162,10 +140,9 @@ const Cell = ({ cell, row, col, cascadeOrigin, toggleFlag, openCell, chordCell, 
         } else if (event.button === 2) {
             if (!state.bothPressed) {
                 /*
-                 * The only chord gesture a trackpad can make — it has neither a
-                 * second button nor a middle one. On release, not `contextmenu`:
-                 * macOS raises that on mousedown, so a right-then-left chord
-                 * would fire here and again off the bothPressed latch.
+                 * The only chord gesture a trackpad can make. On release, not
+                 * `contextmenu`: macOS raises that on mousedown, so a
+                 * right-then-left chord would fire twice.
                  */
                 if (state.settings.chording) {
                     chordCell(row, col);
@@ -181,8 +158,7 @@ const Cell = ({ cell, row, col, cascadeOrigin, toggleFlag, openCell, chordCell, 
 
     /*
      * <Sprite> is a two-node <use> of art mounted once in the layout, so the
-     * palette can swap the mine and the flag without re-rendering a cell — and
-     * a board that has just lost is not carrying 99 copies of the same 40 rects.
+     * palette can swap mine and flag without re-rendering a cell.
      */
     if ((cell.isOpen || minesRevealed) && cell.isMine) {
         return <div
@@ -190,8 +166,7 @@ const Cell = ({ cell, row, col, cascadeOrigin, toggleFlag, openCell, chordCell, 
             className={`${styles.cell} ${styles.mine} ${isHovered ? styles.hovered : ''}`}
             style={revealStyle()}
             role="gridcell"
-            /* Read by the board's ping interception, which addresses a cell
-               without having to be one — see Board.tsx. */
+            /* Read by the board's ping interception, see Board.tsx. */
             data-row={row}
             data-col={col}
             aria-label={getAriaLabel()}
@@ -210,8 +185,7 @@ const Cell = ({ cell, row, col, cascadeOrigin, toggleFlag, openCell, chordCell, 
             <div
                 key={col}
                 role="gridcell"
-                /* Read by the board's ping interception, which addresses a cell
-                   without having to be one — see Board.tsx. */
+                /* Read by the board's ping interception, see Board.tsx. */
                 data-row={row}
                 data-col={col}
                 aria-label={getAriaLabel()}
@@ -234,18 +208,16 @@ const Cell = ({ cell, row, col, cascadeOrigin, toggleFlag, openCell, chordCell, 
             <div
                 key={col}
                 role="gridcell"
-                /* Read by the board's ping interception, which addresses a cell
-                   without having to be one — see Board.tsx. */
+                /* Read by the board's ping interception, see Board.tsx. */
                 data-row={row}
                 data-col={col}
                 aria-label={getAriaLabel()}
                 className={`${styles.cell} ${styles.flagged} ${isHovered ? styles.hovered : ''}`}
                 style={hoverStyle}
                 /*
-                 * Both buttons fire their MAPPED action here; the server's
-                 * flag protection makes the open a no-op on a flagged cell, so
-                 * whichever button currently means "flag" is the one that
-                 * unflags — under swap that is the left button.
+                 * Both buttons fire their MAPPED action; the server's flag
+                 * protection makes the open a no-op, so whichever button means
+                 * "flag" is the one that unflags.
                  */
                 onContextMenu={(e) => {
                     e.preventDefault();
@@ -274,14 +246,12 @@ const Cell = ({ cell, row, col, cascadeOrigin, toggleFlag, openCell, chordCell, 
         <div
             key={col}
             role="gridcell"
-            /* Read by the board's ping interception, which addresses a cell
-               without having to be one — see Board.tsx. */
+            /* Read by the board's ping interception, see Board.tsx. */
             data-row={row}
             data-col={col}
             aria-label={getAriaLabel()}
-            // Also what the press state in board.module.css keys off: a board
-            // waiting for the race to start must not depress under a click it
-            // is going to ignore.
+            // Also keys the press state in board.module.css: a board waiting
+            // for the race must not depress.
             aria-disabled={isDisabled || undefined}
             className={`${styles.cell} ${styles.closed} ${isHovered ? styles.hovered : ''} ${isDisabled ? 'opacity-50 cursor-not-allowed' : pointerClass}`}
             style={hoverStyle}
@@ -312,10 +282,8 @@ const Cell = ({ cell, row, col, cascadeOrigin, toggleFlag, openCell, chordCell, 
 Cell.displayName = 'Cell';
 
 /**
- * Re-render only on a real cell-state change. The action props are stable, and
- * `cascadeOrigin` is deliberately not compared: a cell whose state did not
- * change has already swept, and re-rendering it for a new origin would restart
- * its reveal.
+ * Re-render only on a real cell-state change. `cascadeOrigin` is not compared:
+ * an unchanged cell has already swept, and a new origin would restart its reveal.
  */
 const arePropsEqual = (prevProps: CellParams, nextProps: CellParams) => {
     return (

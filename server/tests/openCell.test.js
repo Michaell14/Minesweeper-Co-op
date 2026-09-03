@@ -1,14 +1,7 @@
 /**
- * Tests for co-op openCell.
- *
- * This is the busiest function on the server — lazy board generation behind a
- * lock, scoring, revealing, win check and two different emit shapes — and until
- * now the only thing exercising it was the browser smoke test, end to end.
- * Mutating its board write left the whole suite green, which is what prompted
- * this file.
- *
- * Boards are hand-built with explicit nearbyMines of 1 so nothing cascades and
- * each assertion is about one behaviour.
+ * Co-op openCell: lazy generation behind a lock, scoring, revealing, win check
+ * and two emit shapes. Boards are hand-built with nearbyMines of 1 so nothing
+ * cascades.
  */
 
 const mockEmit = jest.fn();
@@ -41,7 +34,7 @@ const roomStateWith = (board, extra = {}) => ({
     gameOver: 'false',
     gameWon: 'false',
     initialized: 'true',
-    noGuess: 'false',      // skip the solver; board generation is covered elsewhere
+    noGuess: 'false',      // skip the solver; generation is covered elsewhere
     board: JSON.stringify(board),
     numRows: '4',
     numCols: '4',
@@ -118,7 +111,7 @@ describe('the first click on a room', () => {
 
         const board = emitted('boardUpdate');
         expect(board.flat().every((cell) => cell.isMine === false)).toBe(true);
-        // ...while Redis keeps the real thing
+        // Redis keeps the real thing.
         expect(savedBoard().flat().filter((cell) => cell.isMine)).toHaveLength(2);
     });
 
@@ -137,12 +130,9 @@ describe('the first click on a room', () => {
     });
 
     /*
-     * Losing the init lock and then never seeing a board appear is the one case
-     * with no good answer, so it needs the LEAST bad one. The local `board` is
-     * still the empty grid the room was created with — and every cell of it
-     * claims zero adjacent mines, so revealing from it cascades the entire thing
-     * open and writes that over the layout the lock holder is still generating.
-     * Dropping the click costs a retry; carrying on costs the game.
+     * Losing the init lock and never seeing a board: the local `board` is the
+     * empty grid, and revealing from it would cascade everything open over the
+     * layout still being generated. Dropping the click costs a retry.
      */
     test('drops the move rather than writing a blank board over the real one', async () => {
         jest.spyOn(console, 'error').mockImplementation(() => {});
@@ -179,7 +169,7 @@ describe('a later click on an initialised board', () => {
     });
 
     test('awards a point per cell when the click cascades', async () => {
-        // (0,0) claims 0 adjacent mines, so opening it also opens its neighbours.
+        // A 0 at (0,0) opens its neighbours too.
         const board = playedBoard();
         board[0][0].nearbyMines = 0;
 
@@ -272,10 +262,9 @@ describe('when another player is initialising the same room', () => {
         await coop.openCell(0, 0, ROOM, SOCKET, roomStateWith(playedBoard(), { initialized: 'false' }), '0');
 
         expect(polls).toBeGreaterThan(0);
-        // The loser of the race must not generate a board of its own...
+        // The loser generates no board of its own, but still scores its click.
         const init = client.hSet.mock.calls.find((c) => c[1] && c[1].initialized);
         expect(init).toBeUndefined();
-        // ...but it still scores what its own click opened on the board it loaded.
         expect(scoreWrites()).toEqual([[`player:${SOCKET}`, { score: '1' }]]);
         expect(emitted('updateCells')).not.toBeNull();
     });

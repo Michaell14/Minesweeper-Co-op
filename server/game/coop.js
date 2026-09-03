@@ -1,13 +1,9 @@
 /**
- * Co-op mode: every player in the room shares one board.
- *
- * Cell actions are broadcast to the whole room. Room state is fetched by
- * game/index.js and passed in, so nothing here re-reads it on entry.
- *
- * Every function here reads the board, mutates it and writes all of it back, so
- * none of them is safe to run concurrently for one room. game/index.js holds the
- * room's action lock across the call and reads the snapshot it passes in under
- * that lock; do not call into this module without it.
+ * Co-op mode: every player in the room shares one board, and cell actions are
+ * broadcast to the room. Every function reads the board, mutates it and writes
+ * all of it back, so game/index.js holds the room's action lock across the
+ * call and reads the snapshot it passes in under that lock; do not call in
+ * without it.
  */
 
 const { generateBoard } = require('../domain/boardGen');
@@ -22,15 +18,9 @@ const { recordForSockets } = require('../utils/statsRecorder');
 const { SERVER_EVENTS } = require('../../shared/events');
 
 /**
- * Reveals cells from (r, c) and returns how many SAFE cells were opened, which
- * is what the player scores, or -1 if a mine was hit. Hitting a mine ends the
- * game for the WHOLE room and records who did it, which is the only way this
- * differs from the PVP version.
- *
- * The -1 matters to chording, which reveals up to eight cells in a loop: without
- * a way to tell a detonation from "nothing to open", the loop carried on
- * revealing after the room's game had already ended — announcing a second
- * gameOver, renaming who lost, and scoring the cells it opened afterwards.
+ * Reveals from (r, c) and returns how many SAFE cells opened (the score), or
+ * -1 for a mine, which ends the game for the WHOLE room and records who did it.
+ * The -1 is what stops a chord's loop revealing on after the game has ended.
  */
 const reveal = async (board, r, c, room, socketId, toUpdate) => {
     const { hitMine, cellsRevealed } = revealFrom(board, r, c, toUpdate);
@@ -38,8 +28,7 @@ const reveal = async (board, r, c, room, socketId, toUpdate) => {
 
     const gameOverName = await playerRepo.getName(socketId);
     const endedAt = Date.now();
-    // The clock goes first: the loss opens the end-of-game summary, which reads
-    // the final time.
+    // The clock goes first: the loss opens the summary, which reads the final time.
     const startedAt = readStamp(await roomRepo.getField(room, 'startedAt'));
     io.to(room).emit(SERVER_EVENTS.GAME_CLOCK, { startedAt, endedAt });
     io.to(room).emit(SERVER_EVENTS.GAME_OVER, gameOverName);
@@ -49,8 +38,7 @@ const reveal = async (board, r, c, room, socketId, toUpdate) => {
         endedAt: endedAt.toString()
     });
 
-    // Required: clients are not given mine positions up front, so without this
-    // the board would show a single detonated mine and nothing else.
+    // Clients have no mine positions up front; without this only the detonated mine shows.
     io.to(room).emit(SERVER_EVENTS.BOARD_UPDATE, projectBoard(board, { revealMines: true }));
 
     // The loss, for every signed-in player's stats. Fire-and-forget.
@@ -105,8 +93,7 @@ const openCell = async (row, col, room, socketId, roomState, playerScore) => {
             } else {
                 const shouldNoGuess = roomState.noGuess !== 'false';
                 board = generateBoard(numRows, numCols, numMines, row, col, { noGuess: shouldNoGuess });
-                // The clock starts on the first reveal, not on room creation:
-                // a room can sit open for minutes before anyone clicks.
+                // The clock starts on the first reveal: a room can sit open for minutes first.
                 await roomRepo.setFields(room, {
                     initialized: 'true',
                     board: JSON.stringify(board),
@@ -129,12 +116,9 @@ const openCell = async (row, col, room, socketId, roomState, playerScore) => {
             }
 
             /*
-             * Give up on the CLICK rather than on the board. `board` is still
-             * the empty grid this room was created with, and every cell of it
-             * claims zero adjacent mines — so revealing from it cascades the
-             * whole thing open and writes that over the layout the lock holder
-             * is in the middle of generating. Losing one click to a retry is the
-             * cheaper of the two.
+             * Give up on the CLICK, not the board: `board` is still the empty
+             * grid, and revealing from it would cascade the whole thing open
+             * over the layout the lock holder is generating.
              */
             if (!generated) {
                 console.error(`[coop] board for ${room} was never initialised; dropping the move`);
@@ -146,10 +130,8 @@ const openCell = async (row, col, room, socketId, roomState, playerScore) => {
     const toUpdate = [];
     const safeCellsRevealed = await reveal(board, row, col, room, socketId, toUpdate);
 
-    // One point per safe cell opened, cascades included — the same rule PVP
-    // uses. Scoring per click instead undercounted the player who triggered a
-    // large cascade, and disagreed with chording, which already scored per cell.
-    // A detonation (-1) scores nothing, as it does in PVP and the daily.
+    // One point per safe cell opened, cascades included, the same rule PVP
+    // uses (server/tests/scoringParity.test.js). A detonation (-1) scores nothing.
     if (safeCellsRevealed > 0) {
         const currentScore = parseInt(playerScore || '0', 10) || 0;
         await playerRepo.setScore(socketId, currentScore + safeCellsRevealed);
@@ -197,13 +179,9 @@ const chordCell = async (row, col, room, socketId, roomState) => {
             if (!adj.isFlagged && !adj.isOpen) {
                 const safeCellsRevealed = await reveal(board, adj.row, adj.col, room, socketId, toUpdate);
 
-                // A chord can uncover more than one mine. `reveal` has already
-                // ended the room's game, so carrying on would announce a second
-                // gameOver, overwrite who lost, and score cells opened after the
-                // loss. PVP and the daily both stop here too.
-                //
-                // Nothing more is emitted: `reveal` sent the whole revealed
-                // board, which already contains every cell this loop opened.
+                // A chord can uncover more than one mine; `reveal` has already
+                // ended the game and sent the whole board, so carrying on would
+                // announce a second gameOver and score cells opened after the loss.
                 if (safeCellsRevealed === -1) {
                     await roomRepo.setBoard(room, board);
                     return;
@@ -221,9 +199,8 @@ const chordCell = async (row, col, room, socketId, roomState) => {
 
     await updatePlayerStatsInRoom(room);
     await roomRepo.setBoard(room, board);
-    // Re-read: revealing may have just ended the game, and the snapshot this
-    // was called with predates that. Passing the stale one lets a chord that
-    // detonates a mine also report a win.
+    // Re-read: revealing may have just ended the game; the stale snapshot would
+    // let a chord that detonates also report a win.
     await checkWin(await roomRepo.getState(room), board, room);
     io.to(room).emit(SERVER_EVENTS.UPDATE_CELLS, projectCells(toUpdate));
 };
@@ -245,8 +222,7 @@ const toggleFlag = async (row, col, room, socketId, roomState) => {
         col,
     }];
 
-    // The flagged cell is still CLOSED, so this projection is what stopped a
-    // flag toggle from leaking that cell's mine status.
+    // The flagged cell is still CLOSED; projecting stops the toggle leaking its mine status.
     io.to(room).emit(SERVER_EVENTS.UPDATE_CELLS, projectCells(toUpdate));
     await roomRepo.setBoard(room, board);
     await checkWin(await roomRepo.getState(room), board, room);

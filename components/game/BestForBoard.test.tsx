@@ -6,12 +6,9 @@ import { boardKey, clearBestTimes, recordBestTime } from "@/lib/bestTimes";
 import BestForBoard from "./BestForBoard";
 
 /**
- * The record shown on the landing page, before you play.
- *
- * The interesting cases are both about NOT showing something: a board you have
- * never cleared has no record, and switching difficulty has to stop showing the
- * previous board's time. That second one is the quiet failure — a stale record
- * under a different difficulty reads as a real one.
+ * The record shown on the landing page. Both interesting cases are about NOT
+ * showing something: an uncleared board has no record, and switching difficulty
+ * must drop the previous board's time, which would otherwise read as a real one.
  */
 
 const select = (rows: number, cols: number, mines: number) =>
@@ -55,10 +52,8 @@ describe("a board with a record", () => {
     });
 
     /*
-     * Nobody has joined anything on this page, so the record being offered as a
-     * target has to be the one you could actually match alone. A group's time on
-     * the same board is faster more or less by construction — showing it here
-     * would set a bar that has nothing to do with the game about to be played.
+     * Nobody has joined yet, so the target must be one you could match alone;
+     * a group's time on the same board is faster by construction.
      */
     test("offers the solo record, not a faster one a group set", async () => {
         recordBestTime(boardKey(9, 9, 10, 1), { seconds: 95, players: 1, at: 1 });
@@ -73,10 +68,7 @@ describe("a board with a record", () => {
 });
 
 describe("changing the selection", () => {
-    /*
-     * The quiet one. Records are per board, so a time left on screen after the
-     * player switches difficulty is attributed to a board it was never set on.
-     */
+    /* The quiet one: a stale time is attributed to a board it was never set on. */
     test("drops a record that belongs to the board you just left", async () => {
         recordBestTime(boardKey(9, 9, 10), { seconds: 95, players: 1, at: 1 });
         select(9, 9, 10);

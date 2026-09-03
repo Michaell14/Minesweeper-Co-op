@@ -1,9 +1,8 @@
 // @vitest-environment jsdom
 /**
- * The settings blob: sanitisation (the single gate storage AND the server pass
+ * The settings blob: sanitisation (the one gate storage AND the server pass
  * through), the legacy ms-theme migration, and the no-flash script's
- * guarantees — all things that fail silently as a palette quietly reset or a
- * flash of the default on load.
+ * guarantees, all of which fail silently.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -18,9 +17,8 @@ import { THEMES, THEME_STORAGE_KEY } from "./theme";
 import { activeHoliday, localDay } from "./holidays";
 
 /**
- * A day the schedule leaves alone — found, not hardcoded. Every holiday added
- * shrinks the set of ordinary days, and twice now a pin here has quietly become
- * a holiday and changed what these cases were testing.
+ * A day the schedule leaves alone, found rather than hardcoded: twice a pin
+ * here has quietly become a holiday.
  */
 const ORDINARY_DAY = (() => {
     for (let i = 0; i < 365; i++) {
@@ -83,9 +81,8 @@ describe("sanitizeSettings", () => {
     });
 
     /*
-     * seasonalDismissed suppresses a holiday, so a value that slips through
-     * malformed is a palette that never arrives — silent, and only for the
-     * player whose storage holds it. Same untrusted-input stance as `theme`.
+     * A malformed seasonalDismissed is a palette that never arrives, silently.
+     * Same untrusted-input stance as `theme`.
      */
     it.each(["halloween-2026", "lunar-new-year-2031", null])(
         "accepts the occurrence key %p",
@@ -154,10 +151,8 @@ describe("writeStoredSettings", () => {
 
 describe("NO_FLASH_SCRIPT", () => {
     /*
-     * The script now consults the calendar, so every case below has to state
-     * which day it is running on. Without this the two "applies the stored
-     * theme" tests below pass for most of the year and fail for the nine days
-     * of Halloween — a suite that goes red on a date rather than on a change.
+     * The script consults the calendar, so every case states its day; otherwise
+     * the "applies the stored theme" tests go red for the nine days of Halloween.
      */
     beforeEach(() => {
         vi.useFakeTimers({ shouldAdvanceTime: true });
@@ -211,12 +206,9 @@ describe("NO_FLASH_SCRIPT", () => {
 });
 
 /*
- * The script carries its own copy of the schedule, because it runs before any
- * bundle and cannot import one. That copy is the thing to distrust: nothing
- * about a wrong window is visible until the day it is wrong, by which point
- * the page has already painted. So rather than assert a handful of dates, this
- * runs the emitted script against `activeHoliday` for every day of a decade —
- * the only check that makes the duplication safe to keep.
+ * The script carries its own copy of the schedule (it runs before any bundle),
+ * and a wrong window is invisible until the day it is wrong. So this runs the
+ * emitted script against `activeHoliday` for every day of a decade.
  */
 describe("the no-flash script agrees with the schedule", () => {
     const run = (day: string, blob?: Record<string, unknown>) => {
@@ -283,9 +275,8 @@ describe("the no-flash script agrees with the schedule", () => {
     });
 
     /*
-     * The script carries its OWN region check, and the decade sweep above
-     * cannot see it: jsdom reports en-US, so both sides agree by accident.
-     * This is the only place the inlined gating is exercised at all.
+     * The script's OWN region check, which the decade sweep cannot see: jsdom
+     * reports en-US, so both sides agree by accident.
      */
     describe("region gating, in the script's own copy", () => {
         const asBrowserIn = (language: string, fn: () => void) => {
@@ -316,8 +307,7 @@ describe("the no-flash script agrees with the schedule", () => {
             asBrowserIn("en", () => expect(run(THANKSGIVING)).toBe("thanksgiving"));
         });
 
-        /* A script subtag between language and region is the case that fails
-         * open by accident, and the initial paint is where it would be seen. */
+        /* A script subtag between language and region is the case that fails open by accident. */
         it("reads past a script subtag", () => {
             asBrowserIn("zh-Hans-CN", () => expect(run(THANKSGIVING)).toBeNull());
             asBrowserIn("sr-Latn-RS", () => expect(run(THANKSGIVING)).toBeNull());

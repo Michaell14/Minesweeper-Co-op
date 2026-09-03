@@ -1,19 +1,9 @@
 /**
- * Quick match: pair two strangers into a PVP room without a shared room code.
- *
- * This builds a room and nothing else. Once both players are in it they are in
- * an ORDINARY PVP room — the lobby, `startPvpGame`, the shared board, the
- * forfeit grace period, rematch and reconnect all run untouched, and none of
- * them can tell a matched room from a hand-made one. That is the whole design:
- * the queue is a way IN, not a fourth game mode.
- *
- * A pairing is therefore announced as the same `joinRoomSuccess` +
- * `pvpRoomReady` a hand-made room sends, so the client has one code path for
- * both and there is no `matchFound` to keep in step.
- *
- * **Quick match plays one fixed board** (`DEFAULT_PRESET`). Queueing per
- * size and difficulty would be twelve queues, and twelve queues at this traffic
- * level are twelve empty ones — see data/keys.js.
+ * Quick match: pairs two strangers into an ORDINARY PVP room. The queue is a
+ * way in, not a fourth mode: lobby, `startPvpGame`, forfeit grace, rematch and
+ * reconnect run untouched, and a pairing is announced with the same
+ * `joinRoomSuccess` + `pvpRoomReady` a hand-made room sends. One fixed board
+ * (`DEFAULT_PRESET`): per-size queues at this traffic would all be empty.
  */
 
 const crypto = require('crypto');
@@ -29,11 +19,7 @@ const roomRepo = require('../data/roomRepo');
 const playerRepo = require('../data/playerRepo');
 const { SERVER_EVENTS } = require('../../shared/events');
 
-/**
- * The room code a match plays under. Ambiguous glyphs are left out because this
- * code IS shown — the room panel prints it, and a matched player can pass it to
- * a friend for the rematch like any other.
- */
+/** The room code a match plays under. No ambiguous glyphs: the code is shown and passed on. */
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const CODE_LENGTH = 6;
 const CODE_ATTEMPTS = 5;
@@ -46,12 +32,8 @@ const randomCode = (prefix) => {
 };
 
 /**
- * A code no live room holds.
- *
- * Collision-checked rather than trusted: room codes are arbitrary user text, so
- * nothing stops a player creating `QM-ABC123` by hand, and taking over their
- * room would be a real failure rather than a cosmetic one. Throws instead of
- * returning a duplicate — the caller answers with `matchError`.
+ * A code no live room holds. Collision-checked because room codes are user
+ * text, so `QM-ABC123` can exist by hand. Throws; the caller answers `matchError`.
  */
 const mintRoomCode = async (prefix) => {
     for (let attempt = 0; attempt < CODE_ATTEMPTS; attempt++) {
@@ -65,35 +47,19 @@ const mintRoomCode = async (prefix) => {
 const isConnected = (socketId) => Boolean(io.sockets?.sockets?.get(socketId));
 
 /**
- * Connected sockets other than `socketId`.
- *
- * NOT a queue depth — the queue can never hold two waiting players, since
- * anyone arriving pairs with whoever is already there. "Is anyone here at all"
- * is the only honest signal, and it is what decides whether waiting is worth
- * it. Local to this process, like every other socket count here.
- *
- * The total and the "is that me" subtraction read the SAME map, so they cannot
- * disagree about a socket. That matters on the disconnect path, where this is
- * called for a leaver: `io.engine.clientsCount` is a second tally kept
- * elsewhere, and one that had not caught up would leave the survivors reading a
- * player who is already gone, with no further event coming to correct it.
+ * Connected sockets other than `socketId`, local to this process. Not a queue
+ * depth: the queue never holds two, since an arrival pairs with whoever is
+ * there. Total and "is that me" read the SAME map, so on the disconnect path a
+ * leaver cannot be counted by a tally that has not caught up.
  */
 const othersOnline = (socketId) =>
     Math.max(0, (io.sockets?.sockets?.size ?? 0) - (isConnected(socketId) ? 1 : 0));
 
 /**
- * Re-sends the count to everyone still waiting.
- *
- * Called on every connect and disconnect, because the number moves while the
- * dialog showing it stands still: `matchSearching` fires once, at the moment of
- * queueing, and a player can then sit there for minutes watching a waiting
- * timer tick beside a count from when they clicked.
- *
- * Cheap by construction — the queue holds at most one waiting player, and this
- * only reaches sockets belonging to this process.
- *
- * Never throws: it sits on the connect and disconnect paths, and a count that
- * fails to refresh must not cost either of them their real work.
+ * Re-sends the count to everyone waiting, on every connect and disconnect:
+ * `matchSearching` fires once, and the dialog then sits for minutes. Cheap (at
+ * most one waiter, this process only) and never throws, since it sits on the
+ * connect and disconnect paths.
  */
 const broadcastOnlineCount = async () => {
     try {
@@ -109,13 +75,8 @@ const broadcastOnlineCount = async () => {
 };
 
 /**
- * Whether a queued player can still be paired with.
- *
- * Three ways an entry goes bad, and all three look identical in the hash:
- * the socket dropped without its cleanup running (a dyno restart), the player
- * joined a room some other way while queued (a second tab), or the entry is old
- * enough that neither answer can be trusted. A player record existing IS being
- * in a room — that is what `addPlayerToRoom` creates.
+ * Whether a queued entry can still be paired: not stale, still connected here,
+ * and not in a room (a player record existing IS being in a room).
  */
 const isPairable = async (entry, now) => {
     if (now - entry.queuedAt > MATCH_ENTRY_STALE_MS) return false;
@@ -123,17 +84,13 @@ const isPairable = async (entry, now) => {
     return !(await playerRepo.exists(entry.socketId));
 };
 
-/**
- * Takes the longest-waiting pairable player, pruning everyone it rejects on the
- * way past. Runs under the match lock — see `findMatch`.
- */
+/** Takes the longest-waiting pairable player, pruning rejects. Runs under the match lock. */
 const takePartner = async (socketId) => {
     const waiting = await matchRepo.listWaiting();
     const now = Date.now();
 
     for (const entry of waiting) {
-        // Their own entry from an earlier click. Not stale, not theirs to prune
-        // — the enqueue below overwrites it.
+        // Their own earlier entry; the enqueue below overwrites it.
         if (entry.socketId === socketId) continue;
 
         if (!(await isPairable(entry, now))) {
@@ -149,11 +106,8 @@ const takePartner = async (socketId) => {
 };
 
 /**
- * Builds the room and puts both players in it.
- *
- * The waiting player is host: they have been in the queue longer, and PVP's
- * host is whoever presses Start. Order matters — `socket.join` before
- * `addPlayerToRoom`, because the latter broadcasts to the room.
+ * Builds the room and puts both players in it. The waiting player is host.
+ * `socket.join` before `addPlayerToRoom`, which broadcasts to the room.
  */
 const startMatch = async ({ host, hostSocket, guestSocket, guestName, guestSessionId }) => {
     const room = await mintRoomCode('QM');
@@ -169,14 +123,12 @@ const startMatch = async ({ host, hostSocket, guestSocket, guestName, guestSessi
         await addPlayerToRoom(room, hostSocket.id, host.name, host.sessionId, hostSocket.data?.user?.avatar);
         await addPlayerToRoom(room, guestSocket.id, guestName, guestSessionId, guestSocket.data?.user?.avatar);
 
-        // The dimensions travel for the same reason a manual join carries them: the
-        // flag counter is client-side and has nothing else to size itself from.
+        // Dimensions travel as on a manual join: the flag counter is client-side.
         const joined = { room, mode: 'pvp', numRows: rows, numCols: cols, numMines: mines };
         io.to(hostSocket.id).emit(SERVER_EVENTS.JOIN_ROOM_SUCCESS, { ...joined, isHost: true });
         io.to(guestSocket.id).emit(SERVER_EVENTS.JOIN_ROOM_SUCCESS, { ...joined, isHost: false });
 
-        // Read back from the records addPlayerToRoom just wrote, so the avatar
-        // the opponent sees is the validated stored one, same as the join path.
+        // Read back so the opponent sees the validated stored avatar, as on join.
         const hostAvatar = await playerRepo.getAvatar(hostSocket.id);
         const guestAvatar = await playerRepo.getAvatar(guestSocket.id);
         io.to(hostSocket.id).emit(SERVER_EVENTS.PVP_ROOM_READY, { opponentName: guestName, opponentAvatar: guestAvatar, isHost: true });
@@ -184,8 +136,7 @@ const startMatch = async ({ host, hostSocket, guestSocket, guestName, guestSessi
 
         return room;
     } catch (error) {
-        // A leftover player record reads as "in a room": it blocks the player's
-        // own retry and makes the re-enqueued host unpairable.
+        // A leftover player record reads as "in a room" and blocks any retry.
         hostSocket.leave(room);
         guestSocket.leave(room);
         await playerRepo.remove(hostSocket.id).catch(() => {});
@@ -204,8 +155,7 @@ const findMatch = async ({ socket, name }) => {
             return;
         }
 
-        // Already in a room. Matchmaking is a landing-page action, and pairing
-        // someone mid-game would move them out of the board they can see.
+        // Already in a room: pairing them would move them off a board mid-game.
         if (await playerRepo.exists(socket.id)) {
             socket.emit(SERVER_EVENTS.MATCH_ERROR);
             return;
@@ -214,14 +164,10 @@ const findMatch = async ({ socket, name }) => {
         const sessionId = socket.handshake.auth?.sessionId;
 
         /*
-         * "Is anyone waiting, and if so take them, otherwise wait" is ONE
-         * decision. Unlocked, two players arriving together both read an empty
-         * queue and both sit down in it, each waiting for the other — a
-         * deadlock that resolves only when a third player shows up.
-         *
-         * Only the decision is held: building the room is several round trips
-         * and the partner is already out of the queue by then, so nobody else
-         * can reach them.
+         * "Take a waiter, else wait" is ONE decision: unlocked, two arrivals
+         * both read an empty queue and both sit down, each waiting for the
+         * other. Only the decision is locked; the partner is out of the queue
+         * before the room is built.
          */
         const partner = await matchRepo.withMatchLock(socket.id, async () => {
             const found = await takePartner(socket.id);
@@ -242,8 +188,7 @@ const findMatch = async ({ socket, name }) => {
 
         const partnerSocket = io.sockets?.sockets?.get(partner.socketId);
         if (!partnerSocket) {
-            // They dropped in the window between the liveness check and here.
-            // Rare enough to just retry as a fresh search rather than loop.
+            // Dropped since the liveness check; rare enough to re-search rather than loop.
             await matchRepo.enqueue(socket.id, { name: displayName, sessionId, queuedAt: Date.now() });
             socket.emit(SERVER_EVENTS.MATCH_SEARCHING, { othersOnline: othersOnline(socket.id) });
             return;
@@ -258,9 +203,7 @@ const findMatch = async ({ socket, name }) => {
                 guestSessionId: sessionId,
             });
         } catch (error) {
-            // The partner is out of the queue and has been told nothing, so put
-            // them back rather than leaving them waiting on a room that never
-            // got built.
+            // The partner was dequeued and told nothing: put them back.
             console.error('Error starting match:', error);
             await matchRepo.enqueue(partner.socketId, partner);
             socket.emit(SERVER_EVENTS.MATCH_ERROR);
@@ -272,19 +215,11 @@ const findMatch = async ({ socket, name }) => {
 };
 
 /**
- * Handles 'startPracticeRace' — "nobody is around, give me a board anyway".
- *
- * **A practice race is a co-op room with one player**, which is a thing the app
- * has always supported. Board generation, cell actions, the clock, the win
- * check and best-time recording therefore all work untouched, and there is no
- * practice mode for the server to know about.
- *
- * The opponent is drawn entirely by the CLIENT, from a target time it reads out
- * of its own records. That is not a shortcut: in PVP the opponent is only ever
- * a percentage on a bar (`pvpOpponentProgress` carries nothing else), so a
- * target time renders identically to a live racer without anything having to
- * pretend a second player exists. Nothing here writes a fake result — the clear
- * is a real solo clear of a real no-guess board, and counts as exactly that.
+ * Handles 'startPracticeRace': a co-op room of one, which the app already
+ * supports, so generation, cell actions, clock, win check and best times all
+ * work untouched. The "opponent" is drawn by the CLIENT from a target time in
+ * its own records; in PVP the opponent is only ever a percentage on a bar, so
+ * it renders identically. The clear is a real solo clear and counts as one.
  */
 const startPracticeRace = async ({ socket, name }) => {
     try {
@@ -299,8 +234,7 @@ const startPracticeRace = async ({ socket, name }) => {
             return;
         }
 
-        // Taking the practice board IS leaving the queue. Done before the room
-        // is built, so a slow creation cannot leave them pairable meanwhile.
+        // Taking the practice board leaves the queue, before a slow creation could leave them pairable.
         await matchRepo.remove(socket.id);
 
         const room = await mintRoomCode('SOLO');
@@ -308,15 +242,10 @@ const startPracticeRace = async ({ socket, name }) => {
 
         await createRoom(room, rows, cols, mines, 'co-op');
         /*
-         * Room CONFIGURATION, the same shape of thing as `mode` and `noGuess`:
-         * it records how the room was opened and nothing else. The server still
-         * has no target — no time, no opponent, no bar — and could not have one,
-         * since the target comes out of the player's own browser records.
-         *
-         * Stored rather than merely announced because a reload has to find its
-         * way back. A resume re-joins through the ordinary `joinRoom` handler,
-         * which knows only what the room says; without this the board, clock and
-         * score all came back and the opponent silently did not.
+         * Room CONFIGURATION, like `mode` and `noGuess`: how the room was
+         * opened, nothing more (the server has no target). Stored so a reload
+         * finds its way back: a resume re-joins through `joinRoom`, which
+         * knows only what the room says.
          */
         await roomRepo.setFields(room, { practice: 'true' });
         socket.join(room);
@@ -343,17 +272,12 @@ const cancelMatch = async ({ socket }) => {
     } catch (error) {
         console.error('Error in cancelMatch:', error);
     }
-    // Emitted either way: the client is waiting to be let out of the dialog,
-    // and a queue entry that outlived a failed delete is pruned on the way past
-    // anyway (see isPairable).
+    // Emitted either way: the client is waiting to leave the dialog, and a
+    // surviving entry is pruned later (see isPairable).
     socket.emit(SERVER_EVENTS.MATCH_CANCELLED);
 };
 
-/**
- * Silent cleanup for a socket that is going away. No emit — there is nobody
- * left to tell. Never throws, so it can sit ahead of `removePlayer` on the
- * disconnect path without being able to cost it its cleanup.
- */
+/** Silent cleanup for a departing socket. Never throws: it sits ahead of `removePlayer` on disconnect. */
 const leaveQueue = async (socket) => {
     try {
         await matchRepo.remove(socket.id);

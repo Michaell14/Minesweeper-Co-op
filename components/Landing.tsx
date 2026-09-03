@@ -22,65 +22,42 @@ interface LandingParams {
 }
 
 /**
- * The front page: play today's puzzle, join a room, or create one.
- *
- * Layout and composition only — each form owns its own state and submit, and
- * each dialog reads what it needs from the store.
- *
- * `createRoom` and `joinRoom` are drilled straight to the name dialogs, never to
- * the forms: a form records the room code and opens a dialog, and the dialog
- * emits once a name is confirmed. That is why the forms take no props.
- *
- * The dialogs are mounted here but opened from anywhere via `openDialog`, so the
- * board-size card needs no handle on the custom dialog.
+ * The front page: play today's puzzle, join a room, or create one. Layout and
+ * composition only. `createRoom`/`joinRoom` go to the name dialogs, not the
+ * forms: a form records the room code and opens a dialog, which emits once a
+ * name is confirmed. Dialogs are mounted here but opened from anywhere.
  */
 export default function Landing({ createRoom, joinRoom, findMatch, cancelMatch, startPracticeRace }: LandingParams) {
     const setName = useMinesweeperStore((state) => state.setName);
 
     /*
-     * A signed-in player never types a name: they have one, and the server puts
-     * it on the scoreboard whatever arrives (server/utils/playerIdentity.js).
-     * Asking anyway was friction AND a lie — the typed name lost.
+     * A signed-in player never types a name: the server puts the account name
+     * on the scoreboard whatever arrives (server/utils/playerIdentity.js).
      */
     const { profile, resolved } = useAccountProfile();
     const accountName = profile?.displayName?.trim() || null;
 
     /*
-     * Seeded into the store even though the server prefers its own snapshot.
-     * If the client believes it is signed in but the handshake's token did not
-     * resolve server-side, this is the only name the emit carries — without it
-     * the skip below sends an empty one and the join is refused with nothing
-     * on screen to explain it.
-     *
-     * One-way on purpose: signing out leaves the last account name in the
-     * store, which nothing reads, because clearing it here would wipe the name
-     * a GUEST typed the moment this resolves as unauthenticated.
+     * Seeded into the store: if the handshake's token did not resolve
+     * server-side, this is the only name the emit carries. One-way, because
+     * clearing on sign-out would wipe a GUEST's typed name.
      */
     React.useEffect(() => {
         if (accountName) setName(accountName);
     }, [accountName, setName]);
 
     /*
-     * What the two forms get, derived ONCE so they cannot drift: the action if
-     * we know the player, null for a guest, and undefined while the account is
-     * still loading.
-     *
-     * `resolved` matters as much as the name. Acting on a not-yet-loaded
-     * profile treats every signed-in player as a guest for the first few
-     * hundred milliseconds, which is exactly when they click — and the join
-     * form's link path decides on MOUNT, when not-yet is the normal state.
+     * What both forms get, derived ONCE: the action if we know the player, null
+     * for a guest, undefined while the account loads. `resolved` matters: acting
+     * on a not-yet-loaded profile treats every signed-in player as a guest.
      */
     const named = resolved && accountName !== null;
     const skipNameDialog = (action: () => void): (() => void) | null | undefined =>
         resolved ? (named ? action : null) : undefined;
 
     /*
-     * Quick Match is one click, live the instant the page paints, so it is the
-     * action people actually reach before the account resolves. Deciding then
-     * would ask a signed-in player for a name they already have, so the click
-     * is HELD and replayed once the answer lands. The forms fall through to the
-     * dialog instead — typing a room code outlasts the fetch — and the one path
-     * that does decide on mount, the join link, waits for the same reason.
+     * Quick Match is one click and reached before the account resolves, so the
+     * click is HELD and replayed once the answer lands.
      */
     const [matchQueued, setMatchQueued] = React.useState(false);
 
@@ -90,8 +67,7 @@ export default function Landing({ createRoom, joinRoom, findMatch, cancelMatch, 
         else openDialog(DIALOGS.nameMatch);
     }, [named, findMatch]);
 
-    // Declared after the setName effect above, so the store already holds the
-    // account name when this fires — findMatch drops an emit with an empty one.
+    // After the setName effect, so the store holds the account name when this fires.
     React.useEffect(() => {
         if (!matchQueued || !resolved) return;
         setMatchQueued(false);
@@ -102,20 +78,14 @@ export default function Landing({ createRoom, joinRoom, findMatch, cancelMatch, 
         <>
             <AnnouncementBanner />
 
-            {/* Deliberately tight: with three option rows, the create form only
-                fits an 800px-tall viewport if the header gives space back. */}
+            {/* Tight: with three option rows the create form only fits 800px if the header gives space back. */}
             <div className="text-center pt-4 lg:pt-8">
                 <h1 className="text-pixel-2xl md:text-pixel-4xl font-bold">Minesweeper Co-op</h1>
-                {/* Inline shortcuts rather than their own bordered sections, so
-                    they do not compete with Join/Create for attention. The two
-                    sit together because they are the same offer — a game right
-                    now, with nothing to fill in and nobody to coordinate with. */}
+                {/* Inline shortcuts, not bordered sections, so they do not compete with Join/Create. */}
                 <div className="mt-3 flex flex-wrap justify-center gap-2">
-                    {/* A link, not a button: the daily is its own page now, and
-                        this is how it gets crawled and opened in a new tab.
-                        The press is what says "play" — deliberately not a URL
-                        parameter, which anyone could share and thereby spend a
-                        stranger's one attempt for the day (lib/dailyIntent.ts). */}
+                    {/* A link, not a button: the daily is its own page. The press
+                        says "play", never a URL parameter anyone could share to
+                        spend a stranger's one attempt (lib/dailyIntent.ts). */}
                     <ButtonLink
                         href="/daily"
                         onClick={markPlayIntent}

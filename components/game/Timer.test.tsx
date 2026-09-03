@@ -5,20 +5,11 @@ import { useMinesweeperStore } from "@/app/store";
 import Timer from "./Timer";
 
 /**
- * The run clock, as a screen reader and a stopwatch both see it.
- *
- * The digits are `aria-hidden` on purpose — they change every second and would
- * talk over the game — so the ONLY thing carrying the reading to assistive tech
- * is the accessible name. That made it silently breakable: an `aria-label` is
- * ignored on a generic element, and both wrappers here are generic (Panel
- * spreads onto a plain div, a <p> is a paragraph). Without `role="timer"` the
- * label is dropped and the timer announces nothing at all, while looking
- * completely correct on screen. A review caught that once; this is what stops
- * it coming back.
- *
- * Querying `getByRole('timer', { name })` is the point: it fails both when the
- * role goes missing and when the name stops resolving, which are the two ways
- * this breaks.
+ * The run clock as a screen reader hears it. The digits are `aria-hidden`
+ * (they change every second), so the accessible name carries the reading, and
+ * an `aria-label` on a generic element is ignored: without `role="timer"` the
+ * timer announces nothing while looking correct. `getByRole('timer', { name })`
+ * fails both when the role goes and when the name stops resolving.
  */
 
 const setClock = (startedAt: number | null, endedAt: number | null) =>
@@ -81,8 +72,7 @@ describe("counting", () => {
         setClock(now(), null);
         render(<Timer variant="hud" />);
 
-        // act() so React flushes the interval's state update, the way a real
-        // second passing would.
+        // act() so React flushes the interval's state update.
         act(() => vi.advanceTimersByTime(3_000));
 
         expect(screen.getByRole("timer").textContent).toContain("00:03");
@@ -99,9 +89,8 @@ describe("counting", () => {
     });
 
     /*
-     * A finished or unstarted clock must not leave an interval running. The
-     * board mounts and unmounts these on every reset, and a leaked timer is
-     * invisible until it is thousands of wakeups deep.
+     * A finished or unstarted clock must not leave an interval running: the
+     * board remounts these on every reset, and a leak is invisible for a while.
      */
     test("schedules nothing when there is nothing to count", () => {
         setClock(null, null);

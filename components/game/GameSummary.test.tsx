@@ -4,9 +4,8 @@ import { render, screen } from "@testing-library/react";
 import { useMinesweeperStore } from "@/app/store";
 
 /*
- * The summary carries the add-friend offer, which reads `useSession` — and the
- * real hook throws outside a <SessionProvider>. Signed OUT by default, so every
- * case below is about the numbers, as it was.
+ * The add-friend offer reads `useSession`, which throws outside a
+ * <SessionProvider>. Signed OUT by default, so every case is about the numbers.
  */
 const mockStatus = vi.fn(() => "unauthenticated");
 vi.mock("next-auth/react", () => ({ useSession: () => ({ status: mockStatus() }) }));
@@ -18,22 +17,14 @@ import type { Cell } from "@/shared/socketPayloads";
 import GameSummary from "./GameSummary";
 
 /**
- * What a finished game says it amounted to.
- *
- * Every number here is DERIVED — from the board still in state and the scores
- * already on screen — rather than sent. That is the right design, and it is also
- * why the numbers can quietly go wrong: nothing fails, the summary just reports
- * something that is not true, at the one moment a player is reading it closely.
- *
- * The two modes deliberately read differently. Co-op ends on the shared
- * scoreboard; a race ends on how far each player got, and the score table is
- * hidden in PVP everywhere else. Showing the wrong one is invisible to types.
+ * What a finished game says it amounted to. Every number is DERIVED from the
+ * board in state and the scores on screen rather than sent, so a wrong one
+ * fails silently. The modes read differently: co-op ends on the scoreboard, a
+ * race on how far each player got.
  */
 
-/**
- * A 10x10 board with a single mine at (0,0) and `opened` safe cells revealed —
- * so 99 safe cells, and the percentages below are readable by eye.
- */
+/** A 10x10 board, one mine at (0,0), `opened` safe cells revealed: 99 safe
+ * cells, so the percentages below read by eye. */
 const MINES = 1;
 const SAFE_CELLS = 99;
 
@@ -91,10 +82,7 @@ describe("the time", () => {
         expect(screen.getByText("01:07")).toBeDefined();
     });
 
-    /*
-     * A run with no recorded finish has no duration to report. Showing 00:00
-     * would read as "you finished instantly" rather than "unknown".
-     */
+    /* No recorded finish means no duration; 00:00 would read as "finished instantly". */
     test("is left out entirely when the clock never stopped", () => {
         arrange({ startedAt: 1_000, endedAt: null });
         render(<GameSummary {...summaryProps} />);
@@ -195,10 +183,8 @@ describe("PVP", () => {
     });
 
     /*
-     * A race is won through DIALOGS.pvpYouWon rather than the co-op summary
-     * dialog, so it is easy to assume the record note only reaches co-op. It
-     * reaches both because that dialog renders this component — this test is
-     * what keeps that true if the summary is ever split per mode.
+     * A race is won through DIALOGS.pvpYouWon, which renders this component
+     * too; this keeps the record note in both if the summary is ever split.
      */
     test("still celebrates a record set in a race", () => {
         race();

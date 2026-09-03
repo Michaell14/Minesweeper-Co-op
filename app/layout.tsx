@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Inter, Press_Start_2P } from "next/font/google";
-// Tokens first: globals.css and every component in components/ds read the
-// custom properties it defines, so it has to land in the cascade ahead of them.
+// Tokens first: globals.css and components/ds read the custom properties it defines.
 import "./tokens.css";
 import "./globals.css";
 import { Analytics } from '@vercel/analytics/next';
@@ -16,9 +15,8 @@ import SettingsSync from "@/components/SettingsSync";
 import BestsSync from "@/components/BestsSync";
 import SpriteDefsHost from "@/components/SpriteDefsHost";
 
-// `variable` as well as `className`: the class puts Inter on <body>, where the
-// `*` rule in globals.css immediately overrides it with the pixel face. The
-// variable is what lets `.ms-prose` opt back in for long-form copy.
+// `variable` as well as `className`: the `*` rule in globals.css overrides the
+// body class with the pixel face; the variable lets `.ms-prose` opt back in.
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const pressStart2P = Press_Start_2P({
   weight: "400",
@@ -27,17 +25,14 @@ const pressStart2P = Press_Start_2P({
   variable: "--font-press-start-2p"
 });
 
-// Kept inside the SERP's own limits — a title over ~60 chars and a description
-// over ~155 are truncated, and the tail is the part that gets cut. No `keywords`
-// meta: Google has ignored it since 2009, and a stuffed one is a spam signal to
-// everyone who still reads it.
+// Within the SERP's limits (~60-char title, ~155-char description). No
+// `keywords` meta: Google has ignored it since 2009.
 const TITLE = "Minesweeper Co-op — Free Online Multiplayer Minesweeper";
 const DESCRIPTION =
   "Play Minesweeper with friends on one shared board, race a 1v1, or take on the daily challenge. Free in your browser, no download, unblocked at school.";
 
 export const metadata: Metadata = {
-  // Every other URL here is absolute, but this is what keeps a relative one
-  // from silently resolving against localhost.
+  // Keeps a relative URL from silently resolving against localhost.
   metadataBase: new URL(SITE_URL),
   title: TITLE,
   description: DESCRIPTION,
@@ -94,17 +89,14 @@ export default function RootLayout({
         <link rel="icon" href="/favicon.ico" sizes="any" />
         <link rel="icon" href="/icon.svg" type="image/svg+xml" />
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-        {/* Applies the stored palette before first paint — nothing sets
-            data-theme until React hydrates, so without this a themed player sees
-            the default flash on every load. <html> carries
-            suppressHydrationWarning, which is what lets this mutate it safely. */}
+        {/* Applies the stored palette before first paint, or a themed player
+            sees the default flash on every load. <html> carries
+            suppressHydrationWarning so this may mutate it. */}
         <script dangerouslySetInnerHTML={{ __html: NO_FLASH_SCRIPT }} />
-        {/* No canonical or theme-color here on purpose. The canonical comes
-            from metadata.alternates; a hardcoded one in the LAYOUT renders on
-            every route, claiming each is a duplicate of /. A theme-color has to
-            be one literal colour, and there are twelve palettes — white was
-            wrong on eleven of them, so the browser default is the better answer
-            until it can follow `data-theme`. */}
+        {/* No canonical or theme-color here: the canonical comes from
+            metadata.alternates (one in the LAYOUT would claim every route is a
+            duplicate of /), and a theme-color would be one literal colour
+            across twelve palettes. */}
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <script
           type="application/ld+json"
@@ -128,10 +120,8 @@ export default function RootLayout({
                 "priceCurrency": "USD",
                 "availability": "https://schema.org/InStock"
               },
-              // No aggregateRating: nothing in the app collects one, and a
-              // made-up rating breaks Google's structured-data policy — the
-              // downside is a manual action, not a nicer snippet. Add it back
-              // only alongside a real rating feature.
+              // No aggregateRating: nothing collects one, and a made-up rating
+              // breaks Google's structured-data policy (a manual action).
               "playMode": ["CoOp", "MultiPlayer"],
               "numberOfPlayers": {
                 "@type": "QuantitativeValue",
@@ -152,14 +142,12 @@ export default function RootLayout({
           <SettingsSync />
           {/* The site's only navigation, on every route. */}
           <SiteNav />
-          {/* Signed in, board records come from the account rather than this
-              browser; this is what fetches them. Renders nothing. */}
+          {/* Fetches the account's board records when signed in. Renders nothing. */}
           <BestsSync />
           {children}
           {/* Sign-in and privacy dialogs, opened imperatively from anywhere. */}
           <AccountMenu />
-          {/* Renders nothing until the server announces an unlock; here rather
-              than on the game page so a toast survives navigating away. */}
+          {/* Achievement toast, here rather than on the game page so it survives navigation. */}
           <AchievementToast />
           <FriendInviteToast />
         </AuthProvider>

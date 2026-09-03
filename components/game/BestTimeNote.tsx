@@ -6,25 +6,20 @@ import { useBestTime } from '@/hooks/useBestTime';
 import { formatClock } from '@/lib/gameClock';
 
 /**
- * Your record for this board, and whether the run just finished changed it.
- *
- * The record shows on any outcome, not just a clear — losing is when you most
- * want to know what you are chasing. The celebration is narrower on purpose:
- * `bestTimeResult` is set only on an actual CLEAR, so a loss and a win handed
- * over by a disconnect both leave the record standing and say nothing.
+ * Your record for this board, and whether this run changed it. The record
+ * shows on any outcome; the celebration only on an actual clear, since
+ * `bestTimeResult` is set nowhere else.
  */
 export default function BestTimeNote() {
     const result = useMinesweeperStore((state) => state.bestTimeResult);
-    // The win handler writes the record, so re-read once a verdict lands.
+    // Re-read once a verdict lands: the win handler writes the record.
     const { best } = useBestTime(result);
 
     if (result?.improved) {
         return (
             <p className="text-pixel-sm text-center m-0" role="status">
-                {/* Weight and a glyph rather than colour: `--ms-intent-success`
-                    is a BUTTON FILL, and the /ds audit only covers its ink
-                    sitting on it, so using it as text here is an unmeasured pair
-                    in four palettes. */}
+                {/* Weight and a glyph, not colour: `--ms-intent-success` is a button
+                    fill, and the /ds audit only covers its ink sitting on it. */}
                 <strong>🏆 New best!</strong>
                 {result.previous && (
                     <span className="text-ink-muted"> Beat {formatClock(result.previous.seconds)}.</span>

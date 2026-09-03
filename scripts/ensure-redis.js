@@ -1,8 +1,4 @@
-/**
- * Cross-platform Redis health check and auto-start script.
- * Checks if Redis is listening on port 6379. If down, attempts to start it via OS service manager.
- * Polling includes a 5-second timeout guard to prevent infinite loops.
- */
+/** Checks Redis is listening; if not, starts it via the OS service manager and polls up to 5s. */
 const net = require('net');
 const { execSync } = require('child_process');
 
@@ -43,21 +39,18 @@ function startRedisService() {
             execSync('sudo systemctl start redis 2>/dev/null || service redis-server start 2>/dev/null', { stdio: 'ignore' });
         }
     } catch {
-        // Ignore failure to allow graceful degradation
+        // Best effort.
     }
 }
 
 async function main() {
-    // 1. Check if Redis is already listening
     if (await isPortOpen(PORT, HOST)) {
         process.exit(0);
     }
 
-    // 2. Redis is down - try starting the service
     console.log('⚡ Redis is down. Attempting to start Redis service...');
     startRedisService();
 
-    // 3. Poll until port opens, up to 5 seconds timeout guard
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
         await new Promise((r) => setTimeout(r, 100));
         if (await isPortOpen(PORT, HOST)) {

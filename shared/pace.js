@@ -1,11 +1,8 @@
 /**
- * Safe-cell progress and pace deciles for the daily share, used by both
- * halves: the server records crossings (domain/pace.js, game/daily.js), the
- * client draws the bar (lib/dailyShare.ts). One source of truth on purpose —
- * a decile count that drifted between the halves would fail silently, as the
- * client refuses to draw a bar whose length it does not expect.
- *
- * Pure, like everything in shared/ (CLAUDE.md trap #1): no I/O, no clock.
+ * Safe-cell progress and pace deciles for the daily share, shared by both
+ * halves so the decile count cannot drift: the server records crossings
+ * (domain/pace.js, game/daily.js), the client draws the bar (lib/dailyShare.ts).
+ * Pure, like everything in shared/ (CLAUDE.md trap #1).
  */
 
 const PACE_DECILES = 10;
@@ -26,9 +23,7 @@ const safeProgress = (board) => {
 
 /**
  * Milestones as stored: index i is the elapsedMs when progress first reached
- * (i+1)/10 of the safe cells. Extends `milestones` with `elapsedMs` for every
- * decile the board has crossed beyond what is recorded; never rewrites an
- * existing entry ("first reached", so the earliest stamp stands).
+ * (i+1)/10 of the safe cells. Never rewrites an existing entry.
  */
 const withCrossedMilestones = (milestones, board, elapsedMs) => {
     const { opened, total } = safeProgress(board);

@@ -25,8 +25,7 @@ describe('turning a live position into a drill layout', () => {
         expect(positionToLayout(preLoss, revealed)).toEqual(['*#']);
     });
 
-    /* deduce() re-derives everything from opened numbers, so a flag the player
-       got wrong must not reach it and make the diagnosis lie. */
+    /* deduce() works from opened numbers; a wrong flag must not make the diagnosis lie. */
     test('a flag on a safe cell is ignored, not treated as a mine', () => {
         const preLoss = [[covered(true)]];
         const revealed = [[truth(false)]];
@@ -71,9 +70,7 @@ describe('naming the pattern behind a deduction', () => {
             .toBe('one-one');
     });
 
-    /* The match has to cover the cells that actually fired, or a shape
-       elsewhere in the same row names a pattern that had nothing to do with
-       it. Here "112" contains "12", but not over the clues. */
+    /* The match must cover the clue cells: "112" contains "12", but not over the clues. */
     test('ignores a shape that does not span the clue cells', () => {
         expect(classifyLesson(['112', '###'], why('subset', 'safe', [[0, 0], [0, 1]])))
             .toBe('one-one');
@@ -84,8 +81,7 @@ describe('naming the pattern behind a deduction', () => {
             .toBe('one-two');
     });
 
-    /* 1-1 proves cells safe and 1-2 proves a mine. A two-digit run whose
-       verdict disagrees is some other reduction wearing the same digits. */
+    /* 1-1 proves safe and 1-2 proves a mine; a disagreeing verdict is some other reduction. */
     test('will not call it a 1-1 when it proved a mine', () => {
         expect(classifyLesson(['11.', '###'], why('subset', 'mine', [[0, 0], [0, 1]])))
             .toBe('reduction');
@@ -97,20 +93,14 @@ describe('naming the pattern behind a deduction', () => {
     });
 });
 
-/* Cells as the two boards hold them: `preLoss` is the client's own position
-   before the fatal move, `revealed` is the payload with every mine in it. */
+/* `preLoss` is the client's position before the fatal move, `revealed` the payload with every mine. */
 const pre = (isOpen: boolean, nearbyMines = 0, isFlagged = false): Cell =>
     ({ isMine: false, isOpen, isFlagged, nearbyMines });
 const post = (isMine: boolean, isOpen: boolean, nearbyMines = 0): Cell =>
     ({ isMine, isOpen, isFlagged: false, nearbyMines });
 
 describe('diagnosing a loss', () => {
-    /*
-     * A 1 with exactly one covered neighbour, which the player opened. The
-     * mine was provable by counting.
-     *   1 #        the # at (0,1) is the only cell the 1 can be counting
-     *   . .
-     */
+    /* A 1 with exactly one covered neighbour, which the player opened: provable by counting. */
     test('reports the mine you opened when it was provable', () => {
         const preLoss = [[pre(true, 1), pre(false)], [pre(true, 1), pre(true, 1)]];
         const revealed = [[post(false, true, 1), post(true, true)], [post(false, true, 1), post(false, true, 1)]];
@@ -125,14 +115,8 @@ describe('diagnosing a loss', () => {
     });
 
     /*
-     * The mine at (0,0) is genuinely undetermined — the two 1s below it both
-     * see exactly {(0,0), (0,1)} and want one mine, so neither cell can be
-     * separated from the other. Meanwhile the 0 at (0,3) proves three cells
-     * safe. The player opened (0,0) with that move still on the table.
-     *
-     * As a layout:  *##.#
-     *               11#..
-     *               .....
+     * The mine at (0,0) is undetermined (both 1s see {(0,0), (0,1)}), while
+     * the 0 at (0,3) proves three cells safe. Layout: *##.# / 11#.. / .....
      */
     test('points at a move that was certain when the one you took was not', () => {
         const preLoss = [
@@ -156,12 +140,9 @@ describe('diagnosing a loss', () => {
     });
 
     /*
-     * Same ambiguous mine and counting step as the test above, with a
-     * self-contained 1-2-1 ("1211" over "*#*#") stacked below it. Counting is
-     * still the FIRST thing `nextHint` would reach on its own — the blank at
-     * (0,3) proves (0,2) safe before the subset step below ever runs — but a
-     * named pattern is available elsewhere on the board, and that is the one
-     * worth teaching.
+     * The board above with a 1-2-1 ("1211" over "*#*#") stacked below it.
+     * Counting is still what `nextHint` reaches FIRST, but a named pattern
+     * elsewhere is the one worth teaching.
      */
     test('prefers a named pattern elsewhere over a counting step, for Case B', () => {
         const preLoss = [
@@ -187,9 +168,8 @@ describe('diagnosing a loss', () => {
     });
 
     /*
-     * The board above, with the mine that test lands on already flagged. A
-     * flag IS the move, so naming it as the one they missed is a lie: the
-     * scan has to pass over it and reach the 1-2-1's other mine instead.
+     * The board above with that mine already flagged. A flag IS the move, so
+     * the scan must pass over it.
      */
     test('skips a mine the player had already flagged', () => {
         const preLoss = [
@@ -209,13 +189,12 @@ describe('diagnosing a loss', () => {
 
         const result = diagnoseLoss(preLoss, revealed);
 
-        // (4,1), the safe cell of the same shape — a move they really did miss.
+        // (4,1), the safe cell of the same shape: a move they really did miss.
         expect(result?.target).toEqual([4, 1]);
         expect(result?.lesson).toBe('one-one');
     });
 
-    /* Nothing opened means nothing proves anything. It must go quiet rather
-       than claim something false. */
+    /* Nothing opened proves nothing; go quiet rather than claim something false. */
     test('returns null when nothing at all was provable', () => {
         const preLoss = [[pre(false), pre(false)]];
         const revealed = [[post(true, true), post(false, false)]];

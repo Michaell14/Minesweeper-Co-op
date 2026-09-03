@@ -6,31 +6,19 @@ import { boardKey, clearBestTimes, readBestTime, recordBestTime } from "@/lib/be
 import { useGameEvents } from "./useGameEvents";
 import type { AppSocket } from "@/lib/initSocket";
 
-// A win shoots confetti, which wants a real canvas. Nothing here is about the
-// flourish, and jsdom's canvas has no 2d context to give it.
+// A win shoots confetti, and jsdom's canvas has no 2d context to give it.
 vi.mock("@/lib/confetti", () => ({ shootConfetti: vi.fn() }));
 
 /**
- * `sessionResume` — the offer the server makes to a browser it recognises.
+ * `sessionResume`, the offer the server makes to a browser it recognises. It
+ * arrives on EVERY connect, and a reload (empty store, player on Landing) and
+ * a socket.io reconnect (room still on screen) look nothing alike. The
+ * reconnect used to be refused because `playerJoined` was still true, which
+ * stranded the player in a room the server had already removed them from. The
+ * refusal must still cover the daily and an offer for some OTHER room.
  *
- * It arrives on EVERY connect, and the two connects it has to tell apart look
- * nothing alike from the client's side:
- *
- *   a reload      — the tab restarted, so the store is empty and the player is
- *                   sitting on Landing
- *   a reconnect   — socket.io re-dialled after a dropped network, and the tab
- *                   never went anywhere: the room is still on screen
- *
- * Only the first was handled. The second was refused because `playerJoined` was
- * still true, which left the player stranded — the server had already removed
- * them on the disconnect, so the UI showed a room they were no longer in and
- * the next click bounced them home with "room does not exist". The tests below
- * are about the refusal being narrow enough: it must still cover the daily, and
- * still cover an offer for some OTHER room.
- *
- * The handler table is a plain object, so a fake socket and the real store are
- * the whole fixture. It asks for a DOM only because the win handlers below file
- * a personal best, and that is localStorage.
+ * A fake socket and the real store are the whole fixture; the DOM is only for
+ * the win handlers' localStorage.
  */
 
 const ROOM = "room-a";
@@ -71,9 +59,8 @@ describe("when the browser is not in a room", () => {
 
 describe("when the tab is still showing the room the offer names", () => {
     /*
-     * The reconnect case. Refusing here was the bug: the server has already
-     * dropped this player, so doing nothing leaves the two halves disagreeing
-     * about whether they are in the room, and only the next click reveals it.
+     * The reconnect case: the server has already dropped this player, so doing
+     * nothing leaves the two halves disagreeing until the next click.
      */
     test("re-joins, rather than assuming the room is still theirs", () => {
         const store = useMinesweeperStore.getState();
@@ -101,9 +88,8 @@ describe("when the offer is not for the room on screen", () => {
     });
 
     test("ignores an offer while the daily challenge is open", () => {
-        // Picking the daily is a real choice. Accepting here would set
-        // playerJoined behind the daily view, and the player would land in an
-        // old room the moment they left it.
+        // Accepting would set playerJoined behind the daily view, and the
+        // player would land in an old room the moment they left it.
         useMinesweeperStore.getState().setDailyActive(true);
         const socket = fakeSocket();
 
@@ -115,12 +101,10 @@ describe("when the offer is not for the room on screen", () => {
 });
 
 /*
- * Which slot a clear is filed in, driven through the real win handlers.
- *
- * `playersForClear` decides it and is unit-tested next door; what these are
- * about is the handler using it for the KEY as well as for the number stored on
- * the record. Filed under one count and looked up under another, a record is
- * simply never found again — and nothing says so.
+ * Which slot a clear is filed in, through the real win handlers. `playersForClear`
+ * is unit-tested next door; this is about the handler using it for the KEY as
+ * well as the stored count. Filed under one and looked up under another, a
+ * record is never found again.
  */
 describe("filing a clear as a personal best", () => {
     const BOARD = { rows: 16, cols: 16, mines: 40 };
@@ -161,10 +145,8 @@ describe("filing a clear as a personal best", () => {
     });
 
     /*
-     * The race is the case that was wrong. Both racers are in the room, so the
-     * roster said two — but you cleared the whole board yourself, and it was
-     * filed next to co-op clears that split one between two people, captioned
-     * "with 2 players".
+     * The race is the case that was wrong: the roster said two, but you cleared
+     * the whole board yourself.
      */
     test("winning a race is filed as solo, not as the two in the room", () => {
         const store = useMinesweeperStore.getState();
@@ -197,13 +179,9 @@ describe("filing a clear as a personal best", () => {
 });
 
 /**
- * A clear while SIGNED IN, where the account's records are the ones that count.
- *
- * The browser's copy is still written — it is the guest record and the fallback
- * when a stats write drops — but the verdict shown on the summary comes from
- * the account, because that is the record the player actually holds. On a new
- * device the two disagree completely: localStorage has nothing, so every
- * comparison against it says "New best!".
+ * A clear while SIGNED IN. The browser's copy is still written (the guest
+ * record and the fallback), but the verdict comes from the account: on a new
+ * device localStorage has nothing, so every comparison against it says "New best!".
  */
 describe("recording a clear against an account", () => {
     const BOARD = { rows: 16, cols: 16, mines: 40 };
@@ -280,18 +258,10 @@ describe("recording a clear against an account", () => {
 });
 
 /**
- * Which room a practice target belongs to.
- *
- * The target used to be set when the player ASKED for practice, which is a
- * request rather than a room — and a request can be refused, or overtaken by a
- * real opponent arriving in the same round trip. Either way the target outlived
- * the thing it was for: the next ordinary room drew a "Par" bar nobody had
- * asked for, and a player pulled into a live PVP race got one over the top of
- * it. Nothing errored; there was simply a second bar pacing a time that meant
- * nothing.
- *
- * So it is read from the room that actually arrives, and `practice` on the
- * answer is the only thing that puts one there.
+ * Which room a practice target belongs to. Set when practice was REQUESTED,
+ * the target outlived a refused request or a real opponent arriving in the
+ * same round trip: the next room drew a "Par" bar nobody asked for. So it is
+ * read from the room that arrives, and only `practice` on the answer puts one there.
  */
 describe("the practice target follows the room, not the request", () => {
     const PRACTICE_BOARD = { rows: 16, cols: 16, mines: 40 };
@@ -336,18 +306,15 @@ describe("the practice target follows the room, not the request", () => {
         join({ practice: true });
         expect(useMinesweeperStore.getState().practiceTargetMs).not.toBeNull();
 
-        // The player's practice start failed, they went back to Landing and
-        // made a normal room. It must not inherit the target.
+        // The practice start failed and they made a normal room; it must not inherit the target.
         join({});
 
         expect(useMinesweeperStore.getState().practiceTargetMs).toBeNull();
     });
 
     test("being pulled into a PVP race instead never draws a target", () => {
-        // Stands in for the target the client used to set the moment practice
-        // was CLICKED. The player asked for practice just as a real opponent
-        // turned up, so the room that arrives is the match's -- and a bar here
-        // would be the fake opponent this whole feature is built to avoid.
+        // Stands in for the target the client used to set on the CLICK. A real
+        // opponent turned up at the same moment, so the room that arrives is the match's.
         useMinesweeperStore.getState().setPracticeTarget({ ms: 480_000, isPersonal: false });
 
         join({ mode: "pvp", isHost: false });

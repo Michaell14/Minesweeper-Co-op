@@ -1,26 +1,11 @@
 /**
- * Regression: two overlapping moves from the SAME PVP player must not lose one
- * another's work.
- *
- * PVP has co-op's read-modify-write shape, scoped per player: each of openCell,
- * chordCell and toggleFlag parses that player's board out of the room hash,
- * mutates it, and writes the whole field back with setPvpBoard. Two of one
- * player's own moves that overlap therefore erase each other.
- *
- * It decides races. A player who clicks fast enough to lose a reveal is left
- * with a closed safe cell they can never reopen, so their board never completes
- * and they can never win — their opponent takes it by default, with no error
- * anywhere. `player1Progress` is lost the same way, and since it is never
- * recomputed from the board, the opponent's progress bar stays wrong for the
- * rest of the race.
- *
- * The two PLAYERS are a different matter and are supposed to race: their boards
- * are separate hash fields, so the lock is per player, not per room. The last
- * test here is what pins that down.
- *
- * Like coopConcurrency.test.js, this needs a Redis that resolves on the event
- * loop (tests/setup/fakeRedis.js) — the shared mock has no store behind it and
- * cannot express one write landing on top of another.
+ * Regression: two overlapping moves from the SAME PVP player must not lose
+ * one another's work. Each move parses that player's board out of the room
+ * hash and writes the whole field back, so overlapping moves erase each other;
+ * a lost reveal leaves a closed safe cell that can never reopen, so the player
+ * can never win, and `player1Progress` is never recomputed. The two PLAYERS
+ * are meant to race, so the lock is per player; the last test pins that.
+ * Needs tests/setup/fakeRedis.js, like coopConcurrency.test.js.
  */
 
 const mockEmit = jest.fn();
@@ -140,8 +125,7 @@ describe('a flag and a click from the same player', () => {
 
 describe('a chord overlapping that player own click', () => {
     test('keeps every cell both moves opened', async () => {
-        // (0,0) already open claiming no adjacent mines, so chording it opens
-        // (0,1), (1,0) and (1,1).
+        // (0,0) is open claiming no adjacent mines, so chording it opens (0,1), (1,0) and (1,1).
         const board = quietBoard();
         board[0][0] = { isMine: false, isOpen: true, isFlagged: false, nearbyMines: 0 };
 

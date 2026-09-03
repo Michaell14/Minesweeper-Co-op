@@ -7,19 +7,10 @@ import type { BestTimeResult } from "@/state/gameSlice";
 import BestTimeNote from "./BestTimeNote";
 
 /**
- * What the summary says about your record.
- *
- * Two failures worth guarding, both of which look like a working feature.
- *
- * Congratulating someone for nothing: the celebration keys off
- * `bestTimeResult`, which is set ONLY when a board is actually cleared, so a
- * loss and a win handed over by an opponent's disconnect must both leave it
- * silent.
- *
- * And hiding the record when it is most wanted: the standing time shows
- * whatever the outcome was. An earlier version only rendered it after a clear
- * that failed to improve, which meant the number a player is chasing was
- * invisible in almost every game that actually ended.
+ * What the summary says about your record. Two failures that look like a
+ * working feature: congratulating for nothing (`bestTimeResult` is set ONLY
+ * on a clear, so a loss or a win by disconnect stays silent), and hiding the
+ * standing record, which shows whatever the outcome was.
  */
 
 const BOARD = { rows: 16, cols: 16, mines: 40 };
@@ -38,9 +29,8 @@ afterEach(() => {
 });
 
 /**
- * Files a record for this board and puts the browser in a room of that size.
- * Both halves matter: the group is part of which record is looked up, so a
- * three-player time is simply not found while sitting in a room of one.
+ * Files a record and puts the browser in a room of that size: the group is
+ * part of which record is looked up.
  */
 const withRecord = (seconds: number, players = 1) => {
     useMinesweeperStore.getState().setPlayerStatsInRoom(
@@ -117,11 +107,7 @@ describe("clearing it but falling short", () => {
         });
     });
 
-    /*
-     * The player count is what stops the number lying. A time set by four
-     * people is a real result but not the same one, and a record that hides
-     * that stops being worth chasing.
-     */
+    /* The player count stops the number lying: a four-player time is not the same result. */
     test("says when the record took more than one player", async () => {
         withRecord(90, 3);
         setResult({ improved: false, previous: { seconds: 90, players: 3, at: 1 } });

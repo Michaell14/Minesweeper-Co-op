@@ -18,15 +18,10 @@ const delayUntilNextExpiry = (pings: { expiresAt: number }[]): number => {
 };
 
 /**
- * Rings on the cells people are pointing at — a sibling of CursorLayer, sharing
- * its cell-to-pixel maths and its reason for existing at this level: a ping
- * moves nothing about a cell, so drawing it here re-renders zero of them.
- *
- * Co-op only in practice; the server never sends a ping from a PVP room.
- *
- * The live region is this layer's own, in the same words `cellAriaLabel` uses
- * for a cell, because the ring itself is decorative and a screen reader would
- * otherwise be told nothing at all.
+ * Rings on the cells people are pointing at: a sibling of CursorLayer, at this
+ * level because a ping changes nothing about a cell, so no cell re-renders.
+ * Co-op only; the server never sends a ping from a PVP room. The live region
+ * uses `cellAriaLabel`'s words, since the ring itself is decorative.
  */
 export default function PingLayer({ boardRef }: PingLayerProps) {
     const playerPings = useMinesweeperStore((state) => state.playerPings);
@@ -34,9 +29,8 @@ export default function PingLayer({ boardRef }: PingLayerProps) {
     const metrics = useCellMetrics(boardRef);
 
     /*
-     * Re-armed by the callback, not by the state it changed — expiring nothing
-     * leaves the array identity alone, and an effect that depended on it would
-     * stop and strand the ring. Same rule, and the same reason, as EmoteBar.
+     * Re-armed by the callback, not the state: expiring nothing leaves the
+     * array identity alone and would strand the ring. Same rule as EmoteBar.
      */
     React.useEffect(() => {
         if (playerPings.length === 0) return;
@@ -73,9 +67,7 @@ export default function PingLayer({ boardRef }: PingLayerProps) {
                     <span className={styles.pingLabel}>{ping.name}</span>
                 </div>
             ))}
-            {/* Mounted whether or not anything is pinging, so the first
-                announcement is not lost to a region that appeared with its
-                text — the same reason KeyboardCursor keeps its region up. */}
+            {/* Mounted whether or not anything is pinging, so the first announcement is not lost. */}
             <div className="sr-only" role="status" aria-live="polite" data-ping-announcer>
                 {latest ? pingAnnouncement(latest.name, latest.row, latest.col) : ''}
             </div>

@@ -1,9 +1,6 @@
 /**
- * The site's own absolute URLs, in one place.
- *
- * They are absolute rather than relative because they leave the page: Open
- * Graph, Twitter cards, JSON-LD and the sitemap are all read by something that
- * has no origin to resolve against.
+ * The site's absolute URLs, in one place. Absolute because they leave the page:
+ * Open Graph, Twitter cards, JSON-LD and the sitemap have no origin to resolve against.
  */
 export const SITE_URL = "https://www.minesweepercoop.com";
 

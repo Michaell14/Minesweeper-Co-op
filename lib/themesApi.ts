@@ -1,7 +1,6 @@
 /**
- * Custom-theme sync calls — the third and last bearer-authenticated surface,
- * shaped like lib/settingsApi.ts: null/false means "not available" and the
- * local copy stays authoritative.
+ * Custom-theme sync, shaped like lib/settingsApi.ts: null/false means "not
+ * available" and the local copy stays authoritative.
  */
 
 import { serverURL } from "@/lib/initSocket";
@@ -25,7 +24,7 @@ const request = async (path: string, method: string, body?: unknown): Promise<Re
     }
 };
 
-/** The account's themes, sanitised, or null when unavailable. */
+/** The account's themes, sanitised, or null. */
 export async function fetchThemes(): Promise<CustomTheme[] | null> {
     const res = await request("/api/themes", "GET");
     if (!res || !res.ok) return null;

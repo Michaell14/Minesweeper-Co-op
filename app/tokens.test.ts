@@ -5,24 +5,13 @@ import { VALID_THEME_IDS } from "@/lib/theme";
 import { AA_NORMAL, contrastRatio, type Rgb } from "@/app/ds/contrast";
 
 /**
- * The token file, checked against itself.
- *
- * CSS has no error for any of this. A `var()` pointing at a name that does not
- * exist resolves to nothing and the element renders with an inherited or
- * initial value; a theme that forgets a palette entry silently keeps the
- * default one. Both look like a styling opinion rather than a bug, and neither
- * `tsc`, the linter nor the build says a word.
- *
- * That is the whole reason to parse the file. The contrast audit at `/ds`
- * measures pairs someone remembered to list; this covers every token there is,
- * and it costs nothing at runtime because it never opens a browser.
+ * The token file, checked against itself. CSS has no error for a `var()`
+ * pointing at a missing name or a theme that forgets a palette entry, and
+ * neither `tsc`, the linter nor the build says a word. The `/ds` audit measures
+ * pairs someone listed; this covers every token and never opens a browser.
  */
 
-/*
- * Comments are stripped first. This file explains itself heavily, and a comment
- * like "Thinner than --ms-border-width: a 4px bevel..." parses as a declaration
- * otherwise — which reported a duplicate that does not exist.
- */
+/* Comments stripped first: prose like "--ms-border-width: a 4px bevel" otherwise parses as a declaration. */
 const TOKENS = readFileSync(join(__dirname, "tokens.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
 
 /** `--ms-foo: value;` declarations inside one block, in source order. */
@@ -35,18 +24,11 @@ const declarationsIn = (block: string) =>
 const escapeForRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /**
- * The body of a top-level block, found by brace matching.
- *
- * A regex up to the first `}` would stop inside a nested `@media`, which the
- * root block contains — and would then report most of the file as missing.
- *
- * The selector is matched as a rule HEAD — at the start of a line, followed by
- * its brace — rather than as a substring. `:root` is a prefix of every
- * `:root[data-theme=...]` head and also appears indented inside the `@media`
- * blocks, so a substring search returns whichever comes first in the file. It
- * does today; reordering the file is all it would take to have `:root` quietly
- * return a theme's body instead, and every test below would then be checking
- * that block against itself.
+ * The body of a top-level block, by brace matching: a regex up to the first
+ * `}` would stop inside the nested `@media`. The selector is matched as a rule
+ * HEAD (start of line, then its brace), not a substring: `:root` is a prefix of
+ * every theme head and also appears indented inside `@media`, so a substring
+ * search would hand back whichever comes first in the file.
  */
 export const blockBody = (selector: string, source = TOKENS) => {
     const head = new RegExp(`^${escapeForRegExp(selector)}\\s*\\{`, "m").exec(source);
@@ -70,11 +52,7 @@ const rootNames = new Set(rootDeclarations.map((d) => d.name));
 const paletteNames = [...rootNames].filter((n) => n.startsWith("--ms-palette-"));
 
 describe("every token resolves to something", () => {
-    /*
-     * The silent one. `var(--ms-intnet-primary)` is a typo CSS accepts: the
-     * declaration is valid, the reference resolves to nothing, and the element
-     * falls back to whatever it inherited.
-     */
+    /* The silent one: `var(--ms-intnet-primary)` is valid CSS that resolves to nothing. */
     test("no var() points at a name that does not exist", () => {
         const dangling: string[] = [];
         for (const { name, value } of rootDeclarations) {
@@ -100,11 +78,7 @@ describe("every token resolves to something", () => {
     });
 });
 
-/*
- * The file order this suite reads is not a rule anyone enforces, so the reader
- * must not depend on it. Everything above would still pass if `:root` resolved
- * to a theme's body — it would just be comparing that block against itself.
- */
+/* File order is not enforced; the tests above would still pass if `:root` resolved to a theme's body. */
 describe("the block reader finds heads, not substrings", () => {
     const REORDERED = [
         ':root[data-theme="dark"] {',
@@ -136,32 +110,20 @@ describe("the block reader finds heads, not substrings", () => {
 
 describe("a theme changes everything or nothing", () => {
     /*
-     * NOT "overrides every palette token" — `dark` deliberately keeps the NES
-     * accent hues and changes only the neutrals, which is what most dark modes
-     * do. What matters is not that a theme overrides everything, but that
-     * whatever it leaves behind still passes contrast against the surfaces it
-     * DID change. That is checked against a real browser, across every theme,
-     * in scripts/ui-smoke — it needs resolved colours, which only a renderer
-     * has.
+     * NOT "overrides every palette token": `dark` keeps the NES accent hues.
+     * What matters is that whatever a theme leaves behind still passes contrast
+     * against the surfaces it did change, which needs a renderer and lives in
+     * scripts/ui-smoke.
      */
 
-    /*
-     * And the other direction: a theme entry for a name the root does not
-     * declare is dead weight. It usually means a token was renamed in :root and
-     * the themes were not, so the theme is now overriding nothing at all.
-     */
+    /* An entry for a name :root does not declare is dead weight, usually a token renamed in :root only. */
     test.each(THEME_SELECTORS)("%s overrides nothing that no longer exists", (selector) => {
         const themed = declarationsIn(blockBody(selector)).map((d) => d.name);
         const orphans = themed.filter((n) => !rootNames.has(n));
         expect(orphans).toEqual([]);
     });
 
-    /*
-     * Themes must not reach past the palette. Overriding a semantic token
-     * directly is how a palette stops being the single lever: the theme starts
-     * carrying its own opinion about what "primary" means, and the next
-     * component that reads the palette directly disagrees with it.
-     */
+    /* A theme overriding a semantic token carries its own opinion of what "primary" means. */
     test.each(THEME_SELECTORS)("%s touches only the palette layer", (selector) => {
         const themed = declarationsIn(blockBody(selector)).map((d) => d.name);
         const beyond = themed.filter((n) => !n.startsWith("--ms-palette-"));
@@ -186,12 +148,7 @@ describe("every palette is both defined and offered", () => {
 });
 
 describe("the semantic layer stays derived", () => {
-    /*
-     * A semantic token holding a literal colour is invisible to a theme: it
-     * cannot move, because there is no palette entry behind it to change. This
-     * is the same bug as a hardcoded colour in a component, one level up and
-     * harder to spot.
-     */
+    /* A semantic token holding a literal cannot move with a theme: a hardcoded colour, one level up. */
     test("no semantic colour token hardcodes a literal", () => {
         const COLOUR_GROUPS = ["intent", "surface", "ink", "border", "cell", "num", "status", "progress"];
         const literals = rootDeclarations
@@ -203,13 +160,9 @@ describe("the semantic layer stays derived", () => {
 });
 
 /*
- * Every palette entry is a colour the browser will actually accept.
- *
- * CSS discards a malformed custom property value at computed-value time and
- * the element falls back to whatever it inherited, so `#24001 2` — a real typo
- * of mine, with a space in it — renders as *something* and says nothing. Worse,
- * a hand-rolled contrast checker will happily parse it: `parseInt('1 ', 16)` is
- * 1, so it scores a plausible ratio for a value that never painted.
+ * CSS discards a malformed custom property at computed-value time and falls
+ * back silently, so `#24001 2` renders as something and says nothing. A
+ * hand-rolled contrast checker happily parses it too: `parseInt('1 ', 16)` is 1.
  */
 describe("palette values are colours", () => {
     const HEX = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
@@ -224,17 +177,11 @@ describe("palette values are colours", () => {
 });
 
 /*
- * Board legibility — the relationships `AUDITED_PAIRS` does not cover.
- *
- * That list is about text on surfaces, so it never looks at the board: whether
- * the mine cell stands out from a revealed one, whether the closed-cell bevel
- * is visible at all, whether a player's name reads on their cursor colour. All
- * of it is palette arithmetic, so it belongs here rather than in a browser.
- *
- * Thresholds are calibrated against the DEFAULT palette, which is the design's
- * own reference — a bar the reference fails is a bar someone invented. The
- * bevel bar started at 1.4 for that reason and came down: the default's
- * highlight edge is 1.39.
+ * Board legibility, which `AUDITED_PAIRS` (text on surfaces) never covers:
+ * mine vs open cell, the closed-cell bevel, a name on its cursor colour. All
+ * palette arithmetic, so it lives here rather than in a browser. Thresholds
+ * are calibrated against the DEFAULT palette; a bar the reference fails is a
+ * bar someone invented.
  */
 describe("the board stays legible", () => {
     const toRgb = (hex: string): Rgb => {
@@ -269,15 +216,10 @@ describe("the board stays legible", () => {
         return (token: string) => toRgb(overrides[`--ms-palette-${token}`] ?? base[`--ms-palette-${token}`]);
     };
 
-    /*
-     * Palettes that cannot meet a bar and still be what they are, exactly like
-     * KNOWN_CONTRAST_FAILURES in the smoke suite. Game Boy has four shades and
-     * six cursors, so two of them repeat and no ink reads on both.
-     */
+    /* Cannot meet the bar and still be what they are; KNOWN_CONTRAST_FAILURES in the smoke suite. */
     const KNOWN: Record<string, string[]> = {
-        // The mine cell is marked by a glyph as well as a fill, and the DEFAULT
-        // palette sits at 2.68 — so 3:1 here is the goal, not the design's
-        // standard. Listed rather than dialled down, so the gap stays visible.
+        // The mine cell also has a glyph, and the DEFAULT palette sits at 2.68:
+        // listed rather than dialled down, so the gap stays visible.
         ":root": ["mine cell vs open cell"],
         ':root[data-theme="c64"]': ["mine cell vs open cell"],
         // Four shades and six cursors: two repeat, and no ink reads on both.

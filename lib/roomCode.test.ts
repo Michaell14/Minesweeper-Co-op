@@ -1,9 +1,7 @@
 /**
- * The suggested room code.
- *
- * Pure string work, so no DOM. It is worth testing because every failure here
- * is quiet: a code that collides constantly, or one the server rejects for
- * length, both look like a working Create button that just does not work.
+ * The suggested room code. Every failure here is quiet: a code that collides,
+ * or one the server rejects for length, looks like a Create button that does
+ * not work.
  */
 
 import { describe, expect, test } from 'vitest';
@@ -25,10 +23,8 @@ describe('generateRoomCode', () => {
     });
 
     /*
-     * The point of the feature. Two people pressing Create at the same moment
-     * is exactly the collision the generator exists to avoid, so a generator
-     * that returned a handful of values would be worse than the empty field it
-     * replaced.
+     * The point of the feature: a generator returning a handful of values would
+     * collide like the empty field it replaced.
      */
     test('spreads over enough of the space to make a collision unlikely', () => {
         const seen = new Set<string>();

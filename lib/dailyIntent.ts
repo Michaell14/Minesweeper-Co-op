@@ -1,23 +1,13 @@
 /**
- * "I pressed play" — carried from the front page to /daily.
+ * "I pressed play", carried from the front page to /daily. Someone who pressed
+ * "Play Today's Puzzle" has already chosen; someone arriving cold has not, and
+ * starting CONSUMES the day's one attempt (server/controllers/dailyController.js).
  *
- * /daily serves two arrivals that want opposite things. Someone who pressed a
- * button reading "Play Today's Puzzle" has already chosen, and meeting them
- * with the intro is a second identical button in their way. Someone arriving
- * cold has chosen nothing — and starting CONSUMES the day's one attempt even
- * if they never make a move (see the fresh-attempt branch in
- * server/controllers/dailyController.js), so it cannot be done on spec.
- *
- * This deliberately is NOT a URL parameter. A `?play=1` link is public: anyone
- * could post one, and clicking it would spend the reader's only attempt for the
- * day before they saw anything — the exact harm the intro exists to prevent,
- * just moved somewhere harder to notice. Intent has to come from a gesture in
- * this tab, which a link cannot forge.
- *
- * Module state, like `inFlightRecord` in lib/dailyIdentity.ts: it survives the
- * client-side navigation between the two routes, is per-tab, and is gone on a
- * reload — so a stale intent cannot outlive the click that set it. Consumed on
- * read, so it can only ever start one attempt.
+ * NOT a URL parameter: a `?play=1` link is public, and clicking it would spend
+ * the reader's only attempt before they saw anything. Intent has to come from
+ * a gesture in this tab. Module state, like `inFlightRecord` in
+ * lib/dailyIdentity.ts: survives client-side navigation, per-tab, gone on
+ * reload. Consumed on read, so it can only start one attempt.
  */
 
 let pending = false;
@@ -32,11 +22,9 @@ interface ActivationEvent {
 }
 
 /**
- * Records that this tab's player asked to play, if the click was a plain one.
- *
- * A cmd/ctrl/shift click opens a NEW tab, whose module state starts empty — so
- * that tab correctly shows the intro, and recording here would leave the flag
- * set in THIS tab to fire on some later, unrelated visit to /daily.
+ * Records that this tab's player asked to play, if the click was plain. A
+ * modifier click opens a NEW tab with empty module state, and recording here
+ * would leave the flag set to fire on a later, unrelated visit.
  */
 export function markPlayIntent(event: ActivationEvent): void {
     if (event.button !== 0) return;

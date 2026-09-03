@@ -3,15 +3,10 @@ import type { DailyLeaderboardEntry, DailyAttemptStatus } from '@/shared/socketP
 import type { LossDiagnosis } from '@/lib/lossDiagnosis';
 import type { MinesweeperState } from './store';
 
-/**
- * 'idle' -- no daily view active. Everything else mirrors the server's attempt
- * status, so the client never invents its own name for "already played today."
- */
+/** 'idle' = no daily view. The rest mirror the server's attempt status, never a client-invented name. */
 export type DailyStatus = DailyAttemptStatus | 'idle' | 'ready' | 'in_progress';
 
-/** Everything for the daily challenge view. The board itself stays in gameSlice:
- * daily and room views are mutually exclusive, so reusing one board field costs
- * nothing and keeps the "board mounts exactly once" invariant. */
+/** Daily view state. The board stays in gameSlice: daily and room views are mutually exclusive. */
 export interface DailySlice {
     dailyActive: boolean;              // True while the daily view is showing, instead of Landing/Grid
     dailyDate: string;                 // Server-issued date this attempt belongs to
@@ -19,11 +14,9 @@ export interface DailySlice {
     dailyElapsedMs: number | null;     // Set once the attempt reaches a terminal state
     dailyTotalSafeCells: number;
     dailyRank: number | null;
-    /** Leaderboard size at the time of this rank. Only the share text uses it
-     * ("beat 44 others"), so null is fine when unknown -- a loss, say. */
+    /** Leaderboard size at this rank; only the share text uses it, so null when unknown. */
     dailyTotalEntries: number | null;
-    /** Server-stamped pace milestones for the share text's bar; null until a
-     * terminal event delivers them (older attempts never do). */
+    /** Server-stamped pace milestones for the share bar; null until a terminal event delivers them. */
     dailyMilestones: number[] | null;
     dailyLeaderboard: DailyLeaderboardEntry[];
     /** What the losing move missed. Null until a run ends on a mine. */

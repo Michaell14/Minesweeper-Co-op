@@ -21,14 +21,9 @@ export interface GameSummaryProps {
 }
 
 /**
- * What the run amounted to: how long, how much of the board, and who did it.
- *
- * All derived from state the client already holds — a summary is a different
- * *view* of a finished game, not new information, so it needs no payload.
- *
- * The two modes read differently: co-op is a shared result and ends on the
- * scoreboard; PVP is a race, where the only number that settles anything is how
- * far each player got.
+ * What the run amounted to, derived from state the client already holds. Co-op
+ * ends on the scoreboard; PVP is a race, where the only number that settles
+ * anything is how far each player got.
  */
 export default function GameSummary({ addRoomFriend }: GameSummaryProps) {
     const mode = useMinesweeperStore((state) => state.mode);
@@ -69,8 +64,7 @@ export default function GameSummary({ addRoomFriend }: GameSummaryProps) {
                 </div>
             )}
 
-            {/* Both modes: a quick match pairs strangers, which is the case
-                this exists for. */}
+            {/* Both modes: a quick match pairs strangers, the case this exists for. */}
             <AddFriendsFromGame addRoomFriend={addRoomFriend} />
         </div>
     );

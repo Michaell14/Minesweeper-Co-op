@@ -38,12 +38,10 @@ const floodFillZero = (r, c, solverBoard, numRows, numCols) => {
 };
 
 /**
- * Same solve as isBoardSolvable, but also reports how many times each rule
- * fired. Rule 1 (single-cell logic) is the deduction anyone makes at a glance;
- * Rule 2 (subset/overlap reduction) is the "compare two overlapping numbers"
- * reasoning that makes a board feel hard. A board solvable by Rule 1 alone is
- * logic-solvable but trivial — which is what lets the daily challenge pick a
- * genuinely hard layout rather than the first one that avoids a 50/50.
+ * Same solve as isBoardSolvable, also reporting how often each rule fired.
+ * Rule 1 is single-cell logic; Rule 2 is subset/overlap reduction, the
+ * reasoning that makes a board feel hard. That is what lets the daily pick a
+ * genuinely hard layout rather than the first that avoids a 50/50.
  *
  * @returns {{ solvable: boolean, rule1Count: number, rule2Count: number }}
  */
@@ -176,9 +174,8 @@ const solveWithStats = (board, startRow, startCol) => {
 
                         // 2A: no extra mines in the difference, so it is all safe.
                         if (diffMines === 0 && diffCells.length > 0) {
-                            // Tracked locally, not via the shared `madeProgress`:
-                            // an earlier pair in this scan may have already set
-                            // that, crediting THIS pair with a step it never took.
+                            // Tracked per pair: the shared `madeProgress` may
+                            // already be set by an earlier pair in this scan.
                             let pairMadeProgress = false;
                             for (const { r: nr, c: nc } of diffCells) {
                                 const target = solverBoard[nr][nc];

@@ -1,7 +1,4 @@
-/**
- * The day-streak maths — pure, because a day-boundary off-by-one here would
- * be a plausible, wrong number on every profile forever.
- */
+/** The day-streak maths, pure: a day-boundary off-by-one would be a plausible, wrong number forever. */
 
 const { advanceStreak, dayBefore, streaksFromDays, utcDayOf } = require('../domain/streak');
 
@@ -91,9 +88,7 @@ describe('streaksFromDays', () => {
     });
 
     test('the out-of-order repair: a late-arriving middle day joins its neighbours', () => {
-        // Won the 1st and 3rd, then the leftover 2nd lands: derived from the
-        // full set, the answer is a 3-run — exactly what an accumulator that
-        // saw 3 before 2 can never reach.
+        // Won the 1st and 3rd, then the 2nd lands late: derived from the full set it is a 3-run.
         const s = streaksFromDays(['2026-08-03', '2026-08-02', '2026-08-01']);
         expect(s).toEqual({ currentStreak: 3, bestStreak: 3, lastPlayedDay: '2026-08-03' });
     });

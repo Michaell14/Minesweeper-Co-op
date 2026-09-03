@@ -24,10 +24,8 @@ describe("THEMES", () => {
 });
 
 /*
- * The card swatches. Only the palette-map half is testable here — reading
- * tokens.css needs a real stylesheet, so `readSwatches` is covered by the
- * smoke suite, which is also the only place the load-bearing property (each
- * card showing its OWN palette, not the applied one) is observable.
+ * The card swatches. Only the palette-map half is testable here; `readSwatches`
+ * needs a real stylesheet and is covered by the smoke suite.
  */
 describe("swatchesFromPalette", () => {
     const full = Object.fromEntries(
@@ -55,8 +53,7 @@ describe("readSwatches", () => {
     });
 });
 
-// NO_FLASH_SCRIPT moved to lib/settings.ts with the rest of theme persistence;
-// its guarantees are covered in lib/settings.test.ts.
+// NO_FLASH_SCRIPT lives in lib/settings.ts; covered in lib/settings.test.ts.
 
 describe("cursorColorForId", () => {
     it("returns a palette token reference, not a literal colour", () => {

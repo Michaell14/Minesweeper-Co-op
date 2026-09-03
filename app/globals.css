@@ -9,22 +9,14 @@
 }
 
 /*
- * The one opt-out from the rule above, for pages made of sentences rather than
- * labels.
+ * The one opt-out from the rule above: Press Start 2P is an 8x8 bitmap face,
+ * close to unreadable at paragraph length, so body copy on content pages
+ * switches while headings keep the pixel face.
  *
- * Press Start 2P is a 8x8 bitmap face: fine for a button, close to unreadable
- * at paragraph length, which would defeat content pages whose entire purpose is
- * being read. Only body copy switches — headings keep the pixel face, so the
- * pages still look like the game they belong to.
- *
- * Specificity is load-bearing and not an accident: `:is()` takes the
- * specificity of its most specific argument, so the heading rule (0,1,1) beats
- * the blanket `.ms-prose *` (0,1,0) below it.
- *
- * The descendant half of that rule is load-bearing too. A heading is often a
- * link, and the `<a>` matches `.ms-prose *` while `.ms-prose :is(h1, h2, h3)`
- * does not reach it — so a linked heading silently rendered in Inter while the
- * plain one beside it stayed pixel. That is what the /drills lesson cards did.
+ * Specificity is load-bearing: `:is()` takes its most specific argument, so
+ * the heading rule (0,1,1) beats `.ms-prose *` (0,1,0). The descendant half
+ * matters too: a linked heading's <a> matches `.ms-prose *`, and without it
+ * rendered in Inter.
  */
 .ms-prose,
 .ms-prose * {
@@ -37,17 +29,10 @@
 }
 
 /*
- * The opt-out's own opt-out: chrome, not sentences.
- *
- * A content page is not only prose. /drills carries counters, action labels and
- * a playable board, all sized on the PIXEL scale — and 10px of Inter is not a
- * small label, it is unreadable body copy. The drill board's own numbers were
- * rendering in Inter for the same reason, which is a game cell in the wrong
- * face on the page teaching the game.
- *
- * Controls are matched by element so nothing has to remember; `.ms-pixel` is
- * for the rest, since a design-system button that renders an <a> cannot be
- * picked out from here without matching a hashed CSS-module class name.
+ * The opt-out's own opt-out: chrome, not sentences. /drills carries counters,
+ * labels and a playable board on the PIXEL scale, and 10px of Inter is
+ * unreadable. Controls match by element; `.ms-pixel` covers the rest, since a
+ * ds button rendering an <a> cannot be picked out without a hashed class.
  */
 .ms-prose :is(button, .ms-pixel),
 .ms-prose :is(button, .ms-pixel) * {
@@ -55,12 +40,8 @@
 }
 
 /*
- * The page surface.
- *
- * Load-bearing: without an explicit background the browser supplies one, and a
- * user in dark mode gets dark text on a dark UA surface.
- *
- * `color-scheme` follows the palette so form controls and scrollbars do too.
+ * The page surface. Load-bearing: without an explicit background a dark-mode
+ * user gets dark text on a dark UA surface. `color-scheme` follows the palette.
  */
 html {
     color-scheme: light;
@@ -70,9 +51,8 @@ body {
     background-color: var(--ms-surface-page);
     color: var(--ms-ink-strong);
     /*
-     * Load-bearing: room codes are player-typed, up to 28 characters, with no
-     * spaces to break at. Without this a long code runs straight out through
-     * the side of the room panel.
+     * Room codes are player-typed, up to 28 characters with no break points;
+     * without this a long one runs out through the room panel.
      */
     overflow-wrap: break-word;
 }
@@ -114,17 +94,9 @@ body {
 }
 
 /*
- * NES.css is gone — components/ds draws these borders now.
- *
- * The dashed-border override that used to live here is deleted with it. For the
- * record, since it is the reason the design system exists: nes.css drew control
- * borders with a border-image whose middle slice was one source pixel, and
- * shipped a Chrome-targeting media query setting `border-image-repeat: space`.
- * That tiled the slice with gaps instead of stretching it, and since
- * border-image-width was 2 (twice the 4px border) the slice scaled 4x — so
- * Chrome rendered a row of 4px dashes where Firefox rendered a solid line. It
- * was a library bug with no configuration lever.
- *
- * Layered box-shadows have no slice to scale and nothing to tile, so there is
- * nothing left to override. See components/ds/pixel.module.css.
+ * NES.css is gone; components/ds draws these borders now. Its dashed-border
+ * override went with it: nes.css drew control borders with a one-pixel
+ * border-image slice and a Chrome-only `border-image-repeat: space`, so Chrome
+ * tiled dashes where Firefox drew a line. Layered box-shadows have nothing to
+ * slice or tile. See components/ds/pixel.module.css.
  */

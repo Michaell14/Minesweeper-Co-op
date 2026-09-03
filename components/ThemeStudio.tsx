@@ -20,14 +20,9 @@ import { deleteThemeRemote, saveThemeRemote } from '@/lib/themesApi';
 import { AA_LARGE, AA_NORMAL } from '@/app/ds/contrast';
 
 /**
- * The palette editor: nine core colours in, the whole palette derived
- * (lib/customThemes.ts). Edits preview LIVE against the real page — the
- * settings page is itself themed, so every panel, button and label around
- * the editor is the preview.
- *
- * The audit below the fields is advice, not a gate: a failing palette saves
- * with a warning (decision recorded in the PRD) — it is their eyes, and the
- * built-in Game Boy palette cannot pass everywhere either.
+ * The palette editor: nine core colours in, the palette derived
+ * (lib/customThemes.ts). Edits preview live on the settings page itself. The
+ * audit is advice, not a gate: a failing palette saves with a warning (PRD).
  */
 
 /** Where each core colour is read from when seeding a new theme. */
@@ -43,7 +38,7 @@ const SEED_TOKENS: Record<keyof CustomThemeCore, string> = {
     cellOpen: '--ms-palette-cell-open',
 };
 
-/** The palette on screen right now, as a starting point. */
+/** The palette on screen now, as a starting point. */
 const coreFromCurrentPaint = (): CustomThemeCore => {
     const style = getComputedStyle(document.documentElement);
     const out = {} as CustomThemeCore;
@@ -80,13 +75,13 @@ const auditCore = (core: CustomThemeCore): AuditRow[] => {
         {
             label: 'Closed vs open cells',
             ratio: hexContrast(core.cellClosed, core.cellOpen),
-            threshold: 1.2, // distinguishability, not WCAG — the board must read
+            threshold: 1.2, // distinguishability, not WCAG
         },
     ];
 };
 
 interface Draft {
-    /** null while creating — an id is minted at save. */
+    /** null while creating; minted at save. */
     id: string | null;
     name: string;
     core: CustomThemeCore;
@@ -100,7 +95,7 @@ export default function ThemeStudio() {
 
     const [draft, setDraft] = React.useState<Draft | null>(null);
 
-    /** Puts paint back under the SAVED theme choice, dropping the preview. */
+    /** Puts paint back under the saved theme, dropping the preview. */
     const reapplySaved = () => {
         const state = useMinesweeperStore.getState();
         state.replaceSettings(state.settings);
@@ -118,7 +113,7 @@ export default function ThemeStudio() {
         setDraft((d) => {
             if (!d) return d;
             const core = { ...d.core, [key]: value };
-            // Live preview: stamp the derived palette straight onto :root.
+            // Live preview straight onto :root.
             applyTheme(null, derivePalette(core));
             return { ...d, core };
         });
@@ -134,13 +129,11 @@ export default function ThemeStudio() {
         const id =
             draft.id ?? mintThemeId(draft.name, new Set(customThemes.map((t) => t.id)));
         const theme = sanitizeCustomTheme({ id, name: draft.name, core: draft.core });
-        if (!theme) return; // the name field is the only way to get here
+        if (!theme) return; // only the name field can get here
         saveCustomTheme(theme);
-        // A save under this id supersedes any pending deletion of it — a
-        // deliberate re-creation must not be eaten by an old tombstone.
+        // A re-creation must not be eaten by an old tombstone.
         clearPendingThemeDeletion(theme.id);
-        // Saving also selects it — the palette being previewed is the one the
-        // player just committed to.
+        // Saving also selects it.
         setSetting('theme', `${CUSTOM_THEME_PREFIX}${theme.id}`);
         void saveThemeRemote(theme); // no-op signed out
         setDraft(null);
@@ -148,8 +141,7 @@ export default function ThemeStudio() {
 
     const remove = (id: string) => {
         deleteCustomTheme(id);
-        // Tombstone until the SERVER confirms: an unconfirmed delete would
-        // otherwise resurrect at the next sign-in merge, where server wins.
+        // Tombstone until the server confirms, or the sign-in merge resurrects it.
         addPendingThemeDeletion(id);
         void deleteThemeRemote(id).then((ok) => {
             if (ok) clearPendingThemeDeletion(id);

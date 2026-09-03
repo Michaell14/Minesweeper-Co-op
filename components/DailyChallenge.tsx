@@ -23,11 +23,9 @@ interface DailyChallengeParams {
 const noop = () => {};
 
 /**
- * Sibling to Grid.tsx, not a variant of it: none of Grid's room/PVP-progress
- * layout applies to a solo, room-free game. Reuses gameSlice's
- * board/gameOver/gameWon and the Board/Cell/FlagCounter components unchanged —
- * app/page.tsx renders exactly one of daily and room, so sharing those fields
- * costs nothing and keeps the "board mounts exactly once" invariant.
+ * Sibling to Grid.tsx, not a variant: none of Grid's room/PVP layout applies
+ * to a solo game. Reuses gameSlice's board fields and the Board/Cell/FlagCounter
+ * components unchanged; app/page.tsx renders exactly one of daily and room.
  */
 export default function DailyChallenge({ leaveDaily, dailyOpenCell, dailyChordCell, dailyToggleFlag, getDailyLeaderboard }: DailyChallengeParams) {
     const board = useMinesweeperStore((state) => state.board);
@@ -36,11 +34,9 @@ export default function DailyChallenge({ leaveDaily, dailyOpenCell, dailyChordCe
     const { remainingFlags } = useGameStats();
 
     /*
-     * Chording works here for the same reason it works in a room: Cell records
-     * the button state whatever the mode, and this is what reads it. Mounted by
-     * Grid alone, two-button chording simply did nothing on the daily — and the
-     * button state Cell had recorded was left set, so the first chord in a room
-     * opened afterwards fired on a cell the player had not pressed twice.
+     * Cell records the button state whatever the mode. Mounted by Grid alone,
+     * chording did nothing on the daily and left the button state set, so the
+     * first chord in a later room fired on the wrong cell.
      */
     useChording(dailyChordCell);
 
@@ -52,9 +48,8 @@ export default function DailyChallenge({ leaveDaily, dailyOpenCell, dailyChordCe
         emitCellHover: noop,
     });
 
-    // <Timer> reads gameSlice's shared run clock, which the daily handlers in
-    // hooks/useGameEvents.ts set directly -- deriving it here reactively would
-    // render one frame of the previous clock value first.
+    // <Timer> reads gameSlice's run clock, which the daily handlers set directly;
+    // deriving it here would render one frame of the previous value first.
 
     const boardProps = {
         toggleFlag: dailyToggleFlag,
@@ -64,9 +59,8 @@ export default function DailyChallenge({ leaveDaily, dailyOpenCell, dailyChordCe
         handleBoardLeave: noop,
     };
 
-    // A resumed terminal attempt now carries its FINAL board for a view-only
-    // replay; an empty board means "none available" (an attempt recorded
-    // before replays existed), not "none opened yet".
+    // A resumed terminal attempt carries its FINAL board for a view-only replay;
+    // an empty board means "none available", not "none opened yet".
     const hasBoard = board.length > 0;
     const isTerminal =
         dailyStatus === 'failed' || dailyStatus === 'won_pending_submit' || dailyStatus === 'completed';
@@ -101,11 +95,8 @@ export default function DailyChallenge({ leaveDaily, dailyOpenCell, dailyChordCe
                     <div className="flex justify-center overflow-auto xl:overflow-visible max-w-full">
                         <Board {...boardProps} />
                     </div>
-                    {/* Once the attempt is settled the board above is a
-                        view-only replay (moves are refused in
-                        emitDailyCellAction); this strip says so and keeps the
-                        submit/leaderboard actions reachable after their
-                        dialog has been dismissed. */}
+                    {/* Once settled the board is a view-only replay (moves are refused in
+                        emitDailyCellAction); this strip says so and keeps the actions reachable. */}
                     {isTerminal && (
                         <div className="flex justify-center mt-6">
                             <Panel centered className="max-w-md" role="status">

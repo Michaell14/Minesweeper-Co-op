@@ -1,9 +1,7 @@
 // @vitest-environment jsdom
 /**
- * The announcement banner's dismissal watermark, and its separation from the
- * changelog's own seen-watermark. Both failures are silent: a shared key would
- * clear the star's unseen dot for someone who only closed a strip they never
- * read, and a missing key brings the banner back on every single load.
+ * The banner's dismissal watermark, kept separate from the changelog's seen
+ * watermark: a shared key would clear the star's dot on closing the strip.
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
@@ -25,10 +23,7 @@ describe('LATEST_ENTRY', () => {
         expect(LATEST_ENTRY).toBe(CHANGELOG[0]);
     });
 
-    /*
-     * The banner's copy comes from these three fields. Empty ones would render
-     * a strip saying nothing.
-     */
+    /* Empty fields would render a strip saying nothing. */
     it('carries the tag, title and lede the banner needs', () => {
         expect(LATEST_ENTRY?.tag).toBeTruthy();
         expect(LATEST_ENTRY?.title).toBeTruthy();
@@ -46,10 +41,7 @@ describe('isBannerDismissed', () => {
         expect(isBannerDismissed()).toBe(true);
     });
 
-    /*
-     * The whole point of keying on the id rather than a boolean: a release
-     * has to be able to speak to someone who closed the last one.
-     */
+    /* Keyed on the id, not a boolean, so a new release can speak to someone who closed the last. */
     it('is false again once a newer entry lands', () => {
         localStorage.setItem(BANNER_KEY, 'some-older-entry');
         expect(isBannerDismissed()).toBe(false);
@@ -68,10 +60,7 @@ describe('isBannerDismissed', () => {
     });
 });
 
-/*
- * Dismissing is not reading. Sharing one key would mean closing the strip
- * silently cleared the badge on the changelog icon.
- */
+/* Dismissing is not reading. */
 describe('the two watermarks are independent', () => {
     it('dismissing the banner leaves the changelog unseen', () => {
         dismissBanner();

@@ -1,22 +1,10 @@
 /**
- * Reloading in the middle of a practice race.
- *
- * A practice race is an ordinary co-op room of one, so a reload already brought
- * the board, the clock and the score back — through the normal `joinRoom`
- * handler, which knows only what the ROOM says. The target the player was
- * racing lived in the browser's memory and nowhere else, so it silently did
- * not come back: no error, no missing board, just an opponent that quietly
- * stopped existing halfway through the run.
- *
- * The fix is that the room records how it was OPENED, the same way it records
- * `mode` and `noGuess`. The target itself is still never server-side and could
- * not be — it comes out of the player's own records — so what travels is one
- * boolean, and the client recomputes the time from it.
- *
- * Drives server.js's real handler, because the bug was in what that handler
- * chooses to describe. Its own harness rather than joinRoomHost.test.js's: that
- * file is about a PVP lobby's host role, and the two share nothing but the
- * shape of the fake socket.
+ * Reloading mid practice race. The room is an ordinary co-op room of one, so
+ * `joinRoom` already brought back board, clock and score, but the target
+ * lived only in the browser and silently did not return. The room now records
+ * how it was OPENED (like `mode` and `noGuess`) as one boolean; the client
+ * recomputes the time. Own harness rather than joinRoomHost.test.js's: the two
+ * share only the fake socket's shape.
  */
 
 const emitsByTarget = {};
@@ -29,10 +17,8 @@ const mockOn = jest.fn();
 
 jest.mock('../utils/initializeClient', () => ({
     app: { use: jest.fn(), get: jest.fn(), post: jest.fn(), put: jest.fn(), delete: jest.fn() },
-    // `sockets.sockets` is socket.io's live connection map, empty here for the
-    // same reason as in setup/mockInfra.js. Presence walks it on every connect
-    // (utils/presence.js); without it these suites boot the server against an
-    // `io` that socket.io could not produce, and log a caught failure per test.
+    // `sockets.sockets` is socket.io's live map, empty here as in
+    // setup/mockInfra.js; presence walks it on every connect.
     io: { on: mockOn, to: mockTo, use: jest.fn() , sockets: { sockets: new Map() } },
     server: { listen: jest.fn() },
 }));
@@ -118,8 +104,7 @@ describe('resuming a practice race', () => {
 
         const payload = joinPayload(await rejoin());
 
-        // Without these the client has nothing to look a record up by, and the
-        // flag counter is wrong as well.
+        // Without these the client has nothing to look a record up by.
         expect(payload.numRows).toBe(1);
         expect(payload.numCols).toBe(1);
         expect(payload.numMines).toBe(0);
@@ -130,8 +115,7 @@ describe('resuming anything else', () => {
     test('an ordinary co-op room is never labelled a practice race', async () => {
         seedRoom({});
 
-        // Absent rather than false: the flag is what puts a target on screen,
-        // and every room that is not a practice race must clear one.
+        // Absent rather than false: the flag is what puts a target on screen.
         expect(joinPayload(await rejoin()).practice).toBeUndefined();
     });
 });

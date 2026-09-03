@@ -1,29 +1,17 @@
 /**
- * The socket protocol's payload shapes — the one copy, and one place to read the
- * protocol. `shared/events.js` single-sources the event NAMES; this covers what
- * travels with them.
- *
- * ## What this does and does not enforce
- *
- * A `.ts` file, so only the CLIENT consumes it — the server is CommonJS and
- * cannot import a type. Client emits and handlers ARE checked at compile time;
- * the server is NOT, and could still emit something else.
- *
- * `server/tests/events.test.js` checks that every name in `shared/events.js`
- * appears here, so no event can be added without a declared payload. It cannot
- * check the shapes themselves — the server's guard for INBOUND payloads is
- * `server/validation.js`, and its emits are kept in step here by hand.
+ * The socket protocol's payload shapes. `shared/events.js` owns the NAMES; this
+ * covers what travels with them. A `.ts` file, so only the client is checked at
+ * compile time: the server is CommonJS, validates inbound payloads with
+ * `server/validation.js`, and keeps its emits in step by hand.
+ * `server/tests/events.test.js` only checks that every event name appears here.
  */
 
 /** Which game a room is playing. `server/validation.js` accepts exactly these. */
 export type GameMode = 'co-op' | 'pvp';
 
 /**
- * A single cell as it arrives over the wire.
- *
- * Closed cells are projected: `isMine` false and `nearbyMines` 0 regardless of
- * the truth, so a client cannot read the board off the payload. See
- * ARCHITECTURE.md §3.1.
+ * A cell over the wire. Closed cells are projected (`isMine` false, `nearbyMines`
+ * 0) so a client cannot read the board off the payload. ARCHITECTURE.md §3.1.
  */
 export interface Cell {
     isMine: boolean;
@@ -38,12 +26,7 @@ export type CellUpdate = Cell & { row: number; col: number };
 /** One row of the daily challenge leaderboard, fastest first. */
 export interface DailyLeaderboardEntry {
     name: string;
-    /**
-     * The submitter's avatar id (shared/avatars.js), null for anonymous
-     * entries. Optional because the two halves deploy from the same trunk but
-     * never land atomically — a payload from a pre-avatar server simply lacks
-     * the field.
-     */
+    /** Avatar id (shared/avatars.js), null for anonymous. Optional across deploy skew. */
     avatar?: string | null;
     elapsedMs: number;
     rank: number;
@@ -78,9 +61,8 @@ interface CellPayload extends RoomPayload {
 }
 
 /**
- * Every daily payload after `startDaily` carries the attempt token and the date
- * it started under, echoed back from `dailyStarted` — never "today" recomputed
- * per event, so an attempt spanning UTC midnight stays pinned to its own day.
+ * Token and start date echoed back from `dailyStarted`, never "today" recomputed,
+ * so an attempt spanning UTC midnight stays pinned to its own day.
  */
 interface DailyPayload {
     dailyAttemptToken: string;
@@ -92,12 +74,7 @@ interface DailyCellPayload extends DailyPayload {
     col: number;
 }
 
-/**
- * Client -> server.
- *
- * Every key is a `socket.on` handler in `server/server.js`, and every one of
- * these is emitted from `hooks/useGameActions.ts`.
- */
+/** Client -> server. Each key is a server route and an emit in `hooks/useGameActions.ts`. */
 export interface ClientToServerEvents {
     createRoom: (payload: {
         room: string;
@@ -122,12 +99,7 @@ export interface ClientToServerEvents {
     pingCell: (payload: CellPayload) => void;
     /** Ask a friend to join the room this socket is in. */
     inviteFriend: (payload: { friendId: string; room: string }) => void;
-    /**
-     * Who in this room could be added as a friend.
-     *
-     * `token` is the client's own counter, echoed back untouched on the reply
-     * so it can drop a list one of its later requests has superseded.
-     */
+    /** `token` is the client's counter, echoed on the reply so a superseded list can be dropped. */
     roomFriends: (payload: { room: string; token: number }) => void;
     /** `playerId` is the co-player's SOCKET id — account ids never leave the server. */
     addRoomFriend: (payload: { room: string; playerId: string; token: number }) => void;
@@ -146,11 +118,9 @@ export interface ClientToServerEvents {
     /** Leave the queue. Like `playerLeave`, the socket id is the whole payload. */
     cancelMatch: () => void;
     /**
-     * Leave the queue and open a solo board to race a target time instead.
-     *
-     * Answered with an ordinary `joinRoomSuccess` for a **co-op room of one** —
-     * the target is drawn by the client and never reaches the server, so there
-     * is no practice mode for the server to know about. See ARCHITECTURE.md §5.
+     * Leave the queue for a solo board racing a target time. Answered with an
+     * ordinary `joinRoomSuccess` for a co-op room of one; the target never
+     * reaches the server. See ARCHITECTURE.md §5.
      */
     startPracticeRace: (payload: { name: string }) => void;
 
@@ -163,11 +133,7 @@ export interface ClientToServerEvents {
     getDailyLeaderboard: (payload: { date: string }) => void;
 }
 
-/**
- * Server -> client.
- *
- * Every key has a handler in the table in `hooks/useGameEvents.ts`.
- */
+/** Server -> client. Every key has a handler in the table in `hooks/useGameEvents.ts`. */
 export interface ServerToClientEvents {
     // --- Room lifecycle ---
     joinRoomSuccess: (payload: {
@@ -179,18 +145,11 @@ export interface ServerToClientEvents {
         numCols?: number;
         numMines?: number;
         /**
-         * This room was opened by `startPracticeRace`, so the client should
-         * race a target time in it.
-         *
-         * Room configuration, like `mode` — it records how the room was opened.
-         * The TARGET itself is never server-side and could not be: it comes out
-         * of the player's own browser records. See ARCHITECTURE.md §5.
-         *
-         * Sent on a fresh practice start and again on every later join of that
-         * room, which is what a reload rides back in on. The client cannot infer
-         * it: a player who asks for practice at the moment a real opponent is
-         * found gets the MATCH's room instead, and deciding from the request
-         * alone would draw a target over a live PVP race.
+         * Opened by `startPracticeRace`; the client draws a target time. Room
+         * configuration like `mode`: the target itself comes from the player's
+         * own records and is never server-side (ARCHITECTURE.md §5). Sent on
+         * every join so a reload rides back in on it. The client cannot infer
+         * it, since a practice request can be answered with a real match.
          */
         practice?: boolean;
     }) => void;
@@ -213,23 +172,16 @@ export interface ServerToClientEvents {
     // --- Presence and fun ---
     receiveConfetti: () => void;
     /**
-     * Somebody in the room reacted. Sent to EVERYONE including the sender,
-     * unlike hover: the sender should see the same artefact at the same
-     * moment as the room, which is what confetti already does.
+     * Somebody reacted. Sent to everyone including the sender, like confetti.
+     * `room` is optional only for deploy skew; see belongsToCurrentRoom.
      */
-    // `room` is optional only for deploy skew — see belongsToCurrentRoom.
     playerEmote: (payload: { id: string; name: string; emote: string; room?: string }) => void;
     /**
-     * Somebody pointed at a cell. Co-op only, for the same reason hover is:
-     * PVP racers play the SAME board, so a ping is a move hint.
-     *
-     * `room` rides along on both of these so the receiver can tell WHICH board
-     * the cell belongs to. A relay already in flight when its recipient leaves
-     * is still delivered, and without the room there is nothing to tell it
-     * apart from one belonging to the room they joined next — see the handlers
-     * in useGameEvents.
+     * Somebody pointed at a cell. Co-op only, like hover: PVP racers share a
+     * board, so a ping is a move hint. `room` says which board the cell belongs
+     * to, since a relay in flight when its recipient leaves is still delivered
+     * (see useGameEvents). Optional only for deploy skew.
      */
-    // `room` is optional only for deploy skew — see belongsToCurrentRoom.
     playerPing: (payload: { id: string; name: string; row: number; col: number; room?: string }) => void;
 
     // --- Friends ---
@@ -246,21 +198,14 @@ export interface ServerToClientEvents {
         mode: GameMode;
     }) => void;
     /**
-     * The signed-in players in this room, to the ASKER alone — so "me" is
-     * excluded server-side and a guest is told nothing at all.
-     *
-     * The whole list is re-sent after every add rather than a per-player
-     * result, so the client never merges two sources of truth about the same
-     * relationship.
+     * Signed-in players in this room, to the asker alone; "me" is excluded
+     * server-side and a guest gets nothing. The whole list is re-sent after
+     * every add so the client never merges two sources of truth.
      */
     roomFriendsUpdate: (payload: {
         /**
-         * The room this list describes, and the request that asked for it.
-         *
-         * Present because these emits are ordered by when their server-side
-         * work finishes rather than by when they were asked for, so an older
-         * list can arrive after a newer one — from a room since left, or from
-         * before an add already made. The client drops both.
+         * Emits are ordered by when server-side work finishes, so an older
+         * list can arrive after a newer one; the client drops it by room and token.
          */
         room: string;
         token: number;
@@ -275,32 +220,22 @@ export interface ServerToClientEvents {
     /** Co-op only; the server suppresses hover in PVP. */
     playerHoverUpdate: (payload: { id: string; row: number; col: number; name: string }) => void;
     /**
-     * The room's clock, as epoch milliseconds.
-     *
-     * Timestamps rather than an elapsed count: the client ticks locally from
-     * `startedAt`, so nothing is streamed per second, every player in a co-op
-     * room reads the same clock, and anyone arriving mid-run — a late join, a
-     * reconnect, a reload that resumes — picks it up at the right time.
-     *
-     * `startedAt` is null before the first cell is revealed; `endedAt` is null
-     * until the game ends.
+     * The room's clock as epoch ms. The client ticks locally from `startedAt`,
+     * so nothing streams per second and a late join or reload picks it up at
+     * the right time. `startedAt` is null before the first reveal, `endedAt`
+     * null until the game ends.
      */
     gameClock: (payload: { startedAt: number | null; endedAt: number | null }) => void;
     /**
-     * "You were in a room, and it is still there." Sent on connect when the
-     * handshake's session id still maps to a live room. The client answers with
-     * a normal `joinRoom`, so a resume runs the same path a manual join does.
-     *
-     * Never sent after a deliberate leave — that clears the room from the
-     * session, so this cannot drag someone back into a game they walked away from.
+     * Sent on connect when the handshake's session id still maps to a live
+     * room; the client answers with a normal `joinRoom`. Never sent after a
+     * deliberate leave, which clears the room from the session.
      */
     sessionResume: (payload: { room: string; name: string }) => void;
     playerLeft: (socketId: string) => void;
     /**
-     * Achievements this player just unlocked — catalog ids from
-     * shared/achievements.js, never names. The catalog ships with the client,
-     * and an id it does not recognise is skipped rather than rendered raw.
-     * Only ever the NEW ones: the server sends what ON CONFLICT let through.
+     * Catalog ids from shared/achievements.js, only the NEW ones (what ON
+     * CONFLICT let through). An unknown id is skipped, not rendered raw.
      */
     achievementsUnlocked: (payload: { ids: string[] }) => void;
 
@@ -313,10 +248,7 @@ export interface ServerToClientEvents {
         isHost?: boolean;
     }) => void;
     pvpGameStarted: (payload: { totalSafeCells?: number }) => void;
-    /**
-     * Both players get the SAME board — see ARCHITECTURE.md §5. `playerIndex`
-     * tells a client which side it is, not which board it got.
-     */
+    /** Both players get the SAME board (ARCHITECTURE.md §5); `playerIndex` says which side. */
     pvpBoardUpdate: (payload: {
         board: Cell[][];
         playerIndex: number;
@@ -343,28 +275,17 @@ export interface ServerToClientEvents {
 
     // --- Matchmaking ---
     /**
-     * Queued, nobody to pair with yet. There is deliberately no `matchFound`:
-     * a pairing arrives as the ordinary `joinRoomSuccess` + `pvpRoomReady` a
-     * hand-made PVP room sends, so the client has one code path for both.
-     *
-     * `othersOnline` is connected sockets minus this one — NOT a queue depth.
-     * The queue can never hold two waiting players: reaching this event means
-     * nobody pairable was found, and anyone arriving afterwards pairs with you
-     * instantly rather than queueing beside you. So "how many are waiting" is
-     * always zero and says nothing; "is anyone here at all" is the number that
-     * changes what the player should do next.
+     * Queued, nobody to pair with yet. No `matchFound`: a pairing arrives as the
+     * ordinary `joinRoomSuccess` + `pvpRoomReady`. `othersOnline` is connected
+     * sockets minus this one, not a queue depth: the queue never holds two
+     * waiting players, so "is anyone here" is the only number that matters.
      */
     matchSearching: (payload: { othersOnline: number }) => void;
     /**
-     * The same count again, because it moved: pushed to everyone still queued
-     * whenever a socket connects or disconnects. The searching dialog can sit
-     * open for minutes, and `matchSearching` fires once, so without this the
-     * number ages next to a waiting timer that does not.
-     *
-     * A separate event rather than a repeat of `matchSearching` because it must
-     * carry no verdict about the search itself: a cancel and a re-broadcast can
-     * cross, and re-asserting "you are searching" after the dialog has closed
-     * would strand the client in a search it has already left.
+     * `othersOnline` again, pushed to the queue whenever a socket connects or
+     * disconnects, since `matchSearching` fires once and the dialog can sit
+     * open for minutes. A separate event because it must carry no verdict about
+     * the search: a cancel and a re-broadcast can cross.
      */
     matchOnlineCount: (payload: { othersOnline: number }) => void;
     /** Removed from the queue — the player's own cancel, or a leave/disconnect. */
@@ -383,8 +304,7 @@ export interface ServerToClientEvents {
         /** null for a fresh start; populated when resuming an in-progress attempt. */
         startedAt: number | null;
     }) => void;
-    /** Today's attempt already reached a terminal state. The final board is
-     * included when available, for a view-only replay -- never a fresh one. */
+    /** Today's attempt already reached a terminal state; the final board comes for a view-only replay. */
     dailyAlreadyAttempted: (payload: {
         date: string;
         status: DailyAttemptStatus;
@@ -392,14 +312,9 @@ export interface ServerToClientEvents {
         rank?: number;
         /** Only present alongside `rank`, when status is 'completed'. */
         totalEntries?: number;
-        /**
-         * The attempt's FINAL board, mines revealed, for a view-only replay.
-         * A terminal state may show everything (ARCHITECTURE.md §3.1).
-         * Optional: attempts recorded before this field existed have none.
-         */
+        /** FINAL board, mines revealed (terminal, ARCHITECTURE.md §3.1). Absent on older attempts. */
         board?: Cell[][];
-        /** Pace milestones for the share text's bar (see below on dailyWon).
-         * Optional: attempts recorded before pace existed have none. */
+        /** Pace milestones for the share bar (see dailyWon). Absent on older attempts. */
         milestones?: number[];
         numRows?: number;
         numCols?: number;
@@ -410,10 +325,9 @@ export interface ServerToClientEvents {
     dailyBoardUpdate: (payload: { board: Cell[][] }) => void;
     dailyGameOver: (payload: { elapsedMs: number; milestones?: number[] }) => void;
     /**
-     * `milestones[i]` is the server-stamped elapsedMs when the run first had
-     * (i+1)/10 of the safe cells open — a win carries all 10, a loss however
-     * many deciles it survived. Timing only, deliberately nothing positional:
-     * the board is identical for everyone today (see lib/dailyShare.ts).
+     * `milestones[i]` is the server-stamped elapsedMs when (i+1)/10 of the safe
+     * cells were first open: 10 on a win, fewer on a loss. Timing only, nothing
+     * positional, since the board is the same for everyone (lib/dailyShare.ts).
      */
     dailyWon: (payload: { elapsedMs: number; milestones?: number[] }) => void;
     dailyScoreSubmitted: (payload: { rank: number; elapsedMs: number; totalEntries: number }) => void;

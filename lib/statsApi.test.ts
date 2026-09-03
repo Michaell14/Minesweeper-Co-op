@@ -1,12 +1,8 @@
 // @vitest-environment jsdom
 /**
- * The board-records read, which is the one stats call a GAME page makes.
- *
- * What matters here is the shape it hands the store: keyed the way the game
- * looks a record up, timestamps as numbers, and — the case with no visible
- * failure — null rather than an empty table when the call does not land. An
- * empty table reads as "you have never cleared anything", and would blank a
- * banner that was right a second ago.
+ * The board-records read, the one stats call a GAME page makes. What matters
+ * is the shape handed to the store, and null rather than an empty table when
+ * the call fails: an empty table reads as "never cleared anything".
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -64,9 +60,8 @@ describe("a table that arrives", () => {
     });
 
     /*
-     * A server deployed ahead of the key migration still serves rows keyed by
-     * board alone, with the count in its own column. Re-filing on arrival is
-     * what keeps the banner from reading blank for the length of that window.
+     * A server ahead of the key migration serves rows keyed by board alone;
+     * re-filing on arrival keeps the banner from reading blank.
      */
     it("re-files a record whose key predates the player count", async () => {
         respondWith({

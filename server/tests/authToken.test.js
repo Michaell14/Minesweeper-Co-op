@@ -1,7 +1,6 @@
 /**
- * Bridge-token verification. The Next app signs these (app/api/socket-token);
- * this side must accept exactly what that route mints and nothing else. Every
- * rejection is `null`, never a throw — a bad token is an anonymous player.
+ * Bridge-token verification: accept exactly what app/api/socket-token mints.
+ * Every rejection is `null`, never a throw; a bad token is an anonymous player.
  */
 
 const jwt = require('jsonwebtoken');
@@ -78,8 +77,7 @@ describe('with the secret configured', () => {
         ['missing the identity pair', () => jwt.sign({ email: 'm@example.com' }, SECRET, {
             algorithm: 'HS256', issuer: 'minesweeper-web', audience: 'minesweeper-server', expiresIn: '1h',
         })],
-        // alg:none and its relatives — jwt.verify pins HS256, but the case is
-        // cheap to keep on record.
+        // alg:none and relatives; jwt.verify pins HS256, but cheap to keep on record.
         ['unsigned', () => `${mint().split('.').slice(0, 2).join('.')}.`],
         ['garbage', () => 'not-a-jwt'],
     ])('rejects a token that is %s', (_label, make) => {

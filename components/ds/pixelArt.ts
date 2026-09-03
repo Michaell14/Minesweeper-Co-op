@@ -1,9 +1,6 @@
 /**
- * Pixel art, stored as the art itself: a grid of characters plus a palette
- * mapping character to colour. A space is a transparent pixel.
- *
- * Shared by the icons (icons.tsx) and the board sprites (sprites.tsx) so both
- * are drawn and edited the same way.
+ * Pixel art stored as the art itself: a character grid plus a palette; a
+ * space is transparent. Shared by icons.tsx and sprites.tsx.
  */
 
 export type PixelArt = {
@@ -36,9 +33,8 @@ export function toRects({ palette, rows }: PixelArt): Rect[] {
 const cache = new WeakMap<PixelArt, Rect[]>();
 
 /**
- * The rects for a piece of art, flattened once per art object however many
- * times it is drawn. Art is static, so every renderer here goes through this
- * rather than deciding for itself whether to precompute.
+ * The rects for a piece of art, flattened once per art object however often
+ * it is drawn. Every renderer goes through this rather than deciding itself.
  */
 export function rectsOf(art: PixelArt): Rect[] {
     let rects = cache.get(art);

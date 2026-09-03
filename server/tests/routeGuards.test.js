@@ -1,16 +1,8 @@
 /**
- * The route guards — who is allowed to act on a room.
- *
- * There are two of them and the difference is the REFUSAL, not the check.
- * `ROOM_MEMBER` answers a refusal with `roomDoesNotExistError` and drops the
- * socket out of the room, which is right for a click on a room that timed out.
- * `ROOM_MEMBER_SILENT` runs the identical check and says nothing, which is what
- * hover and emotes need: they are rate-limited spam surfaces, and answering a
- * refused one with an error would hand a flooding client an amplifier and a
- * legitimate one a false "this room is gone".
- *
- * That distinction used to live in a comment beside two hand-inlined copies of
- * the check. Here it is the guard's name, and these tests are what keep the two
+ * The route guards. The difference is the REFUSAL, not the check:
+ * `ROOM_MEMBER` answers `roomDoesNotExistError` and leaves the room;
+ * `ROOM_MEMBER_SILENT` says nothing, which hover and emotes need so a refusal
+ * cannot amplify a flood or evict a legitimate player. These tests keep the two
  * from converging.
  */
 

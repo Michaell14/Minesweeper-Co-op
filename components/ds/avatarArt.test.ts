@@ -1,15 +1,13 @@
 /**
- * The avatar art's invariants — the kind that fail silently: a catalog id
- * with no drawing renders as the default and nobody notices, a literal hex
- * survives a palette change while everything around it moves, and a short row
- * just draws nothing where pixels should be.
+ * The avatar art's invariants, the kind that fail silently: a catalog id with
+ * no drawing renders as the default, a literal hex survives a palette change,
+ * a short row draws nothing.
  */
 import { describe, expect, it } from "vitest";
 import { AVATARS, DEFAULT_AVATAR } from "@/shared/avatars";
 import { AVATAR_ART, AVATAR_HOVER_FRAMES, avatarArtById, avatarFramesById } from "./avatarArt";
 
-/** Every grid that can be drawn — base art and hover frames alike, since a
- * malformed frame is invisible until someone hovers the one avatar. */
+/** Every drawable grid, hover frames included: a malformed frame is invisible until someone hovers. */
 const everyFrame = Object.entries(AVATAR_ART).flatMap(([id, art]) => [
     [id, art] as const,
     ...(AVATAR_HOVER_FRAMES[id] ?? []).map((frame, i) => [`${id} frame ${i + 1}`, frame] as const),
@@ -39,9 +37,7 @@ describe("every grid is well-formed", () => {
 });
 
 describe("avatars paint in tokens", () => {
-    // Unlike sprite sets there are no seasonal avatars, so there is no id with
-    // a licence to use literal colour: every fill must be a var() so the art
-    // reads on all palettes.
+    // No seasonal avatars, so no id has a licence for literal colour.
     it.each(everyFrame)("%s uses no literal colours", (_id, art) => {
         for (const fill of Object.values(art.palette)) {
             expect(fill).toMatch(/^var\(--ms-/);
@@ -56,17 +52,14 @@ describe("hover frames", () => {
         }
     });
 
-    // An empty list is the failure: it leaves an avatar marked as animated
-    // with nothing to flip to. One extra frame is a legitimate two-pose loop.
+    // An empty list marks an avatar animated with nothing to flip to.
     it("are never an empty list", () => {
         for (const [id, frames] of Object.entries(AVATAR_HOVER_FRAMES)) {
             expect(frames.length, id).toBeGreaterThan(0);
         }
     });
 
-    // A frame copied and left unedited passes every other check here — right
-    // size, right palette, keyframes and all — and animates to nothing. The
-    // only thing that catches it is asking whether any pixel actually moved.
+    // A frame copied and left unedited passes every other check and animates to nothing.
     it.each(Object.keys(AVATAR_HOVER_FRAMES))("%s draws a distinct pose per frame", (id) => {
         const drawn = avatarFramesById(id).map((art) => art.rows.join("\n"));
         expect(new Set(drawn).size, `${id} repeats a pose`).toBe(drawn.length);
@@ -77,9 +70,7 @@ describe("hover frames", () => {
         expect(avatarFramesById("frog").slice(1)).toEqual(AVATAR_HOVER_FRAMES.frog);
     });
 
-    // True of the whole catalog since the twelve were animated together. An
-    // avatar added without frames still renders — it just sits there — so this
-    // is here to make that a decision rather than an oversight.
+    // An avatar added without frames still renders; this makes that a decision, not an oversight.
     it("cover every avatar in the catalog", () => {
         for (const { id } of AVATARS) {
             expect(AVATAR_HOVER_FRAMES[id], `${id} has no hover frames`).toBeDefined();

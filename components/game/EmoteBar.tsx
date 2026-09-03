@@ -13,21 +13,14 @@ export interface EmoteBarProps {
 }
 
 /**
- * The reaction tray, and the feed of what everyone just sent.
- *
- * One component and one mount for both halves, sitting under the board in both
- * layouts — the feed is positioned against the tray, so keeping them together
- * is what stops a reaction ever covering the button that sent it.
- *
- * Nothing here is gated on `settings.emotes`: the opt-out is applied on the
- * RECEIVE path (hooks/useGameEvents.ts), and turning it off empties whatever
- * the store still holds (state/settingsSlice.ts), so an opted-out player has an
- * empty feed and a working tray, which is exactly what the setting says.
+ * The reaction tray and the feed, in one mount under the board: the feed is
+ * positioned against the tray, so a reaction never covers the button that sent
+ * it. `settings.emotes` is applied on the RECEIVE path (hooks/useGameEvents.ts),
+ * so an opted-out player has an empty feed and a working tray.
  */
 /**
- * How long until the earliest deadline. Capped at a whole lifetime so a
- * nonsense `expiresAt` cannot park the loop indefinitely, floored at zero so a
- * deadline already past fires on the next tick.
+ * Delay to the earliest deadline: capped at a lifetime so a nonsense
+ * `expiresAt` cannot park the loop, floored at zero so a past one fires next tick.
  */
 const delayUntilNextExpiry = (emotes: PlayerEmote[]): number => {
     const soonest = Math.min(...emotes.map((emote) => emote.expiresAt));
@@ -39,28 +32,18 @@ export default function EmoteBar({ sendEmote }: EmoteBarProps) {
     const expirePlayerEmotes = useMinesweeperStore((state) => state.expirePlayerEmotes);
     const pingArmed = useMinesweeperStore((state) => state.pingArmed);
     const setPingArmed = useMinesweeperStore((state) => state.setPingArmed);
-    // A race has nobody to point at: both players are on the same board, so the
-    // server refuses a ping there (see server.js) and offering the button would
-    // be offering a control that does nothing.
+    // A race has nobody to point at (same board), and the server refuses a ping there.
     const mode = useMinesweeperStore((state) => state.mode);
 
     /*
-     * One timer for the whole feed, armed at the earliest deadline rather than
-     * one per chip, and RE-ARMED BY THE CALLBACK rather than by the state it
-     * changed.
-     *
-     * That distinction is the whole reason this is a loop. `expirePlayerEmotes`
-     * is a no-op when nothing has expired, which leaves `playerEmotes` at the
-     * same array identity — so an effect that re-armed from its own dependency
-     * would simply stop, and the chip would sit there until the next reaction
-     * arrived. Not hypothetical: `setTimeout` is scheduled off a monotonic
-     * clock while the deadline is compared against `Date.now()`, so the
-     * callback can run a millisecond before the wall clock agrees it is due
-     * (and a wall clock stepped backwards mid-window does it decisively).
-     *
-     * The loop ends when the store is empty, which it always reaches: anything
-     * that survives the filter has a deadline still in the future, so the next
-     * delay is positive and strictly smaller.
+     * One timer for the whole feed, armed at the earliest deadline and
+     * RE-ARMED BY THE CALLBACK rather than by the state it changed:
+     * `expirePlayerEmotes` is a no-op when nothing has expired, leaving the
+     * same array identity, so an effect re-arming from its dependency would
+     * stop and the chip would sit. Not hypothetical: `setTimeout` runs off a
+     * monotonic clock while the deadline is `Date.now()`, so the callback can
+     * fire a millisecond early. The loop ends when the store is empty, which
+     * it always reaches since every surviving delay is positive and smaller.
      */
     React.useEffect(() => {
         if (playerEmotes.length === 0) return;
@@ -68,8 +51,7 @@ export default function EmoteBar({ sendEmote }: EmoteBarProps) {
         let timer: ReturnType<typeof setTimeout>;
         const tick = () => {
             expirePlayerEmotes(Date.now());
-            // Read back rather than trusting the closure: this is the state the
-            // call above just produced.
+            // Read back rather than the closure: the state the call above just produced.
             const live = useMinesweeperStore.getState().playerEmotes;
             if (live.length > 0) timer = setTimeout(tick, delayUntilNextExpiry(live));
         };
@@ -81,13 +63,10 @@ export default function EmoteBar({ sendEmote }: EmoteBarProps) {
     const latest = playerEmotes[playerEmotes.length - 1];
 
     return (
-        /* The gap has to clear the feed, not just look right: chips are
-           positioned above the tray, so too small a margin floats them over the
-           board's bottom row. */
+        /* The gap has to clear the feed: chips are positioned above the tray,
+           so too small a margin floats them over the board's bottom row. */
         <div className="relative mt-12 flex justify-center">
-            {/* Decorative: the same reactions reach a screen reader through the
-                live region below, where they arrive as text rather than as a
-                pile of unlabelled glyphs. */}
+            {/* Decorative: the live region below announces the same reactions as text. */}
             <div className={styles.feed} aria-hidden="true">
                 {playerEmotes.map((emote) => (
                     <span key={emote.key} className={styles.chip}>
@@ -105,10 +84,9 @@ export default function EmoteBar({ sendEmote }: EmoteBarProps) {
                 ))}
                 {mode !== 'pvp' && (
                     /*
-                     * Arms one ping, and says so: `aria-pressed` is the only
-                     * thing telling a screen reader the board is momentarily in
-                     * a different mode, and the label changes with it because a
-                     * toggle whose name never moves reads as a dead button.
+                     * Arms one ping. `aria-pressed` is the only thing telling a
+                     * screen reader the board is in a different mode, and the
+                     * label moves with it so the toggle does not read as dead.
                      */
                     <Button
                         size="sm"
@@ -122,11 +100,7 @@ export default function EmoteBar({ sendEmote }: EmoteBarProps) {
                 )}
             </div>
 
-            {/*
-              * Polite, not assertive: a reaction is somebody saying hello, and
-              * interrupting whatever is being read to deliver one would make
-              * the feature hostile to the people most likely to leave it on.
-              */}
+            {/* Polite, not assertive: a reaction is somebody saying hello, not an interruption. */}
             <div aria-live="polite" aria-atomic="true" className="sr-only">
                 {latest ? emoteAnnouncement(latest.name, latest.emote) : ''}
             </div>

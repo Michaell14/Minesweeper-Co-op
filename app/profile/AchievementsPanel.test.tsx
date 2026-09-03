@@ -1,8 +1,7 @@
 // @vitest-environment jsdom
 /**
- * The shelf's silent failure modes: a locked entry that stops saying it is
- * locked, a hidden entry that leaks its name before it is earned, and progress
- * derived from something other than what the server awards on.
+ * The shelf's silent failures: a locked entry that stops saying so, a hidden
+ * entry that leaks its name, progress derived from the wrong metrics.
  */
 import React from 'react';
 import { render, screen, cleanup, fireEvent } from '@testing-library/react';
@@ -32,10 +31,8 @@ const renderPanel = (props: Partial<React.ComponentProps<typeof AchievementsPane
     );
 
 /*
- * NOTE for everything below: jsdom does not hide the contents of a CLOSED
- * <details>, so these queries find tiles a real browser would not paint. That
- * makes the assertions here about content and naming only — whether collapsing
- * actually hides anything is a browser question, not a jsdom one.
+ * jsdom does not hide the contents of a CLOSED <details>, so these assertions
+ * are about content and naming only; whether collapsing hides is a browser question.
  */
 describe('the shelf', () => {
     it('draws every catalog entry, earned or not', () => {
@@ -71,18 +68,13 @@ describe('the shelf', () => {
         expect(screen.getByRole('listitem', { name: 'Blink and Miss It — locked' })).toBeTruthy();
     });
 
-    // Progress must read the same metrics the server awards on, derived
-    // totals included — not just the raw per-mode columns.
+    // Progress must read the same metrics the server awards on, derived totals included.
     it('derives cross-mode progress the way the evaluator does', () => {
         renderPanel({ stats: { ...NOBODY, coopWins: 3, pvpWins: 2, dailyWins: 1 } });
         expect(screen.getByRole('listitem', { name: 'Sweeper — locked, 6 of 10' })).toBeTruthy();
     });
 
-    /*
-     * Qualified but not awarded — what lowering a threshold leaves behind
-     * until the player's next game. A full bar on a locked tile reads as a
-     * bug, so the tile says what is actually going on instead.
-     */
+    /* What lowering a threshold leaves behind; a full bar on a locked tile reads as a bug. */
     it('says a qualified-but-unawarded entry lands next game, with no full bar', () => {
         renderPanel({ stats: { ...NOBODY, coopWins: 99 } });
         expect(screen.getByRole('listitem', { name: 'Sweeper — earned on your next game' })).toBeTruthy();
@@ -101,10 +93,7 @@ describe('collapsing', () => {
         expect(details(container).open).toBe(false);
     });
 
-    /*
-     * The point of the preview: hiding the whole catalog left a profile with
-     * nothing to look at, so a few tiles sit outside the disclosure entirely.
-     */
+    /* Hiding the whole catalog left a profile with nothing to look at. */
     it('keeps the first few tiles on show while collapsed', () => {
         const { container } = renderPanel();
         const shown = previewTiles(container);
@@ -133,12 +122,10 @@ describe('collapsing', () => {
     });
 
     /*
-     * The one case collapsing must not cost anything: the "New" badges are the
-     * whole payoff of earning something, and they are useless behind a panel
-     * the player has to think to open.
+     * Collapsing must not hide the "New" badges, the whole payoff of earning
+     * something. Derived, not typed: which ids fall either side of the fold is
+     * PREVIEW_COUNT's business.
      */
-    // Derived, not typed out: which ids fall either side of the fold is
-    // PREVIEW_COUNT's business, and these must not pin the catalog's order.
     const onShow = ACHIEVEMENTS[0].id;
     const behindTheFold = ACHIEVEMENTS[ACHIEVEMENTS.length - 1].id;
 
@@ -150,10 +137,7 @@ describe('collapsing', () => {
         expect(details(container).open).toBe(true);
     });
 
-    /*
-     * The badge is already on screen in that case, so expanding would push
-     * twenty-two tiles and every panel below them down the page for nothing.
-     */
+    /* The badge is already on screen, so expanding would push everything down for nothing. */
     it('stays collapsed when the only new entry is one already on show', () => {
         const { container } = renderPanel({
             achievements: [{ id: onShow, earnedAt: '2026-08-08T09:00:00.000Z' }],
@@ -220,8 +204,7 @@ describe('the new badge', () => {
         expect(screen.queryByText('New')).toBeNull();
     });
 
-    // A badge on a LOCKED tile would be nonsense, and a stale id can produce
-    // one: the highlight set outlives whatever the payload now says.
+    // A stale highlight id outlives the payload, and a badge on a LOCKED tile is nonsense.
     it('never marks an entry that is not earned', () => {
         renderPanel({ achievements: [], highlighted: new Set(['sweeper']) });
         expect(screen.queryByText('New')).toBeNull();

@@ -8,13 +8,8 @@ const DESCRIPTION =
     "One Minesweeper board a day, identical for every player, ranked by time. One attempt. No sign-up, no download — play today's puzzle in your browser.";
 
 /**
- * Its own canonical, title and description, not inherited.
- *
- * Next merges metadata per top-level key, so a route that omits `alternates`
- * silently keeps the root layout's — which points at the homepage. On the
- * noindex routes that costs nothing; here it would tell Google this page is a
- * duplicate of `/` and drop it from the index, which is the opposite of why the
- * route exists.
+ * Its own canonical, not inherited: Next merges metadata per top-level key,
+ * and the root layout's `alternates` would mark this page a duplicate of `/`.
  */
 export const metadata: Metadata = {
     title: TITLE,
@@ -30,11 +25,8 @@ export const metadata: Metadata = {
 };
 
 /**
- * The daily challenge's own page.
- *
- * The prose below is the whole reason this is a route rather than a flag: it is
- * what a crawler and a first-time visitor both read before anything interactive
- * mounts. `DailyClient` swaps it for the board once the player opts in.
+ * The prose is why this is a route rather than a flag: crawlers and first-time
+ * visitors read it before anything mounts. `DailyClient` swaps in the board.
  */
 export default function DailyPage() {
     return (

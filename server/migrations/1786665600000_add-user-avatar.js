@@ -1,10 +1,7 @@
 /**
- * users.avatar — the chosen profile picture, one id from shared/avatars.js.
- *
- * A TEXT id rather than an enum: the catalog lives in code and grows with it,
- * and an enum would need a migration per new avatar. The server validates
- * writes against the catalog (validation.js); a stored id the client no longer
- * knows falls back to the default at render time rather than erroring.
+ * users.avatar: one id from shared/avatars.js. TEXT rather than an enum, so a
+ * new avatar needs no migration; the server validates writes against the
+ * catalog, and an unknown stored id falls back to the default at render time.
  */
 
 exports.up = (pgm) => {

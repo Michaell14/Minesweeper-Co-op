@@ -1,15 +1,9 @@
 /**
- * The emote handler.
- *
- * An emote is the first message a player sends another player, so what it
- * REFUSES matters more than what it sends: an id outside the catalog would turn
- * a closed vocabulary into free text, an unbounded rate would make the room
- * unusable for everyone else in it, and a non-member reaching a room would let
- * anyone speak into any game they can name.
- *
- * Drives the REAL registrations against the Redis fake, the same harness as
- * malformedPayloads.test.js — the handler's guards are the thing under test,
- * and they are only guards in the order server.js runs them.
+ * The emote handler. An emote is the first message a player sends another, so
+ * what it REFUSES matters most: an id outside the catalog is free text, an
+ * unbounded rate makes the room unusable, a non-member could speak into any
+ * game. Drives the REAL registrations against the Redis fake, as
+ * malformedPayloads.test.js does, since the guards only guard in server.js's order.
  */
 
 const mockEmit = jest.fn();
@@ -18,10 +12,8 @@ const mockOn = jest.fn();
 
 jest.mock('../utils/initializeClient', () => ({
     app: { use: jest.fn(), get: jest.fn(), post: jest.fn(), put: jest.fn(), delete: jest.fn() },
-    // `sockets.sockets` is socket.io's live connection map, empty here for the
-    // same reason as in setup/mockInfra.js. Presence walks it on every connect
-    // (utils/presence.js); without it these suites boot the server against an
-    // `io` that socket.io could not produce, and log a caught failure per test.
+    // `sockets.sockets` is socket.io's live connection map, which presence
+    // walks on every connect (utils/presence.js); see setup/mockInfra.js.
     io: { on: mockOn, to: mockTo, use: jest.fn() , sockets: { sockets: new Map() } },
     server: { listen: jest.fn() },
 }));
@@ -91,8 +83,7 @@ describe('a valid emote', () => {
 
         await sendEmote({ room: ROOM, emote: 'nice' });
 
-        // io.to, not socket.to: everyone's copy of the feed should agree, and
-        // the sender seeing their own is what confetti already does.
+        // io.to, not socket.to: everyone's copy of the feed should agree.
         expect(mockTo).toHaveBeenCalledWith(ROOM);
         expect(emotesSent()).toEqual([{ id: ALICE, name: 'Alice', emote: 'nice', room: ROOM }]);
     });
@@ -107,10 +98,8 @@ describe('a valid emote', () => {
     });
 
     /*
-     * The one place this differs from hover and from the ping that Phase 2
-     * adds: those are suppressed in PVP because both racers play the SAME
-     * board, so a cursor is a move hint. An emote carries no board information,
-     * so racers may taunt each other freely.
+     * Hover and ping are suppressed in PVP because both racers play the SAME
+     * board; an emote carries no board information.
      */
     test('is allowed in PVP, unlike hover', async () => {
         seedRoom('pvp');
@@ -139,9 +128,8 @@ describe('what it refuses, silently', () => {
     });
 
     /*
-     * The guard that keeps the vocabulary closed. Without it the id is just a
-     * string being relayed between players, which is chat — with no filter, no
-     * report flow and nobody to read the reports.
+     * The guard that keeps the vocabulary closed. Without it the id is relayed
+     * free text, which is chat with no filter and no report flow.
      */
     test('free text dressed up as an emote', async () => {
         seedRoom();
@@ -173,12 +161,9 @@ describe('what it refuses, silently', () => {
 
 describe('the rate limit', () => {
     /*
-     * The bucket refills from `performance.now()`, so an unfrozen clock makes
-     * every count below a race against how long the loop takes — one earned
-     * token on a stalled CI runner turns an exact assertion red for a reason
-     * that has nothing to do with the code. Frozen, the burst is the whole
-     * allowance and the numbers are exact. Refill itself is covered by
-     * rateLimit.test.js, which owns the arithmetic.
+     * The bucket refills from `performance.now()`; frozen, the burst is the
+     * whole allowance and the counts are exact. Refill arithmetic is
+     * rateLimit.test.js's job.
      */
     beforeEach(() => jest.spyOn(performance, 'now').mockReturnValue(1000));
 
@@ -190,9 +175,8 @@ describe('the rate limit', () => {
             await sendEmote({ room: ROOM, emote: 'nice' });
         }
 
-        // Exactly the burst, with the clock frozen so nothing is earned back.
-        // An off-by-one here is the difference between a limit and a
-        // suggestion, which is why this is not a `toBeLessThan`.
+        // Exactly the burst, with the clock frozen. An off-by-one is the
+        // difference between a limit and a suggestion, so not `toBeLessThan`.
         expect(emotesSent()).toHaveLength(EXPRESSION_BURST);
     });
 

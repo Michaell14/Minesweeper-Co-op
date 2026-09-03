@@ -1,16 +1,9 @@
 /**
- * The friend routes — profileController's `requireUser` applied to a graph
- * rather than to a per-player collection.
- *
+ * The friend routes: profileController's `requireUser` applied to a graph.
  * Two policies live here rather than in the repo, because they are about what
- * an ANSWER may reveal rather than about the graph itself:
- *
- *   1. **A block is never named.** Every refusal a blocked account can provoke
- *      answers the same way a missing code does. Telling somebody they were
- *      blocked, and by whom, is the one thing a block is for avoiding.
- *   2. **A code lookup is rate-limited by obscurity, not by this server.** 40
- *      bits and no enumeration endpoint; the honest 404 below is safe because
- *      there is nothing to walk.
+ * an ANSWER may reveal: a block is never named (every refusal a blocked account
+ * can provoke answers like a missing code), and a code lookup is rate-limited
+ * by obscurity (40 bits, no enumeration endpoint), so the honest 404 is safe.
  */
 
 const { requireUser } = require('./profileController');
@@ -25,11 +18,8 @@ const unavailable = (res, error, what) => {
 };
 
 /**
- * What each repo outcome means on the wire.
- *
- * 'blocked' answers 404 — the same as a code nobody holds — so the two are
- * indistinguishable from outside. That is deliberate and is the reason this
- * table exists at all rather than a status per branch inline.
+ * What each repo outcome means on the wire. 'blocked' answers 404, the same
+ * as a code nobody holds, which is why this is a table rather than inline.
  */
 const REQUEST_OUTCOMES = {
     requested: { status: 201, body: { result: 'requested' } },
@@ -37,8 +27,7 @@ const REQUEST_OUTCOMES = {
     'already-friends': { status: 200, body: { result: 'already-friends' } },
     'already-requested': { status: 200, body: { result: 'already-requested' } },
     blocked: { status: 404, body: { error: 'No account with that code' } },
-    // My own block, so naming it reveals nothing to anybody else — and without
-    // it, unblocking is a door I cannot find from the inside.
+    // My own block, so naming it reveals nothing; without it, unblocking is a door I cannot find.
     'blocked-by-me': { status: 409, body: { error: 'You blocked this player. Unblock them first.' } },
     self: { status: 400, body: { error: 'That is your own code' } },
     'cap-reached': { status: 409, body: { error: `Friend limit reached (${friendsRepo.MAX_FRIENDS})` } },
@@ -50,11 +39,7 @@ const REQUEST_OUTCOMES = {
 };
 
 const registerFriendsRoutes = (app) => {
-    /**
-     * The whole graph, plus this account's own code — one round trip, because
-     * the panel draws all of it at once and a code the player cannot see is a
-     * code they cannot share.
-     */
+    /** The whole graph plus this account's code in one round trip; the panel draws all of it at once. */
     app.get('/api/friends', requireUser, async (req, res) => {
         try {
             const [graph, code] = await Promise.all([
@@ -92,9 +77,7 @@ const registerFriendsRoutes = (app) => {
 
     /**
      * Respond to, or act on, one relationship. The id in the path is the OTHER
-     * ACCOUNT's, not the row's: the client already knows who it is acting on,
-     * and row ids are a handle to something the client has no other reason to
-     * hold.
+     * ACCOUNT's, not the row's: row ids are a handle the client has no reason to hold.
      */
     app.put('/api/friends/:id', requireUser, async (req, res) => {
         const them = req.params.id;
@@ -128,8 +111,7 @@ const registerFriendsRoutes = (app) => {
             if (outcome === 'accepted') {
                 res.status(204).end();
             } else if (outcome === 'cap-reached' || outcome === 'their-cap-reached') {
-                // Both caps are checked on accept, because a request can
-                // outlive the check made when it was sent — see acceptRequest.
+                // Both caps are checked on accept: a request can outlive the check made when sent.
                 res.status(409).json(REQUEST_OUTCOMES[outcome].body);
             } else {
                 res.status(404).json({ error: 'No request from that account' });

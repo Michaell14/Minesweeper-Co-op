@@ -1,12 +1,8 @@
 /**
- * Adding a friend from the game you just played.
- *
- * The rule this file is really about: **account ids never leave the server.**
- * The client addresses a co-player by SOCKET id — something it already sees on
- * every hover and reaction — and the account is resolved here, only after both
- * sockets are shown to be in the room. Putting account ids in the roster
- * instead would hand every player in a room a permanent handle for everybody
- * else, which is exactly what the code-only rule exists to prevent.
+ * Adding a friend from the game you just played. The rule: account ids never
+ * leave the server. The client names a co-player by SOCKET id and the account
+ * is resolved here, after both sockets are shown to be in the room. Account
+ * ids in the roster would hand every player a permanent handle for everybody else.
  */
 
 const mockSockets = new Map();
@@ -92,10 +88,9 @@ describe('the list', () => {
     });
 
     /*
-     * The list is emitted when its Redis and Postgres work finishes, not when
-     * it was asked for, so one for a room the player has already left can
-     * arrive after the room they are in. The room travels with it so the
-     * client can tell the two apart; without it there is nothing to compare.
+     * The list is emitted when its Redis/Postgres work finishes, not when
+     * asked for, so one for a room already left can arrive late. The room
+     * travels with it so the client can tell.
      */
     test('says which room it is about', async () => {
         const me = socketFor('sock-me', ME_ACCOUNT);
@@ -131,8 +126,7 @@ describe('the list', () => {
 
     /*
      * The account is resolved from the LIVE socket, so somebody who closed
-     * their tab the moment the race ended is simply not offered — honest,
-     * rather than a button that silently does nothing.
+     * their tab is not offered — better than a dead button.
      */
     test('leaves out anybody who has already gone', async () => {
         const me = socketFor('sock-me', ME_ACCOUNT);
@@ -169,10 +163,7 @@ describe('the list', () => {
         expect(listSentTo(me).players[0].status).toBe(expected);
     });
 
-    /*
-     * A block is invisible everywhere else in this feature; an "Add friend"
-     * button that silently failed would be the one place it leaked.
-     */
+    /* A block is invisible everywhere else; a silently failing "Add friend" would leak it. */
     test.each([['outgoing'], ['incoming']])('omits a %s block entirely', async (direction) => {
         const me = socketFor('sock-me', ME_ACCOUNT);
         socketFor('sock-them', THEM_ACCOUNT);
@@ -216,9 +207,8 @@ describe('adding', () => {
     });
 
     /*
-     * Without the second membership check this is a way to add ANY account
-     * whose socket id you can name — and socket ids are on the wire in every
-     * hover, reaction and ping.
+     * Without the second membership check this adds ANY account whose socket
+     * id you can name — and socket ids are on the wire in every hover.
      */
     test('refuses a socket that is not in the room', async () => {
         const me = socketFor('sock-me', ME_ACCOUNT);
@@ -269,10 +259,8 @@ describe('adding', () => {
 
 describe('the cost of the list', () => {
     /*
-     * The regression this exists for: one edge query per player. Co-op rooms
-     * have no size limit, so that was a query per player every time a game
-     * ended — and the offer is asked for by every signed-in player in the room
-     * at once.
+     * The regression: one edge query per player, in rooms with no size limit,
+     * asked for by every signed-in player at once.
      */
     test('asks about the whole room in one query', async () => {
         const me = socketFor('sock-me', ME_ACCOUNT);

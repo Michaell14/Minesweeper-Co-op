@@ -18,40 +18,26 @@ import type { CellUpdate } from "@/shared/socketPayloads";
 import type { SocketHandlers } from "./useSocketEvents";
 
 /**
- * Files a completed board as a personal best.
- *
- * WIN handlers only. A loss has a time but is not a clear, and neither is
- * winning because an opponent disconnected — recording those would make the
- * number mean "the last time something ended".
- *
- * Reading the clock here rather than in the summary keeps it a one-off: a
- * component would re-run it on every render of a dialog that stays open.
+ * Files a completed board as a personal best. WIN handlers only: a loss or an
+ * opponent's disconnect has a time but is not a clear. Read here rather than
+ * in the summary so it runs once, not on every render of an open dialog.
  */
 const recordClear = () => {
     const store = useMinesweeperStore.getState();
     const { startedAt, endedAt, numRows, numCols, numMines, playerStatsInRoom, mode } = store;
-    // No clock, no record. Better a missing best than an invented one.
+    // No clock, no record.
     if (startedAt === null || endedAt === null) return;
 
-    // The count identifies the result, so it decides the key as well as being
-    // stored on it — see shared/boardKeys.js for why a race counts as one player.
+    // The count is part of the key — see shared/boardKeys.js for why a race counts as one.
     const players = playersForClear(mode, playerStatsInRoom.length);
     const key = boardKey(numRows, numCols, numMines, players);
     const run = { seconds: elapsedSeconds(startedAt, endedAt), players, at: endedAt };
 
     /*
-     * Both copies, in the order they are believed.
-     *
-     * The browser's is written whether or not anyone is signed in — it is the
-     * guest record, and the thing left standing if a stats write drops. The
-     * ACCOUNT's is what the summary reports when there is one: signed in on a
-     * new device, comparing against localStorage would call a time slower than
-     * your real record a new best, and then say so in a banner.
-     *
-     * The server is recording the same clear from its own clock as this runs.
-     * It announces nothing when it lands, which is why the account copy is
-     * updated here rather than waited on; the next sign-in fetch replaces it
-     * with whatever the server actually stored.
+     * Both copies. The browser's is the guest record and the fallback if the
+     * stats write drops; the account's is what the summary reports when signed
+     * in. The server records the same clear from its own clock and announces
+     * nothing, so the account copy is updated here and replaced by the next fetch.
      */
     const local = recordBestTime(key, run);
     store.setBestTimeResult(store.recordAccountBest(key, run) ?? local);
@@ -60,66 +46,38 @@ const recordClear = () => {
 const applyCellUpdates = (updates: CellUpdate[]) => {
     const { setCells, setCascadeOrigin } = useMinesweeperStore.getState();
     /*
-     * Where the sweep starts. `revealFrom` pushes the cell it was called on
-     * first, so the first OPEN entry is the one that was clicked — for a chord
-     * it is the first neighbour rather than the chorded cell, one step off and
-     * indistinguishable at 14ms a band.
-     *
-     * Set before the cells, so the render that first shows them already has it.
+     * Where the sweep starts: `revealFrom` pushes the clicked cell first, so the
+     * first OPEN entry is the origin. Set before the cells so the first render has it.
      */
     const origin = updates.find((cell) => cell.isOpen);
     if (origin) setCascadeOrigin({ row: origin.row, col: origin.col });
     /*
-     * The server only sends CHANGED cells, so open entries here are newly
-     * opened — a batch this big means a flood fill swept the board. The
-     * threshold keeps a plain reveal (1 cell) and a chord (up to ~8) on their
-     * click sounds; only a real cascade gets the arpeggio. Shared by co-op,
-     * PVP and daily, and it fires for a teammate's cascade too — their sweep
-     * is on your board.
+     * Only CHANGED cells arrive, so a batch over 8 opens is a flood fill: a
+     * reveal (1) or chord (~8) keeps its click sound, a cascade gets the arpeggio.
      */
     if (updates.filter((cell) => cell.isOpen).length > 8) playSound('cascade');
-    // One write for the batch. Per cell it was one store notification each, and
-    // the board rebuilt in full behind every one of them.
+    // One store write per batch, not per cell.
     setCells(updates);
 };
 
 /**
- * Distinguishes two emotes from the same player, which the socket id alone
- * cannot: without it the second reaction replaces the first in React's
- * reconciliation and the feed jumps instead of stacking. A counter rather than
- * a timestamp because two can land in the same millisecond.
+ * Tells two emotes from the same player apart, so the second stacks instead of
+ * replacing the first in React's reconciliation. A counter, not a timestamp:
+ * two can land in the same millisecond.
  */
 let emoteSequence = 0;
 const nextEmoteKey = () => String(++emoteSequence);
 
 /**
- * Whether a relayed reaction or ping belongs to the board on screen NOW.
+ * Whether a relayed reaction or ping belongs to the board on screen NOW. A
+ * relay already on the wire when its recipient leaves still arrives, and would
+ * otherwise draw on the room joined next. `playerJoined` matters: `room` also
+ * holds whatever is being typed into the landing form.
  *
- * A relay already on the wire when its recipient leaves is still delivered —
- * the server broadcast it before the leave was processed, and the socket
- * outlives the room. `leaveRoom` clears what has already been stored, but it
- * cannot refuse what has not arrived yet, so an emote or ping from the room
- * just left would land afterwards and draw on the room joined next: a ring on
- * a cell nobody pointed at, under a name that is not in the room.
- *
- * `playerJoined` is half the check, not decoration. `room` also holds whatever
- * is being TYPED into the landing form, so the code alone matches again the
- * moment somebody types their way back towards the room they left.
- *
- * A payload with NO room is let through, but only until this browser leaves a
- * room. Both halves deploy from `main` and neither waits for the other, so for
- * the length of a deploy a new client talks to a server that has not started
- * sending `room` yet; comparing against `undefined` there would refuse every
- * relay and turn reactions and pings silently off. `leftARoom` is what keeps
- * that from re-opening the hole above: a stale relay can only arrive after a
- * leave, so once one has happened a roomless payload is no longer provably
- * from the room on screen and is refused. Somebody who joins one room and
- * stays — nearly everybody — keeps their reactions through the window; anybody
- * who switches rooms inside it loses them until they reload, which is the safe
- * direction to fail.
- *
- * All of this is dead the moment the server catches up: every payload carries
- * a room from then on, and the strict comparison is the only branch that runs.
+ * A payload with no room passes until this browser leaves a room: during a
+ * deploy a new client talks to a server not yet sending `room`, and refusing
+ * those would turn reactions off. A stale relay can only arrive after a leave,
+ * so `leftARoom` closes that hole. Dead once every payload carries a room.
  */
 const belongsToCurrentRoom = (
     store: { room: string; playerJoined: boolean; leftARoom: boolean },
@@ -131,17 +89,10 @@ const belongsToCurrentRoom = (
 };
 
 /**
- * Opens a game-over dialog, and asks who in this room could be added.
- *
- * The ask belongs HERE, with the open, rather than in the component that draws
- * the offer: every summary dialog contains one, and dialogs in this app are
- * always rendered (they are native <dialog>s opened imperatively), so a
- * component-owned fetch ran four times — on ROOM JOIN, before anybody had
- * played anything. Measured at four, which is also four walks of the room on
- * the server.
- *
- * A guest's ask is a no-op the server drops, which is cheaper than teaching
- * this table what a session is.
+ * Opens a game-over dialog and asks who in this room could be added. The ask
+ * lives here rather than in the component: dialogs are always rendered, so a
+ * component-owned fetch ran four times on room join. A guest's ask is a no-op
+ * the server drops.
  */
 const openSummary = (socket: AppSocket, dialog: DialogId) => {
     openDialog(dialog);
@@ -193,12 +144,11 @@ const coopHandlers = (socket: AppSocket, leaveRoom: () => void): SocketHandlers 
     // --- Room management ---
     [SERVER_EVENTS.JOIN_ROOM_SUCCESS]: (data) => {
         const store = useMinesweeperStore.getState();
-        // A quick match arrives here and nowhere else — there is no separate
-        // "match found" event, so being in a room IS the end of the search.
-        // Both calls are no-ops for an ordinary join.
+        // A quick match arrives here — there is no separate "match found"
+        // event. Both calls are no-ops for an ordinary join.
         store.setMatchSearching(false);
         closeDialog(DIALOGS.matchSearching);
-        // The reply the pending indicator on Landing has been waiting for.
+        // Ends the pending indicator on Landing.
         store.setJoinPending(null);
         store.setRoom(data.room);
         if (data.mode) store.setMode(data.mode);
@@ -208,12 +158,9 @@ const coopHandlers = (socket: AppSocket, leaveRoom: () => void): SocketHandlers 
             store.setDimensions(data.numRows, data.numCols, data.numMines);
         }
         /*
-         * The target is resolved HERE, on arrival, rather than when the player
-         * asks for one — a request is not a room. Set at click time it outlived
-         * every way the request could fail to produce the room it wanted: a
-         * refused practice start left it standing, and the next ordinary room
-         * drew a target nobody had asked for. Reading it from the room actually
-         * joined means an unlabelled room always clears it.
+         * Resolved on arrival rather than at request time: a request is not a
+         * room, and a target set at click time outlived a refused practice
+         * start. Read from the room joined, an unlabelled room always clears it.
          */
         store.setPracticeTarget(
             data.practice && data.numRows && data.numCols && data.numMines !== undefined
@@ -224,29 +171,21 @@ const coopHandlers = (socket: AppSocket, leaveRoom: () => void): SocketHandlers 
     },
 
     /*
-     * The server recognised this browser and its room is still alive, so put the
-     * player back rather than leaving them on the landing page. Answering with a
-     * plain joinRoom is the point: a resume runs the exact path a manual join
-     * does, with no second flow to keep in step.
+     * The server recognised this browser and its room is still alive, so put
+     * the player back. Answering with a plain joinRoom means a resume runs the
+     * exact path a manual join does.
      *
-     * This fires on EVERY connect, including a socket.io auto-reconnect after a
-     * dropped network — where the tab never reloaded, so `playerJoined` is still
-     * true while the server has already removed the player it knew. Refusing the
-     * offer there stranded the player: the UI stayed in the room, and the next
-     * click failed the server's membership check and bounced them home with
-     * "room does not exist". So being in THIS room is a reason to re-join, not a
-     * reason to skip.
+     * Fires on EVERY connect, including a socket.io auto-reconnect where the
+     * tab never reloaded: `playerJoined` is still true while the server has
+     * dropped the player. Being in THIS room is a reason to re-join, not to skip.
      */
     [SERVER_EVENTS.SESSION_RESUME]: ({ room, name }) => {
         const store = useMinesweeperStore.getState();
-        // Daily and the resumed room are mutually exclusive views. Without this
-        // guard, an offer landing while the player is on Daily sets playerJoined
-        // in the background -- invisible until they leave daily and land in the
-        // old room instead of on Landing. Picking daily is a real choice.
+        // Daily and the resumed room are mutually exclusive views: an offer
+        // landing while on Daily would set playerJoined in the background.
         if (store.dailyActive) return;
-        // Already playing somewhere else: an offer for a different room is a
-        // stale session, and taking it would move them out of the room they can
-        // see. Only the room they are already in is theirs to reclaim.
+        // An offer for a different room is a stale session; only the room they
+        // are already in is theirs to reclaim.
         if (store.playerJoined && store.room !== room) return;
 
         store.setRoom(room);
@@ -271,21 +210,16 @@ const coopHandlers = (socket: AppSocket, leaveRoom: () => void): SocketHandlers 
     [SERVER_EVENTS.RECEIVE_CONFETTI]: () => shootConfetti(),
 
     /*
-     * A reaction from anyone in the room, the sender included — the server
-     * fans it out to everyone so all copies of the feed agree.
-     *
-     * `settings.emotes` is the RECEIVE opt-out and is applied here rather than
-     * in the component, so an opted-out player accumulates no feed state and
-     * hears no blip. Their own emotes are silenced too, deliberately: the
-     * setting means "no reactions on my screen", and an exception for your own
-     * would leave you emoting into what you believe is a quiet room.
+     * A reaction from anyone in the room, the sender included. `settings.emotes`
+     * is the RECEIVE opt-out, applied here so an opted-out player accumulates no
+     * feed state and hears no blip — their own emotes included, since the
+     * setting means "no reactions on my screen".
      */
     [SERVER_EVENTS.PLAYER_EMOTE]: ({ id, name, emote, room }) => {
         const store = useMinesweeperStore.getState();
         if (!store.settings.emotes) return;
         if (!belongsToCurrentRoom(store, room)) return;
-        // An id this build cannot draw is dropped rather than shown as
-        // something else — see emoteArtById.
+        // An id this build cannot draw is dropped — see emoteArtById.
         if (!emoteArtById(emote)) return;
 
         store.pushPlayerEmote({
@@ -300,11 +234,8 @@ const coopHandlers = (socket: AppSocket, leaveRoom: () => void): SocketHandlers 
 
     /*
      * Somebody pointed at a cell. Co-op only — the server suppresses it in PVP,
-     * where both racers share a board and a ping would be a move hint.
-     *
-     * Gated on the same setting as reactions: "show me what other players
-     * send" is one preference, and splitting it would mean a second toggle for
-     * the same class of thing.
+     * where a ping would be a move hint. Gated on the same setting as
+     * reactions: one preference for "show me what other players send".
      */
     [SERVER_EVENTS.PLAYER_PING]: ({ id, name, row, col, room }) => {
         const store = useMinesweeperStore.getState();
@@ -335,20 +266,16 @@ const coopHandlers = (socket: AppSocket, leaveRoom: () => void): SocketHandlers 
     [SERVER_EVENTS.PLAYER_LEFT]: (socketId) => useMinesweeperStore.getState().removePlayerHover(socketId),
 
     /*
-     * Queued rather than shown here: this arrives moments after the win, while
-     * the summary dialog is opening, and a handler that rendered would be
-     * racing it. <AchievementToast> drains the queue on its own schedule.
+     * Queued, not shown: this lands while the summary dialog is opening.
+     * <AchievementToast> drains the queue on its own schedule.
      */
     [SERVER_EVENTS.ACHIEVEMENTS_UNLOCKED]: ({ ids }) =>
         useMinesweeperStore.getState().pushUnlocked(ids),
 
     /*
      * --- Friends ---
-     *
-     * Not room-scoped, unlike the reaction and ping relays above: presence and
-     * an invitation into a room you are NOT in are about the account, and
-     * dropping them for not matching the room on screen would drop exactly the
-     * ones worth having.
+     * Not room-scoped: presence and an invite into a room you are NOT in are
+     * about the account.
      */
     [SERVER_EVENTS.FRIENDS_ONLINE]: ({ ids }) =>
         useMinesweeperStore.getState().setOnlineFriends(ids),
@@ -356,31 +283,19 @@ const coopHandlers = (socket: AppSocket, leaveRoom: () => void): SocketHandlers 
     [SERVER_EVENTS.FRIEND_PRESENCE]: ({ id, online }) =>
         useMinesweeperStore.getState().setFriendOnline(id, online),
 
-    /*
-     * One invite at a time, newest wins. Two friends asking at once is a
-     * choice between two rooms, and the second arriving is the more likely to
-     * still have space.
-     */
+    /* One invite at a time, newest wins: the later one is likelier to still have space. */
     [SERVER_EVENTS.FRIEND_INVITE]: (invite) =>
         useMinesweeperStore.getState().setFriendInvite(invite),
 
-    /* Sent to this socket alone, and re-sent after every add — so it is always
-     * the whole truth about who in this room can be added.
+    /* Sent to this socket alone and re-sent after every add, so it is always
+     * the whole truth about who here can be added.
      *
-     * Dropped unless it is the NEWEST list about the room we are in NOW.
-     * These emits are ordered by when their Redis and Postgres work finishes,
-     * not by when they were asked for, so an older one can land on top of a
-     * newer one two ways: from a room since left — offering people from the
-     * last game, whose socket ids the server then refuses — or from before an
-     * add already made, which puts "Add friend" back under somebody who is
-     * already a friend. The room catches the first, the token the second.
-     *
-     * Newer than what we HAVE, not newest of what we asked: a request the
-     * server refuses is answered with silence, so waiting for the newest ask
-     * would discard the last good answer whenever the ask after it was
-     * dropped. Leaving is what closes that door on the visit being left —
-     * `resetRoomFriends` retires its outstanding asks — so nothing from a
-     * previous visit to this same room can pass this check. */
+     * Dropped unless it is the NEWEST list about the room we are in NOW: emits
+     * are ordered by when their Redis/Postgres work finishes, so an older one
+     * can land on top of a newer one. Newer than what we HAVE, not newest of
+     * what we asked: a refused request is answered with silence. Leaving
+     * retires outstanding asks (`resetRoomFriends`), so nothing from a previous
+     * visit to the same room passes. */
     [SERVER_EVENTS.ROOM_FRIENDS_UPDATE]: ({ room, token, players }) => {
         const store = useMinesweeperStore.getState();
         if (!store.playerJoined || store.room !== room) return;
@@ -455,8 +370,7 @@ const pvpHandlers = (socket: AppSocket): SocketHandlers => ({
 
     [SERVER_EVENTS.PVP_OPPONENT_PROGRESS]: ({ progress }) => useMinesweeperStore.getState().setPvpOpponentProgress(progress),
 
-    // No recordClear here on purpose: winning because the other player left is
-    // not a board you finished.
+    // No recordClear: winning because the other player left is not a board you finished.
     [SERVER_EVENTS.PVP_OPPONENT_DISCONNECTED]: ({ winnerName }) => {
         const store = useMinesweeperStore.getState();
         store.setPvpWinner(winnerName);
@@ -487,21 +401,18 @@ const pvpHandlers = (socket: AppSocket): SocketHandlers => ({
 });
 
 /**
- * Matchmaking events — every one of which ENDS a search. The start is the
- * client's own `findMatch`, and a successful pairing lands as an ordinary
- * `joinRoomSuccess`, so nothing here opens the searching dialog.
+ * Matchmaking events, every one of which ENDS a search. The start is the
+ * client's own `findMatch`, and a pairing lands as an ordinary `joinRoomSuccess`.
  */
 const matchHandlers = (): SocketHandlers => ({
-    // Queued, nobody to pair with yet. The dialog is already open (see
-    // `findMatch`); this only confirms the server agrees a search is running.
+    // Queued, nobody to pair with yet. The dialog is already open (`findMatch`).
     [SERVER_EVENTS.MATCH_SEARCHING]: ({ othersOnline }) => {
         const store = useMinesweeperStore.getState();
         store.setMatchSearching(true);
         store.setMatchOthersOnline(othersOnline);
     },
 
-    // The count moving while the dialog is open. Says nothing about the search
-    // itself on purpose — a cancel and a broadcast can cross, and this landing
+    // Only the count: a cancel and a broadcast can cross, and this landing
     // after the dialog closed must not put the search back on.
     [SERVER_EVENTS.MATCH_ONLINE_COUNT]: ({ othersOnline }) => {
         useMinesweeperStore.getState().setMatchOthersOnline(othersOnline);
@@ -520,9 +431,8 @@ const matchHandlers = (): SocketHandlers => ({
 });
 
 /**
- * Daily challenge events. Not room-scoped, and mutually exclusive with the
- * coop/pvp views, so this reuses gameSlice's board/gameOver/gameWon rather than
- * a parallel daily board field.
+ * Daily challenge events. Not room-scoped and mutually exclusive with the
+ * coop/pvp views, so this reuses gameSlice's board/gameOver/gameWon.
  */
 const dailyHandlers = (): SocketHandlers => ({
     [SERVER_EVENTS.DAILY_STARTED]: ({ date, board, numRows, numCols, numMines, totalSafeCells, startedAt }) => {
@@ -539,19 +449,13 @@ const dailyHandlers = (): SocketHandlers => ({
         store.setDailyMilestones(null);
         store.setGameOver(false);
         store.setGameWon(false);
-        // Feeds gameSlice's shared run clock, so <Timer> works here unchanged.
-        // Set in the handler, not reactively from DailyChallenge.tsx: that can
-        // mount with a board already present (a resume brings both in one
-        // event), so a useEffect sync would render one frame of the PREVIOUS
-        // clock value first.
+        // Feeds gameSlice's run clock so <Timer> works unchanged. Set here, not
+        // from a useEffect in DailyChallenge.tsx, which would render one frame
+        // of the PREVIOUS clock first on a resume.
         store.setClock({ startedAt, endedAt: null });
     },
 
-    /**
-     * Today's attempt already ended. 'won_pending_submit' means they won but
-     * never submitted a name (closed the tab before the dialog) -- reopen it
-     * rather than show a dead end.
-     */
+    /** Today's attempt already ended. 'won_pending_submit' (won, never named) reopens the submit dialog. */
     [SERVER_EVENTS.DAILY_ALREADY_ATTEMPTED]: ({ date, status, elapsedMs, rank, totalEntries, board, milestones, numRows, numCols, numMines }) => {
         const store = useMinesweeperStore.getState();
         store.setDailyActive(true);
@@ -561,17 +465,14 @@ const dailyHandlers = (): SocketHandlers => ({
         store.setDailyRank(rank ?? null);
         store.setDailyTotalEntries(totalEntries ?? null);
         store.setDailyMilestones(milestones ?? null);
-        // Backfills a result this browser never saw finish (an attempt from
-        // before history existed). First-write-wins inside, so a plain resume
-        // of an already-filed day changes nothing.
+        // Backfills a result this browser never saw finish. First-write-wins
+        // inside, so a plain resume changes nothing.
         recordDailyResult(date, { won: status !== "failed" });
 
         if (board && board.length > 0) {
-            // The attempt's final board, for a VIEW-ONLY replay. Mounting it
-            // recreates the state a live finish leaves behind: dimensions for
-            // the flag counter's maths, gameOver on a loss so Cell.tsx draws
-            // the revealed mines, and a clock frozen at the recorded time.
-            // Interaction is refused upstream (see emitDailyCellAction).
+            // The final board, for a VIEW-ONLY replay: dimensions for the flag
+            // counter, gameOver so Cell.tsx draws the mines, a frozen clock.
+            // Interaction is refused upstream (emitDailyCellAction).
             store.setBoard(board);
             if (numRows && numCols && numMines !== undefined) {
                 store.setDimensions(numRows, numCols, numMines);
@@ -585,10 +486,8 @@ const dailyHandlers = (): SocketHandlers => ({
                 store.setClock({ startedAt: null, endedAt: null });
             }
         } else {
-            // No stored board (an attempt from before replays existed) --
-            // clear any stale one (e.g. from a room played earlier this
-            // session) so DailyChallenge.tsx can tell "no board" apart from
-            // "board is just empty".
+            // No stored board (pre-replay attempt): clear any stale one so
+            // DailyChallenge.tsx can tell "no board" from "empty board".
             store.setBoard([]);
         }
 
@@ -602,11 +501,8 @@ const dailyHandlers = (): SocketHandlers => ({
     [SERVER_EVENTS.DAILY_UPDATE_CELLS]: applyCellUpdates,
 
     /**
-     * Terminal states only -- the full board, with mines revealed/flagged.
-     *
-     * An open mine can only be a detonation -- a win flags the remaining mines
-     * without opening them. The store still holds the position the fatal move
-     * was made from until setBoard below replaces it.
+     * Terminal states only, mines revealed/flagged. An open mine can only be a
+     * detonation; the store still holds the pre-move position until setBoard.
      */
     [SERVER_EVENTS.DAILY_BOARD_UPDATE]: ({ board }) => {
         const store = useMinesweeperStore.getState();
@@ -624,9 +520,7 @@ const dailyHandlers = (): SocketHandlers => ({
         store.setDailyElapsedMs(elapsedMs);
         store.setDailyMilestones(milestones ?? null);
         recordDailyResult(store.dailyDate, { won: false });
-        // startedAt is kept live by DAILY_STARTED and by
-        // markDailyStartedOptimistically; freezing endedAt stops <Timer> at the
-        // elapsedMs this event just reported.
+        // Freezing endedAt stops <Timer> at the elapsedMs just reported.
         store.setClock({ startedAt: store.startedAt, endedAt: (store.startedAt ?? 0) + elapsedMs });
         openDialog(DIALOGS.dailyGameOver);
     },
@@ -658,11 +552,9 @@ const dailyHandlers = (): SocketHandlers => ({
 });
 
 /**
- * The full server -> client event table.
- *
- * Handlers write through `useMinesweeperStore.getState()` rather than
- * subscribing, so this hook causes no re-renders of its own — without that,
- * `page.tsx` re-renders on every remote hover event.
+ * The full server -> client event table. Handlers write through
+ * `useMinesweeperStore.getState()` rather than subscribing, so this hook
+ * causes no re-renders of its own.
  */
 export function useGameEvents(socket: AppSocket | null, leaveRoom: () => void): SocketHandlers {
     if (!socket) return {};

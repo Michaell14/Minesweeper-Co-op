@@ -1,18 +1,10 @@
 // @vitest-environment jsdom
 
 /**
- * The browser Back button, mid-game.
- *
- * The game is store state on `/` — joining a room changes no URL and pushed no
- * history entry, so Back left the SITE from the middle of a game rather than
- * returning to the landing page. Nothing on screen suggested that is what it
- * would do.
- *
- * jsdom implements history and popstate well enough for the wiring, which is
- * what this file covers: that an entry is pushed on the way in, and that a pop
- * leaves the room instead of the site. Whether real Chrome's Back actually
- * lands back on the landing form is a browser question, and lives in the smoke
- * suite.
+ * The browser Back button, mid-game. The game is store state on `/`, so
+ * joining pushed no history entry and Back left the SITE. jsdom covers the
+ * wiring (an entry is pushed on the way in, a pop leaves the room); whether
+ * real Chrome lands on the landing form is in the smoke suite.
  */
 
 import { beforeEach, describe, expect, test, vi } from 'vitest';
@@ -23,16 +15,10 @@ import { useRoomHistory, ROOM_HISTORY_MARKER } from './useRoomHistory';
 const state = () => useMinesweeperStore.getState();
 
 /**
- * Fires popstate the way the browser really does.
- *
- * The state handed to the listener belongs to the entry being ARRIVED AT, not
- * the one being left — so backing out of a room delivers the LANDING entry's
- * state, with no marker on it. Verified in Chrome: after history.back() from a
- * joined room, `history.state` held Next's internals and no msRoom.
- *
- * Getting this backwards is not hypothetical. The first version of this file
- * fired popstate carrying the room marker, the hook left on seeing it, and the
- * two agreed with each other while Back did nothing at all in a real browser.
+ * Fires popstate as the browser does: the state belongs to the entry being
+ * ARRIVED AT, so backing out of a room delivers the landing entry's state,
+ * with no marker. The first version of this file got this backwards and
+ * passed while Back did nothing in a real browser.
  */
 const pressBack = (arrivingState: unknown = null) => {
     window.dispatchEvent(new PopStateEvent('popstate', { state: arrivingState }));
@@ -59,10 +45,7 @@ describe('joining a room', () => {
             .toBe('string');
     });
 
-    /*
-     * Same URL on purpose. The room is not a route, and handing Next's router a
-     * different path here would make it try to navigate.
-     */
+    /* Same URL: the room is not a route, and a different path would make Next's router navigate. */
     test('leaves the URL alone', () => {
         const before = window.location.href;
         const { rerender } = renderHook(() => useRoomHistory(vi.fn()));
@@ -98,11 +81,7 @@ describe('pressing Back in a room', () => {
         expect(leaveRoom).toHaveBeenCalledTimes(1);
     });
 
-    /*
-     * Arriving back ON this room's own entry is a return, not a departure —
-     * coming back from /profile lands exactly here, and leaving then would
-     * throw the player out of a room they never asked to leave.
-     */
+    /* Arriving back ON this room's entry (from /profile, say) is a return, not a departure. */
     test('does not leave when arriving back on THIS room entry', () => {
         const leaveRoom = vi.fn();
         const push = vi.spyOn(window.history, 'pushState');
@@ -117,10 +96,8 @@ describe('pressing Back in a room', () => {
     });
 
     /*
-     * The case a boolean marker could not express. Entries pile up across
-     * joins, so Back out of the second room routinely lands on the FIRST room's
-     * entry — which is still a departure. Read as "a room entry, so stay" the
-     * button silently did nothing from the second game onwards.
+     * Entries pile up across joins, so Back out of the second room lands on the
+     * FIRST room's entry: still a departure, which a boolean marker could not say.
      */
     test('leaves when arriving on an OLDER room entry', () => {
         const leaveRoom = vi.fn();
@@ -144,17 +121,10 @@ describe('pressing Back in a room', () => {
 });
 
 /*
- * A reload is a second document standing on the FIRST document's entry.
- *
- * The ids have to survive that, and a counter did not: reloading reset it, the
- * resumed join re-issued the id the entry underneath already carried, and Back
- * read that older entry as the one it had just pushed — so the button did
- * nothing, exactly the failure ids were introduced to fix.
- *
- * BOTH documents are loaded fresh, which is the whole point. Reloading only the
- * second one lets the first inherit a counter the tests above already advanced,
- * so the two ids differ for a reason no browser supplies and the collision
- * never appears.
+ * A reload is a second document standing on the FIRST document's entry. A
+ * counter reset on reload and re-issued the id the entry underneath already
+ * carried, so Back did nothing. BOTH documents are loaded fresh: reloading
+ * only the second lets the first inherit a counter the tests above advanced.
  */
 describe('pressing Back after a reload', () => {
     /** A freshly loaded copy of the module and everything it holds state in. */
@@ -194,11 +164,7 @@ describe('pressing Back after a reload', () => {
 });
 
 describe('pressing Back when not in a room', () => {
-    /*
-     * The landing page's own Back must still leave the site. Firing leaveRoom
-     * here would swallow the gesture and strand the player on a page they were
-     * trying to leave.
-     */
+    /* The landing page's own Back must still leave the site. */
     test('does nothing', () => {
         const leaveRoom = vi.fn();
         renderHook(() => useRoomHistory(leaveRoom));
@@ -211,10 +177,9 @@ describe('pressing Back when not in a room', () => {
 
 describe('leaving by some other route', () => {
     /*
-     * The Return to Home button, a room error, a forfeit. The entry we pushed
-     * is still current, and left armed it would be mistaken for a live room by
-     * the next pop. Disarmed rather than popped — popping goes wherever the
-     * player came FROM, which is not necessarily the landing page.
+     * Return to Home, a room error, a forfeit: the pushed entry is still
+     * current and would be mistaken for a live room by the next pop. Disarmed
+     * rather than popped, since popping goes wherever the player came FROM.
      */
     test('disarms the entry it pushed instead of navigating', () => {
         const back = vi.spyOn(window.history, 'back');

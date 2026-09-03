@@ -1,11 +1,7 @@
 /*
- * Score table.
- *
- * The 8-bit look comes from thick cell rules with the corner pixel knocked
- * out. NES.css does that with a ::before and ::after square positioned at each
- * cell's corners — four extra boxes per cell, on a table that re-renders every
- * time a score changes. Two background-image gradients on the cell do the same
- * job with no extra elements.
+ * Score table. The 8-bit look is thick cell rules with the corner pixel
+ * knocked out, done with two background gradients per cell rather than
+ * NES.css's four positioned boxes, on a table that re-renders per score.
  */
 .table {
     table-layout: fixed;
@@ -36,13 +32,8 @@
 }
 
 /*
- * Header cells only — NOT td.
- *
- * NES.css's `is-centered` was `.nes-table.is-centered th { text-align: center }`
- * with no rule for data cells, so leaderboard names and scores stayed
- * left-aligned. Centring td as well quietly re-aligned every row in the score
- * table. Left-aligned data is also the better default: names are ragged, and a
- * centred column of them has no edge for the eye to track.
+ * Header cells only, NOT td: names are ragged, and a centred column of them
+ * has no edge for the eye to track. Centring td re-aligned every score row.
  */
 .centered th {
     text-align: center;

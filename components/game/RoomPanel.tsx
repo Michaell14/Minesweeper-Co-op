@@ -10,22 +10,15 @@ import { DIALOGS, openDialog } from '@/lib/dialogs';
 export interface RoomPanelProps {
     /** Desktop and mobile size the panel differently. */
     className?: string;
-    /**
-     * Centres the body AND the title knocked out of the top border. A
-     * `text-center` class only does the former and leaves the title hard left.
-     */
+    /** Centres the body AND the title in the top border; `text-center` alone leaves the title hard left. */
     centered?: boolean;
-    /**
-     * Presence of this prop is what shows the invite button; the DIALOG it
-     * opens is Grid's, mounted once. Absent on the daily, which is not a room.
-     */
+    /** Presence shows the invite button; the DIALOG is Grid's, mounted once. Absent on the daily. */
     inviteFriend?: (friendId: string) => void;
 }
 
 /**
- * The room code, and the way to get someone else into it. An empty co-op room is
- * the most common state a new player sees, so being alone is treated as a prompt
- * rather than as an absence.
+ * The room code, and the way to get someone else into it. Being alone is the
+ * commonest state a new player sees, so it is treated as a prompt.
  */
 export default function RoomPanel({ className = '', centered = false, inviteFriend }: RoomPanelProps) {
     const room = useMinesweeperStore((state) => state.room);
@@ -35,11 +28,7 @@ export default function RoomPanel({ className = '', centered = false, inviteFrie
     // Co-op only: PVP's own waiting copy and gated Start button say this already.
     const isAlone = mode === 'co-op' && playerStatsInRoom.length <= 1;
 
-    /*
-     * Signed-in only, because a friend list needs an account. The link above is
-     * what a guest uses, and it stays the primary way in for everybody — an
-     * invite is a shortcut for the people who have already swapped codes.
-     */
+    /* Signed-in only, since a friend list needs an account; the link stays the primary way in. */
     const { status } = useSession();
     const canInvite = status === 'authenticated' && !!inviteFriend;
 
@@ -85,18 +74,12 @@ export default function RoomPanel({ className = '', centered = false, inviteFrie
                 aria-label="Copy shareable room link to clipboard">
                 {linkCopied ? 'Copied!' : 'Copy Link'}
             </Button>
-            {/* aria-live on the button itself is unreliable -- screen readers do
-                not consistently treat an interactive control as a live region,
-                and its aria-label never changes anyway. */}
+            {/* aria-live on a button is unreliable, and its aria-label never changes anyway. */}
             <span className="sr-only" aria-live="polite">
                 {linkCopied ? 'Link copied to clipboard' : ''}
             </span>
 
-            {/* The BUTTON only. This panel is mounted twice — once per layout
-                cluster — so the dialog it opens lives in Grid, mounted once,
-                like every other dialog on this screen. Two <dialog> elements
-                sharing an id is one openDialog away from opening the wrong
-                one. */}
+            {/* The BUTTON only: this panel is mounted twice, so the dialog lives in Grid, mounted once. */}
             {canInvite && (
                 <Button
                     size="sm"

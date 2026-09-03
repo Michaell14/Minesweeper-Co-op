@@ -1,8 +1,6 @@
 /**
- * The settings sync calls, bearer-authenticated like lib/profileApi.ts. Same
- * failure shape too: null/false for "not available" (signed out, server down,
- * accounts unconfigured) — sync silently waits for a better moment, because
- * settings always have a good local copy to fall back on.
+ * Settings sync, bearer-authenticated like lib/profileApi.ts. null/false means
+ * "not available" and sync waits; the local copy is always a good fallback.
  */
 
 import { serverURL } from "@/lib/initSocket";
@@ -27,11 +25,7 @@ const request = async (method: string, body?: unknown): Promise<Response | null>
     }
 };
 
-/**
- * The account's stored settings, sanitised, or null when there are none to
- * apply — covering "never synced", "signed out" and "server unreachable"
- * alike, since all three mean the local copy stays authoritative.
- */
+/** The account's settings, sanitised, or null whenever the local copy stays authoritative. */
 export async function fetchSettings(): Promise<Settings | null> {
     const res = await request("GET");
     if (!res || !res.ok) return null;

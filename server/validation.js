@@ -6,8 +6,7 @@
  * them is a separate change (see ARCHITECTURE.md §8).
  */
 
-// Re-exported below: the board rule lives in shared/ so the client checks the
-// same thing before it ever emits.
+// Re-exported below: the board rule lives in shared/ so the client checks the same thing.
 const { isValidBoardConfig } = require('../shared/boardConfig');
 const { AVATAR_IDS } = require('../shared/avatars');
 const { BOARD_KEY_PATTERN } = require('../shared/boardKeys');
@@ -31,12 +30,8 @@ const isValidPlayerName = (name) =>
     typeof name === 'string' && name.length > 0 && name.length <= MAX_PLAYER_NAME_LENGTH;
 
 /**
- * A name as it will be STORED -- surrounding whitespace is not part of it.
- *
- * Validate the RESULT of this, not the raw input, wherever a name is persisted
- * somewhere durable and public. The browser trims before it emits, but anything
- * speaking the protocol directly can send '   ' — which clears the length check
- * above and lands on the leaderboard as a row with no name in it.
+ * A name as STORED, trimmed. Validate the RESULT wherever a name is persisted:
+ * a raw '   ' passes the length check and lands on the leaderboard as a blank row.
  */
 const normalizePlayerName = (name) => (typeof name === 'string' ? name.trim() : '');
 
@@ -46,20 +41,14 @@ const isValidMode = (mode) => mode === 'co-op' || mode === 'pvp';
 const isValidAvatarId = (avatar) => AVATAR_IDS.includes(avatar);
 
 /**
- * An emote as SENT: one id from the shared catalog, nothing free-form.
- *
- * The vocabulary being closed is the feature, not a limitation of this check —
- * it is what means nothing a player sends another player needs moderating. A
- * length rule here instead would quietly turn the protocol into chat.
+ * An emote as SENT: one id from the shared catalog. The closed vocabulary is
+ * what means nothing a player sends another needs moderating.
  */
 const isValidEmoteId = (emote) => EMOTE_IDS.includes(emote);
 
 /**
- * An account id as it arrives in a URL.
- *
- * Checked for SHAPE before it reaches Postgres: `users.id` is a uuid column,
- * so a malformed one is a type error from the driver — a 503 that reads as
- * "the database is down" for what is really a bad request.
+ * Shape-checked before Postgres: `users.id` is a uuid column, so a malformed
+ * one would be a driver type error that reads as a 503.
  */
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const isValidUserId = (id) => typeof id === 'string' && UUID_RE.test(id);
@@ -69,27 +58,16 @@ const isValidDailyToken = (token) =>
     typeof token === 'string' && token.length > 0 && token.length <= MAX_DAILY_TOKEN_LENGTH;
 
 /**
- * The browser's own session id, from the socket handshake.
- *
- * Client-minted and opaque, like a daily token, and checked for the same reason:
- * it is used to build a Redis key, and every other client-supplied key input
- * here is bounded. Anything that fails this is treated as no session at all,
- * which is already a supported state — a first-time visitor has none.
+ * The handshake's client-minted session id. Bounded because it builds a Redis
+ * key; anything failing this is treated as no session, a supported state.
  */
 const isValidSessionId = (id) =>
     typeof id === 'string' && id.length > 0 && id.length <= MAX_SESSION_ID_LENGTH;
 
-/**
- * The client's own counter for a room-friends request, echoed back untouched.
- *
- * Purely an ordering handle: the client uses it to drop a list that its own
- * later request has already superseded. Never used to address state, so the
- * only thing worth checking is that it is a number the client can compare.
- */
+/** Room-friends request counter, echoed back untouched. An ordering handle, never an address. */
 const isValidRequestToken = (token) => Number.isSafeInteger(token) && token >= 0;
 
-/** The server's own YYYY-MM-DD (UTC) -- never trusted to gate state, only to
- * address it; a malformed date just fails to find any matching attempt. */
+/** YYYY-MM-DD (UTC). Only addresses state; a malformed date just finds no attempt. */
 const isValidDailyDate = (date) => typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date);
 
 /** Cell coordinates for openCell / chordCell / toggleFlag. */
@@ -100,14 +78,9 @@ const isValidCoordinate = (row, col) => {
 };
 
 /**
- * Hover coordinates, which additionally allow the "no hover" sentinel.
- *
- * The sentinel is the PAIR (-1, -1), and nothing else. This used to skip the
- * bounds check whenever either coordinate was -1, on the reasoning that the
- * client reads any -1 as "clear the hover" — but it does not: it clears only on
- * (-1, -1), so a half-sentinel like (-1, 5000) was stored and drawn as a remote
- * cursor at a position off the board, which no later hover could ever move or
- * remove.
+ * Hover coordinates, plus the "no hover" sentinel, which is the PAIR (-1, -1)
+ * only: the client clears only on that pair, so a half-sentinel like (-1, 5000)
+ * was once stored and drawn off-board where no later hover could remove it.
  */
 const isValidHoverCoordinate = (row, col) => {
     if (typeof row !== 'number' || typeof col !== 'number') return false;
@@ -117,13 +90,10 @@ const isValidHoverCoordinate = (row, col) => {
 };
 
 /**
- * Whether a coordinate lands on THIS room's board.
- *
- * `isValidCoordinate` only bounds a coordinate globally, at 0..100, because it
- * runs before any room is loaded. That is enough for a cell action, which then
- * indexes the stored board and finds nothing — but a ping is broadcast raw, so
- * a 2x3 room would happily relay (2, 3) and every client would draw a marker
- * at a cell that does not exist. Dimensions come back from Redis as strings.
+ * Whether a coordinate lands on THIS room's board. `isValidCoordinate` bounds
+ * globally, before any room is loaded; a cell action then indexes the stored
+ * board and finds nothing, but a ping is broadcast raw. Dimensions come back
+ * from Redis as strings.
  */
 const isCoordinateOnBoard = (roomState, row, col) => {
     const numRows = parseInt(roomState?.numRows, 10);
@@ -132,10 +102,7 @@ const isCoordinateOnBoard = (roomState, row, col) => {
     return row >= 0 && row < numRows && col >= 0 && col < numCols;
 };
 
-/**
- * Whether a socket id appears in a room hash's players list.
- * Tolerates a missing or malformed players field rather than throwing.
- */
+/** Whether a socket id is in a room hash's players list. Tolerates a missing or malformed field. */
 const isPlayerInRoom = (roomState, socketId) => {
     if (!roomState) return false;
     let players;
@@ -148,10 +115,8 @@ const isPlayerInRoom = (roomState, socketId) => {
 };
 
 /**
- * Generous: today's blob is under 100 bytes, and every PRD phase adds keys.
- * The cap exists so an account cannot be used as free object storage, not to
- * police the shape — the client owns that (lib/settings.ts sanitises both
- * directions), and this server stores the blob whole without reading it.
+ * Generous cap so an account cannot be used as object storage. Shape is the
+ * client's job (lib/settings.ts); the server stores the blob without reading it.
  */
 const MAX_SETTINGS_BLOB_BYTES = 8192;
 
@@ -169,9 +134,8 @@ const isValidSettingsBlob = (blob) => {
 const isValidThemeId = (id) => typeof id === 'string' && /^[a-z0-9][a-z0-9-]{0,39}$/.test(id);
 
 /**
- * A custom-theme blob. Like the settings blob the client owns the real schema
- * (lib/customThemes.ts sanitises and RE-DERIVES the palette on read), so the
- * server checks only what abuse looks like: shape, key shapes, and size.
+ * The client owns the schema (lib/customThemes.ts re-derives the palette on
+ * read), so the server checks only what abuse looks like: shape and size.
  */
 const MAX_THEME_BLOB_BYTES = 16384;
 const isValidThemeBlob = (blob) => {
@@ -188,18 +152,14 @@ const isValidThemeBlob = (blob) => {
 };
 
 /**
- * `rows x cols / mines`, optionally `@players` — `shared/boardKeys.js`'s shape,
- * bounded there. The suffix is what a GROUP clear carries, and rejecting it is
- * how the guest import used to 400 in full for any browser that had ever
- * cleared a board with a friend: this runs under `every`, so one such key threw
- * away the whole payload.
+ * `rows x cols / mines`, optionally `@players` (shared/boardKeys.js). The suffix
+ * is a GROUP clear; rejecting it once 400'd the whole guest import under `every`.
  */
 const isValidBoardKey = (key) => typeof key === 'string' && BOARD_KEY_PATTERN.test(key);
 
 /**
- * The guest best-times import: an array of client-reported records. Bounded
- * and shape-checked here; statsRepo's keep-if-faster upsert is what makes the
- * numbers harmless — an import can only improve a PRIVATE profile.
+ * Guest best-times import. Bounded and shape-checked here; statsRepo's
+ * keep-if-faster upsert makes the numbers harmless.
  */
 const MAX_BEST_IMPORT_ENTRIES = 100;
 const isValidBestImport = (bests) =>

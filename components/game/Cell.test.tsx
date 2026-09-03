@@ -6,20 +6,12 @@ import Cell from "./Cell";
 import type { Cell as CellType } from "@/app/store";
 
 /**
- * When a cell shows the mine under it.
- *
- * The server is the authority: a closed cell reports `isMine: false` unless the
- * game has ended and it deliberately revealed the layout. But a revealed mine is
- * still CLOSED, so the client needs its own reason to draw a bomb rather than a
- * covered square — and it used to take that reason from `gameOver` alone.
- *
- * `gameOver` means "you hit a mine". The player who LOSES A RACE never did: the
- * opponent finished first, the server sent them their board with every mine in
- * it, and it rendered as an ordinary half-played grid. The one terminal state in
- * the game that showed you nothing.
- *
- * Asserted through the accessible name, because that is what breaks with it: a
- * mine nobody can see is also a mine no screen reader announces.
+ * When a cell shows the mine under it. The server reports `isMine: false` on a
+ * closed cell until a terminal state reveals the layout, but a revealed mine is
+ * still CLOSED, so the client needs its own reason to draw a bomb. `gameOver`
+ * alone missed the player who LOST A RACE: their board arrived with every mine
+ * in it and rendered as a half-played grid. Asserted through the accessible
+ * name, since a mine nobody can see is also one no screen reader announces.
  */
 
 const closedMine: CellType = { isMine: true, isOpen: false, isFlagged: false, nearbyMines: 0 };
@@ -54,8 +46,8 @@ beforeEach(() => {
 
 describe("a closed cell the server says is a mine", () => {
     test("is hidden while the game is still on", () => {
-        // Unreachable in practice — projection would have sent isMine: false —
-        // but it pins down that the flag, not the payload, is what shows it.
+        // Unreachable in practice (projection sends isMine: false), but pins
+        // that the flag, not the payload, is what shows it.
         renderCell(closedMine);
 
         expect(isShownAsAMine()).toBe(false);
@@ -90,12 +82,7 @@ describe("a closed cell the server says is a mine", () => {
         expect(isShownAsAMine()).toBe(false);
     });
 
-    /*
-     * And that it draws the sprite, not just the label. The art is a <use>
-     * pointing at a <symbol> in the layout, so nothing else here would notice
-     * it going: the smoke suite never loses a game, and every assertion above
-     * passes on a cell rendering an empty red square.
-     */
+    /* The art is a <use> on a layout <symbol>; every assertion above passes on an empty red square. */
     test("draws the mine sprite, not only the accessible name", () => {
         useMinesweeperStore.getState().setGameOver(true);
 
@@ -106,8 +93,7 @@ describe("a closed cell the server says is a mine", () => {
     });
 
     test("a decided co-op game is unaffected by the PVP branch", () => {
-        // pvpWinner can survive a mode change in the store; co-op must not start
-        // revealing boards because of a race played earlier in the session.
+        // pvpWinner can survive a mode change; co-op must not reveal boards because of an earlier race.
         useMinesweeperStore.getState().setPvpWinner("Someone else");
 
         renderCell(closedMine);
@@ -117,9 +103,8 @@ describe("a closed cell the server says is a mine", () => {
 });
 
 /**
- * The swap-mouse-buttons setting. Asserted through what each physical button
- * FIRES, because that is the whole feature: the wrong mapping still renders a
- * pixel-perfect board and fails only in the player's hand.
+ * The swap-mouse-buttons setting, asserted through what each physical button
+ * FIRES: the wrong mapping renders perfectly and fails only in the player's hand.
  */
 describe("swapped mouse buttons", () => {
     const closed: CellType = { isMine: false, isOpen: false, isFlagged: false, nearbyMines: 0 };
@@ -166,11 +151,8 @@ describe("swapped mouse buttons", () => {
 });
 
 /**
- * Chording on the secondary click — the only one of the three gestures a
- * trackpad can make, having neither a second button nor a middle one.
- *
- * On mouse-UP, since macOS raises `contextmenu` on mousedown and binding it
- * there would chord twice for a right-then-left chord.
+ * Chording on the secondary click, the one gesture a trackpad can make. On
+ * mouse-UP: macOS raises `contextmenu` on mousedown, which would chord twice.
  */
 describe("chording with the secondary click", () => {
     const openNumber: CellType = { isMine: false, isOpen: true, isFlagged: false, nearbyMines: 2 };
@@ -215,8 +197,7 @@ describe("chording with the secondary click", () => {
     });
 
     test("a release that finishes a both-buttons chord does not chord again", () => {
-        // Before the render: a mid-test store write does not reach a mounted
-        // component outside act().
+        // Before the render: a mid-test store write does not reach a mounted component outside act().
         useMinesweeperStore.getState().setBothPressed(true);
         const { cell, chordCell } = renderOpenWith(true);
 
@@ -259,15 +240,11 @@ describe("chording with the secondary click", () => {
 });
 
 /**
- * The press affordance — the cell sinking to the opened face under the button,
- * which is what stands in for the reveal while the server round trip runs.
- *
- * Asserted on the attribute rather than the paint, because the paint is what
- * jsdom cannot see. What the attribute encodes is the whole decision: the press
- * is a promise that THIS button will open THIS cell, so it must not appear for
- * the button that flags, for the one that chords, or on a board that is going to
- * ignore the click. It started as `:active`, which cannot express any of that —
- * CSS is not told which button is down.
+ * The press affordance: the cell sinking to the opened face while the server
+ * round trip runs. Asserted on the attribute, since jsdom cannot see paint.
+ * The press promises THIS button will open THIS cell, so it must not appear
+ * for the flag or chord button, or on a board that will ignore the click;
+ * `:active` cannot express that because CSS is not told which button is down.
  */
 describe("the press affordance", () => {
     const closed: CellType = { isMine: false, isOpen: false, isFlagged: false, nearbyMines: 0 };
@@ -309,11 +286,7 @@ describe("the press affordance", () => {
         expect(isPressed(cell)).toBe(false);
     });
 
-    /*
-     * The right button flags. Depressing the cell would show the opened face
-     * for as long as the button is held — and on Windows the flag does not even
-     * land until mouseup, so the wrong affordance is on screen the whole time.
-     */
+    /* The right button flags; a depressed cell would show the opened face for as long as it is held. */
     test("the button that flags does not press it", () => {
         const cell = renderClosed();
 
@@ -330,11 +303,7 @@ describe("the press affordance", () => {
         expect(isPressed(cell)).toBe(false);
     });
 
-    /*
-     * Under the swap setting the mapping inverts, and so must the press —
-     * otherwise every left-click these players make depresses the cell and then
-     * plants a flag in it.
-     */
+    /* The press inverts with the mapping, or every left-click sinks the cell and then flags it. */
     test("swapped: the right button presses it", () => {
         const cell = renderClosed(true);
 
@@ -362,11 +331,7 @@ describe("the press affordance", () => {
         expect(isPressed(cell)).toBe(false);
     });
 
-    /*
-     * The cell can change branch mid-press — it opens, or takes a flag — and
-     * lose the mouseup handler that would have cleared this. Leaving is the
-     * backstop, and every branch wires it.
-     */
+    /* A cell can change branch mid-press and lose its mouseup handler; leaving is the backstop. */
     test("leaving the cell clears a press left behind", () => {
         const cell = renderClosed();
 

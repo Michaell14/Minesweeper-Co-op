@@ -8,31 +8,19 @@ import type { LossDiagnosis } from "@/lib/lossDiagnosis";
 import DailyDialogs from "./DailyDialogs";
 
 /**
- * The daily challenge's four dialogs mix DialogClose and plain Button
- * deliberately. Only the leaderboard's Close SHOULD close its dialog on click.
- * "View Leaderboard" (in dailyGameOver/dailyAlreadyPlayed) closes its own
- * dialog and opens a different one manually (see DailyDialogs.tsx's own comment
- * on why: a DialogClose's native submit-close would race the new dialog's
- * showModal()); "Share Result" needs the dialog to stay open so its
- * "Copied!"/"Shared!" feedback is visible; and Submit must not close anything
- * until the SERVER confirms, or a refusal strands the player with no dialog and
- * a status still saying they owe one.
- *
- * Same reasoning as components/ds/Dialog.test.tsx: this checks the TYPE
- * attribute a button carries, not that it exists -- a plain Button silently
- * failing to close a dialog leaves no trace in the console or the markup.
+ * The daily dialogs mix DialogClose and plain Button: only the leaderboard's
+ * Close closes on click. "View Leaderboard" closes its own dialog and opens
+ * another by hand (a DialogClose's submit-close would race showModal());
+ * "Share Result" stays open so its feedback is visible; Submit waits for the
+ * SERVER, or a refusal strands the player with no dialog. As in
+ * components/ds/Dialog.test.tsx, this checks the TYPE attribute, since a plain
+ * Button that fails to close leaves no trace.
  */
 
 /**
- * All four dialogs render unconditionally (only the target one gets `open`
- * set here, matching the real imperative openDialog()/closeDialog() pair).
- * `getByRole` already excludes a closed <dialog>'s contents from the
- * accessibility tree (matching real browser behavior), so role-based queries
- * below need no extra scoping -- but a couple of tests fall back to
- * `getByText`, which is not accessibility-aware and DOES see text inside
- * still-closed dialogs that happen to share copy (e.g. both dailyGameOver and
- * dailyAlreadyPlayed can say "You hit a mine at 1:32"). Those are scoped to
- * the returned dialog element explicitly with `within`.
+ * All four dialogs render; only the target gets `open`. `getByRole` excludes a
+ * closed <dialog>'s contents, but `getByText` does not, and dailyGameOver and
+ * dailyAlreadyPlayed share copy, so those queries are scoped with `within`.
  */
 const renderOpen = (id: string) => {
     render(<DailyDialogs submitDailyScore={vi.fn()} getDailyLeaderboard={vi.fn()} />);
@@ -99,13 +87,9 @@ describe("dailyAlreadyPlayed: resumed after a refresh", () => {
 
 describe("dailySubmit: won, name goes on the leaderboard", () => {
     /*
-     * Submit is a plain Button, and that is the point: the SERVER decides
-     * whether a submission lands. Closing on the click regardless meant a
-     * refusal — the attempt already submitted from another tab, or the socket
-     * down — left the player with no dialog, a status still stuck at
-     * won_pending_submit, and no route back to it short of a reload. The
-     * `dailyScoreSubmitted` handler closes it instead, so a submission that
-     * never lands leaves the button there to press again.
+     * Submit is a plain Button: the SERVER decides whether a submission lands.
+     * Closing on click left a refused player with no dialog and a status stuck
+     * at won_pending_submit; `dailyScoreSubmitted` closes it instead.
      */
     test("Submit does NOT close its own dialog -- the server has the last word", () => {
         const store = useMinesweeperStore.getState();
@@ -118,12 +102,9 @@ describe("dailySubmit: won, name goes on the leaderboard", () => {
     });
 
     /*
-     * The room's name dialog gets away with a bare input because its TITLE is
-     * "Enter your Name:". This one's title is "You solved it!", so without a
-     * visible label the box states nothing about what belongs in it -- and the
-     * aria-label that carries the input's accessible name is invisible to
-     * everyone not using a screen reader, so no other assertion here notices
-     * the label going missing.
+     * The room's name dialog gets away with a bare input because its title is
+     * "Enter your Name:"; this one's is "You solved it!", and the aria-label
+     * is invisible to sighted users, so nothing else notices the label going.
      */
     test("the name field says what to type -- the title cannot", () => {
         const store = useMinesweeperStore.getState();
@@ -134,10 +115,8 @@ describe("dailySubmit: won, name goes on the leaderboard", () => {
     });
 
     /*
-     * An emit shows nothing, so between the click and the server's answer the
-     * button would sit there looking untouched — the "dead Submit button" the
-     * empty-name error below exists to avoid, just with a slow connection
-     * instead of a bad name.
+     * An emit shows nothing, so until the server answers the button would look
+     * untouched: the "dead Submit button" again, with a slow connection.
      */
     describe("while a submission is out", () => {
         const submitValidName = (submitDailyScore = vi.fn()) => {
@@ -171,16 +150,13 @@ describe("dailySubmit: won, name goes on the leaderboard", () => {
         });
 
         /*
-         * The part that keeps this from becoming a trap of its own. A
-         * submission that never lands — socket down — would otherwise disable
-         * the only way to retry it, which is exactly the dead end this dialog
-         * was just fixed for. On success the dialog has closed long before.
+         * A submission that never lands (socket down) would otherwise disable
+         * the only way to retry it. On success the dialog has closed long before.
          */
         test("the button comes back if the server never answers", () => {
             vi.useFakeTimers();
             try {
-                // Fake timers first: the button's own setTimeout has to be one
-                // of theirs, or advancing them moves nothing.
+                // Fake timers first, or the button's own setTimeout is not one of theirs.
                 submitValidName();
                 act(() => {
                     vi.advanceTimersByTime(5000);
@@ -308,9 +284,8 @@ describe("dailyLeaderboard: today's standings", () => {
 });
 
 describe("sharing a result", () => {
-    /* jsdom has neither API; without a stub the component's own catch
-     * swallows the failure and the button silently never changes -- which
-     * would make a "shows feedback" test pass for the wrong reason. */
+    /* jsdom has neither API; without a stub the component's catch swallows the
+     * failure and a "shows feedback" test would pass for the wrong reason. */
     const stubClipboard = (writeText: () => Promise<void>) =>
         Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
 
@@ -324,8 +299,7 @@ describe("sharing a result", () => {
         return writeText.mock.calls[0][0] as string;
     };
 
-    /* The share reads the store's board at click time, so leaving one behind
-     * would quietly change what a later test's share text contains. */
+    /* The share reads the store's board at click time; leftovers would change a later test's text. */
     afterEach(() => {
         useMinesweeperStore.getState().setBoard([]);
         clearDailyHistory();
@@ -340,9 +314,7 @@ describe("sharing a result", () => {
     });
 
     test("a loss measures its progress from the revealed board", async () => {
-        // Terminal loss board, as DAILY_BOARD_UPDATE delivers it: mines
-        // truthful everywhere, isOpen only where the player got to. 3 of 4
-        // safe cells open.
+        // A terminal loss board as DAILY_BOARD_UPDATE delivers it: 3 of 4 safe cells open.
         const safe = (isOpen: boolean) => ({ isMine: false, isOpen, isFlagged: false, nearbyMines: 1 });
         const mine = { isMine: true, isOpen: true, isFlagged: false, nearbyMines: 0 };
         useMinesweeperStore.getState().setBoard([
@@ -367,8 +339,7 @@ describe("sharing a result", () => {
         expect(await shareAndCapture(DIALOGS.dailyGameOver)).toContain("🟩🟩💥⬜⬜⬜⬜⬜⬜⬜");
     });
 
-    /* Pins lib/dailyIntent.ts's rule at the integration level: the pasted link
-     * must land on the intro, never spend the reader's attempt. */
+    /* Pins lib/dailyIntent.ts's rule: the link lands on the intro, never spends an attempt. */
     test("links to /daily with no auto-start parameter", async () => {
         const shared = await shareAndCapture(DIALOGS.dailyGameOver);
 
@@ -407,8 +378,7 @@ describe("dailyGameOver: the deduction the run missed", () => {
         expect(within(dialog).getByText(/flanked by two 1s/)).toBeDefined();
     });
 
-    /* A guess and a misread read differently: one names what they missed on
-       the cell they took, the other points at the move they had instead. */
+    /* A guess reads differently from a misread: it points at the move they had instead. */
     test("says something different when the cell they took was not provable", () => {
         useMinesweeperStore.getState().setDailyDiagnosis(
             diagnosis({ kind: "guess", lesson: "counting", verdict: "safe" }),

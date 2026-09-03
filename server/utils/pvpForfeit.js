@@ -1,17 +1,9 @@
 /**
- * Losing a race by walking away — but not by pressing refresh.
- *
- * Dropping out hands the win to whoever is left, which is right when someone
- * quits and wrong when their tab reloaded, and both arrive as a disconnect. So
- * the decision waits.
- *
- * The wait needs no cancellation: when the timer fires it just looks at the room
- * again, and a player who came back is in it. Hence "is the room whole again?"
- * rather than a flag someone has to remember to clear.
- *
- * The timer is in memory, the honest trade for a single-process server — a
- * restart mid-window means no forfeit is awarded and the race carries on with
- * one player, a far cheaper failure than wrongly ending someone's game.
+ * Losing a race by walking away, but not by pressing refresh. A quit and a
+ * reload both arrive as a disconnect, so the decision waits. No cancellation
+ * needed: the timer re-reads the room, and a player who came back is in it.
+ * The timer is in memory; a restart mid-window awards no forfeit, a far
+ * cheaper failure than wrongly ending someone's game.
  */
 
 const roomRepo = require('../data/roomRepo');
@@ -35,10 +27,9 @@ const settleForfeit = async (room, survivor) => {
     if (roomRepo.playersFrom(roomState).length > 1) return false;
 
     /*
-     * Being the last one here is not the same as having won. A player sitting on
-     * a board they detonated was told "Boom!" and offered a reset; handing them
-     * "Victory!" on top of that contradicts their own screen. Their reset clears
-     * `gameOver`, so finishing the board still wins it the ordinary way.
+     * Last one here is not the same as having won: a player told "Boom!" and
+     * offered a reset must not also be told "Victory!". Their reset clears
+     * `gameOver`, so finishing the board still wins the ordinary way.
      */
     const slot = roomRepo.pvpSlotOf(roomState, survivor);
     if (slot !== undefined && roomState[pvpPlayerFields(slot).gameOverKey] === 'true') return false;
@@ -59,12 +50,7 @@ const settleForfeit = async (room, survivor) => {
     return true;
 };
 
-/**
- * Starts the countdown after a racer drops out.
- *
- * Returns the timer so tests can await the same delay deterministically rather
- * than sleeping; nothing in the server needs to hold onto it.
- */
+/** Starts the countdown. Returns the timer so tests can await the delay deterministically. */
 const scheduleForfeit = (room, survivor, delayMs = PVP_RECONNECT_GRACE_MS) => {
     const timer = setTimeout(() => {
         settleForfeit(room, survivor).catch((error) =>

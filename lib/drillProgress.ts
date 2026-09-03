@@ -1,7 +1,6 @@
 /**
- * Which drills this browser has solved. localStorage only — guests are the
- * majority here and must keep progress. Untrusted input: a stale or
- * hand-edited blob degrades to "no progress", never a throw on page load.
+ * Which drills this browser has solved, in localStorage so guests keep
+ * progress. A stale or hand-edited blob degrades to "no progress", never a throw.
  */
 
 export const DRILL_PROGRESS_KEY = 'ms-drills';

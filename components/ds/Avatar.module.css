@@ -1,22 +1,14 @@
 /*
- * Hover animation for the avatars (frames in avatarArt.ts).
+ * Hover animation for the avatars (frames in avatarArt.ts). Every frame is
+ * drawn and stacked, one visible at a time; hover runs one @keyframes per
+ * frame. A flipbook, not a cross-fade, hence `steps(1, end)` everywhere.
  *
- * Every frame is drawn, stacked, and all but one held at zero opacity; hover
- * runs one @keyframes per frame saying when that frame is the visible one.
- * The frames are opaque portraits, so exactly one may show at a time — this is
- * a flipbook, not a cross-fade, which is also why every timing function is
- * `steps(1, end)`: hold the pose, then cut.
+ * Each avatar names its keyframes DIRECTLY. A shared `animation-name:
+ * var(--f1)` compiles but never runs: CSS Modules hashes `@keyframes` names
+ * and cannot rewrite one hiding inside a custom property.
  *
- * Each avatar names its keyframes DIRECTLY, three rules per face. The tidier
- * version — one `--f1: frogRest` per avatar read by a shared
- * `animation-name: var(--f1)` — compiles but never runs: CSS Modules hashes
- * `@keyframes frogRest` and rewrites the names it finds in `animation-name`,
- * and it cannot see one hiding inside a custom property. The animation then
- * points at a name that does not exist, silently, on every avatar at once.
- *
- * Timing lives here rather than with the art because how long a pose holds is
- * a feel question. Windows are percentages, so retiming a face is one number.
- * avatarAnimation.test.ts fails if this file and the art drift apart.
+ * Timing lives here, not with the art: how long a pose holds is a feel
+ * question. avatarAnimation.test.ts fails if this and the art drift.
  */
 
 .frame {
@@ -29,19 +21,14 @@
 }
 
 /*
- * `no-preference` rather than the usual duration-token zeroing: these loop
- * forever, and a zero-duration infinite animation is still an animation — the
- * same reason the board's hover pulse opts out by hand. Under reduced motion
- * none of these rules exist, which leaves the static base frame above — the
- * zeroed --ms-duration-loop is not what stops them, this query is.
+ * `no-preference` rather than duration-token zeroing: these loop forever, and
+ * a zero-duration infinite animation is still an animation. Under reduced
+ * motion none of these rules exist, leaving the static base frame.
  */
 @media (prefers-reduced-motion: no-preference) {
     /*
-     * Hover is the only trigger, including on touch, where a tap leaves the
-     * face looping until the next one. Adding :focus-visible would mean
-     * doubling all 36 selectors below, or assigning the animations
-     * unconditionally and toggling animation-play-state — a bigger change than
-     * a decorative flourish for keyboard users justifies. Revisit together.
+     * Hover is the only trigger, including on touch. :focus-visible would mean
+     * doubling all 36 selectors below, more than a decorative flourish justifies.
      */
     .animated:hover .frame {
         animation-duration: var(--cycle);
@@ -49,12 +36,9 @@
         animation-iteration-count: infinite;
     }
 
-    /* ===================================================================
-     * The cast. A long rest is what makes a gag land, so most of these
-     * spend well over half the cycle on the base pose; the ambient ones
-     * (ghost, penguin, robot, shinobi) never rest, because a float or a
-     * sweep that pauses reads as broken rather than idle.
-     * ================================================================= */
+    /* The cast. A long rest is what makes a gag land, so most spend over half
+     * the cycle on the base pose; the ambient ones (ghost, penguin, robot,
+     * shinobi) never rest, since a float that pauses reads as broken. */
 
     /* Classic — the mouth opens to the mousedown face and shuts again. */
     .animated[data-avatar="classic"] {
@@ -81,8 +65,7 @@
         80% { opacity: 0; }
     }
 
-    /* Puppy — the fastest cycle of the set, and the only one with no rest
-     * pose at all: panting that pauses is a dog that has stopped. */
+    /* Puppy: the fastest cycle and the only one with no rest pose. */
     .animated[data-avatar="puppy"] {
         --cycle: var(--ms-duration-loop);
     }
@@ -103,8 +86,7 @@
         67% { opacity: 1; }
     }
 
-    /* Kitty — the slow blink, which is what a cat does at someone it likes.
-     * The longest rest here: rushed, it is just a blink. */
+    /* Kitty: the slow blink. The longest rest here; rushed, it is just a blink. */
     .animated[data-avatar="kitty"] {
         --cycle: calc(var(--ms-duration-loop) * 3);
     }
@@ -129,8 +111,7 @@
         88% { opacity: 0; }
     }
 
-    /* Fox — the squint HOLDS, a third of the cycle. That hold is the whole
-     * difference between sly and startled. */
+    /* Fox: the squint HOLDS a third of the cycle, sly rather than startled. */
     .animated[data-avatar="fox"] {
         --cycle: calc(var(--ms-duration-loop) * 2);
     }
@@ -155,9 +136,8 @@
         88% { opacity: 0; }
     }
 
-    /* Frog — a long rest, then the mouth opens, the tongue lashes out past
-     * the edge, and it comes back through the open mouth. The flick is 14%
-     * of the cycle: any longer and it reads as a tongue left hanging out. */
+    /* Frog: long rest, mouth opens, tongue out and back. The flick is 14% of
+     * the cycle; longer reads as a tongue left hanging. */
     .animated[data-avatar="frog"] {
         --cycle: calc(var(--ms-duration-loop) * 2);
     }
@@ -182,13 +162,9 @@
         84% { opacity: 0; }
     }
 
-    /* Penguin — flippers up, through the rest pose, down, and back. Passing
-     * through the middle is what makes it a flap rather than a twitch.
-     *
-     * These three windows are the AMBIENT cycle: even quarters, no rest beat,
-     * shared below with the ghost and the shinobi. What separates those three
-     * is --cycle, not the shape — so they share one definition rather than
-     * three identical ones drifting apart at the next retune. */
+    /* Penguin: flippers up, through rest, down. These windows are the AMBIENT
+     * cycle (even quarters, no rest beat), shared with ghost, shinobi and sun,
+     * which differ only in --cycle. */
     .animated[data-avatar="penguin"] {
         --cycle: calc(var(--ms-duration-loop) * 1.5);
     }
@@ -211,8 +187,7 @@
         75% { opacity: 1; }
     }
 
-    /* Robot — no rest to speak of: it wakes once and then sweeps, because a
-     * machine that pauses to think reads as broken rather than idle. */
+    /* Robot: wakes once and then sweeps; a machine that pauses reads as broken. */
     .animated[data-avatar="robot"] {
         --cycle: calc(var(--ms-duration-loop) * 2);
     }
@@ -235,8 +210,7 @@
         75% { opacity: 0; }
     }
 
-    /* Ghost — the ambient cycle at its slowest: a float has no accent beat to
-     * land on. */
+    /* Ghost: the ambient cycle at its slowest. */
     .animated[data-avatar="ghost"] {
         --cycle: calc(var(--ms-duration-loop) * 3);
     }
@@ -269,8 +243,7 @@
         80% { opacity: 0; }
     }
 
-    /* Shinobi — the ambient cycle again; the ribbon never settles, because
-     * wind does not pause. */
+    /* Shinobi: the ambient cycle; wind does not pause. */
     .animated[data-avatar="shinobi"] {
         --cycle: calc(var(--ms-duration-loop) * 1.5);
     }
@@ -278,9 +251,8 @@
     .animated[data-avatar="shinobi"]:hover .frame:nth-of-type(2) { animation-name: ambientUp; }
     .animated[data-avatar="shinobi"]:hover .frame:nth-of-type(3) { animation-name: ambientDown; }
             
-    /* Pirate — the patch lifts, the eye under it winks, the patch drops.
-     * The lift holds either side of the wink so the reveal registers before
-     * the joke lands. */
+    /* Pirate: the patch lifts, the eye winks, the patch drops. The lift holds
+     * either side of the wink. */
     .animated[data-avatar="pirate"] {
         --cycle: calc(var(--ms-duration-loop) * 2);
     }
@@ -305,8 +277,7 @@
         70% { opacity: 0; }
     }
 
-    /* Mushroom — squash short, stretch longer: a bounce spends its time in
-     * the air, not on the ground. */
+    /* Mushroom: squash short, stretch longer. */
     .animated[data-avatar="mushroom"] {
         --cycle: calc(var(--ms-duration-loop) * 1.5);
     }
@@ -330,13 +301,10 @@
         52% { opacity: 1; }
         72% { opacity: 0; }
     }
-    /* ===================================================================
-     * THE EARNED FOUR — nothing here differs because they are unlocked
-     * rather than picked; a locked card just renders them unanimated.
-     * ================================================================= */
+    /* The earned four: nothing differs, a locked card just renders them unanimated. */
 
-    /* Shark — a long, still grin, then the jaw drops and snaps. The snap is
-     * the shortest window in the file: a chomp you can watch is a yawn. */
+    /* Shark: a long grin, then the jaw drops and snaps. The snap is the
+     * shortest window in the file. */
     .animated[data-avatar="shark"] {
         --cycle: calc(var(--ms-duration-loop) * 2);
     }
@@ -361,8 +329,7 @@
         82% { opacity: 0; }
     }
 
-    /* Bee — the puppy's tempo and the puppy's reason: a wingbeat that pauses
-     * is an insect that has landed. */
+    /* Bee: the puppy's tempo, for the puppy's reason. */
     .animated[data-avatar="bee"] {
         --cycle: var(--ms-duration-loop);
     }
@@ -383,8 +350,7 @@
         67% { opacity: 1; }
     }
 
-    /* Sun — the ambient cycle defined up at the penguin, at its slowest.
-     * Light reaching and drawing back has no accent beat to land on either. */
+    /* Sun: the ambient cycle at its slowest. */
     .animated[data-avatar="sun"] {
         --cycle: calc(var(--ms-duration-loop) * 3);
     }
@@ -392,8 +358,8 @@
     .animated[data-avatar="sun"]:hover .frame:nth-of-type(2) { animation-name: ambientUp; }
     .animated[data-avatar="sun"]:hover .frame:nth-of-type(3) { animation-name: ambientDown; }
 
-    /* Knight — the visor shuts, then lifts past where it started. Slow: a helm
-     * is heavy, and a fast visor reads as a blinking robot. */
+    /* Knight: the visor shuts, then lifts. Slow, since a fast visor reads as
+     * a blinking robot. */
     .animated[data-avatar="knight"] {
         --cycle: calc(var(--ms-duration-loop) * 2.5);
     }

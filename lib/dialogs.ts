@@ -1,9 +1,6 @@
 /**
- * Every dialog in the app, and the two ways to drive one.
- *
- * These are native <dialog> elements — `form method="dialog"` gives the buttons
- * their close-on-submit behaviour — so they are opened imperatively rather than
- * by React state. Import an id from here rather than typing the literal.
+ * Every dialog in the app. Native <dialog> elements (`form method="dialog"`
+ * closes on submit), opened imperatively. Import an id from here; never type the literal.
  */
 
 export const DIALOGS = {
@@ -21,8 +18,7 @@ export const DIALOGS = {
     // Owned by components/Grid.tsx
     players: 'dialog-players',
 
-    // Owned by components/game/InviteFriendDialog.tsx, mounted ONCE by Grid —
-    // RoomPanel draws the button in both layout clusters.
+    // Owned by components/game/InviteFriendDialog.tsx, mounted ONCE by Grid (RoomPanel renders twice).
     inviteFriend: 'dialog-invite-friend',
 
     // Owned by components/Landing.tsx
@@ -51,12 +47,8 @@ export type DialogId = (typeof DIALOGS)[keyof typeof DIALOGS];
 const find = (id: DialogId) => document.getElementById(id) as HTMLDialogElement | null;
 
 /**
- * Opens a dialog modally. No-op if it is not mounted, or already open.
- *
- * `showModal()` THROWS on a dialog that is already open, and these are opened
- * from socket handlers, where the same outcome can legitimately arrive twice —
- * a duplicated `gameOver`, a resume landing on top of a dialog nobody closed.
- * An exception there kills the handler mid-way, so the guard is not cosmetic.
+ * Opens a dialog modally. No-op if not mounted or already open: `showModal()`
+ * THROWS on an open dialog, and socket handlers can deliver the same outcome twice.
  */
 export const openDialog = (id: DialogId) => {
     const dialog = find(id);

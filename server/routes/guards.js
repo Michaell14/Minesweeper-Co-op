@@ -1,25 +1,14 @@
 /**
- * Who is allowed to act on a room.
- *
- * A guard runs after the payload has been validated and before the handler, and
- * answers `{ ok, roomState }`. The room state is passed back rather than
- * discarded: the guard has already read it, and a handler that needs the mode
- * would otherwise pay for a second read to learn what the guard just saw.
+ * Who is allowed to act on a room. A guard runs after validation and before
+ * the handler, answering `{ ok, roomState }`; the state is passed back so a
+ * handler needing the mode does not pay for a second read.
  *
  * The two room guards run the IDENTICAL check and differ only in how they
- * refuse. Both are needed:
- *
- *   ROOM_MEMBER         answers with `roomDoesNotExistError` and leaves the
- *                       room — right for a click on a room that timed out and
- *                       was deleted, where the client is showing a board that
- *                       no longer exists and needs to be told.
- *
- *   ROOM_MEMBER_SILENT  refuses and says nothing — right for hover and emotes.
- *                       They are continuous, rate-limited, client-driven spam
- *                       surfaces: answering a refusal with an emit hands a
- *                       flooding client an amplifier, and evicting the sender
- *                       would throw a legitimate player out of a live game over
- *                       a cosmetic message.
+ * refuse. ROOM_MEMBER answers `roomDoesNotExistError` and leaves the room,
+ * right for a click on a room that timed out. ROOM_MEMBER_SILENT says nothing,
+ * right for hover and emotes: answering a refusal on a spam surface hands a
+ * flooding client an amplifier, and evicting would throw a legitimate player
+ * out over a cosmetic message.
  */
 
 const roomRepo = require('../data/roomRepo');
@@ -30,12 +19,7 @@ const { SERVER_EVENTS } = require('../../shared/events');
 /** Admitted. Reads nothing — for routes that are not room-scoped at all. */
 const none = async () => ({ ok: true });
 
-/**
- * The check both room guards share: the room is there, the player record is
- * there, and that player is listed in the room.
- *
- * Returns the room state on success so neither wrapper re-reads it.
- */
+/** The check both room guards share; returns the room state so neither wrapper re-reads it. */
 const checkMembership = async (socket, room) => {
     const [roomExists, playerExists] = await Promise.all([
         roomRepo.exists(room),
@@ -61,9 +45,8 @@ const roomMember = async ({ socket, payload }) => {
 const roomMemberSilent = async ({ socket, payload }) => await checkMembership(socket, payload.room);
 
 /**
- * Frozen so a row cannot name a guard that does not exist — `GUARDS.ROOM_MEMBR`
- * is `undefined` at table-build time, which `routes.test.js` catches, rather
- * than a string nothing matches at request time.
+ * Frozen so a row naming a guard that does not exist is `undefined` at
+ * table-build time (caught by `routes.test.js`) rather than a string nothing matches.
  */
 const GUARDS = Object.freeze({
     NONE: none,

@@ -1,9 +1,6 @@
 /*
- * Button skin. Geometry and the notched outline come from pixel.module.css;
- * this file only supplies fill, ink and bevel per intent.
- *
- * Every intent is the same four declarations, so adding one is four lines and
- * a token triple — which is the point of doing this ourselves.
+ * Button skin: fill, ink and bevel per intent. Geometry and the notched
+ * outline come from pixel.module.css. Adding an intent is four lines.
  */
 .button {
     padding: 6px 8px;
@@ -12,11 +9,7 @@
     background-color: var(--btn-fill);
     color: var(--btn-ink);
     --pixel-bevel: var(--btn-bevel);
-    /*
-     * The ring is the button's own bevel, softened — derived rather than
-     * restated, so an alternate palette gets correct focus rings for free
-     * instead of needing five more hand-mixed rgba() values.
-     */
+    /* The ring is the bevel softened, so a palette gets focus rings for free. */
     --pixel-ring: color-mix(in srgb, var(--btn-bevel) 40%, transparent);
 }
 
@@ -69,7 +62,6 @@
     --btn-bevel: var(--ms-intent-error-bevel);
 }
 
-/* Size is a type-scale choice, not a padding choice — the face is a pixel font
- * and only looks right at whole-pixel sizes. */
+/* Size is a type-scale choice: the pixel font only looks right at whole-pixel sizes. */
 .sm { font-size: var(--ms-text-sm); }
 .md { font-size: var(--ms-text-md); }

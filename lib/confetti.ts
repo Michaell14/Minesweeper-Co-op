@@ -3,17 +3,11 @@ import { prefersReducedMotion } from '@/lib/motion';
 import { useMinesweeperStore } from '@/app/store';
 
 /**
- * Celebration burst used on a win and by the shared confetti button.
- *
- * Skipped entirely under reduced motion — it is the largest piece of motion in
- * the app and has no smaller version worth showing. The status badge and live
- * region already announce the win, so only the flourish is lost.
- *
- * The settings toggle composes with that rather than replacing it: either one
- * suppresses the burst, and the gate lives here so every caller — your own
- * win, a teammate's shared burst — obeys both. Sending confetti to OTHERS is
- * not gated: the setting is about your screen, and each recipient's own
- * setting rules theirs.
+ * Celebration burst, on a win and from the shared confetti button. Skipped
+ * under reduced motion: it is the largest motion in the app, and the status
+ * badge already announces the win. The settings toggle composes with that,
+ * gated here so every caller obeys both. Sending confetti to OTHERS is not
+ * gated: each recipient's own setting rules their screen.
  */
 export function shootConfetti(): void {
     if (prefersReducedMotion()) return;

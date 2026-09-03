@@ -9,17 +9,13 @@ import { useGameSession } from "@/hooks/useGameSession";
 
 /**
  * Chooses between the Landing page and the game Grid. All socket wiring lives
- * in `useGameSession`, which `/daily` mounts too.
- *
- * The daily challenge used to be a third branch here, gated on `dailyActive`.
- * It is its own route now — it is a distinct thing to arrive at, link to and
- * bookmark, and as a flag on this page it had no URL for any of that.
+ * in `useGameSession`, which `/daily` mounts too; the daily is its own route
+ * so it can be linked and bookmarked.
  */
 export default function Home() {
     const { actions } = useGameSession();
 
-    // Subscribed narrowly on purpose: this component re-renders only when the
-    // view switches, not on every board or hover update.
+    // Subscribed narrowly: re-renders only when the view switches.
     const playerJoined = useMinesweeperStore((state) => state.playerJoined);
 
     return (

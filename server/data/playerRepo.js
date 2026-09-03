@@ -1,8 +1,6 @@
 /**
- * All player reads and writes.
- *
- * Players are keyed by socket id, so a reconnect creates a NEW record — scores
- * and PVP indices do not survive one, despite what the name suggests.
+ * All player reads and writes. Keyed by socket id, so a reconnect creates a
+ * NEW record: scores and PVP indices do not survive one.
  */
 
 const { redisClient } = require('../utils/initializeRedisClient');
@@ -34,8 +32,7 @@ const remove = async (socketId) => {
     return await client.del(playerKey(socketId));
 };
 
-/** Creates the record and starts its 24h expiry. `avatar` is '' for an
- * anonymous player — the hash holds strings, so '' is how "none" is stored. */
+/** Creates the record and starts its 24h expiry. `avatar` is '' for anonymous. */
 const create = async (socketId, { room, name, sessionId, avatar }) => {
     const client = await redisClient;
     await client.hSet(playerKey(socketId), {

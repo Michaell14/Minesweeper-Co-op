@@ -28,31 +28,22 @@ export default function Board({ toggleFlag, openCell, chordCell, emitCellHover, 
     const rows = board.length;
 
     /*
-     * How much page sits ABOVE the board, for the height half of the fit clamp
-     * in board.module.css — CSS cannot work it out, since Grid.tsx's container
-     * is `container-type: inline-size` and cqh does not resolve there.
-     *
-     * Measured, not the --ms-board-reserve constant, because the status banner
-     * makes it a variable: 0px in play, 88px at game over, 119px in a PVP
-     * lobby. The token is what applies up to the first layout.
+     * Page height ABOVE the board, for the height half of the fit clamp in
+     * board.module.css (cqh does not resolve in Grid.tsx's inline-size
+     * container). Measured, since the status banner varies it: 0px in play,
+     * 88px at game over, 119px in a PVP lobby. The token applies until then.
      */
     const [reserve, setReserve] = useState<number | null>(null);
     /*
      * No dependency array: an observer bound once at mount kept watching a
-     * wrapper React had swapped out, and a detached node never resizes again.
-     * Measuring per render is what catches the banner; the observer and the
-     * resize listener cover shifts that arrive without one. Re-setting an
-     * unchanged reserve is a no-op in React, so this settles rather than loops.
+     * wrapper React had swapped out. Re-setting an unchanged reserve is a
+     * no-op, so this settles rather than loops.
      */
     useLayoutEffect(() => {
         const el = boardRef.current;
         if (!el) return;
-        // + scrollY CONVERTS the rect to a document offset, it does not add the
-        // scroll to it: rect.top falls by exactly what scrollY rises, so the sum
-        // is the same at any scroll position. That invariance is the point. The
-        // board has to fit at scroll 0, and rect.top alone answers a different
-        // question every time the page moves — scrolled far enough it goes
-        // negative, which would reserve nothing and size the board off the page.
+        // + scrollY converts the rect to a document offset, invariant under
+        // scroll; rect.top alone goes negative when scrolled and reserves nothing.
         const measure = () => setReserve(Math.ceil(el.getBoundingClientRect().top + window.scrollY));
         measure();
         const observer = new ResizeObserver(measure);
@@ -65,25 +56,15 @@ export default function Board({ toggleFlag, openCell, chordCell, emitCellHover, 
     });
 
     /*
-     * Ping interception, in the CAPTURE phase on the grid rather than in Cell.
-     *
-     * Cell has four render branches and acts from four different handlers
-     * (onClick on two inner divs, onMouseUp on an opened cell, onContextMenu on
-     * a flagged one), so a modifier check per branch is four chances to miss
-     * one — and a missed branch means a ping that opens a mine instead. Here it
-     * is one listener, ahead of all of them, on the component that is mounted
-     * once rather than 512 times.
-     *
-     * `mousedown` is what has to be swallowed, not `click`: the opened-cell
-     * branch acts on mouse UP, so a handler that waited for the click would
-     * fire after the chord it was trying to replace.
+     * Ping interception in the CAPTURE phase on the grid, not in Cell: Cell
+     * acts from four handlers across four branches, and a missed one is a ping
+     * that opens a mine. `mousedown` is what has to be swallowed, since the
+     * opened-cell branch acts on mouse up and a click handler would be too late.
      */
     const takeoverForPing = (event: React.MouseEvent): boolean => {
         if (event.button !== 0 || !pingCell) return false;
         const { pingArmed, mode } = useMinesweeperStore.getState();
-        // Shift is the desktop shortcut; the tray's one-shot arm is the path
-        // that also works on a touch screen. See useKeyboardControls for the
-        // third one.
+        // Shift is the desktop shortcut; the tray's one-shot arm also works on touch.
         if (!pingArmed && !event.shiftKey) return false;
         // Nothing to point at in a race — and the server would refuse it.
         if (mode === 'pvp') return false;
@@ -91,28 +72,21 @@ export default function Board({ toggleFlag, openCell, chordCell, emitCellHover, 
     };
 
     /*
-     * Whether the gesture IN PROGRESS belongs to the ping.
-     *
-     * A latch rather than re-deciding per event, because the arm is one-shot
-     * and clears the moment the ping is sent — by mouseup, `pingArmed` is
-     * already false, so a mouseup and click that asked the same question again
-     * would answer "no" and hand the cell back to its own handlers. Which is
-     * exactly what happened: the ping fired AND the cell opened under it.
-     * Caught by the smoke suite, not by the unit tests, whose mock `pingCell`
-     * had no reason to disarm anything.
+     * Whether the gesture IN PROGRESS belongs to the ping. A latch, because the
+     * arm is one-shot and clears when the ping is sent; re-deciding on mouseup
+     * would hand the cell back to its own handlers and open it under the ping.
+     * Caught by the smoke suite, whose `pingCell` really disarms.
      */
     const pingGesture = useRef(false);
 
     const onPointerCapture = (event: React.MouseEvent) => {
-        // Cleared first, so a latch left behind by a press that never finished
-        // (the pointer left the cell before release) cannot outlive this one.
+        // Cleared first so a latch from a press that never finished cannot outlive this one.
         pingGesture.current = false;
         if (!takeoverForPing(event)) return;
         const cell = (event.target as Element).closest('[role="gridcell"]') as HTMLElement;
         const row = Number(cell.dataset.row);
         const col = Number(cell.dataset.col);
-        // Stop the cell's own handlers, and the text selection a shift-click
-        // would otherwise start.
+        // Stop the cell's own handlers and the shift-click text selection.
         event.preventDefault();
         event.stopPropagation();
         pingGesture.current = true;
@@ -134,10 +108,8 @@ export default function Board({ toggleFlag, openCell, chordCell, emitCellHover, 
             className={styles.gameBoard}
             /* Picks the cell-size CEILING; the stylesheet's fit clamp still rules. */
             data-cell-size={cellSize}
-            /* The stylesheet sizes cells to fit; only this component knows the shape.
-               BOTH axes: the fit clamp takes the smaller of the width and height
-               answers, so a tall board on a short window shrinks rather than
-               running off the bottom. */
+            /* Only this component knows the shape. BOTH axes: the fit clamp takes
+               the smaller answer, so a tall board on a short window shrinks. */
             style={{
                 '--board-cols': cols,
                 '--board-rows': rows,

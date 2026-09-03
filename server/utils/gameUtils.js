@@ -44,8 +44,7 @@ const checkWin = async (roomState, board, room) => {
         io.to(room).emit(SERVER_EVENTS.GAME_CLOCK, stoppedAt(roomState, endedAt));
         io.to(room).emit(SERVER_EVENTS.GAME_WON);
 
-        // Server-authoritative stats, for every signed-in player in the room.
-        // Fire-and-forget: a stats hiccup must never delay the win.
+        // Server-authoritative stats, fire-and-forget: a stats hiccup must never delay the win.
         try {
             const players = JSON.parse(roomState.players || '[]');
             const startedAt = parseInt(roomState.startedAt, 10);
@@ -102,15 +101,9 @@ const createRoom = async (room, numRows, numCols, numMines, mode = 'co-op', noGu
 }
 
 /**
- * Wipes the room back to an unplayed board.
- *
- * Holds the room's action lock, because this is a co-op board write like any
- * other. A move already in flight would otherwise write its board back on top of
- * the fresh one, leaving a room that claims `initialized: 'false'` while holding
- * a played board — and the next click would then generate a second board over it.
- *
- * The lock is not reentrant, so nothing that already holds it may call this.
- * Today the only caller is the RESET_GAME handler in server.js.
+ * Wipes the room back to an unplayed board. Holds the room's action lock, or
+ * a move in flight writes its board over the fresh one and the room claims
+ * `initialized: 'false'` on a played board. Not reentrant.
  */
 const resetGame = async (room) => roomRepo.withActionLock(room, 'reset', async () => {
     const roomState = await roomRepo.getState(room);

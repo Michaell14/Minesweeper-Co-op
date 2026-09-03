@@ -1,14 +1,8 @@
 /**
- * The seam between the art and its timing.
- *
- * A hover frame is drawn by avatarArt.ts but told WHEN to show by
- * Avatar.module.css, and neither half can see the other: a frame with no
- * keyframes never appears, and keyframes with no frame animate nothing. Both
- * fail in the one way nothing else here catches — silently, on one face, only
- * while the pointer is on it.
- *
- * So this parses the stylesheet the way app/tokens.test.ts parses tokens.css.
- * It says nothing about whether the motion looks right; that is what /ds is for.
+ * The seam between the art (avatarArt.ts) and its timing (Avatar.module.css):
+ * a frame with no keyframes never appears, and keyframes with no frame animate
+ * nothing, both silently. Parses the stylesheet like app/tokens.test.ts does
+ * tokens.css. Whether the motion looks right is what /ds is for.
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -34,15 +28,12 @@ const framesNamedBy = (id: string): Record<number, string> =>
         ].map((m) => [Number(m[1]), m[2]]),
     );
 
-// The brace matters: the prose above mentions @keyframes too.
+// The brace matters: comments mention @keyframes too.
 const definedKeyframes = new Set(
     [...css.matchAll(/@keyframes\s+([\w-]+)\s*\{/g)].map((m) => m[1]),
 );
 
-/**
- * A keyframes body, by brace matching rather than by regex: the blocks nest,
- * and a pattern that stops at the first `}` reads half a rule as the whole.
- */
+/** A keyframes body, by brace matching: the blocks nest. */
 const bodyOf = (name: string): string => {
     const at = css.search(new RegExp(`@keyframes\\s+${name}\\s*\\{`));
     if (at < 0) return "";
@@ -62,9 +53,8 @@ const stopsOf = (name: string): Array<{ at: number; opacity: number }> =>
         .sort((a, b) => a.at - b.at);
 
 /**
- * What a frame's opacity is at a point in the cycle. `steps(1, end)` holds the
- * value of the stop it is on until the next one, so this is a lookup, not an
- * interpolation — which is the only reason a static check can answer it.
+ * A frame's opacity at a point in the cycle. `steps(1, end)` holds each stop's
+ * value until the next, so this is a lookup, not an interpolation.
  */
 const opacityAt = (stops: Array<{ at: number; opacity: number }>, t: number): number =>
     stops.reduce((held, stop) => (stop.at <= t ? stop.opacity : held), 0);
@@ -90,8 +80,7 @@ describe("every drawn frame has timing", () => {
         expect(blockFor(id)).toMatch(/--cycle:.*var\(--ms-duration-loop\)/);
     });
 
-    // Naming a keyframes does nothing on its own: one shared rule supplies the
-    // duration, the step function and the repeat to every frame there is.
+    // One shared rule supplies duration, step function and repeat to every frame.
     it("drives them from the shared rule", () => {
         const shared = css.match(/\.animated:hover \.frame\s*\{([^}]*)\}/)?.[1] ?? "";
         expect(shared).toMatch(/animation-duration:\s*var\(--cycle\)/);
@@ -101,11 +90,9 @@ describe("every drawn frame has timing", () => {
 });
 
 /**
- * The invariant the whole flipbook rests on. These are opaque portraits stacked
- * on each other, so two lit at once is not a blend, it is a mess — and none lit
- * is a hole where the avatar was. The browser check in scripts/ui-smoke samples
- * this at a handful of moments; reading the stops proves it for every moment,
- * which is the difference between "did not overlap when we looked" and "cannot".
+ * The flipbook's invariant: opaque portraits stacked, so two lit is a mess and
+ * none lit is a hole. scripts/ui-smoke samples a few moments; reading the
+ * stops proves every moment.
  */
 describe("exactly one frame is lit, all the way round", () => {
     it.each(animated)("%s", (id) => {
@@ -115,13 +102,11 @@ describe("exactly one frame is lit, all the way round", () => {
 
         for (const [i, stops] of tracks.entries()) {
             expect(stops.length, `frame ${i + 1} of ${id} has no opacity stops`).toBeGreaterThan(0);
-            // Without a 0% stop the first slice of the cycle has no stated
-            // value, and the pose that shows there is the browser's guess.
+            // Without a 0% stop the first slice is the browser's guess.
             expect(stops[0].at, `frame ${i + 1} of ${id} does not start at 0%`).toBe(0);
         }
 
-        // Values only change at a stop, so every stop is a point worth asking
-        // about and no point between two of them can differ from its start.
+        // Values only change at a stop, so checking every stop covers every moment.
         const moments = [...new Set(tracks.flatMap((stops) => stops.map((s) => s.at)))].sort(
             (a, b) => a - b,
         );

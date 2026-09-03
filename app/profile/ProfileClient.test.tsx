@@ -1,8 +1,7 @@
 // @vitest-environment jsdom
 /**
- * The profile page's states by accessible name: signed out, unavailable, and
- * the populated dashboard — plus the guest import appearing only when this
- * browser actually holds local bests.
+ * The profile page's states by accessible name: signed out, unavailable, the
+ * dashboard, and the guest import only when this browser holds local bests.
  */
 import React from 'react';
 import { render, screen, waitFor, fireEvent, cleanup, within } from '@testing-library/react';
@@ -17,19 +16,16 @@ vi.mock('next-auth/react', () => ({
 const mockFetchStats = vi.fn();
 const mockImportBests = vi.fn();
 const mockFetchBoardBests = vi.fn(async (): Promise<Record<string, never> | null> => null);
-// Partial: the calls are stubbed, the constants stay real. A factory listing
-// only the functions makes every constant the page reads throw on access.
+// Partial: calls stubbed, constants real, or every constant the page reads throws.
 vi.mock('@/lib/statsApi', async (importOriginal) => ({
     ...(await importOriginal<typeof import('@/lib/statsApi')>()),
     fetchStats: (...args: unknown[]) => mockFetchStats(...args),
     importBests: (...args: unknown[]) => mockImportBests(...args),
-    // A successful import refreshes the ACCOUNT's records for the game, since
-    // the banner on a board reads those rather than this page's payload.
+    // A successful import refreshes the ACCOUNT's records for the game.
     fetchBoardBests: () => mockFetchBoardBests(),
 }));
 
-// The page mounts AccountPanel (its own tests live beside it); its fetch
-// needs an answer here so the panel settles instead of leaking a promise.
+// AccountPanel's fetch needs an answer so the panel settles instead of leaking a promise.
 const mockFetchProfile = vi.fn();
 vi.mock('@/lib/profileApi', async () => {
     const actual = await vi.importActual<typeof import('@/lib/profileApi')>('@/lib/profileApi');
@@ -102,19 +98,16 @@ describe('signed in', () => {
         await waitFor(() =>
             expect(screen.getByRole('table', { name: 'Games and wins by mode' })).toBeTruthy(),
         );
-        // The daily section rides the same payload.
         expect(screen.getByRole('list', { name: /Daily results for/ })).toBeTruthy();
         // Win rate is derived: 6/10 co-op.
         expect(screen.getByText('60%')).toBeTruthy();
         expect(screen.getByRole('status', { name: 'Play streak' }).textContent).toContain('3');
-        // Best time renders through the shared clock formatting (92s → 01:32);
-        // the recent-games row shows the same run, so it appears twice.
+        // 92s renders as 01:32, twice: the recent-games row shows the same run.
         expect(screen.getAllByText('01:32').length).toBeGreaterThan(0);
         // Board keys render as display names, never raw keys.
         expect(screen.queryByText('16x16/40')).toBeNull();
         expect(screen.getByRole('table', { name: 'Recent games' })).toBeTruthy();
         expect(screen.getByText('Lost')).toBeTruthy();
-        // Account management follows the stats, deletion last and low-key.
         await screen.findByRole('textbox', { name: 'Display name' });
         expect(screen.getByRole('button', { name: 'Delete account…' })).toBeTruthy();
     });
@@ -129,7 +122,6 @@ describe('signed in', () => {
         await waitFor(() =>
             expect(screen.getByRole('table', { name: 'Games and wins by mode' })).toBeTruthy(),
         );
-        // The daily section still renders, just empty.
         expect(screen.getByRole('list', { name: /Daily results for/ })).toBeTruthy();
         expect(screen.getByText(/No dailies recorded yet/)).toBeTruthy();
     });

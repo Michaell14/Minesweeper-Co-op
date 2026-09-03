@@ -7,11 +7,9 @@ import { useMinesweeperStore } from '@/app/store';
 import { consumePlayIntent, markPlayIntent } from '@/lib/dailyIntent';
 
 /**
- * The socket is the whole point of `useGameSession` and none of it is what this
- * file is about. These tests exist for the things that fail SILENTLY: a page
- * that quietly spends the visitor's one attempt for the day looks exactly like
- * one that does not, and a player still holding a room behind the daily view
- * looks exactly like one who left it.
+ * Not about the socket. These tests cover what fails SILENTLY: a page that
+ * quietly spends the day's one attempt, or a player still holding a room
+ * behind the daily view, looks like one that does not.
  */
 const startDaily = vi.fn();
 const leaveDaily = vi.fn();
@@ -38,10 +36,7 @@ const intro = <h1>Minesweeper Daily Challenge</h1>;
 
 const playButton = () => screen.getByRole('button', { name: /daily challenge/i });
 
-/**
- * The two arrivals /daily has to tell apart. Pressing the front page's button
- * is a gesture in this tab; everything else is a cold arrival.
- */
+/** Pressing the front page's button is a gesture in this tab; everything else is a cold arrival. */
 const pressedPlay = () =>
     markPlayIntent({ button: 0, metaKey: false, ctrlKey: false, shiftKey: false, altKey: false });
 
@@ -69,8 +64,7 @@ describe('/daily before the player opts in', () => {
     test('does NOT start an attempt on mount', () => {
         render(<DailyClient intro={intro} />);
 
-        // Arriving from a search result must not consume the one attempt of the
-        // day before the visitor has decided to play.
+        // Arriving from a search result must not consume the day's one attempt.
         expect(startDaily).not.toHaveBeenCalled();
     });
 
@@ -82,10 +76,7 @@ describe('/daily before the player opts in', () => {
         expect(startDaily).toHaveBeenCalledTimes(1);
     });
 
-    /*
-     * `startDaily` returns silently without a socket, and the button is live
-     * from hydration — a click in that gap did nothing and said nothing.
-     */
+    /* `startDaily` returns silently without a socket, and the button is live from hydration. */
     test('a click before the socket exists still starts once it arrives', () => {
         mockSocket = null;
         const { rerender } = render(<DailyClient intro={intro} />);
@@ -101,17 +92,11 @@ describe('/daily before the player opts in', () => {
 });
 
 /*
- * The daily and a room are mutually exclusive views sharing one board field.
- * hooks/useGameEvents.ts refuses a SESSION_RESUME offer while `dailyActive` is
- * set, so this route has to raise it for the INTRO too, not just the board —
- * otherwise a resume is accepted behind the intro and the player is silently
- * still in the room they walked out of.
- */
-/*
- * Starting consumes the day's one attempt even with no move made
- * (server/controllers/dailyController.js), so the two arrivals cannot be
- * treated alike: pressing "Play Today's Puzzle" is a decision, landing on the
- * page from a search result is not.
+ * The daily and a room are exclusive views sharing one board field, and
+ * hooks/useGameEvents.ts refuses a SESSION_RESUME while `dailyActive` is set,
+ * so this route raises it for the INTRO too. Starting consumes the day's one
+ * attempt (server/controllers/dailyController.js), so pressing play is a
+ * decision and landing from a search result is not.
  */
 describe('/daily arrived at by pressing play', () => {
     test('starts the attempt without a second click', () => {
@@ -127,8 +112,7 @@ describe('/daily arrived at by pressing play', () => {
 
         render(<DailyClient intro={intro} />);
 
-        // The complaint this exists for: a page of prose, and a second button
-        // reading exactly what the player already pressed.
+        // A page of prose and a second button reading what the player already pressed.
         expect(screen.queryByRole('heading', { name: 'Minesweeper Daily Challenge' })).toBeNull();
         expect(screen.queryByRole('button', { name: /daily challenge/i })).toBeNull();
         expect(screen.getByRole('status')).toBeTruthy();
@@ -146,10 +130,7 @@ describe('/daily arrived at by pressing play', () => {
         expect(startDaily).toHaveBeenCalledTimes(1);
     });
 
-    /*
-     * The intent is consumed on read, so a second visit in the same tab is a
-     * cold arrival again. Otherwise one press would keep starting attempts.
-     */
+    /* Consumed on read, or one press would keep starting attempts on later visits. */
     test('does not start again on a later visit in the same tab', () => {
         pressedPlay();
         const { unmount } = render(<DailyClient intro={intro} />);
@@ -164,9 +145,8 @@ describe('/daily arrived at by pressing play', () => {
     });
 
     /*
-     * `startDaily`'s server handler emits nothing when it fails, so a dropped
-     * socket or a Redis blip leaves the page with nothing to wait for. It has
-     * to hand the button back rather than sit on a loading line forever.
+     * The server handler emits nothing on failure, so the page has nothing to
+     * wait for and must hand the button back rather than load forever.
      */
     test('falls back to the intro when the server never answers', () => {
         vi.useFakeTimers();
@@ -198,8 +178,8 @@ describe('/daily arrived at by pressing play', () => {
 });
 
 /*
- * The intent must come from a gesture in this tab, never from a URL. A public
- * `?play=1` link would spend the reader's one attempt for the day on arrival.
+ * Intent comes from a gesture in this tab, never a URL: a public `?play=1`
+ * link would spend the reader's one attempt on arrival.
  */
 describe('the play intent cannot be forged', () => {
     test('a query parameter does not start anything', () => {
@@ -214,8 +194,7 @@ describe('the play intent cannot be forged', () => {
     });
 
     test('a modified click does not record intent for this tab', () => {
-        // Cmd-click opens a new tab, whose module state is fresh; recording it
-        // here would arm THIS tab for some later unrelated visit.
+        // Cmd-click opens a new tab with fresh module state; recording here would arm THIS tab.
         markPlayIntent({ button: 0, metaKey: true, ctrlKey: false, shiftKey: false, altKey: false });
 
         render(<DailyClient intro={intro} />);
@@ -239,8 +218,7 @@ describe('/daily is exclusive with a room', () => {
 
         render(<DailyClient intro={intro} />);
 
-        // PLAYER_LEAVE is what calls forgetRoom server-side; without it the
-        // session stays resumable and the next connection is offered it back.
+        // PLAYER_LEAVE calls forgetRoom server-side; without it the session stays resumable.
         expect(leaveRoom).toHaveBeenCalledTimes(1);
     });
 
@@ -267,8 +245,7 @@ describe('/daily is exclusive with a room', () => {
 
         unmount();
 
-        // The full leave, not just the daily slice: a run clock left standing
-        // gets recorded by the next room that announces a win.
+        // The full leave: a run clock left standing gets recorded by the next room that wins.
         expect(leaveDaily).toHaveBeenCalled();
     });
 });
@@ -284,11 +261,7 @@ describe('/daily once the attempt is loaded', () => {
         expect(screen.queryByRole('heading', { name: 'Minesweeper Daily Challenge' })).toBeNull();
     });
 
-    /*
-     * The button says "Return to Home", and on its own route clearing the daily
-     * state alone lands on this page's intro instead — a control that quietly
-     * stopped doing what it says.
-     */
+    /* The button says "Return to Home"; clearing daily state alone lands on this page's intro. */
     test('leaving clears daily state AND goes home, as the button promises', () => {
         render(<DailyClient intro={intro} />);
         act(() => {
