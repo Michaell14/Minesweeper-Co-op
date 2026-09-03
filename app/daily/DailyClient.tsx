@@ -142,8 +142,12 @@ export default function DailyClient({ intro }: { intro: React.ReactNode }) {
     React.useEffect(() => {
         if (!socket || !startPending.current) return;
         startPending.current = false;
-        startDaily();
-    }, [socket, startDaily]);
+        // Through `requestStart` rather than straight to `startDaily`: a socket
+        // that lands after the timeout has already handed the page back would
+        // otherwise fire a request with no loading line and no timeout of its
+        // own to fall back from.
+        requestStart();
+    }, [socket, requestStart]);
 
     const autoStarted = React.useRef(false);
 

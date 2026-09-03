@@ -138,6 +138,36 @@ describe('/daily on arrival', () => {
     });
 
     /*
+     * The held start fires whenever the socket lands, including after the
+     * timeout has already handed the page back — and a request in flight has
+     * to say so, or the page sits on the prose with nothing to fall back from.
+     */
+    test('shows the loading line again when the socket lands after the timeout', () => {
+        vi.useFakeTimers();
+
+        mockSocket = null;
+        const { rerender } = render(<DailyClient intro={intro} />);
+        act(() => {
+            vi.advanceTimersByTime(20_000);
+        });
+        expect(introHeading()).toBeTruthy();
+
+        mockSocket = { id: 'test-socket' };
+        act(() => {
+            rerender(<DailyClient intro={intro} />);
+        });
+
+        expect(startDaily).toHaveBeenCalledTimes(1);
+        expect(screen.getByText(/Loading today/)).toBeTruthy();
+
+        // And it can time out again rather than stranding them on it.
+        act(() => {
+            vi.advanceTimersByTime(20_000);
+        });
+        expect(screen.getByRole('button', { name: /daily challenge/i })).toBeTruthy();
+    });
+
+    /*
      * A retry against a server that is still down has to look like a retry.
      * Without the pending state the click leaves the prose and the button
      * exactly where they were, and arms no second timeout to fall back from.
