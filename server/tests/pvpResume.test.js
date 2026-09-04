@@ -1,14 +1,7 @@
 /**
- * Restoring a racer who reloaded mid-game.
- *
- * PVP keeps almost everything per player: the board, the progress, the win/loss
- * flags. The room addresses that slot BY SOCKET ID, and a reload changes the
- * socket — so without repointing the slot the room is still talking to a socket
- * that no longer exists, and the returning player has no board of their own.
- *
- * The failure is quiet in the worst way. `playerIndexOf` refuses to act for a
- * socket it cannot place, so a restored-but-unrepointed racer sees a board they
- * cannot click and no error anywhere.
+ * Restoring a racer who reloaded mid-game. PVP state is per player, addressed
+ * BY SOCKET ID, and a reload changes the socket; without repointing the slot,
+ * `playerIndexOf` refuses to act and the racer sees a board they cannot click.
  */
 
 const mockEmit = jest.fn();
@@ -82,10 +75,8 @@ const emitted = (event) =>
 const arrange = (roomOverrides = {}) => {
     client.hGetAll.mockImplementation(async (key) => {
         if (key.startsWith('room:')) return racingRoom(roomOverrides);
-        // The old player record is deliberately absent. `removePlayer` deletes it
-        // the moment the socket drops, so it is already gone by the time the
-        // browser is back — restoring from it looked like it worked against a
-        // fixture that kept it around, and did nothing at all in a real reload.
+        // The old player record is absent: `removePlayer` deletes it when the
+        // socket drops, so a fixture that kept it hid a restore that did nothing.
         if (key === `player:${OLD_SOCKET}`) return {};
         if (key === `player:${RIVAL}`) return { name: 'Rival', score: '3', pvpPlayerIndex: '1' };
         return {};
@@ -115,12 +106,7 @@ describe('a racer returning on a new socket', () => {
         expect(roomWrites().player1Socket).toBe(NEW_SOCKET);
     });
 
-    /*
-     * The index is rebuilt from the room's slot, not copied from the old player
-     * record, which no longer exists. Without it pvp.js refuses to act for a
-     * socket it cannot place: the board comes back and then silently ignores
-     * every click, with one line in the server log and nothing on screen.
-     */
+    /* Rebuilt from the room's slot, since the old record is gone; without it pvp.js ignores every click. */
     test('their PVP index is rebuilt from the room, so the board is playable', async () => {
         await addPlayerToRoom(ROOM, NEW_SOCKET, 'Racer', SESSION);
 
@@ -158,13 +144,7 @@ describe('a racer returning on a new socket', () => {
         expect(closedMine.isMine).toBe(false);
     });
 
-    /*
-     * This asserted the opposite until a bug bash played it out: a racer who
-     * has detonated can `resetMyBoard` and carry on racing the SAME layout, so
-     * handing them the mines is handing them the answer key. Die on purpose,
-     * reload, read the board, reset, win — demonstrated against a real server.
-     * A PVP loss is not terminal; only a decided race is.
-     */
+    /* A detonated racer can `resetMyBoard` and race the SAME layout, so the mines are the answer key. */
     test('a board they lost on stays hidden while the race is still live', async () => {
         arrange({ player1GameOver: 'true' });
 

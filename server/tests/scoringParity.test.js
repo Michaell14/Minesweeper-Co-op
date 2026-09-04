@@ -1,17 +1,9 @@
 /**
- * The two modes must score the same move the same way.
- *
- * They didn't. PVP awarded a point per safe cell a move opened; co-op awarded
- * one point per click, so a click that cascaded fifty cells open scored the same
- * as one that opened a single square. Co-op didn't even agree with itself —
- * chording already scored per cell opened, so the same fifty cells were worth
- * fifty points via a chord and one via a click.
- *
- * These tests drive the SAME board and the SAME click through both modes and
- * compare the score written. They are deliberately blind to the rule: nothing
- * here asserts "cells revealed", only that the two modes agree and that the
- * number tracks how much was opened. A future change to the rule should keep
- * these passing as long as it changes both modes together.
+ * The two modes must score the same move the same way. They did not: PVP
+ * scored per safe cell opened, co-op per click (while its chord already scored
+ * per cell). These tests drive the SAME board and click through both modes and
+ * compare the score written, blind to the rule itself: only that the modes
+ * agree and that the number tracks how much was opened.
  */
 
 const mockEmit = jest.fn();
@@ -32,9 +24,8 @@ const SOCKET = 'sock-1';
 let client;
 
 /**
- * 4x4 with one mine in the far corner. (0,0) claims 0 adjacent mines, so opening
- * it cascades — which is the whole point: a per-click rule and a per-cell rule
- * only disagree when a move opens more than one cell.
+ * 4x4 with one mine in the far corner, so opening (0,0) cascades: per-click
+ * and per-cell rules only disagree when a move opens more than one cell.
  */
 const cascadingBoard = () => {
     const board = Array.from({ length: 4 }, () =>
@@ -129,8 +120,7 @@ const scoreInBothModes = async (act) => {
     const pvpScore = scoreWritten();
     const pvpOpened = openedCount();
 
-    // Guard the comparison: if the two modes didn't actually open the same
-    // cells, equal scores would prove nothing.
+    // If the two modes did not open the same cells, equal scores prove nothing.
     expect(coopOpened).toBe(pvpOpened);
 
     return { coopScore, pvpScore, opened: coopOpened };
@@ -165,8 +155,7 @@ describe('a click that cascades', () => {
     });
 
     test('scores more than a click that opens one cell', async () => {
-        // Without this, both modes agreeing on "1 point per click" would pass
-        // the test above. The rule has to track how much the move opened.
+        // Both modes agreeing on "1 point per click" would pass the test above.
         const flat = await scoreInBothModes({
             coop: () => coop.openCell(0, 0, ROOM, SOCKET, coopState(flatBoard()), '0'),
             pvp: () => pvp.openCell(0, 0, ROOM, SOCKET, pvpState(flatBoard()), '0', { pvpPlayerIndex: '0' }),
@@ -183,12 +172,9 @@ describe('a click that cascades', () => {
 });
 
 describe('a chord', () => {
-    // Chording was already per-cell in both modes; this pins it so a change to
-    // the click rule can't quietly desync it again.
-    // (1,1) is open and claims one adjacent mine, and that mine — at (2,2), a
-    // real neighbour — is flagged. So the chord fires and opens the other seven
-    // neighbours. Flagging a mine that isn't adjacent leaves the chord a no-op,
-    // which would make this pass while measuring nothing.
+    // Chording was already per-cell in both modes; pinned so the click rule
+    // cannot desync it again. (1,1) is open with one adjacent mine, at (2,2),
+    // which is flagged, so the chord fires and opens the other seven neighbours.
     const chorded = () => {
         const board = Array.from({ length: 4 }, () =>
             Array.from({ length: 4 }, () => ({ isMine: false, isOpen: false, isFlagged: false, nearbyMines: 1 }))
@@ -210,10 +196,8 @@ describe('a chord', () => {
     });
 
     /**
-     * The board above can't tell "per cell opened" from "per neighbour opened":
-     * every neighbour opens exactly itself, so both rules say 7. Here one
-     * neighbour claims no adjacent mines, so opening it cascades on past the
-     * chord — and the two rules finally disagree.
+     * The board above cannot tell "per cell opened" from "per neighbour
+     * opened" (both say 7). Here one neighbour cascades past the chord.
      */
     const chordThatCascades = () => {
         const board = Array.from({ length: 5 }, () =>

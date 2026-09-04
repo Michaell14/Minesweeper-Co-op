@@ -1,12 +1,8 @@
 /**
- * Room lifecycle — the three routes that own their own refusals.
- *
- * Unlike everything else in the table these keep their validation and their
- * try/catch inside the handler, because a refusal here owes the client a
- * SPECIFIC error (`createRoomError` vs `joinRoomError` vs `pvpRoomFull`) and
- * often a `socket.leave` with it. The registrar's silent refusal is right for a
- * cell action and wrong for a failed join, so these routes declare
- * `GUARDS.NONE` and answer for themselves.
+ * Room lifecycle — the three routes that own their own refusals. They keep
+ * validation and try/catch inside the handler because a refusal here owes the
+ * client a SPECIFIC error (`createRoomError`, `joinRoomError`, `pvpRoomFull`)
+ * and often a `socket.leave`, so they declare `GUARDS.NONE`.
  */
 
 const roomRepo = require('../data/roomRepo');
@@ -59,8 +55,7 @@ const create = async ({ socket, io, payload }) => {
 const join = async ({ socket, io, payload }) => {
     const { room, name } = payload;
     try {
-        // Whitespace is not part of a name. The browser sends what was typed,
-        // and anything speaking the protocol directly sends whatever it likes.
+        // Whitespace is not part of a name; anything speaking the protocol sends what it likes.
         const displayName = displayNameFor(socket, name);
         if (!isValidRoomCode(room) || !isValidPlayerName(displayName)) {
             socket.emit(SERVER_EVENTS.JOIN_ROOM_ERROR);
@@ -82,19 +77,11 @@ const join = async ({ socket, io, payload }) => {
         const mode = roomState.mode || 'co-op';
 
         /*
-         * A PVP room holds two, and a reconnecting player is not a third.
-         *
-         * Their socket id is new, so the players list cannot recognise them
-         * — it still holds the id they arrived under last time, if their
-         * disconnect has not been processed yet. Asking the SESSION is what
-         * the reconnect itself is keyed on, and without it a fast reload was
-         * turned away from its own room with "Room Full!".
-         *
-         * The capacity check and the join that follows it are one decision,
-         * so they are serialised: unlocked, two people opening the same
-         * invite together both read a room with space and both take it,
-         * leaving three players in a room `startPvpGame` will then refuse to
-         * start, permanently.
+         * A PVP room holds two, and a reconnecting player is not a third. Their
+         * socket id is new, so the players list cannot recognise them; the
+         * SESSION is what the reconnect is keyed on. The capacity check and the
+         * join are one decision, so they are serialised: unlocked, two people
+         * opening the same invite both find space and both take it.
          */
         if (mode === 'pvp') {
             const previousSocketId = sessionId ? await sessionRepo.getSocketId(sessionId) : null;
@@ -121,20 +108,14 @@ const join = async ({ socket, io, payload }) => {
         }
 
         /*
-         * Re-read, because `addPlayerToRoom` may have just changed who the
-         * host is: a reconnecting host keeps the role, so `hostSocket` is
-         * repointed at THIS socket. The snapshot above still names the one
-         * that dropped, and describing the room from it broke a reloaded
-         * host's lobby twice over — they were told `isHost: false`, and the
-         * guest lookup below compared against an id no longer in the players
-         * list, so it picked the host as their own opponent.
+         * Re-read: `addPlayerToRoom` may have repointed `hostSocket` at THIS
+         * socket for a reconnecting host. The snapshot above still names the
+         * one that dropped, which told a reloaded host `isHost: false`.
          */
         const joinedState = await roomRepo.getState(room);
         const isHost = mode === 'pvp' && joinedState.hostSocket === socket.id;
-        // The dimensions come along so the joiner's flag counter is right.
-        // `practice` likewise: a reload resumes through THIS handler, and
-        // without it the board, clock and score all came back while the
-        // target the player was racing silently did not.
+        // Dimensions so the joiner's flag counter is right; `practice` because a
+        // reload resumes through THIS handler and would otherwise lose the target.
         socket.emit(SERVER_EVENTS.JOIN_ROOM_SUCCESS, {
             room,
             mode,
@@ -175,16 +156,13 @@ const join = async ({ socket, io, payload }) => {
 };
 
 /**
- * Two independent jobs, so two independent try/catch blocks. Sharing one meant
- * a Redis blip in forgetRoom skipped removePlayer entirely — and leaving does
- * NOT disconnect the socket, so the leaver stayed in the room, still scored and
- * still counted, with their screen already home.
+ * Two independent jobs, two try/catch blocks. Sharing one meant a Redis blip
+ * in forgetRoom skipped removePlayer, leaving the leaver in the room.
  */
 const leave = async ({ socket }) => {
     try {
-        // Walking out on purpose is the one exit that must not be resumed.
-        // `disconnect` runs the same removePlayer and deliberately leaves the
-        // session's room intact, which is what a reload rides.
+        // Walking out on purpose is the one exit that must not be resumed;
+        // `disconnect` leaves the session's room intact for a reload.
         await forgetRoom(socket);
     } catch (error) {
         // Resume stays armed, but that must not cost them the leave as well.

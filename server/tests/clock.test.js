@@ -1,12 +1,9 @@
 /**
- * The run clock.
- *
- * It is stored as two timestamps rather than an elapsed count, so the things
- * worth pinning down are *when* the stamps are written and that they are always
- * emitted alongside the state change they describe. A clock that starts on room
- * creation, or one that keeps running after a loss, is wrong in a way no
- * screenshot would catch — it only shows up as a number that disagrees with the
- * board.
+ * The run clock. Stored as two timestamps rather than an elapsed count, so
+ * what matters is WHEN the stamps are written and that they are emitted
+ * alongside the state change they describe; a clock that starts on room
+ * creation or keeps running after a loss only shows up as a number that
+ * disagrees with the board.
  */
 
 const mockEmit = jest.fn();
@@ -25,10 +22,7 @@ const ROOM = 'r1';
 const SOCKET = 'sock-1';
 let client;
 
-/**
- * 3x3 with one mine at (0,0) and honest neighbour counts, so a cascade from the
- * far corner (2,2) stops at the ring of 1s instead of walking into the mine.
- */
+/** 3x3, one mine at (0,0), honest counts: a cascade from (2,2) stops at the ring of 1s. */
 const freshBoard = () => {
     const board = Array.from({ length: 3 }, () =>
         Array.from({ length: 3 }, () => ({ isMine: false, isOpen: false, isFlagged: false, nearbyMines: 0 }))
@@ -108,9 +102,9 @@ describe('reading the clock off room state', () => {
 
 describe('starting', () => {
     /*
-     * The first reveal regenerates the board, so this uses a 5x5 rather than the
-     * 3x3 fixture: on a tiny board the opening cascade can win outright, which
-     * would stop the clock in the same call and make "did it start" ambiguous.
+     * A 5x5 rather than the 3x3 fixture: the first reveal regenerates the
+     * board, and on a tiny one the opening cascade can win outright, stopping
+     * the clock in the same call.
      */
     const firstReveal = () => snapshot({
         initialized: 'false',

@@ -8,12 +8,9 @@ import { markDailyExplainerSeen } from '@/lib/dailyExplainerSeen';
 import { DIALOGS } from '@/lib/dialogs';
 
 /**
- * The socket is the whole point of `useGameSession` and none of it is what this
- * file is about. These tests exist for the things that fail SILENTLY: a page
- * that quietly stops starting the attempt looks exactly like one that does, a
- * player still holding a room behind the daily view looks exactly like one who
- * left it, and an explainer that greets a regular every morning looks exactly
- * like one that greets a newcomer once.
+ * Not about the socket. These tests cover what fails SILENTLY: a page that
+ * quietly stops starting the attempt, a player still holding a room behind the
+ * daily view, or an explainer that greets a regular every morning.
  */
 const startDaily = vi.fn();
 const leaveDaily = vi.fn();
@@ -41,11 +38,8 @@ const intro = <h2>Minesweeper Daily Challenge</h2>;
 const introHeading = () => screen.queryByRole('heading', { name: 'Minesweeper Daily Challenge' });
 
 /*
- * jsdom has no showModal at all, which is why the rest of the suite sets
- * `dialog.open` by hand (components/dialogs/DailyDialogs.test.tsx). Here the
- * call itself is the thing under test — whether the explainer is opened, and
- * for whom — so the method is stubbed to do what a browser does rather than
- * bypassed.
+ * jsdom has no showModal; the rest of the suite sets `dialog.open` by hand.
+ * Here the call itself is under test, so it is stubbed rather than bypassed.
  */
 beforeAll(() => {
     HTMLDialogElement.prototype.showModal = function showModal() {
@@ -77,10 +71,9 @@ beforeEach(() => {
 });
 
 /*
- * /daily is one puzzle, and the page now opens on it. Starting does consume the
- * day's attempt (server/controllers/dailyController.js), but a fresh attempt is
- * stored with `startedAt: null` and resumes under the same browser token, so
- * arriving without playing costs nothing.
+ * The page opens on the puzzle. Starting consumes the day's attempt
+ * (server/controllers/dailyController.js), but a fresh attempt is stored with
+ * `startedAt: null` and resumes under the same token, so arriving costs nothing.
  */
 describe('/daily on arrival', () => {
     test('starts the attempt on mount, with no click', () => {
@@ -92,8 +85,7 @@ describe('/daily on arrival', () => {
     test('shows neither the prose nor a play button while the board is on its way', () => {
         render(<DailyClient intro={intro} />);
 
-        // The complaint this exists for: a page of prose in front of a route
-        // whose whole purpose is today's puzzle.
+        // No page of prose in front of the puzzle.
         expect(introHeading()).toBeNull();
         expect(screen.queryByRole('button', { name: /daily challenge/i })).toBeNull();
         expect(screen.getByText(/Loading today/)).toBeTruthy();
@@ -116,9 +108,8 @@ describe('/daily on arrival', () => {
     });
 
     /*
-     * `startDaily`'s server handler emits nothing when it fails, so a dropped
-     * socket or a Redis blip leaves the page with nothing to wait for. It has
-     * to hand a button back rather than sit on a loading line forever.
+     * The server handler emits nothing on failure, so the page has nothing to
+     * wait for and must hand the button back rather than load forever.
      */
     test('falls back to the prose and a retry button when the server never answers', () => {
         vi.useFakeTimers();
@@ -208,9 +199,8 @@ describe('/daily on arrival', () => {
 });
 
 /*
- * The rules used to be the page. They are a dialog now, which means the only
- * thing standing between a first-time player and an unexplained one-shot timed
- * board is this flag being read correctly.
+ * The rules are a dialog now, so this flag being read correctly is all that
+ * stands between a first-time player and an unexplained one-shot timed board.
  */
 describe('the first-visit explainer', () => {
     test('opens once the board is there, on a browser that has never played', () => {
@@ -281,8 +271,7 @@ describe('/daily is exclusive with a room', () => {
 
         render(<DailyClient intro={intro} />);
 
-        // PLAYER_LEAVE is what calls forgetRoom server-side; without it the
-        // session stays resumable and the next connection is offered it back.
+        // PLAYER_LEAVE calls forgetRoom server-side; without it the session stays resumable.
         expect(leaveRoom).toHaveBeenCalledTimes(1);
     });
 
@@ -309,8 +298,7 @@ describe('/daily is exclusive with a room', () => {
 
         unmount();
 
-        // The full leave, not just the daily slice: a run clock left standing
-        // gets recorded by the next room that announces a win.
+        // The full leave: a run clock left standing gets recorded by the next room that wins.
         expect(leaveDaily).toHaveBeenCalled();
     });
 });
@@ -327,11 +315,7 @@ describe('/daily once the attempt is loaded', () => {
         expect(introHeading()).toBeTruthy();
     });
 
-    /*
-     * The button says "Return to Home", and on its own route clearing the daily
-     * state alone lands on this page's prose instead — a control that quietly
-     * stopped doing what it says.
-     */
+    /* The button says "Return to Home"; clearing daily state alone lands on this page's prose. */
     test('leaving clears daily state AND goes home, as the button promises', () => {
         render(<DailyClient intro={intro} />);
         boardArrives();

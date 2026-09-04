@@ -1,22 +1,15 @@
 /**
- * The Postgres singleton's two modes, exercised against the REAL module
- * (mockInfra's global mock is undone below).
- *
- * The disabled mode matters most: it is what every contributor without
- * Postgres runs in, and what production runs in before the addon is
- * provisioned. It must load cleanly, report the database as absent, and fail
- * queries with a clear error — never crash or hang.
- *
- * Safe without a database: `new Pool` opens no connection until first query,
- * so the enabled-mode tests only inspect configuration.
+ * The Postgres singleton's two modes, against the REAL module (mockInfra's mock
+ * is undone below). Disabled mode must load, report the database absent, and
+ * fail queries clearly: it is what runs without the addon. `new Pool` opens no
+ * connection until first query, so enabled-mode tests only inspect config.
  */
 
 jest.unmock('../utils/initializePgClient');
 
 /**
- * Loads a fresh copy of the module under a chosen DATABASE_URL. dotenv is
- * stubbed out so a developer's server/.env cannot leak a real DATABASE_URL
- * into the "unset" case and flip its outcome.
+ * Fresh copy of the module under a chosen DATABASE_URL. dotenv is stubbed so a
+ * developer's server/.env cannot leak a real URL into the "unset" case.
  */
 const loadWithUrl = (url) => {
     let mod;

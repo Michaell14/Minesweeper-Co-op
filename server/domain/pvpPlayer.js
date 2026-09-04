@@ -1,21 +1,14 @@
 /**
- * Which of a PVP room's two boards a socket owns. Dependency-free (no io, no
- * Redis, no other server modules).
- *
- * One line, and still its own module: getting it wrong is silent, and three
- * places need it — the socket handlers, the dispatch layer that picks a lock
- * key, and the reset controller. Written out separately in each, the copy in
- * pvpController defaulted an unassigned socket to 0, so a stranger reset PLAYER
- * ONE's board.
+ * Which of a PVP room's two boards a socket owns. Dependency-free. Its own
+ * module because getting it wrong is silent and three places need it: a copy
+ * in pvpController once defaulted an unassigned socket to 0, so a stranger
+ * reset PLAYER ONE's board.
  */
 
 /**
- * The socket's zero-based player index, or null if startPvpGame never assigned
- * one. Callers must treat null as "refuse the action" — there is deliberately no
- * fallback, since index 0 addresses player1Board.
- *
- * `pvpPlayerIndex` comes out of Redis as a string, so a genuine index 0 arrives
- * as truthy '0'. Testing the parsed number instead would drop player one.
+ * The socket's zero-based index, or null if startPvpGame never assigned one.
+ * Callers must treat null as "refuse": index 0 addresses player1Board.
+ * `pvpPlayerIndex` is a Redis string, so a genuine 0 arrives as truthy '0'.
  */
 const pvpIndexOf = (playerData) => {
     if (!playerData || !playerData.pvpPlayerIndex) return null;

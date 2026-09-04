@@ -12,17 +12,14 @@ export interface NameDialogProps {
 }
 
 /**
- * "Enter your Name", shown before creating, joining and quick match — the three
- * differ only in which action they call. The ref reads the input without the
- * dialog needing to know its own id.
+ * "Enter your Name", shown before creating, joining and quick match. The ref
+ * reads the input without the dialog needing to know its own id.
  */
 export default function NameDialog({ id, confirmLabel, onConfirm, setName }: NameDialogProps) {
     const inputRef = React.useRef<HTMLInputElement>(null);
 
     const confirm = (e: React.MouseEvent) => {
-        // Trimmed, not merely trim-CHECKED: the surrounding spaces are not part
-        // of the name, and storing them put "  Bob  " on the scoreboard while
-        // every comment about this path claimed the browser had trimmed it.
+        // Trimmed, not merely trim-CHECKED: "  Bob  " once reached the scoreboard.
         const nameValue = (inputRef.current?.value ?? '').trim();
         if (nameValue.length === 0) {
             e.preventDefault();

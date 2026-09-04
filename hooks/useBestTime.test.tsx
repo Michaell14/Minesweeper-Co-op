@@ -6,16 +6,10 @@ import { boardKey, clearBestTimes, recordBestTime, type BestTime } from "@/lib/b
 import { useBestTime } from "./useBestTime";
 
 /**
- * Which store the in-game record comes from.
- *
- * The failure this exists to catch is silent in both directions: signed in on a
- * new device the banner used to read a browser that had never seen you and
- * showed nothing, while your profile page showed the real record — and reading
- * the wrong one the other way (a stale account copy after signing out) shows
- * someone else's number with nothing visibly wrong.
- *
- * `getByRole` cannot help here: the hook renders nothing, so the probe prints
- * what it was handed.
+ * Which store the in-game record comes from. Wrong in either direction is
+ * silent: signed in on a new device the banner read an empty browser, and a
+ * stale account copy after signing out shows someone else's number. The hook
+ * renders nothing, so the probe prints what it was handed.
  */
 
 const Probe = () => {
@@ -76,10 +70,9 @@ describe("signed in", () => {
     });
 
     /*
-     * A board the ACCOUNT has no record for shows none, rather than falling
-     * back per-board to whatever this machine happens to hold. Mixing the two
-     * is what makes a record appear on one device and not another — the
-     * confusion the account read exists to end.
+     * A board the ACCOUNT has no record for shows none rather than falling
+     * back per-board to this machine; mixing the two makes a record appear on
+     * one device and not another.
      */
     test("a board the account has never cleared shows nothing, browser copy or not", async () => {
         recordBestTime(boardKey(9, 9, 10), { seconds: 95, players: 1, at: 1 });
@@ -112,10 +105,7 @@ describe("signed in", () => {
         await shown("Small / Easy: 40");
     });
 
-    /*
-     * Stats being down must not blank a number that was right a second ago —
-     * which is also why the browser's copy is still written while signed in.
-     */
+    /* Stats being down must not blank a number that was right a second ago. */
     test("falls back to this browser when the account's records cannot be fetched", async () => {
         recordBestTime(boardKey(9, 9, 10), { seconds: 95, players: 1, at: 1 });
         state().setAccountBests(null);

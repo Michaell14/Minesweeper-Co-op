@@ -1,13 +1,8 @@
 /**
- * The practice race's target time.
- *
- * Pure logic, so no DOM — but `readBestTime` reads localStorage, which jsdom
- * would normally supply. It is stubbed instead of pulled in: what matters here
- * is the arithmetic and which record gets picked, and neither needs a document.
- *
- * This is the kind of code that fails plausibly. A target derived from the
- * wrong record, or a percentage that quietly exceeds 100, produces a bar that
- * still moves and still looks like a race — so it would be believed.
+ * The practice race's target time. Pure logic, but `readBestTime` reads
+ * localStorage, so it is stubbed rather than pulling in jsdom. A target from
+ * the wrong record, or a percentage past 100, still looks like a race, so it
+ * would be believed.
  */
 
 import { describe, expect, test, beforeEach, vi } from 'vitest';
@@ -48,10 +43,8 @@ describe('which time you race', () => {
     });
 
     test('a group clear is NOT taken as a solo target', () => {
-        // Two people split a board faster than one person can, more or less by
-        // construction (see lib/bestTimes.ts). Racing a solo run against it
-        // would hand every player an unbeatable target the moment they played
-        // once with a friend.
+        // Two people split a board faster than one can (lib/bestTimes.ts);
+        // racing that would hand every player an unbeatable target.
         recordBestTime(boardKey(BOARD.rows, BOARD.cols, BOARD.mines, 3), {
             seconds: 40,
             players: 3,
@@ -74,8 +67,7 @@ describe('which time you race', () => {
             at: 1,
         });
 
-        // Zero would make the bar full before the first click and divide the
-        // percentage by nothing.
+        // Zero would fill the bar before the first click and divide by nothing.
         expect(targetForBoard().ms).toBeGreaterThan(0);
     });
 });

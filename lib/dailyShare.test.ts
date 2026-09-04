@@ -4,11 +4,9 @@ import type { Cell } from "@/shared/socketPayloads";
 import { buildDailyShareText, buildPaceBar, percentCleared } from "./dailyShare";
 
 /**
- * The share text is the one piece of this app pasted into places we cannot
- * see, so its shape is pinned here: every line has to earn its spot, missing
- * data drops its line rather than printing a placeholder, and nothing
- * positional about the shared board ever appears (everyone plays the same
- * seeded puzzle — see the module's own comment).
+ * The share text is pasted where we cannot see it, so its shape is pinned:
+ * missing data drops its line rather than printing a placeholder, and nothing
+ * positional about the shared board ever appears.
  */
 
 const base = {
@@ -68,9 +66,8 @@ describe("buildDailyShareText: losses", () => {
 
 describe("buildDailyShareText: the link", () => {
     /*
-     * /daily reads no parameters. A share link that grew one would be state the
-     * sender chose for the reader, on a puzzle that is meant to arrive the same
-     * way for everybody.
+     * /daily reads no parameters: a share link that grew one would be state the
+     * sender chose for the reader.
      */
     test("carries no query string", () => {
         const url = buildDailyShareText({ ...base, rank: 1, totalEntries: 2, streak: 9 })
@@ -97,10 +94,8 @@ describe("buildPaceBar", () => {
     });
 
     /*
-     * The board's free opening stamps its deciles at elapsed 0. A mean over
-     * ALL deciles would make every real decile of a perfectly steady run read
-     * as "slower than average" — the bar's one job done exactly backwards —
-     * so the average must exclude the instant ones.
+     * The free opening stamps its deciles at elapsed 0. A mean over ALL deciles
+     * would read a steady run as slower than average, so instant ones are excluded.
      */
     test("the free opening's instant deciles don't drag the average", () => {
         // One free decile, then nine perfectly steady seconds.
@@ -131,8 +126,7 @@ describe("buildPaceBar", () => {
         }
     });
 
-    /* Better no bar than a wrong one: each of these is data the bar's maths
-     * cannot honestly draw. */
+    /* Better no bar than a wrong one. */
     test("refuses data it cannot draw", () => {
         expect(buildPaceBar([], true)).toBeNull(); // pre-pace attempt
         expect(buildPaceBar(steady.slice(0, 5), true)).toBeNull(); // a "win" missing deciles

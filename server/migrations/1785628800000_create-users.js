@@ -1,11 +1,8 @@
 /**
- * users — one row per account.
- *
- * Identity is the OAuth pair (provider, provider_account_id): sign-in does a
- * get-or-create on it, so it carries the unique constraint. Email is informative
- * only — two providers can report the same address, so it is deliberately NOT
- * unique. display_name is what other players see in rooms and on the daily
- * leaderboard; profiles are private, so it has no uniqueness requirement either.
+ * users — one row per account. Identity is the OAuth pair (provider,
+ * provider_account_id), which carries the unique constraint. Email is
+ * informative only (two providers can report the same address), and
+ * display_name needs no uniqueness either since profiles are private.
  */
 
 exports.up = (pgm) => {

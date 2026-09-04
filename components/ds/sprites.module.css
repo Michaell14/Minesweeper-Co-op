@@ -11,13 +11,9 @@
 }
 
 /*
- * The size a caller gets when it asks for none. Kept OUT of .sprite so it never
- * competes with the board's own sizing class — two single-class rules setting
- * width would be decided by stylesheet order, which is not a thing to rely on.
- *
- * Larger than 1em because the art carries its own margin: the drawing fills
- * about fourteen of the sixteen rows, so at 1em it reads smaller than the
- * digits beside it.
+ * The default size, kept OUT of .sprite so it never competes with the board's
+ * own sizing class on stylesheet order. Larger than 1em because the art fills
+ * about fourteen of sixteen rows and reads small beside digits.
  */
 .inline {
     width: 1.4em;

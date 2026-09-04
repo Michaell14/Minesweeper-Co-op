@@ -1,9 +1,8 @@
 // @vitest-environment jsdom
 /**
- * Account management on /profile, by accessible name: the rename round-trip,
- * the unavailable escape hatch, and deletion behind the typed-name gate. The
- * gate is the part that must not fail silently — a Delete button that arms
- * without the name being typed is the old too-easy delete back again.
+ * Account management on /profile, by accessible name: rename, the unavailable
+ * escape hatch, and deletion behind the typed-name gate, which must not arm
+ * without the name.
  */
 import React from 'react';
 import { render, screen, waitFor, fireEvent, cleanup } from '@testing-library/react';
@@ -129,8 +128,7 @@ describe('overlapping saves across fields', () => {
         fireEvent.click(screen.getByRole('radio', { name: 'Fox' }));
         await waitFor(() => expect(mockUpdateAvatar).toHaveBeenCalled());
 
-        // The rename fails AFTER the pick took the profile ticket — the
-        // failure must not vanish and masquerade as a successful save.
+        // The rename fails AFTER the pick took the ticket; the failure must still show.
         rejectRename(new ProfileApiError('Invalid display name', 400));
         await waitFor(() =>
             expect(screen.getByRole('alert').textContent).toBe('Invalid display name'),
@@ -143,9 +141,8 @@ describe('overlapping saves across fields', () => {
         const { ProfileApiError } = await vi.importActual<typeof import('@/lib/profileApi')>(
             '@/lib/profileApi',
         );
-        // A rename persists before the pick fails. The revert must land on
-        // the renamed profile — a snapshot taken when the pick was clicked
-        // would resurrect the pre-rename name.
+        // A rename persists before the pick fails: the revert must land on the
+        // renamed profile, not a click-time snapshot.
         mockUpdateDisplayName.mockResolvedValue({ ...PROFILE, displayName: 'Renamed' });
         mockUpdateAvatar.mockRejectedValueOnce(new ProfileApiError('Invalid avatar', 400));
         await renderReady();
@@ -196,8 +193,7 @@ describe('the avatar picker', () => {
         expect(group).toBeTruthy();
         const selected = screen.getByRole('radio', { name: 'Smiley' }) as HTMLInputElement;
         expect(selected.checked).toBe(true);
-        // A sample of the rest — by accessible name, which is what breaks
-        // silently if a label stops resolving.
+        // A sample of the rest, by accessible name.
         for (const name of ['Fox', 'Penguin', 'Mushroom', 'Robot']) {
             expect(screen.getByRole('radio', { name })).toBeTruthy();
         }
@@ -239,10 +235,8 @@ describe('the avatar picker', () => {
         const { ProfileApiError } = await vi.importActual<typeof import('@/lib/profileApi')>(
             '@/lib/profileApi',
         );
-        // Fox persists server-side; its display is superseded by penguin,
-        // but it is still the last CONFIRMED state. When penguin fails, the
-        // revert must land on fox — Smiley is an avatar the server no
-        // longer holds.
+        // Fox persists server-side and is the last CONFIRMED state; when
+        // penguin fails the revert must land on fox, not Smiley.
         let resolveFox!: (value: unknown) => void;
         mockUpdateAvatar.mockImplementationOnce(
             () => new Promise((resolve) => { resolveFox = resolve; }),
@@ -346,9 +340,8 @@ describe('deletion', () => {
 });
 
 /*
- * The earned avatars. The server is the gate — these are about whether the
- * picker tells the truth BEFORE someone clicks, since the alternative is
- * offering a face and answering with a 403.
+ * The earned avatars. The server is the gate; this is whether the picker tells
+ * the truth BEFORE someone clicks.
  */
 describe('locked avatars', () => {
     const earned = (...ids: string[]) => ids.map((id) => ({ id, earnedAt: '2026-08-02' }));
@@ -356,8 +349,7 @@ describe('locked avatars', () => {
     it('locks one the account has not earned, and says what it costs', async () => {
         await renderReady({ achievements: [], stats: STATS });
 
-        // The requirement is part of the accessible NAME, not just on screen —
-        // a lock a screen reader cannot hear is a card that refuses silently.
+        // The requirement is part of the accessible NAME, so a screen reader hears the lock.
         const shark = screen.getByRole('radio', { name: /^Shark.*Win 100 races/ }) as HTMLInputElement;
         expect(shark.disabled).toBe(true);
     });
@@ -369,10 +361,8 @@ describe('locked avatars', () => {
     });
 
     /*
-     * Qualified but not yet awarded. Achievements land when a game FINISHES, so
-     * the threshold can be met while the row does not exist yet — and the badge
-     * shelf already words this moment its own way. Two different explanations
-     * of one state is worse than none.
+     * Qualified but not yet awarded: achievements land when a game FINISHES,
+     * and the badge shelf already words this moment its own way.
      */
     it('tells someone who qualifies that the award is pending', async () => {
         await renderReady({ achievements: [], stats: { ...STATS, pvpWins: 100 } });
@@ -403,9 +393,8 @@ describe('locked avatars', () => {
     });
 
     /*
-     * The panel outlives the stats fetch by design — sign-out has to stay
-     * reachable when the stats are down. Locked is the honest answer there;
-     * the other way round offers a face the save then refuses.
+     * The panel outlives the stats fetch (sign-out must stay reachable).
+     * Locked is the honest answer while achievements are unknown.
      */
     it('stays locked while the achievements are still unknown', async () => {
         await renderReady();
@@ -423,10 +412,8 @@ describe('locked avatars', () => {
 });
 
 /*
- * 'loading' is the one state with no way out on its own — stuck there, the
- * panel hides sign-out and deletion for the life of the page. `fetchProfile`
- * answers with null rather than throwing, so this is defence in depth, not a
- * reachable path today.
+ * 'loading' has no way out on its own and hides sign-out. `fetchProfile`
+ * answers null rather than throwing, so this is defence in depth.
  */
 it('shows the unavailable state if the profile read throws', async () => {
     mockFetchProfile.mockRejectedValue(new SyntaxError('Unexpected token <'));

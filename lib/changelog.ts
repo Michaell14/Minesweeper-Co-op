@@ -1,16 +1,9 @@
 /**
- * The user-facing changelog. Hand-curated: entries are written for players,
- * not derived from git history.
- *
- * To add an entry: prepend it to CHANGELOG with a fresh ISO date (never reuse
- * an earlier entry's date — the unseen badge compares dates, so a same-day
- * second entry would go unnoticed by anyone who saw the first). Nothing else
- * to touch: app/sitemap.ts stamps lastModified itself, since the static
- * public/sitemap.xml it replaced is gone.
- *
- * Seen-state lives in localStorage, not the sessionStorage the session id
- * uses: "has this person seen the news" is per-browser, not per-tab, and
- * sharing it across tabs is exactly what we want here.
+ * The user-facing changelog, hand-curated for players. To add an entry,
+ * prepend it to CHANGELOG with a fresh ISO date: the unseen badge compares
+ * dates, so a reused date goes unnoticed by anyone who saw the first.
+ * app/sitemap.ts stamps lastModified itself. Seen-state lives in localStorage,
+ * not sessionStorage: "has this person seen the news" is per-browser.
  */
 
 export type ChangeTag = 'New' | 'Improved' | 'Fixed';
@@ -210,10 +203,8 @@ export const LATEST_ENTRY: ChangelogEntry | null = CHANGELOG[0] ?? null;
 const STORAGE_KEY = 'minesweeper_changelog_last_seen';
 
 /*
- * The banner's own key, deliberately not STORAGE_KEY: closing a strip is not
- * reading the changelog, and sharing one would clear the star's unseen dot for
- * someone who never opened it. Holds the dismissed entry's id, so the next
- * release speaks to people who closed the last one.
+ * The banner's own key, not STORAGE_KEY: closing a strip is not reading the
+ * changelog. Holds the dismissed entry's id, so the next release shows again.
  */
 const BANNER_KEY = 'minesweeper_banner_dismissed';
 
@@ -223,9 +214,8 @@ export function hasUnseenEntries(): boolean {
         const lastSeen = localStorage.getItem(STORAGE_KEY);
         return !lastSeen || lastSeen < LATEST_ENTRY_DATE; // ISO dates compare correctly as strings
     } catch {
-        // Storage disabled (private mode, blocked cookies): these throw, and
-        // an uncaught throw here unmounts the app from the header's effect.
-        // No storage means no badge, not no game.
+        // Storage disabled (private mode): these throw, and an uncaught throw
+        // here unmounts the app from the header's effect.
         return false;
     }
 }

@@ -14,10 +14,8 @@ import {
 } from '@/lib/dailyCalendar';
 
 /**
- * The daily-challenge section: the clear streak and a month calendar of past
- * dailies. Pure presentation over the profile payload — no fetching here, and
- * every day string stays a string (see lib/dailyCalendar.ts for why a day is
- * never parsed through a local-time Date).
+ * The daily-challenge section: the clear streak and a month calendar. Pure
+ * presentation; every day string stays a string (see lib/dailyCalendar.ts).
  */
 
 interface DailyHistoryPanelProps {
@@ -111,9 +109,7 @@ export default function DailyHistoryPanel({
 
                 <ul
                     className="grid grid-cols-7 gap-1 list-none p-0 m-0"
-                    // Explicit despite the tag: WebKit strips list semantics
-                    // from any list-style:none list, and the accessible name
-                    // below hangs off the list role existing.
+                    // Explicit: WebKit strips list semantics from a list-style:none list, and the name hangs off the role.
                     role="list"
                     aria-label={`Daily results for ${monthLabel(cursor)}`}>
                     {buildMonthGrid(cursor).map((day, i) => {

@@ -2,14 +2,8 @@ import React from "react";
 import { rectsOf, type PixelArt } from "./pixelArt";
 
 /**
- * Pixel icons, stored as the art itself.
- *
- * Each icon is a 16x16 grid of characters plus a palette mapping character to
- * colour, so the sprite is legible and editable in place — squint at the rows
- * below and you can see the shape. A space is a transparent pixel.
- *
- * To add an icon: draw a 16x16 block, list its colours, export a component.
- * The board's mine and flag are drawn the same way, in sprites.tsx.
+ * Pixel icons as 16x16 character grids plus a palette, editable in place; a
+ * space is transparent. The mine and flag are drawn the same way in sprites.tsx.
  */
 
 export interface PixelIconProps extends React.SVGProps<SVGSVGElement> {
@@ -25,12 +19,7 @@ function PixelIcon({ art, size = 32, ...rest }: PixelIconProps & { art: PixelArt
             height={size}
             shapeRendering="crispEdges"
             xmlns="http://www.w3.org/2000/svg"
-            /*
-             * Decorative by default: every caller wraps the icon in a link or
-             * button that already carries its own aria-label. An icon used as a
-             * control's only content should pass aria-hidden={false} and a
-             * label, since {...rest} wins.
-             */
+            /* Decorative by default: callers carry the label. {...rest} can override. */
             aria-hidden={true}
             {...rest}
         >
@@ -120,10 +109,7 @@ const TROPHY = {
 } as const;
 
 const PING = {
-    /*
-     * Token-painted, unlike the brand icons above: this one rides in the
-     * reaction tray beside the emotes, on whichever palette the player runs.
-     */
+    /* Token-painted: this one rides in the reaction tray on every palette. */
     palette: {
         "#": "var(--ms-ink-strong)",
         "o": "var(--ms-cell-open)",
@@ -152,11 +138,7 @@ export const GithubIcon = (props: PixelIconProps) => <PixelIcon art={GITHUB} {..
 export const CoinIcon = (props: PixelIconProps) => <PixelIcon art={COIN} {...props} />;
 export const TrophyIcon = (props: PixelIconProps) => <PixelIcon art={TROPHY} {...props} />;
 
-/**
- * An avatar: a bust cropped inside a circle — the shape every app uses for
- * "your account", which a bare figure never reads as. The footer's way into
- * sign-in and the profile.
- */
+/** A bust in a circle, the universal "your account" shape. The footer's way into sign-in. */
 const USER = {
     palette: {
         "#": "#333",
@@ -184,11 +166,7 @@ const USER = {
 
 export const UserIcon = (props: PixelIconProps) => <PixelIcon art={USER} {...props} />;
 
-/**
- * The same head and shoulders, filled with the primary intent — the footer's
- * signed-in state, where the icon links to /profile instead of opening the
- * sign-in dialog. A token, not a literal, so every palette keeps it legible.
- */
+/** The signed-in state, filled with the primary intent token so every palette keeps it legible. */
 const USER_SIGNED_IN = {
     palette: {
         "#": "#333",
@@ -229,10 +207,7 @@ const GEAR = {
 
 export const GearIcon = (props: PixelIconProps) => <PixelIcon art={GEAR} {...props} />;
 
-/**
- * A star — the changelog. Filled with the warning intent (the yellow of most
- * palettes) rather than a literal, so every theme keeps it legible.
- */
+/** A star for the changelog, filled with the warning intent token. */
 const STAR = {
     palette: {
         "#": "#333",

@@ -1,11 +1,8 @@
 /**
- * The invite: the one message this protocol lets an account send to another
- * ACCOUNT rather than to a room, which is why every guard here is about proving
- * it was wanted.
- *
- * The refusals are all SILENT, and that is a privacy decision rather than
- * laziness: "they are not your friend", "they blocked you" and "they are not
- * online" are each a fact about somebody who did not choose to tell the sender.
+ * The invite: the one message an account sends to another ACCOUNT rather than
+ * a room, so every guard proves it was wanted. Refusals are SILENT for privacy:
+ * "not your friend", "blocked you" and "not online" are each a fact about
+ * somebody who did not choose to tell the sender.
  */
 
 const mockEmit = jest.fn();
@@ -72,8 +69,7 @@ describe('a valid invite', () => {
 
         await inviteFriend(senderSocket(), { friendId: FRIEND, room: ROOM });
 
-        // One emit per socket, not one per account: somebody with the game
-        // open in two tabs should see the invite in both.
+        // One emit per socket, not per account: two tabs both see the invite.
         const payload = { fromId: ME, fromName: 'Alice', fromAvatar: 'fox', room: ROOM, mode: 'co-op' };
         expect(invitesSent()).toEqual([payload, payload]);
         expect(mockTo.mock.calls.map(([id]) => id).sort()).toEqual(['sock-friend', 'sock-friend-2']);
@@ -91,11 +87,7 @@ describe('what it refuses, silently', () => {
         expect(invitesSent()).toEqual([]);
     });
 
-    /*
-     * A block removes the friendship row, so `areFriends` is already false —
-     * this is here to say that blocking is what makes invites stop, not just
-     * that a missing row does.
-     */
+    /* A block removes the friendship row; this says blocking is what stops invites. */
     test('somebody who blocked the sender', async () => {
         friendIsOnline();
         areFriends(false);   // the block deleted the accepted row
@@ -127,11 +119,7 @@ describe('what it refuses, silently', () => {
         expect(invitesSent()).toEqual([]);
     });
 
-    /*
-     * Without this, an account could send a friend into ANY room code it can
-     * name — including one it has never been in, which is a way to make
-     * somebody else's game somebody else's problem.
-     */
+    /* Otherwise an account could send a friend into ANY room code it can name. */
     test('a room the SENDER is not in', async () => {
         friendIsOnline();
         areFriends(true);
@@ -224,9 +212,8 @@ describe('the cooldown', () => {
     });
 
     /*
-     * The check and the mark used to sit either side of two awaits, so a
-     * double-click sent two invites: both read an empty cooldown, both
-     * yielded, both landed. The slot is taken before the lookups now.
+     * The check and the mark sat either side of two awaits, so a double-click
+     * sent two invites. The slot is taken before the lookups now.
      */
     test('holds when two invites for the same pair overlap', async () => {
         friendIsOnline();
@@ -241,11 +228,7 @@ describe('the cooldown', () => {
         expect(invitesSent()).toHaveLength(1);
     });
 
-    /*
-     * The slot is taken up front, so a refusal has to give it back — or one
-     * invite into a room the sender had left would cost the next real one its
-     * minute.
-     */
+    /* The slot is taken up front, so a refusal has to give it back. */
     test('is not spent by an invite that was refused', async () => {
         friendIsOnline();
         areFriends(true);
@@ -258,10 +241,7 @@ describe('the cooldown', () => {
         expect(invitesSent()).toHaveLength(1);
     });
 
-    /*
-     * Per PAIR, not per sender: the thing being protected is one person's
-     * attention, so somebody with twenty friends can still invite all of them.
-     */
+    /* Per PAIR, not per sender: the thing protected is one person's attention. */
     test('does not stop the same sender inviting somebody else', async () => {
         const other = '11111111-2222-3333-4444-555555555555';
         mockSockets.set('sock-other-friend', { id: 'sock-other-friend', data: { user: { id: other } } });

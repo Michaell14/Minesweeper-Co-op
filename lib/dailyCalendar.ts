@@ -1,11 +1,7 @@
 /**
- * Pure month/day maths for the profile's daily-history calendar.
- *
- * Days are 'YYYY-MM-DD' strings in UTC throughout, mirroring
- * server/domain/streak.js — and for the same reason: parsing a day string
- * through a local-time Date (the `new Date(day).toLocaleDateString()` trap)
- * shifts it a day west of UTC. Everything here goes through Date.UTC or
- * string slicing; a day string is never local-parsed.
+ * Pure month/day maths for the profile's daily-history calendar. Days are
+ * 'YYYY-MM-DD' strings in UTC, as in server/domain/streak.js; a local-parsed
+ * day string shifts a day west of UTC, so nothing here local-parses one.
  */
 
 export interface MonthCursor {
@@ -36,9 +32,7 @@ export const addMonths = ({ year, month }: MonthCursor, delta: number): MonthCur
 export const compareMonths = (a: MonthCursor, b: MonthCursor): number =>
     a.year * 12 + a.month - (b.year * 12 + b.month);
 
-// Hardcoded rather than toLocaleDateString: a locale-formatted month would be
-// the one place the page's language varies by viewer, and locale formatting
-// of a bare day string is exactly the local-parse trap this module avoids.
+// Hardcoded, not toLocaleDateString: locale formatting of a bare day string is the local-parse trap.
 const MONTH_NAMES = [
     'January', 'February', 'March', 'April', 'May', 'June',
     'July', 'August', 'September', 'October', 'November', 'December',
@@ -51,10 +45,7 @@ export const monthLabel = ({ year, month }: MonthCursor): string =>
 export const dayKey = ({ year, month }: MonthCursor, dayOfMonth: number): string =>
     `${year}-${String(month).padStart(2, '0')}-${String(dayOfMonth).padStart(2, '0')}`;
 
-/**
- * The month as a Sunday-start grid: leading nulls for the days before the
- * 1st, then every day key, then trailing nulls to a whole number of weeks.
- */
+/** The month as a Sunday-start grid: leading nulls, every day key, trailing nulls to whole weeks. */
 export const buildMonthGrid = (cursor: MonthCursor): (string | null)[] => {
     const { year, month } = cursor;
     const firstWeekday = new Date(Date.UTC(year, month - 1, 1)).getUTCDay();
@@ -67,10 +58,8 @@ export const buildMonthGrid = (cursor: MonthCursor): (string | null)[] => {
 };
 
 /**
- * The streak to DISPLAY. The stored value only moves when a result records,
- * so after a missed day it still holds the old run; a streak whose last clear
- * is older than yesterday is over, whatever the row says. The server payload
- * stays a faithful dump of storage — display-time is where staleness belongs.
+ * The streak to DISPLAY: the stored value only moves when a result records,
+ * so a last clear older than yesterday means the streak is over.
  */
 export const effectiveDailyStreak = (
     stored: number,
@@ -78,9 +67,6 @@ export const effectiveDailyStreak = (
     today: string,
 ): number => {
     if (!lastDailyDay) return 0;
-    // >= rather than ===: around UTC midnight a client clock can trail the
-    // server's, making the last clear look like tomorrow. A future-looking
-    // day is a LIVE streak, never a lapsed one — the mirror image of
-    // streak.js's earlier-day guard on the server.
+    // >= not ===: a client clock trailing the server's at midnight shows a LIVE streak, not a lapsed one.
     return lastDailyDay >= today || lastDailyDay === dayBefore(today) ? stored : 0;
 };

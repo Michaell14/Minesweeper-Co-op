@@ -1,9 +1,7 @@
 // @vitest-environment jsdom
 /**
- * Every reply that ends a join attempt must clear `joinPending`, or the
- * "Joining room…" indicator on Landing outlives the request it describes.
- * The clearing is spread across four handlers plus leaveRoom — exactly the
- * kind of wiring a refactor of the handler table drops silently.
+ * Every reply that ends a join attempt must clear `joinPending`, or "Joining
+ * room…" outlives the request. Spread across four handlers plus leaveRoom.
  */
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { useMinesweeperStore } from "@/app/store";
@@ -33,8 +31,7 @@ describe("replies that end a join attempt clear joinPending", () => {
     });
 
     test("roomDoesNotExist clears it through leaveRoom", () => {
-        // The handler delegates to the real leaveRoom action, which owns the
-        // clear — so here the wiring under test is that the delegation happens.
+        // The handler delegates to the real leaveRoom, which owns the clear.
         const leaveRoom = vi.fn();
         const handlers = useGameEvents(fakeSocket(), leaveRoom);
         (handlers[SERVER_EVENTS.ROOM_DOES_NOT_EXIST_ERROR] as () => void)();

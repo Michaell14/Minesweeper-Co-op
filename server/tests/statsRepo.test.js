@@ -16,11 +16,9 @@ const statsRepo = require('../data/statsRepo');
 const { ACHIEVEMENTS } = require('../../shared/achievements');
 
 /**
- * A client that logs sql and can be told to fail on a matching statement.
- * `wonDays` answers the daily-streak derivation SELECT, newest first — the
- * fake stands in for the table state AFTER the calendar upsert. `unlocked`
- * answers the achievement insert's RETURNING, which real Postgres narrows to
- * the rows ON CONFLICT actually let through.
+ * A client that logs sql and can fail on a matching statement. `wonDays`
+ * answers the daily-streak SELECT (table state AFTER the upsert, newest
+ * first); `unlocked` answers the achievement insert's RETURNING.
  */
 const makeClient = ({ failOn, wonDays = [], unlocked = [] } = {}) => {
     const calls = [];
@@ -69,8 +67,7 @@ describe('recordResult', () => {
         expect(sqls[sqls.length - 1]).toBe('COMMIT');
         expect(sqls.some((s) => s.includes('INSERT INTO game_results'))).toBe(true);
         expect(sqls.some((s) => s.includes('DELETE FROM game_results'))).toBe(true);
-        // The seed insert precedes the FOR UPDATE read — locking an absent row
-        // locks nothing, and first-ever concurrent results would race.
+        // Seed insert before FOR UPDATE: locking an absent row locks nothing.
         const seedIndex = sqls.findIndex((s) => s.includes('DO NOTHING'));
         const lockIndex = sqls.findIndex((s) => s.includes('FOR UPDATE'));
         expect(seedIndex).toBeGreaterThan(-1);
@@ -83,13 +80,11 @@ describe('recordResult', () => {
         const prune = client.calls.find((c) => c.sql.includes('DELETE FROM game_results'));
         expect(prune.params).toEqual(['uuid-1', statsRepo.RECENT_WINDOW]);
 
-        // A fresh player's first win: 1 game, 1 win, streak 1; the daily
-        // triple rides along untouched for a co-op result.
+        // Fresh player's first win; the daily triple is untouched by a co-op result.
         const stats = client.calls.find((c) => c.sql.includes('INSERT INTO user_stats') && !c.sql.includes('DO NOTHING'));
         expect(stats.sql).toContain('coop_games');
         expect(stats.params).toEqual(['uuid-1', 1, 1, 1, 1, '2026-08-02', 0, 0, null]);
 
-        // …and a co-op result never touches the daily calendar.
         expect(sqls.some((s) => s.includes('user_daily_results'))).toBe(false);
 
         // Best in floored seconds, keep-if-faster.
@@ -103,7 +98,6 @@ describe('recordResult', () => {
         mockConnect.mockResolvedValue(client);
         await statsRepo.recordResult('uuid-1', { ...RESULT, won: false });
         expect(client.calls.some((c) => c.sql.includes('user_board_bests'))).toBe(false);
-        // …but the game still counts, with zero wins.
         const stats = client.calls.find((c) => c.sql.includes('INSERT INTO user_stats') && !c.sql.includes('DO NOTHING'));
         expect(stats.params[1]).toBe(1); // games
         expect(stats.params[2]).toBe(0); // wins
@@ -117,10 +111,8 @@ describe('recordResult', () => {
     });
 
     /*
-     * The daily is a different board every day, so a daily clear filed as a
-     * board record would land on the key a co-op or practice run of the same
-     * dimensions looks up — and become the number the in-game banner shows for
-     * a board nobody can play again. Its own history is user_daily_results.
+     * A daily clear filed as a board record would become the banner's best
+     * for a board nobody can replay. Its history is user_daily_results.
      */
     test('a daily clear records the game but no board best', async () => {
         const client = makeClient();
@@ -150,12 +142,7 @@ describe('recordResult', () => {
         expect(best.params[3]).toBe(3);
     });
 
-    /*
-     * A race is SOLO work — you clear the whole board yourself — so the record
-     * is filed and captioned as one player even though the room holds two and
-     * the game itself counts as a two-player game. Reading `players` straight
-     * off the result is what made a race read "with 2 players".
-     */
+    /* You clear a race board yourself, so the record is filed as one player though the game counts two. */
     test('a race records two players but a solo record', async () => {
         const client = makeClient();
         mockConnect.mockResolvedValue(client);
@@ -245,19 +232,18 @@ describe('recordResult: the daily calendar and clear streak', () => {
 
         const calendar = client.calls.find((c) => c.sql.includes('INSERT INTO user_daily_results'));
         expect(calendar).toBeDefined();
-        // A loss must never downgrade a win, and only a faster win replaces one.
+        // A loss never downgrades a win; only a faster win replaces one.
         expect(calendar.sql).toMatch(/WHERE EXCLUDED\.won/);
         expect(calendar.params).toEqual(['uuid-1', '2026-08-02', true, 92_500, DAILY_RESULT.finishedAt]);
 
-        // The upsert must precede the stats write: the streak is derived from
-        // the table, so the new row has to be in it before the SELECT.
+        // The streak is derived from the table, so the upsert precedes the SELECT.
         const upsertIndex = sqls.findIndex((s) => s.includes('INSERT INTO user_daily_results'));
         const selectIndex = sqls.findIndex((s) => s.includes('SELECT day FROM user_daily_results'));
         const statsIndex = sqls.findIndex((s) => s.includes('INSERT INTO user_stats') && !s.includes('DO NOTHING'));
         expect(upsertIndex).toBeLessThan(selectIndex);
         expect(selectIndex).toBeLessThan(statsIndex);
 
-        // Fresh player: daily clear streak starts at 1, dated by the puzzle.
+        // Fresh player: streak 1, dated by the puzzle.
         const stats = client.calls[statsIndex];
         expect(stats.params.slice(6)).toEqual([1, 1, '2026-08-02']);
     });
@@ -271,17 +257,15 @@ describe('recordResult: the daily calendar and clear streak', () => {
         const calendar = client.calls.find((c) => c.sql.includes('INSERT INTO user_daily_results'));
         expect(calendar.params[2]).toBe(false);
 
-        // No derivation on a loss: the won-days set did not change.
+        // No derivation on a loss: the won-days set is unchanged.
         expect(client.calls.some((c) => c.sql.includes('SELECT day FROM user_daily_results'))).toBe(false);
         const stats = client.calls.find((c) => c.sql.includes('INSERT INTO user_stats') && !c.sql.includes('DO NOTHING'));
         expect(stats.params.slice(6)).toEqual([0, 0, null]);
     });
 
     test('an out-of-order win repairs the streak the calendar shows', async () => {
-        // Won the 1st and (already recorded) the 3rd; the leftover 2nd lands
-        // last, finished days later. Derived from the table, the answer is a
-        // 3-run keyed by puzzle dates — finishedAt plays no part, and the gap
-        // an accumulator would have locked in gets healed.
+        // The 2nd lands after the 1st and 3rd: derived from the table, that is
+        // a 3-run keyed by puzzle dates, healing the gap an accumulator would keep.
         const client = makeClient({ wonDays: ['2026-08-03', '2026-08-02', '2026-08-01'] });
         mockConnect.mockResolvedValue(client);
 
@@ -330,15 +314,15 @@ describe('recordResult: achievements', () => {
         expect(award).toBeDefined();
         expect(sqls.indexOf(award.sql)).toBeLessThan(sqls.indexOf('COMMIT'));
 
-        // The snapshot counts THIS result: a fresh player's first win is a win.
+        // The snapshot counts THIS result.
         expect(award.params[0]).toBe('uuid-1');
         expect(award.params[1]).toContain('first-clear');
 
-        // Re-awarding is Postgres's problem, not ours.
+        // Re-awarding is Postgres's problem.
         expect(award.sql).toMatch(/ON CONFLICT DO NOTHING/);
         expect(award.sql).toMatch(/RETURNING achievement_id/);
 
-        // Only what RETURNING gave back is new — the rest were already held.
+        // Only what RETURNING gave back is new.
         expect(unlocked).toEqual(['first-clear']);
     });
 
@@ -382,10 +366,8 @@ describe('recordResult: achievements', () => {
 });
 
 /*
- * The one query the avatar gate rests on. profileController's tests mock this
- * module wholesale, so without this nothing exercises the SQL or the row
- * shape — a renamed column would reach production silently and lock every
- * earned avatar for everyone.
+ * The query the avatar gate rests on. profileController's tests mock this
+ * module wholesale, so nothing else exercises the SQL or row shape.
  */
 describe('earnedAchievementIds', () => {
     const poolQuery = require('../utils/initializePgClient').pgPool.query;
@@ -455,8 +437,7 @@ describe('getProfile', () => {
     test('reads the achievement shelf newest first', async () => {
         poolQuery.mockImplementation(async (sql) => {
             if (sql.includes('FROM user_achievements')) {
-                // The shelf's "new since you last looked" watermark is the
-                // first row, so the ordering is contract, not presentation.
+                // The shelf's watermark is the first row, so ordering is contract.
                 expect(sql).toMatch(/ORDER BY earned_at DESC/);
                 return {
                     rows: [
@@ -494,7 +475,7 @@ describe('backfillAchievements', () => {
 
     beforeEach(() => poolQuery.mockReset());
 
-    /** Rows as pg hands them back: snake_case, straight off user_stats. */
+    /** Rows as pg hands them back, straight off user_stats. */
     const statsRow = (user_id, overrides = {}) => ({
         user_id,
         coop_games: 0, coop_wins: 0,
@@ -529,11 +510,7 @@ describe('backfillAchievements', () => {
         expect(summary).toEqual({ players: 1, awarded: 2 });
     });
 
-    /*
-     * The property that keeps a backfill honest. Moments describe one game,
-     * and there is no game here — evaluating with no result must not manage to
-     * hand out a clear nobody made.
-     */
+    /* Moments describe one game, and a backfill has none to describe. */
     test('never awards a moment, however decorated the player', async () => {
         const { awards } = await runWith([
             statsRow('uuid-1', {
@@ -545,7 +522,7 @@ describe('backfillAchievements', () => {
 
         const momentIds = ACHIEVEMENTS.filter((a) => a.moment).map((a) => a.id);
         expect(awards[0][1].filter((id) => momentIds.includes(id))).toEqual([]);
-        // …and it did award the counters, so the assertion above means something.
+        // The counters were awarded, so the assertion above means something.
         expect(awards[0][1]).toContain('field-marshal');
     });
 
@@ -555,7 +532,7 @@ describe('backfillAchievements', () => {
         expect(summary).toEqual({ players: 1, awarded: 0 });
     });
 
-    // Re-running is expected: the script is one-shot but idempotent.
+    // The script is one-shot but idempotent.
     test('counts only what ON CONFLICT actually let through', async () => {
         const { summary } = await runWith(
             [statsRow('uuid-1', { coop_wins: 12 }), statsRow('uuid-2', { coop_wins: 1 })],
@@ -580,17 +557,14 @@ describe('importBests', () => {
         expect(sqls.filter((s) => s.includes('user_board_bests'))).toHaveLength(2);
         expect(sqls[sqls.length - 1]).toBe('COMMIT');
 
-        // The group clear takes its suffix from the count on the record, so an
-        // imported record lands on the key the game looks up.
+        // The suffix comes from the record's count, so it lands on the key the game reads.
         const upserts = client.calls.filter((c) => c.sql.includes('user_board_bests'));
         expect(upserts.map((c) => c.params[1])).toEqual(['9x9/10', '16x16/40@2']);
     });
 
     /*
-     * Client-reported, so the two halves of an entry can disagree — by a stale
-     * build, or by hand. The count on the record decides, the same rule the
-     * browser applies on read and on write; trusting the key as sent would
-     * file a record on a slot nothing derives and nothing ever reads.
+     * Client-reported, so key and count can disagree. The count decides, the
+     * same rule the browser applies; a key as sent could land on a slot nothing reads.
      */
     test('a key that disagrees with its own count is re-filed, not trusted', async () => {
         const client = makeClient();

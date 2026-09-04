@@ -1,16 +1,11 @@
 import type { Config } from "tailwindcss";
 
 /**
- * Tailwind reads the design tokens rather than defining a parallel palette.
- *
- * Every entry below points at a custom property in app/tokens.css, so
- * `bg-surface-panel` and a component that writes
- * `background: var(--ms-surface-panel)` resolve to the same value, and an
- * alternate palette overriding the token moves both. Adding a raw hex here
- * would reintroduce exactly the split this is meant to remove.
- *
- * Tailwind's own default palette is still available — this extends rather than
- * replaces it — but new UI should reach for the semantic names.
+ * Tailwind reads the design tokens rather than defining a parallel palette:
+ * every entry points at a custom property in app/tokens.css, so a utility
+ * class and a `var()` resolve to the same value and a theme moves both. A raw
+ * hex here would reintroduce the split. Extends Tailwind's defaults; new UI
+ * should reach for the semantic names.
  */
 const config: Config = {
     content: [
@@ -19,8 +14,7 @@ const config: Config = {
         "./app/**/*.{js,ts,jsx,tsx,mdx}",
     ],
     theme: {
-        // The app's one font is applied globally in app/globals.css via the
-        // next/font CSS variable, not through a Tailwind `font-*` utility.
+        // The one font is applied globally in app/globals.css via the next/font variable.
         extend: {
             colors: {
                 surface: {
@@ -76,11 +70,9 @@ const config: Config = {
                 },
             },
             fontSize: {
-                // Named off the token scale rather than Tailwind's rem sizes:
-                // Press Start 2P is a pixel face, so these must stay integer px.
-                // Each pairs a size with its leading, exactly as Tailwind's own
-                // sizes do — a bare font-size here drops the line-height at
-                // every site that used to be a `text-*` class.
+                // Named off the token scale: Press Start 2P is a pixel face, so
+                // sizes stay integer px. Each pairs size with leading, as
+                // Tailwind's own do, or `text-*` sites lose their line-height.
                 "pixel-2xs": ["var(--ms-text-2xs)", { lineHeight: "var(--ms-leading-2xs)" }],
                 "pixel-xs": ["var(--ms-text-xs)", { lineHeight: "var(--ms-leading-xs)" }],
                 "pixel-sm": ["var(--ms-text-sm)", { lineHeight: "var(--ms-leading-sm)" }],
@@ -89,8 +81,7 @@ const config: Config = {
                 "pixel-xl": ["var(--ms-text-xl)", { lineHeight: "var(--ms-leading-xl)" }],
                 "pixel-2xl": ["var(--ms-text-2xl)", { lineHeight: "var(--ms-leading-2xl)" }],
                 "pixel-4xl": ["var(--ms-text-4xl)", { lineHeight: "var(--ms-leading-4xl)" }],
-                // Prose, set in Inter rather than the pixel face — content
-                // pages only. See the token comment in app/tokens.css.
+                // Prose, set in Inter, content pages only. See app/tokens.css.
                 "body": ["var(--ms-text-body)", { lineHeight: "var(--ms-leading-body)" }],
                 "body-sm": ["var(--ms-text-body-sm)", { lineHeight: "var(--ms-leading-body-sm)" }],
             },

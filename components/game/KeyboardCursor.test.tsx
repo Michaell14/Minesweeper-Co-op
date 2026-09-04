@@ -7,10 +7,8 @@ import type { Cell } from "@/state/types";
 import KeyboardCursor from "./KeyboardCursor";
 
 /**
- * The overlay's two jobs that fail silently: the frame that marks the selected
- * cell, and the live region that tells a screen reader what is under it. jsdom
- * has no layout, so nothing here asserts pixels — position is smoke-suite
- * territory.
+ * The overlay's silent failures: the frame marking the cell, and the live
+ * region announcing it. jsdom has no layout, so position is smoke-suite territory.
  */
 
 const closed = (): Cell => ({ isMine: false, isOpen: false, isFlagged: false, nearbyMines: 0 });
@@ -23,7 +21,7 @@ const renderCursor = () => {
 };
 
 beforeEach(() => {
-    // useCellMetrics measures with a ResizeObserver jsdom does not ship.
+    // useCellMetrics needs a ResizeObserver jsdom does not ship.
     vi.stubGlobal("ResizeObserver", class {
         observe() {}
         unobserve() {}
@@ -44,8 +42,7 @@ test("hidden cursor: no frame, and the live region is mounted but silent", () =>
     renderCursor();
 
     expect(document.querySelector("[data-kb-cursor]")).toBeNull();
-    // Mounted empty on purpose: a region that appears together with its first
-    // text is a region screen readers may never announce.
+    // Mounted empty: a region appearing with its first text may never be announced.
     expect(screen.getByRole("status").textContent).toBe("");
 });
 

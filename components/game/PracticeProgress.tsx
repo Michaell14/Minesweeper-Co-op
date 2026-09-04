@@ -9,17 +9,10 @@ import { targetPercent } from '@/lib/practice';
 import { formatElapsed } from '@/lib/gameClock';
 
 /**
- * The practice race's two bars: your progress, and the target's.
- *
- * The target has no server behind it. A practice race is a co-op room of one
- * (see server/controllers/matchmakingController.js), and this bar is drawn from
- * the run clock against a time out of this browser's records — which renders
- * identically to a live racer because a PVP opponent was never more than a
- * percentage either.
- *
- * Separate from Grid's PVP block rather than folded into it: that block reads
- * `pvpOpponentName`/`pvpOpponentStatus` and divides by `pvpTotalSafeCells`, none
- * of which a co-op room has.
+ * The practice race's two bars: yours and the target's. The target has no
+ * server behind it: a practice race is a co-op room of one, and this bar is
+ * drawn from the run clock against a time out of this browser's records.
+ * Separate from Grid's PVP block, which reads PVP fields a co-op room lacks.
  */
 export interface PracticeProgressProps {
     /** panel -> boxed, desktop side column. mobile -> bare bars under the board. */
@@ -27,11 +20,8 @@ export interface PracticeProgressProps {
 }
 
 /**
- * The target's fill, re-derived from the timestamps each tick.
- *
- * Ticks faster than the timer's once a second, because this drives a bar rather
- * than digits and a second's jump is visible as a stutter. Stops scheduling
- * once the run ends, so a finished board costs nothing.
+ * The target's fill, re-derived each tick. Faster than the timer's once a
+ * second because a second's jump is visible on a bar. Stops once the run ends.
  */
 const useTargetPercent = (startedAt: number | null, endedAt: number | null, targetMs: number) => {
     const [percent, setPercent] = React.useState(() => targetPercent(startedAt, endedAt, targetMs));
@@ -58,12 +48,10 @@ export default function PracticeProgress({ variant }: PracticeProgressProps) {
 
     const target = useTargetPercent(startedAt, endedAt, practiceTargetMs ?? 0);
 
-    // Hooks first: this returns early, and a conditional hook would break the
-    // order between a practice room and an ordinary one.
+    // Hooks first: this returns early.
     if (practiceTargetMs === null || !showProgressBar) return null;
 
-    // Named for what it is. Calling it an opponent would be the one lie this
-    // feature is built to avoid — see the PR discussion in ARCHITECTURE.md §5.
+    // Not an "opponent": that is the one lie this feature avoids (ARCHITECTURE.md §5).
     const targetLabel = isPersonal ? 'Your best' : 'Par';
     const targetTime = formatElapsed(practiceTargetMs);
 

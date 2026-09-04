@@ -1,10 +1,8 @@
 /**
- * The profile-stats routes. Reads only what the game server itself recorded —
- * there is no "submit a result" endpoint, which is the entire
- * server-authoritative promise. The one write is the guest best-times import,
- * accepted knowingly as client-reported (PRD): it seeds a PRIVATE profile via
- * a keep-if-faster upsert, so it can pad a shelf but never corrupt a record
- * someone actually earned faster.
+ * The profile-stats routes. Reads only what the game server recorded — there
+ * is no "submit a result" endpoint. The one write is the guest best-times
+ * import, client-reported by design (PRD): a keep-if-faster upsert into a
+ * PRIVATE profile can pad a shelf but never beat a record someone earned.
  */
 
 const { requireUser } = require('./profileController');
@@ -22,10 +20,8 @@ const registerStatsRoutes = (app) => {
     });
 
     /*
-     * The board records alone — what the GAME reads, rather than the profile
-     * page. Separate from /api/stats because it is fetched on sign-in by every
-     * tab with a board in it, and building the whole profile for it would run
-     * four queries nothing on that page shows.
+     * The board records alone, what the GAME reads. Fetched on sign-in by every
+     * tab with a board, so it skips the profile's other queries.
      */
     app.get('/api/stats/bests', requireUser, async (req, res) => {
         try {

@@ -1,12 +1,7 @@
 /**
- * Deciding a PVP race that ended in a disconnect.
- *
- * The server cannot tell a quit from a reload — both arrive as a disconnect — so
- * the forfeit waits to see whether the player comes back. These tests are about
- * that wait resolving the right way, because both wrong answers are bad and both
- * are silent: award too eagerly and refreshing the page loses you a game you were
- * winning; never award and a quitter leaves their opponent in a race that can
- * never end.
+ * Deciding a PVP race that ended in a disconnect. A quit and a reload both
+ * arrive as a disconnect, so the forfeit waits. Award too eagerly and a
+ * refresh loses a game you were winning; never award and a race cannot end.
  */
 
 const mockEmit = jest.fn();
@@ -81,11 +76,8 @@ describe('when the countdown runs out', () => {
 });
 
 describe('when the player comes back first', () => {
-    /*
-     * The whole reason the forfeit waits. No flag is cleared on their return —
-     * settling just looks at the room and finds it whole again, so there is no
-     * cancellation anyone can forget to perform.
-     */
+    /* No flag is cleared on return; settling reads the room and finds it
+     * whole, so there is no cancellation to forget. */
     test('a refilled room cancels the forfeit', async () => {
         arrange({ players: JSON.stringify([SURVIVOR, DROPPED]) });
 
@@ -124,11 +116,8 @@ describe('when the race ended on its own merits', () => {
     });
 });
 
-/*
- * Being the last one here is not the same as having won. The survivor's own
- * board can be sitting on a mine they hit before the other player quit, and
- * "Victory!" then contradicts the "Boom!" already on their screen.
- */
+/* The survivor's own board can be sitting on a mine they hit before the other
+ * player quit; "Victory!" would contradict the "Boom!" on their screen. */
 describe('when the survivor has already hit a mine', () => {
     /** Slots are addressed by socket, so the survivor has to occupy one. */
     const detonated = (slotFields) =>

@@ -13,11 +13,8 @@ import {
 import { toRects, type PixelArt } from "./pixelArt";
 
 /**
- * The art table, checked for the mistakes that draw something plausible.
- *
- * A short row silently truncates the sprite; a glyph with no palette entry
- * renders `fill="undefined"`, which paints black rather than throwing. Neither
- * shows up anywhere but on the board, in one palette, for a few days a year.
+ * The art table, checked for mistakes that draw something plausible: a short
+ * row truncates the sprite, a glyph with no palette entry paints black.
  */
 
 const ALL: [string, SpriteSet][] = [
@@ -65,10 +62,9 @@ describe("colours are a hex or a token, never a bare name", () => {
     });
 
     /*
-     * The default pair and every GENERAL set paint on twelve palettes, so they
-     * cannot hold a literal: a black bomb vanishes on Game Boy, whose mine
-     * cell is its darkest green. Only the seasonal pairs may use literals —
-     * each appears on its own palette alone.
+     * The default pair and every GENERAL set paint on twelve palettes, so no
+     * literals (a black bomb vanishes on Game Boy). Seasonal pairs may, each
+     * appearing on its own palette alone.
      */
     test.each([
         ["default", DEFAULT_SET] as [string, SpriteSet],

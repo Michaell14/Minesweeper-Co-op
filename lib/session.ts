@@ -1,28 +1,15 @@
 /**
- * Per-tab session id, used by the server to recognise a reconnecting player
- * rather than treating them as someone new.
- *
- * sessionStorage, not localStorage: localStorage is shared by every tab, so a
- * second tab would present the same id and the server would read it as "that
- * player reconnected on a new socket", evicting the first tab from its room and
- * handing over the host role. sessionStorage is per-tab and still survives a
- * reload, which is the case this exists for.
+ * Per-tab session id, so the server recognises a reconnecting player.
+ * sessionStorage, not localStorage: a second tab presenting the same id would
+ * read as a reconnect and evict the first tab. Per-tab still survives a reload.
  */
 const STORAGE_KEY = "minesweeper_session_id";
 
 /**
- * The id has to be unguessable, because it is the only thing identifying a
- * returning player: whoever presents one is offered that session's room and
- * name, and takes its seat.
- *
- * `crypto.randomUUID` is gated on a SECURE CONTEXT, so it is simply absent over
- * plain HTTP — a LAN address during development, say. The fallback there used to
- * be `Math.random()` plus the clock, which is neither cryptographic nor
- * unpredictable: `Date.now()` is public and `Math.random()` is not a CSPRNG, so
- * ids minted on that path were guessable from roughly when the tab opened.
- *
- * `getRandomValues` carries no such gate, so the genuinely weak branch is now
- * only reachable where there is no Web Crypto at all.
+ * Must be unguessable: whoever presents an id takes that session's seat.
+ * `crypto.randomUUID` needs a secure context (absent over plain HTTP on a LAN);
+ * `getRandomValues` has no such gate, so the Math.random branch is reachable
+ * only where there is no Web Crypto at all.
  */
 const randomId = (): string => {
     if (typeof crypto !== "undefined") {

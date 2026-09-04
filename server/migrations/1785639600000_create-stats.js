@@ -1,18 +1,11 @@
 /**
- * The stats tables (USER_PROFILES_PRD.md Phase 6) — written ONLY by the game
- * server at the moment it decides a game ended; no client-supplied results.
- *
- * - user_stats: lifetime aggregates plus the day-streak. last_played_day is
- *   TEXT ('YYYY-MM-DD', UTC) on purpose: pg parses `date` columns into local
- *   JS Dates, which is exactly the timezone trap the streak logic exists to
- *   avoid.
- * - game_results: the recent window, pruned to the newest ~50 per player on
- *   every insert (statsRepo).
- * - user_board_bests: fastest clear per board, keyed by dimensions and mine
- *   count (never labels — CLAUDE.md trap #10), kept only if faster.
- *
- * All three cascade from users: userRepo.deleteUser stays the single
- * deletion point.
+ * The stats tables (USER_PROFILES_PRD.md Phase 6), written ONLY by the game
+ * server when it decides a game ended. user_stats holds lifetime aggregates
+ * and the day-streak (last_played_day is TEXT 'YYYY-MM-DD' UTC, since pg
+ * parses `date` into local JS Dates); game_results is the recent window,
+ * pruned to ~50 (statsRepo); user_board_bests is the fastest clear per board,
+ * keyed by dimensions and mines (never labels, CLAUDE.md trap #10). All three
+ * cascade from users, so userRepo.deleteUser stays the single deletion point.
  */
 
 exports.up = (pgm) => {

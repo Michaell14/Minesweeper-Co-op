@@ -10,27 +10,18 @@ export interface AddFriendsFromGameProps {
 }
 
 /**
- * "Add the people you just played with", at the bottom of the game summary.
- *
- * This is the whole reason the friend graph gets used. A friend code is a fine
- * way to add somebody you already know; it is a terrible way to meet the
- * stranger a quick match just paired you with, which is precisely the moment
- * two people have a reason to become friends.
- *
- * The list is entirely the SERVER's: it excludes you, guests, anyone either of
- * you has blocked, and anyone who has already closed their tab. So there is no
- * filtering here — an empty list means there is nobody to offer, and this
- * renders nothing rather than an empty heading.
+ * "Add the people you just played with", at the bottom of the game summary:
+ * the moment a quick-match stranger has a reason to become a friend. The list
+ * is entirely the server's (no you, guests, blocks or departed sockets), so an
+ * empty list renders nothing rather than an empty heading.
  */
 export default function AddFriendsFromGame({ addRoomFriend }: AddFriendsFromGameProps) {
     const { status } = useSession();
     const roomFriends = useMinesweeperStore((state) => state.roomFriends);
 
     /*
-     * Draws only. The list is asked for where the summary is OPENED
-     * (hooks/useGameEvents.ts): this component is mounted once per summary
-     * dialog, and dialogs here are always rendered, so owning the fetch meant
-     * asking four times on room join.
+     * Draws only. The list is requested where the summary opens
+     * (hooks/useGameEvents.ts); fetching here asked four times on room join.
      */
     if (status !== 'authenticated' || roomFriends.length === 0) return null;
 
@@ -38,8 +29,7 @@ export default function AddFriendsFromGame({ addRoomFriend }: AddFriendsFromGame
     const action = (statusOf: (typeof roomFriends)[number]['status']) => {
         if (statusOf === 'friends') return { label: 'Friends', done: true };
         if (statusOf === 'requested') return { label: 'Requested', done: true };
-        // They asked first, so this press is an acceptance — `requestFriend`
-        // folds the two together, and saying "Accept" is the honest word for it.
+        // They asked first, so this press is an acceptance (`requestFriend` folds the two).
         if (statusOf === 'incoming') return { label: 'Accept', done: false };
         return { label: 'Add friend', done: false };
     };

@@ -1,21 +1,10 @@
 /**
  * Regression: two overlapping co-op moves must not lose one another's work.
- *
- * openCell, chordCell and toggleFlag each take a whole-board snapshot, mutate a
- * local copy, emit the cells they changed, and write the ENTIRE board back. With
- * no mutual exclusion, two moves that overlap both read the board before either
- * writes, and the second write erases the first player's reveals.
- *
- * Nothing errors when this happens. The clients were sent both sets of updates,
- * so the UI shows a board the server does not have, and because the server's
- * board still has closed safe cells, checkWin never fires: the game looks
- * finished and simply never ends. Observed in a real 9x9 room with moves 320ms
- * apart.
- *
- * These drive the real dispatch entry point in game/index.js against a Redis
- * fake that resolves on the event loop (tests/setup/fakeRedis.js), because the
- * race is in the gap between a read and its write — the shared mock has no
- * store, so nothing it hands back can be stale.
+ * Each move snapshots the whole board and writes it back entire, so unlocked
+ * overlaps erase reveals silently: clients show a board the server lacks and
+ * checkWin never fires. Driven through game/index.js against the event-loop
+ * Redis fake (tests/setup/fakeRedis.js), since the shared mock has no store
+ * and nothing it returns can be stale.
  */
 
 const mockEmit = jest.fn();
@@ -40,10 +29,7 @@ const ROOM = 'r1';
 const ALICE = 'sock-a';
 const BOB = 'sock-b';
 
-/**
- * 4x4 with a single mine at (3,3) and every other cell claiming one adjacent
- * mine, so no click cascades and each assertion is about the cells it names.
- */
+/** 4x4, one mine at (3,3), every other cell claiming one neighbour so nothing cascades. */
 const quietBoard = () => {
     const board = Array.from({ length: 4 }, () =>
         Array.from({ length: 4 }, () => ({ isMine: false, isOpen: false, isFlagged: false, nearbyMines: 1 }))
@@ -117,9 +103,7 @@ describe('two players clicking at the same time', () => {
             openCell(2, 2, ROOM, BOB),
         ]);
 
-        // The clients acted on every updateCells they were sent. If the server
-        // kept less than it announced, the UI is permanently ahead of it and
-        // nothing will ever reconcile the two.
+        // If the server kept less than it announced, the UI is permanently ahead of it.
         expect(openCoords(storedBoard())).toEqual(announcedOpenCoords());
     });
 
@@ -198,11 +182,8 @@ describe('a flag placed while someone else is clicking', () => {
 
 describe('a reset landing while a move is in flight', () => {
     /**
-     * Which of the two happened "first" is genuinely ambiguous — the players
-     * pressed at the same moment — so neither outcome is the right one to pin
-     * down. What must hold either way is that the room stays self-consistent:
-     * `initialized` and the board have to agree, or the next click generates a
-     * second board over a room that already has one.
+     * Which landed first is ambiguous, so neither outcome is pinned. The room
+     * must stay self-consistent: `initialized` and the board have to agree.
      */
     const assertRoomIsCoherent = () => {
         const room = storedRoom();
@@ -210,15 +191,12 @@ describe('a reset landing while a move is in flight', () => {
         const open = openCoords(board);
         const mines = board.flat().filter((cell) => cell.isMine).length;
 
-        // `gameOver` / `gameWon` are deliberately not asserted. A move that lands
-        // after the reset is a legitimate first click on the new game, and on a
-        // board this small its cascade can clear the whole thing and win on the
-        // spot. That is a real outcome, not the corruption being tested for.
+        // `gameOver` / `gameWon` are not asserted: a move landing after the
+        // reset is a legitimate first click that can win a board this small.
 
         if (room.initialized === 'false') {
-            // The reset landed last: an unplayed grid, waiting for a first click.
-            // Flags are not checked — flagging before the first click is legal,
-            // so a flag here says nothing about whether the reset was clobbered.
+            // The reset landed last. Flags are not checked: flagging before
+            // the first click is legal.
             expect(open).toEqual([]);
             expect(mines).toBe(0);
         } else {
@@ -226,9 +204,7 @@ describe('a reset landing while a move is in flight', () => {
             expect(open.length).toBeGreaterThan(0);
         }
 
-        // Whichever way it went, the score has to describe the board that is
-        // actually there — reset zeroes the scores, and a move that survived the
-        // reset scores a point per cell it opened.
+        // Either way the score has to describe the board that is actually there.
         expect(parseInt(mockRedis.read(`player:${ALICE}`).score, 10)).toBe(open.length);
     };
 
@@ -254,8 +230,7 @@ describe('a reset landing while a move is in flight', () => {
 
 describe('a chord overlapping a click', () => {
     test('keeps every cell both moves opened', async () => {
-        // (0,0) already open and claiming no adjacent mines, so chording it with
-        // nothing flagged opens (0,1), (1,0) and (1,1).
+        // (0,0) open with no adjacent mines, so chording it opens (0,1), (1,0) and (1,1).
         const board = quietBoard();
         board[0][0] = { isMine: false, isOpen: true, isFlagged: false, nearbyMines: 0 };
 

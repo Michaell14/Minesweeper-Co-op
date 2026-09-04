@@ -1,13 +1,9 @@
 /**
- * Presence: who your friends can see, and the two ways it would be wrong.
- *
- * A player with two tabs must not flicker offline when they close one, and a
- * guest must cost nothing at all — presence runs on EVERY connect and
- * disconnect, so a query per anonymous socket would be a query per visitor.
- *
- * The scan is deliberately not a `user:<id>` socket room. Room codes here are
- * arbitrary player-typed strings, so that room shares a namespace with the join
- * box: anyone who knew an account id could create it and receive their traffic.
+ * Presence: who your friends can see. A player with two tabs must not flicker
+ * offline when they close one, and a guest must cost no query, since presence
+ * runs on EVERY connect and disconnect. The scan is not a `user:<id>` socket
+ * room: room codes are player-typed strings in that namespace, so anyone
+ * knowing an account id could create it and receive their traffic.
  */
 
 const mockEmit = jest.fn();
@@ -43,10 +39,7 @@ const connect = (id, userId) => {
 const friendsAre = (...ids) =>
     mockQuery.mockResolvedValue({ rows: ids.map((id) => ({ friend_id: id })) });
 
-/**
- * How many times the live socket map was walked. The map is handed over as a
- * plain iterable so the count is of real traversals, not of calls.
- */
+/** How many times the live socket map was walked; a plain iterable counts real traversals. */
 let walks = 0;
 const countingSockets = {
     [Symbol.iterator]() {
@@ -85,9 +78,8 @@ describe('the scan', () => {
 
 describe('a second tab', () => {
     /*
-     * The failure this exists to stop: a player with the game open twice
-     * closes one tab, and their friends watch them wink out while they are
-     * still playing.
+     * A player with the game open twice closes one tab; their friends must not
+     * watch them wink out while they are still playing.
      */
     test('closing one of two does not announce a departure', async () => {
         const first = connect('s1', ALICE);
@@ -123,9 +115,8 @@ describe('a second tab', () => {
     });
 
     /*
-     * A reload is a disconnect and a connect a moment apart, and the friend
-     * lookup in between is a Postgres round trip. The departure must not
-     * outlive the arrival that overtook it.
+     * A reload is a disconnect and a connect a moment apart, with a Postgres
+     * round trip between. The departure must not outlive the arrival.
      */
     test('and a reconnect inside the lookup cancels the departure', async () => {
         const first = connect('s1', ALICE);
@@ -144,9 +135,8 @@ describe('a second tab', () => {
     });
 
     /*
-     * The same race, but the reconnect is a RECOVERED one. `connectionStateRecovery`
-     * is on, so it comes back under the departing socket's id — excluding the leaver
-     * by id would filter the live socket out and announce a player who never left.
+     * Same race, but a RECOVERED reconnect comes back under the departing
+     * socket's id; excluding the leaver by id would announce a player who never left.
      */
     test('and a recovered reconnect reusing the same id cancels it too', async () => {
         const first = connect('s1', ALICE);
@@ -186,8 +176,7 @@ describe('arriving', () => {
         expect(mockTo).toHaveBeenCalledWith('sb');
     });
 
-    // An offline friend has no socket to receive it and gets a snapshot of
-    // their own when they arrive.
+    // An offline friend has no socket to receive it; they get a snapshot on arrival.
     test('offline friends are not written to', async () => {
         const alice = connect('s1', ALICE);
         friendsAre('uuid-offline');
@@ -199,8 +188,7 @@ describe('arriving', () => {
 });
 
 describe('guests', () => {
-    // Presence runs on every connect, so a query per anonymous socket would be
-    // a query per visitor.
+    // Presence runs on every connect, so a query per guest is a query per visitor.
     test('cost no query at all', async () => {
         const guest = connect('s1', null);
 
@@ -214,9 +202,8 @@ describe('guests', () => {
 
 describe('a database outage', () => {
     /*
-     * The contract: presence is cosmetic, and nothing about it may refuse a
-     * connection. An exception here would propagate into the connection
-     * handler and take the socket with it.
+     * Presence is cosmetic: an exception here would propagate into the
+     * connection handler and take the socket with it.
      */
     test('does not throw out of connect or disconnect', async () => {
         const alice = connect('s1', ALICE);
@@ -228,17 +215,10 @@ describe('a database outage', () => {
     });
 
     /*
-     * Sending nothing is the failure that LOOKS safe.
-     *
-     * A reconnecting client keeps whatever it last held, and this snapshot is
-     * the only thing that would have corrected it — which is the whole reason
-     * it is a snapshot rather than a delta. Stay silent and friends who left
-     * during the outage stay lit, with an invite button beside them that does
-     * nothing when pressed, because the send path asks Postgres the same
-     * question that just failed here.
-     *
-     * Empty is what the module's contract already promises: an outage means
-     * friends appear offline.
+     * Sending nothing LOOKS safe, but a reconnecting client keeps whatever it
+     * last held and this snapshot is the only thing that corrects it: friends
+     * who left during the outage would stay lit, with an invite button that
+     * does nothing. Empty is what the contract promises for an outage.
      */
     test('still sends a snapshot, and it is empty', async () => {
         const alice = connect('s1', ALICE);
@@ -252,15 +232,10 @@ describe('a database outage', () => {
 
 describe('the cost of a connect', () => {
     /*
-     * The regression this exists for: `isOnline` and `emitToUser` each used to
-     * walk the whole socket map, once per friend, so a single connect was
-     * O(friends x sockets) — two hundred walks at the friend cap, on the
-     * connection path. They read one index instead now.
-     *
-     * The bound is deliberately loose (a handful, not an exact number): the
-     * point is that it does not scale with the friend list, and pinning the
-     * exact count would just make this test something to update rather than
-     * something to believe.
+     * `isOnline` and `emitToUser` used to walk the whole socket map once per
+     * friend, O(friends x sockets) on the connection path; they read one index
+     * now. The bound is loose so this stays something to believe rather than
+     * something to update.
      */
     test('does not grow with the size of the friend list', async () => {
         const alice = connect('s1', ALICE);

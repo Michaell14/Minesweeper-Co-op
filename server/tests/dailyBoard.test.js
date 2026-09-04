@@ -1,9 +1,6 @@
 /**
- * Tests for the daily challenge's deterministic board generation:
- * - generateBoard's new `options.rng` (server/utils/gameUtils.js)
- * - generateDailyBoardForDate (server/game/daily.js)
- *
- * io and Redis are globally mocked by tests/setup/mockInfra.js.
+ * Deterministic daily board generation: generateBoard's `options.rng` and
+ * generateDailyBoardForDate. io and Redis are mocked by tests/setup/mockInfra.js.
  */
 
 const { generateBoard, generateSingleCandidateBoard } = require('../domain/boardGen');
@@ -109,9 +106,7 @@ describe('generateDailyBoardForDate: picks the HARDEST solvable board, not just 
     const startRow = Math.floor(rows / 2);
     const startCol = Math.floor(cols / 2);
 
-    /** The board hardestSolvableCandidate would have picked, computed
-     * independently of daily.js's internals -- draws candidates from the same
-     * deterministic seed stream and keeps the highest rule2Count seen. */
+    /** Independent replay of hardestSolvableCandidate: same seed stream, highest rule2Count kept. */
     const independentlyComputeHardest = (date) => {
         const rng = mulberry32(hashStringToSeed(`minesweeper-daily:${date}`));
         let best = null;
@@ -153,9 +148,7 @@ describe('generateDailyBoardForDate: picks the HARDEST solvable board, not just 
     );
 
     test('across several dates, picking the hardest of a pool beats "first solvable" on average', () => {
-        // A single date could tie by chance (the first candidate happens to
-        // already be the hardest in its pool) -- this is the aggregate claim
-        // "not just a random board" actually rests on.
+        // One date can tie by chance; the aggregate is what "not just a random board" rests on.
         const dates = ['2026-07-30', '2026-01-01', '2026-12-25', '2027-02-14', '2026-03-15', '2025-11-11', '2025-06-06'];
 
         let totalHardest = 0;

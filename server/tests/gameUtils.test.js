@@ -1,11 +1,6 @@
 /**
- * Characterization tests for server/utils/gameUtils.js
- *
- * These pin the CURRENT behavior of the board generator and the co-op win check
- * so that upcoming refactors (introducing a Redis repository layer, unifying the
- * two reveal implementations) fail loudly if they change semantics.
- *
- * io and Redis are mocked, so nothing here needs a running server.
+ * Characterization tests for the board generator and the co-op win check:
+ * refactors fail loudly if they change semantics. io and Redis are mocked.
  */
 
 const mockEmit = jest.fn();
@@ -55,8 +50,7 @@ const expectedNearbyMines = (board, r, c) => {
 // ---------------------------------------------------------------------------
 
 describe('generateBoard', () => {
-    // noGuess: false skips the solvability retry loop, so these assertions cover
-    // the raw placement behavior without depending on the solver.
+    // noGuess: false skips the solvability retry loop, so these cover raw placement.
     const opts = { noGuess: false };
 
     test('places exactly numMines mines', () => {
@@ -96,8 +90,7 @@ describe('generateBoard', () => {
     });
 
     test('honors the safe zone and mine count with the no-guess loop enabled', () => {
-        // Default options run the generate-and-verify retry loop; whichever board
-        // it settles on (solvable or fallback) must still satisfy the invariants.
+        // The retry loop's board, solvable or fallback, must still satisfy the invariants.
         const board = generateBoard(9, 9, 10, 4, 4);
 
         expect(countMines(board)).toBe(10);

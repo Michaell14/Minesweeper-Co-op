@@ -1,13 +1,7 @@
 /**
- * The achievement catalog and its evaluator, both pure.
- *
- * What this is really guarding: an achievement that is quietly UNEARNABLE.
- * A moment with no predicate, a counter naming a metric nobody computes, a
- * threshold that fires one game late — none of those break anything loudly.
- * They just never happen, on a shelf whose whole job is to be reachable.
- *
- * The difficulty tier gets its own block because `mineCountFor` rounds, and
- * rounds DOWN past its own density for at least one shipped board.
+ * The achievement catalog and its evaluator, both pure. Guards against an
+ * achievement that is quietly unearnable: a moment with no predicate, a
+ * counter naming a metric nobody computes, a threshold one game late.
  */
 
 const {
@@ -21,7 +15,7 @@ const {
 const { ALL_PRESETS, BOARD_SIZES, DIFFICULTY_LEVELS, mineCountFor } = require('../../shared/boardConfig');
 const { earnedFrom, MOMENTS } = require('../domain/achievements');
 
-/** A player who has done nothing. Spread over it to state only what matters. */
+/** A player who has done nothing; spread over it. */
 const NOBODY = {
     coopGames: 0, coopWins: 0,
     pvpGames: 0, pvpWins: 0,
@@ -61,7 +55,7 @@ describe('the catalog', () => {
         }
     });
 
-    // The shapes are uniform so the client reads one type; every key is there.
+    // Uniform shapes, so the client reads one type.
     test('every entry carries the same keys', () => {
         const keys = Object.keys(ACHIEVEMENTS[0]).sort();
         for (const achievement of ACHIEVEMENTS) {
@@ -69,8 +63,7 @@ describe('the catalog', () => {
         }
     });
 
-    // A counter naming a metric nobody computes reads `undefined >= 10` — false
-    // forever, on a tile that shows 0 / 10 and never moves.
+    // An unknown metric reads `undefined >= 10`: false forever, on a tile stuck at 0 / 10.
     test('every counter names a metric the evaluator actually computes', () => {
         const computed = Object.keys(metricsFrom(NOBODY));
         for (const achievement of ACHIEVEMENTS.filter((a) => typeof a.metric === 'string')) {
@@ -78,7 +71,6 @@ describe('the catalog', () => {
         }
     });
 
-    // The one that stops a moment from being unreachable in silence.
     test('every moment has a predicate, and every predicate a catalog entry', () => {
         const moments = ACHIEVEMENTS.filter((a) => a.moment).map((a) => a.id).sort();
         expect(Object.keys(MOMENTS).sort()).toEqual(moments);
@@ -86,11 +78,7 @@ describe('the catalog', () => {
 });
 
 describe('difficultyTierOf', () => {
-    /**
-     * The regression this file exists for. Large + Hard is 320 x 0.188 = 60.16,
-     * rounded to 60 mines — a density of 0.1875, UNDER the 0.188 it came from.
-     * A bare `>=` files it as Medium.
-     */
+    /** Large + Hard rounds to 60 mines, a density of 0.1875 under the 0.188 it came from. */
     test('every shipped size/difficulty pair maps back to its own label', () => {
         for (const size of BOARD_SIZES) {
             for (const level of DIFFICULTY_LEVELS) {
@@ -148,7 +136,7 @@ describe('earnedFrom: counters', () => {
         ).toContain('triple-threat');
     });
 
-    // A lapsed streak must not revoke a badge, so the rules read the BEST.
+    // A lapsed streak must not revoke a badge.
     test('streak badges read the best streak, not the current one', () => {
         const earned = earnedFrom(
             { ...NOBODY, bestStreak: 9, dailyBestStreak: 8, coopWins: 1 },
@@ -186,11 +174,7 @@ describe('earnedFrom: moments', () => {
         expect(won({ boardKey: '16x16/40', durationMs: 1_000 })).not.toContain('under-pressure');
     });
 
-    /*
-     * Difficulty is a DENSITY, so the two hardest-sounding achievements were
-     * free on a custom board smaller than anything the UI offers: 8x8/13 tiers
-     * as Extreme on a quarter of the daily's cells.
-     */
+    /* Difficulty is a density, so 8x8/13 tiers as Extreme on a quarter of the daily's cells. */
     test('the Extreme moments need a board at least as big as the smallest shipped size', () => {
         const smallest = Math.min(...BOARD_SIZES.map((s) => s.rows * s.cols));
         expect(difficultyTierOf('8x8/13')).toBe('Extreme');
@@ -201,7 +185,6 @@ describe('earnedFrom: moments', () => {
         expect(tiny).not.toContain('under-pressure');
     });
 
-    // …and every shipped size at Extreme still counts, the smallest included.
     test('a shipped Extreme board still earns them at any size', () => {
         for (const size of BOARD_SIZES) {
             const mines = mineCountFor(size.rows, size.cols, 'Extreme');
@@ -220,11 +203,8 @@ describe('earnedFrom: moments', () => {
     });
 
     /*
-     * Board-specific, not GROUP-specific. Records grew a player-count suffix so
-     * a group clear stops taking the solo slot, and every predicate here asks
-     * about the board — clearing 16x16/40 in 80 seconds is the same feat with
-     * friends. An equality check against the whole key silently stopped
-     * awarding these to co-op rooms the day the suffix arrived.
+     * Board-specific, not group-specific: every predicate asks about the board,
+     * so the player-count suffix on a record must not hide it.
      */
     test('a group clear earns the same board moments as a solo one', () => {
         expect(won({ boardKey: '16x16/40@3', durationMs: 89_999, players: 3 })).toContain('speed-demon');
@@ -232,11 +212,11 @@ describe('earnedFrom: moments', () => {
         expect(won({ boardKey: '16x16/100@4', durationMs: 30_000, players: 4 })).toEqual(
             expect.arrayContaining(['extreme-measures', 'century-of-mines']),
         );
-        // …and a preset cleared by a group is still a preset.
+        // A preset cleared by a group is still a preset.
         expect(won({ boardKey: '16x16/40@3', players: 3 })).not.toContain('custom-job');
     });
 
-    // A null duration is not a fast time. Co-op rooms can lose their start stamp.
+    // A null duration is not a fast time.
     test('an unmeasured clear earns no timed moment', () => {
         const earned = won({ boardKey: '16x16/40', durationMs: null });
         expect(earned).not.toContain('speed-demon');
@@ -259,7 +239,7 @@ describe('earnedFrom: moments', () => {
         expect(won({ boardKey: '16x16/40' })).not.toContain('custom-job');
     });
 
-    // The daily is a shipped preset (16x16 Extreme), so it must not read custom.
+    // The daily is a shipped preset.
     test('a daily clear is not a custom board', () => {
         const { DAILY_PRESET } = require('../../shared/boardConfig');
         const key = `${DAILY_PRESET.rows}x${DAILY_PRESET.cols}/${DAILY_PRESET.mines}`;
@@ -288,7 +268,7 @@ describe('earnedFrom: shape', () => {
         expect(positions).not.toContain(-1);
     });
 
-    // The caller inserts ON CONFLICT DO NOTHING, so re-satisfying is the norm.
+    // Re-satisfying is the norm: the caller inserts ON CONFLICT DO NOTHING.
     test('is a pure function of its inputs — the same snapshot answers the same', () => {
         const snapshot = { ...NOBODY, coopWins: 10 };
         expect(earnedFrom(snapshot, PLAIN_WIN)).toEqual(earnedFrom(snapshot, PLAIN_WIN));
@@ -300,18 +280,13 @@ describe('earnedFrom: shape', () => {
     });
 
     /*
-     * The parity test above stops a predicate-less moment reaching main. This
-     * is what happens if one ever does: it runs inside recordResult's
-     * transaction, so throwing would roll back the game row, the aggregates
-     * and the streak — for every player, every game — surfacing only as a
-     * dropped stats write. Skipping one unearnable badge is the cheap failure.
+     * The evaluator runs inside recordResult's transaction, so throwing would
+     * roll back every player's stats write. Skipping one badge is the cheap failure.
      */
     test('skips a moment with no predicate instead of throwing mid-transaction', () => {
         /*
-         * The catalog has to be swapped BEFORE domain/achievements is loaded:
-         * it destructures ACHIEVEMENTS at require time, so mutating the
-         * exports object afterwards changes nothing and the test passes
-         * against the unfixed code. Hence resetModules + doMock.
+         * domain/achievements destructures ACHIEVEMENTS at require time, so the
+         * catalog must be swapped before it loads: resetModules + doMock.
          */
         jest.resetModules();
         const real = jest.requireActual('../../shared/achievements');

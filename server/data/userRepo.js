@@ -1,19 +1,14 @@
 /**
- * Accounts — the first Postgres-backed repo.
- *
- * Everything else under data/ is Redis with a TTL; users must outlive one, so
- * they live in the `users` table (see server/migrations/). Same access rule as
- * the Redis repos: nothing outside server/data writes SQL against this table.
- *
- * Callers own the failure policy. These throw when Postgres is missing or
- * down; account endpoints surface that as an error, while game paths catch and
- * carry on — a database outage may take down sign-in, never a move.
+ * Accounts, in the Postgres `users` table (server/migrations/) since they must
+ * outlive a Redis TTL. Nothing outside server/data writes SQL against it.
+ * Throws when Postgres is down; callers own the failure policy, so an outage
+ * may take down sign-in but never a move.
  */
 
 const { query } = require('../utils/initializePgClient');
 const { generateFriendCode } = require('../domain/friendCode');
 
-/** camelCase view of a row. Everything the client may see; no secrets here. */
+/** camelCase view of a row; nothing secret. */
 const rowToUser = (row) => ({
     id: row.id,
     provider: row.provider,
@@ -25,16 +20,9 @@ const rowToUser = (row) => ({
 });
 
 /**
- * The user for an OAuth identity, created on first sight.
- *
- * One statement, not SELECT-then-INSERT: two near-simultaneous connections
- * from the same new account (two tabs signing in together) would both miss the
- * SELECT and one INSERT would throw. ON CONFLICT makes the race harmless.
- *
- * Email refreshes on every call — the provider owns it and it can change
- * there. display_name deliberately does NOT: the OAuth profile name is only
- * the starting value, and overwriting it on each sign-in would silently revert
- * every rename made in the account menu.
+ * The user for an OAuth identity, created on first sight. One statement so two
+ * tabs signing in together cannot race. Email refreshes every call (the
+ * provider owns it); display_name does not, or each sign-in would revert a rename.
  */
 const getOrCreateUser = async ({ provider, providerAccountId, email, displayName }) => {
     const result = await query(
@@ -55,10 +43,8 @@ const getUserById = async (id) => {
 };
 
 /**
- * Updates the profile fields a player may edit — only those provided; a field
- * left undefined keeps its stored value (COALESCE, one statement either way).
- * Returns the updated user, or null if the id matched nothing — which the
- * caller treats as the account having been deleted under them.
+ * Updates only the fields provided (COALESCE). Returns null if the id matched
+ * nothing, which the caller treats as the account being deleted under them.
  */
 const updateUser = async (id, { displayName, avatar }) => {
     const result = await query(
@@ -72,9 +58,8 @@ const updateUser = async (id, { displayName, avatar }) => {
 };
 
 /**
- * Hard delete — the account row is gone, not flagged. Tables added by later
- * phases (settings, themes, results) must declare ON DELETE CASCADE against
- * users so this stays the single deletion point. Returns whether a row went.
+ * Hard delete. Every table referencing users must declare ON DELETE CASCADE so
+ * this stays the single deletion point. Returns whether a row went.
  */
 const deleteUser = async (id) => {
     const result = await query('DELETE FROM users WHERE id = $1', [id]);
@@ -85,17 +70,10 @@ const deleteUser = async (id) => {
 const UNIQUE_VIOLATION = '23505';
 
 /**
- * This account's friend code, minting one the first time anybody asks.
- *
- * Lazy rather than backfilled: most accounts will never use friends, and a
- * column filled on first read has exactly one place where a code comes into
- * existence.
- *
- * The claim is `WHERE friend_code IS NULL`, so two tabs asking at once cannot
- * overwrite each other — the loser matches no row and re-reads the winner's
- * code. A collision with somebody else's code fails the unique index, which is
- * a retry rather than an error: at 40 bits it is not going to happen, and the
- * alternative is handing back a 500 for a dice roll.
+ * This account's friend code, minted lazily on first ask. The claim is
+ * `WHERE friend_code IS NULL`, so two tabs cannot overwrite each other: the
+ * loser matches no row and re-reads. A unique-index collision is a retry, not
+ * a 500 for a dice roll.
  */
 const getOrCreateFriendCode = async (userId) => {
     for (let attempt = 0; attempt < 5; attempt++) {
@@ -119,7 +97,7 @@ const getOrCreateFriendCode = async (userId) => {
     throw new Error('Could not allocate a friend code');
 };
 
-/** The account a typed code belongs to, or null. Codes are stored NORMALISED. */
+/** The account a typed code belongs to, or null. Codes are stored normalised. */
 const findByFriendCode = async (code) => {
     const result = await query('SELECT * FROM users WHERE friend_code = $1', [code]);
     return result.rows[0] ? rowToUser(result.rows[0]) : null;

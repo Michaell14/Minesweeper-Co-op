@@ -15,19 +15,13 @@ interface CreateFormValues {
 
 export interface CreateRoomFormProps {
     /**
-     * Fired instead of opening the name dialog, for a player whose name is
-     * already known. Null (a guest) and undefined (account not resolved yet)
-     * both mean ask — the join form takes the same shape from the same helper,
-     * and distinguishes them because its link path fires on mount.
+     * Fired instead of the name dialog when the player's name is known. Null
+     * (guest) and undefined (account not resolved yet) both mean ask.
      */
     createRoom?: (() => void) | null;
 }
 
-/**
- * A radio card's one-line description. The pixel font is ~14px per glyph, so
- * "48 mines" wraps once four cards share a row; smaller and non-wrapping keeps
- * every card one line tall, which is what makes room for the third option row.
- */
+/** A radio card's one-line description, sized so four cards on a row stay one line tall. */
 const CardNote = ({ children }: { children: React.ReactNode }) => (
     <span className="whitespace-nowrap text-pixel-xs">{children}</span>
 );
@@ -52,12 +46,9 @@ const OptionRow = ({ label, ariaLabel, name, value, onChange, children }: Option
 );
 
 /**
- * Creating a room: the code, then mode, size and difficulty. Difficulty's cards
- * show what each density works out to at the size selected above.
- *
- * Submitting records the room and opens the name dialog, and that dialog fires
- * `createRoom` — unless the player's name is already known, in which case the
- * action arrives here as a prop and the dialog is skipped entirely.
+ * Creating a room: code, then mode, size and difficulty. Submitting records the
+ * room and opens the name dialog, which fires `createRoom`; a known name skips
+ * the dialog and the action arrives here as a prop.
  */
 export default function CreateRoomForm({ createRoom }: CreateRoomFormProps) {
     const numRows = useMinesweeperStore((state) => state.numRows);
@@ -80,33 +71,23 @@ export default function CreateRoomForm({ createRoom }: CreateRoomFormProps) {
     } = useForm<CreateFormValues>();
 
     /*
-     * A suggestion, not a requirement — the field stays editable and the form
-     * still validates `required`, so clearing it is still an error rather than
-     * a silent fall back to the generated one.
-     *
-     * Generated in an effort rather than as `defaultValue` because the value is
-     * random: rendered during SSR it would differ from the client's first
-     * render and hydration would swap the field's contents under the cursor.
+     * A suggestion, not a requirement: the field stays editable and `required`.
+     * Set in an effect, not as `defaultValue`, because a random value rendered
+     * during SSR would differ from the client's and hydration would swap it.
      */
     React.useEffect(() => {
         setValue("roomCode", generateRoomCode());
     }, [setValue]);
 
-    /**
-     * A fresh suggestion, into the field and focused so it is obvious what
-     * moved. Also what the collision dialog calls — the store's `roomCreateNonce`
-     * ticks when that dialog asks, which is what reaches this component.
-     */
+    /** A fresh suggestion, into the field and focused so it is obvious what moved. */
     const suggestAnother = React.useCallback(() => {
         setValue("roomCode", generateRoomCode());
         setFocus("roomCode");
     }, [setValue, setFocus]);
 
     /*
-     * The collision dialog lives at the app level (components/dialogs), so it
-     * cannot reach this form's state directly. It ticks a counter in the store
-     * instead and this is what listens — one number rather than a second copy
-     * of the room code that could drift from the field.
+     * The collision dialog lives at the app level and cannot reach this form,
+     * so it ticks a counter in the store and this listens.
      */
     const retryNonce = useMinesweeperStore((state) => state.roomCreateNonce);
     const firstNonce = React.useRef(retryNonce);
@@ -119,15 +100,12 @@ export default function CreateRoomForm({ createRoom }: CreateRoomFormProps) {
     const minesAt = (difficultyTitle: string) => mineCountFor(numRows, numCols, difficultyTitle);
 
     const onSubmit = handleSubmit((data) => {
-        // Unreachable today — every path goes through setBoardConfig — but kept
-        // so a future writer that skips the derivation surfaces here rather than
-        // as a rejected createRoom.
+        // Unreachable today; kept so a future path that skips setBoardConfig surfaces here.
         if (!isValidBoardConfig(numRows, numCols, numMines)) {
             openDialog(DIALOGS.customError);
             return;
         }
-        // Both read the store, and zustand sets synchronously, so the room
-        // recorded a line above is the one `createRoom` emits.
+        // zustand sets synchronously, so the room recorded here is the one `createRoom` emits.
         setRoom(data.roomCode);
         if (createRoom) createRoom();
         else openDialog(DIALOGS.nameCreate);
@@ -190,9 +168,8 @@ export default function CreateRoomForm({ createRoom }: CreateRoomFormProps) {
                             value={item.title}
                         />
                     ))}
-                    {/* Custom is the one card that does more than set a value: it
-                        opens the dimensions dialog on every click, including when
-                        already selected. That is what onSelect is for. */}
+                    {/* Custom opens the dimensions dialog on every click, even when
+                        already selected: that is what onSelect is for. */}
                     <RadioCard
                         description={<CardNote>{(boardSize === CUSTOM_SIZE && numRows > 0) ? `${numRows}x${numCols}` : `__x__`}</CardNote>}
                         label={CUSTOM_SIZE}

@@ -1,8 +1,7 @@
 /**
- * Friend codes — the pure half. The alphabet is the whole point: a code is
- * read off one screen and typed into somebody else's box, so the symbols a
- * person mis-copies are absent, and what "normalising" does and does NOT do
- * follows from that.
+ * Friend codes, the pure half. A code is read off one screen and typed into
+ * another, so the alphabet omits the symbols people mis-copy, and what
+ * normalising does and does NOT do follows from that.
  */
 
 const {
@@ -24,8 +23,7 @@ describe('the alphabet', () => {
         expect(new Set(ALPHABET).size).toBe(ALPHABET.length);
     });
 
-    // 8 symbols over 32 is 40 bits. Not a secret — but not walkable either,
-    // which is what lets the lookup answer honestly with a 404.
+    // 8 symbols over 32 is 40 bits: not a secret, but not walkable, so the lookup can 404 honestly.
     test('is 32 symbols, giving 40 bits over 8 characters', () => {
         expect(ALPHABET.length).toBe(32);
         expect(CODE_LENGTH).toBe(8);
@@ -39,8 +37,7 @@ describe('generateFriendCode', () => {
         expect(codes.every(isFriendCodeShape)).toBe(true);
     });
 
-    // Not a randomness test — a stuck generator handing back one value would
-    // make every account's code the same, and that is worth one assertion.
+    // Not a randomness test: a stuck generator would give every account the same code.
     test('does not repeat itself', () => {
         expect(new Set(codes).size).toBe(codes.length);
     });
@@ -65,9 +62,8 @@ describe('normalizeFriendCode', () => {
     });
 
     /*
-     * The one thing it must NOT do. O and I are not in the alphabet, so a code
-     * containing them is a typo — "helpfully" mapping them to 0 and 1 would
-     * turn a typo into a lookup for somebody else's account.
+     * O and I are not in the alphabet, so a code containing them is a typo;
+     * mapping them to 0 and 1 would turn a typo into somebody else's account.
      */
     test('does not repair a mistyped O or I into 0 or 1', () => {
         expect(isValidFriendCode('ABCO12XY')).toBe(false);

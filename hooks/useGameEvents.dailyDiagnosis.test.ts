@@ -1,11 +1,8 @@
 // @vitest-environment jsdom
 /**
- * DAILY_BOARD_UPDATE must diagnose the loss from the PRE-loss position — the
- * store's board as it stood before this payload lands — not from the board
- * the payload itself carries. Swap the order of the two statements in the
- * handler (setBoard before diagnoseLoss) and this file is what should catch
- * it: the pre-loss and post-loss boards below are built to disagree, so a
- * diagnosis computed from the wrong one is visibly wrong, not just stale.
+ * DAILY_BOARD_UPDATE must diagnose the loss from the PRE-loss position (the
+ * store's board before this payload lands), not the payload's board. The two
+ * fixtures are built to disagree, so setBoard before diagnoseLoss is visibly wrong.
  */
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { useMinesweeperStore } from "@/app/store";
@@ -34,10 +31,9 @@ beforeEach(() => {
 });
 
 /*
- * A 1 with exactly one covered neighbour, which the player opened — the mine
- * was provable by counting (same fixture as lib/lossDiagnosis.test.ts's
- * "reports the mine you opened when it was provable").
- *   1 #        (0,1) is the only cell the 1 at (0,0) can be counting
+ * A 1 with exactly one covered neighbour, which the player opened: the mine
+ * was provable by counting (same fixture as lib/lossDiagnosis.test.ts).
+ *   1 #
  *   . .
  */
 const preLoss: Cell[][] = [
@@ -45,11 +41,9 @@ const preLoss: Cell[][] = [
     [{ isMine: false, isOpen: true, isFlagged: false, nearbyMines: 1 }, { isMine: false, isOpen: true, isFlagged: false, nearbyMines: 1 }],
 ];
 
-/* The same position after the fatal move: (0,1) is now the open, detonated
-   mine. If a handler diagnosed from THIS board instead of preLoss, the
-   opened mine reads as a blank digit and detonatedMine() finds nothing to
-   explain — a different diagnosis entirely, not the "provable-mine, counting"
-   result the pre-loss board gives. */
+/* The same position after the fatal move: (0,1) is the open, detonated mine.
+   Diagnosed from THIS board, the opened mine reads as a blank digit and the
+   result is a different diagnosis entirely. */
 const revealed: Cell[][] = [
     [{ isMine: false, isOpen: true, isFlagged: false, nearbyMines: 1 }, { isMine: true, isOpen: true, isFlagged: false, nearbyMines: 0 }],
     [{ isMine: false, isOpen: true, isFlagged: false, nearbyMines: 1 }, { isMine: false, isOpen: true, isFlagged: false, nearbyMines: 1 }],

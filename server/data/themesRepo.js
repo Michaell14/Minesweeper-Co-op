@@ -1,8 +1,7 @@
 /**
  * Saved custom palettes, keyed (user_id, theme id). Client-owned blobs like
- * settingsRepo — stored and returned whole, never interpreted; validation.js
- * caps shape and size at the door. Throws when Postgres is missing or down;
- * the controller owns the policy.
+ * settingsRepo, stored whole; validation.js caps shape and size. Throws when
+ * Postgres is missing or down; the controller owns the policy.
  */
 
 const { query } = require('../utils/initializePgClient');

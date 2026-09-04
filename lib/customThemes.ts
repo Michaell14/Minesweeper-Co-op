@@ -1,25 +1,14 @@
 /**
- * Custom palettes: author nine core colours, derive the full ~60-entry
- * palette layer from them.
- *
- * Nine fields instead of sixty pickers is the load-bearing design decision.
- * The built-in themes prove most entries are FUNCTIONS of a few choices —
- * bevels are the cell colour lightened/darkened, intent "deep"/"shade"
- * variants are tints of the base, ink-on-a-fill is whichever of black/white
- * reads — so the editor asks for the choices and computes the functions,
- * which is also what keeps a hand-built theme coherent instead of sixty
- * independent mistakes. Cursor ramp and number colours are DERIVED, not
- * editable (the PRD left this open): cursors are decorative mixes of the
- * intent hues, and numbers keep their classic colours where they clear 3:1 on
- * the custom open-cell fill, degrading to darkness-coding where they don't —
- * the same trade the Game Boy theme makes by hand.
+ * Custom palettes: nine core colours, from which the full ~60-entry palette
+ * layer is derived. Most built-in entries are functions of a few choices
+ * (bevels, intent variants, ink-on-fill), so the editor asks for the choices
+ * and computes the rest, which keeps a hand-built theme coherent. Cursor ramp
+ * and numbers are derived, not editable: numbers keep their classic colours
+ * where they clear 3:1 on the open-cell fill, else degrade to darkness-coding.
  *
  * A theme stores BOTH the core (to re-edit) and the resolved palette (to
- * stamp): applying and the no-flash script just write literal values, no
- * maths at paint time.
- *
- * Applied as inline custom properties on :root, never as a data-theme block —
- * custom themes don't exist in tokens.css at build time.
+ * stamp), so paint time is literal writes. Applied as inline custom properties
+ * on :root, since custom themes are not in tokens.css at build time.
  */
 
 import { contrastRatio, type Rgb } from "@/app/ds/contrast";
@@ -117,17 +106,13 @@ const family = (name: string, base: string, paper: string): Record<string, strin
         hexContrast(base, paper) >= 3 ? base : mix(base, inkOn(paper), 0.45),
 });
 
-/**
- * The full palette layer from nine choices. Every key this returns is also
- * the complete set the no-flash script and applyThemeChoice may stamp.
- */
+/** The full palette layer from nine choices: the complete set the no-flash script and applyThemeChoice stamp. */
 export function derivePalette(core: CustomThemeCore): Record<string, string> {
     const { ink, paper, panel, accent, success, warning, danger, cellClosed, cellOpen } = core;
 
     const numbers: Record<string, string> = {};
     CLASSIC_NUMS.forEach((classic, i) => {
-        // Keep the classic hue where it reads on this open-cell fill; where it
-        // cannot, encode danger as darkness (1-3 mid, 4-8 full ink-strength).
+        // Classic hue where it reads on this fill; otherwise darkness (1-3 mid, 4-8 full).
         numbers[`--ms-palette-num-${i + 1}`] =
             hexContrast(classic, cellOpen) >= 3
                 ? classic
@@ -197,10 +182,8 @@ export function sanitizeCustomTheme(raw: unknown): CustomTheme | null {
         coreOut[key] = value.toLowerCase();
     }
 
-    // The palette is always re-derived from the core rather than trusted:
-    // a hand-edited blob cannot smuggle arbitrary property names or values
-    // into style attributes, and stored palettes can never drift from what
-    // this version of the derivation produces.
+    // Always re-derived from the core, never trusted: a hand-edited blob cannot
+    // smuggle property names into style attributes, and stored palettes cannot drift.
     return { id, name: name.trim(), core: coreOut, palette: derivePalette(coreOut) };
 }
 
@@ -247,12 +230,9 @@ export function writeCustomThemes(themes: CustomTheme[]): void {
 // --- Pending deletions (tombstones) ------------------------------------------
 
 /**
- * Ids deleted locally whose server delete has not been CONFIRMED. Without
- * these, deleting a theme while offline (or signed out) leaves the server
- * copy alive, and the next sign-in merge — where the server wins on id —
- * resurrects it. The tombstone keeps the id out of merges and is replayed
- * against the server until a delete lands; saving a theme under the id again
- * clears it, so a deliberate re-creation is never eaten by an old tombstone.
+ * Ids deleted locally whose server delete is not yet CONFIRMED. Without them an
+ * offline delete is resurrected by the next sign-in merge (server wins on id).
+ * Replayed until a delete lands; saving under the id again clears it.
  */
 export const PENDING_THEME_DELETIONS_KEY = "minesweeper_theme_deletions";
 
@@ -271,8 +251,7 @@ const writePendingThemeDeletions = (ids: string[]): void => {
     try {
         window.localStorage.setItem(PENDING_THEME_DELETIONS_KEY, JSON.stringify(ids));
     } catch {
-        // Blocked storage: the delete still happened locally; only the replay
-        // guarantee is lost, matching every other storage failure here.
+        // Blocked storage: the delete still happened locally; only the replay is lost.
     }
 };
 

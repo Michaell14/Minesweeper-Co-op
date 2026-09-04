@@ -36,8 +36,7 @@ export function RadioCardGroup({
 
     return (
         <RadioCardContext.Provider value={ctx}>
-            {/* role="radiogroup" rather than a <fieldset>: the name comes from
-                aria-label, which is how the smoke test locates each group. */}
+            {/* role="radiogroup" rather than <fieldset>: the aria-label is how the smoke test finds each group. */}
             <div
                 role="radiogroup"
                 aria-label={ariaLabel}
@@ -54,16 +53,12 @@ export interface RadioCardProps {
     label: React.ReactNode;
     description?: React.ReactNode;
     /**
-     * Present but not choosable. The native `disabled` rather than
-     * `aria-disabled`: arrow keys move a radio group's SELECTION, not just its
-     * focus, so an aria-only card would be picked by anyone navigating past it.
-     * Say why in `description` — a disabled control still reads its label out.
+     * Present but not choosable. Native `disabled`, not `aria-disabled`: arrow
+     * keys move a radio group's SELECTION, so an aria-only card would be picked
+     * by anyone navigating past it. Say why in `description`.
      */
     disabled?: boolean;
-    /**
-     * Fires in addition to the group's onChange. The Custom-size card uses it
-     * to open its dimensions dialog.
-     */
+    /** Fires in addition to the group's onChange; the Custom-size card opens its dialog with it. */
     onSelect?: () => void;
 }
 
@@ -74,13 +69,10 @@ export function RadioCard({ value, label, description, onSelect, disabled = fals
     const checked = ctx.value === value;
 
     /*
-     * onClick is the ONLY real handler; onChange below is a deliberate no-op.
-     *
-     * React synthesises onChange for radios from the same native click event it
-     * dispatches onClick from, so wiring both ran this twice per selection —
-     * one click on the Custom card called showModal() twice. onClick is the one
-     * to keep, because it fires whether or not checkedness changed, which is
-     * what lets re-clicking the already-selected Custom card reopen its dialog.
+     * onClick is the ONLY real handler; onChange is a no-op. React synthesises
+     * onChange from the same click, so wiring both ran this twice (showModal()
+     * twice). onClick fires even when checkedness did not change, which lets
+     * re-clicking the selected Custom card reopen its dialog.
      */
     const handleClick = () => {
         ctx.onChange(value);
@@ -96,8 +88,7 @@ export function RadioCard({ value, label, description, onSelect, disabled = fals
                 value={value}
                 checked={checked}
                 disabled={disabled}
-                /* Present only to silence React's warning about a `checked` input
-                 * with no change handler. See the note above. */
+                /* Only to silence React's warning about a `checked` input with no change handler. */
                 onChange={() => {}}
                 onClick={handleClick}
             />

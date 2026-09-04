@@ -4,13 +4,10 @@ import type { MinesweeperState } from './store';
 import type { GameMode } from '@/shared/socketPayloads';
 
 /**
- * Board dimensions, size and difficulty labels, and game mode. Defaults come
- * from shared/boardConfig, which the server validates against too.
- *
- * `boardSize` and `difficulty` are LABELS for the landing page's two selectors;
- * only `numRows`/`numCols`/`numMines` are ever emitted. `setBoardConfig` is the
- * ONE place that derives the numbers from the pair, so for a user-driven pick
- * they can never disagree with the labels on screen.
+ * Board dimensions, size/difficulty labels, and mode. Defaults from
+ * shared/boardConfig. `boardSize` and `difficulty` are LABELS for the landing
+ * page; only the numbers are emitted, and `setBoardConfig` is the ONE place
+ * that derives them, so a user pick cannot disagree with its labels.
  */
 
 export interface BoardConfigSlice {
@@ -23,19 +20,14 @@ export interface BoardConfigSlice {
 
     /**
      * Applies a size/difficulty pick: dimensions from the size (or `dims`, for
-     * Custom), mines derived from the difficulty's density.
-     *
-     * `dims` is for the Custom size, whose dimensions come from a dialog rather
-     * than a preset. Omitting it keeps whatever is already set, which is what
-     * changing difficulty on a custom board should do.
+     * Custom), mines from the difficulty's density. Omitting `dims` keeps the
+     * current dimensions, as changing difficulty on a custom board should.
      */
     setBoardConfig: (sizeTitle: string, difficultyTitle: string, dims?: { rows: number, cols: number }) => void;
 
     /**
-     * Raw dimension override with no size/difficulty label attached.
-     * `joinRoomSuccess` is the one caller — the server sends only numbers.
-     * `boardSize`/`difficulty` are left stale, so anything wanting a label after
-     * a join must derive its own rather than read those fields.
+     * Raw dimensions with no label; `joinRoomSuccess` is the one caller.
+     * `boardSize`/`difficulty` go stale, so derive a label rather than read them.
      */
     setDimensions: (rows: number, cols: number, mines: number) => void;
     setBoardSize: (size: string) => void;

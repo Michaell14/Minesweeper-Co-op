@@ -1,9 +1,7 @@
 // @vitest-environment jsdom
 /**
- * The header is the site's only navigation — it replaced a floating cluster of
- * unlabelled icons that existed on two routes. Everything here fails silently:
- * a destination that stops resolving by name, a link pointing at the wrong
- * route, or the unseen-changelog dot going missing.
+ * The header is the site's only navigation. Everything here fails silently: a
+ * destination that stops resolving by name, a wrong route, a missing dot.
  */
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -64,10 +62,8 @@ describe('destinations', () => {
     });
 
     /*
-     * Inherited from the landing page's own link row, which this header
-     * replaced. /no-guess-minesweeper is published for search and the header is
-     * now its only front door, so a name that quietly stops resolving takes the
-     * page back off the map.
+     * /no-guess-minesweeper is published for search and the header is its only
+     * front door, so a name that stops resolving takes the page off the map.
      */
     it('exposes no-guess on every route, not just the landing page', () => {
         mockUsePathname.mockReturnValue('/settings');
@@ -75,10 +71,7 @@ describe('destinations', () => {
         expect(href('No-guess')).toBe('/no-guess-minesweeper');
     });
 
-    /*
-     * /drills had no entry point at all before this header — it was reachable
-     * only from inside a dialog behind an unlabelled coin icon.
-     */
+    /* /drills had no entry point at all before this header. */
     it('exposes drills on every route, not just the landing page', () => {
         mockUsePathname.mockReturnValue('/settings');
         render(<SiteNav />);
@@ -106,10 +99,7 @@ describe('the current route', () => {
         expect(screen.getByRole('link', { name: 'Play' }).getAttribute('aria-current')).toBeNull();
     });
 
-    /*
-     * Play is '/' — a prefix of every route. Matching on prefix would light it
-     * up permanently, which is the same as marking nothing.
-     */
+    /* Play is '/', a prefix of every route; prefix matching would light it up permanently. */
     it('does not light up Play on a sub-route', () => {
         mockUsePathname.mockReturnValue('/daily');
         render(<SiteNav />);
@@ -130,10 +120,7 @@ describe('the account control', () => {
         expect(href('Profile')).toBe('/profile');
     });
 
-    /*
-     * "Still loading" must not render the signed-out control: that flashes a
-     * sign-in button at every signed-in player on every page load.
-     */
+    /* "Still loading" must not flash a sign-in button at every signed-in player. */
     it('points a still-resolving session at the profile', () => {
         mockUseSession.mockReturnValue({ data: null, status: 'loading' });
         render(<SiteNav />);

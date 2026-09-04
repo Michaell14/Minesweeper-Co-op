@@ -1,10 +1,7 @@
 /**
- * All room reads and writes.
- *
- * Callers pass a room CODE, never a key, and get back parsed values (boards and
- * player lists come out as arrays, not JSON strings). Every value in the
- * underlying hash is a string — booleans are stored and compared as
- * 'true'/'false'.
+ * All room reads and writes. Callers pass a room CODE, never a key, and get
+ * parsed values back (boards and player lists as arrays). Every hash value is
+ * a string; booleans are 'true'/'false'.
  */
 
 const { redisClient } = require('../utils/initializeRedisClient');
@@ -55,10 +52,7 @@ const touch = async (room) => {
     return await client.expire(roomKey(room), ROOM_TTL_SECONDS);
 };
 
-/**
- * Shortens an emptied room's lifetime instead of deleting it, so a player who
- * dropped out can reconnect into the same room within the grace window.
- */
+/** Shortens an emptied room's lifetime instead of deleting it, so a dropped player can reconnect. */
 const startGracePeriod = async (room) => {
     const client = await redisClient;
     return await client.expire(roomKey(room), ROOM_GRACE_PERIOD_SECONDS);
@@ -95,13 +89,9 @@ const opponentOf = async (room, socketId) => {
 };
 
 /**
- * Which of the two PVP slots a socket holds according to the ROOM, or undefined.
- *
- * Distinct from `domain/pvpPlayer.js`'s `pvpIndexOf`, which asks the PLAYER
- * record — a reconnect deletes that record, so the room is the only place left
- * that remembers, and it remembers by socket id. Kept here beside `playersFrom`
- * because both read a room hash the caller already holds, and because the field
- * names are this module's to know.
+ * Which PVP slot a socket holds according to the ROOM, or undefined. Distinct
+ * from `domain/pvpPlayer.js`'s `pvpIndexOf`, which asks the PLAYER record; a
+ * reconnect deletes that record, so the room is the only place that remembers.
  */
 const pvpSlotOf = (roomState, socketId) => {
     if (!roomState) return undefined;
@@ -126,10 +116,7 @@ const setPvpBoard = async (room, playerIndex, board) => {
 
 // --- Locks ------------------------------------------------------------------
 
-/*
- * The mechanics live in data/locks.js, which knows nothing about rooms. What
- * belongs here is only which KEY each situation locks.
- */
+/* Mechanics live in data/locks.js; only which KEY each situation locks belongs here. */
 
 const acquireInitLock = (room, owner) => acquireLock(initLockKey(room), owner);
 const releaseInitLock = (room) => releaseLock(initLockKey(room));
@@ -141,9 +128,8 @@ const releaseWinnerLock = (room) => releaseLock(winnerLockKey(room));
 const withActionLock = (room, owner, fn) => withLock(actionLockKey(room), owner, fn);
 
 /**
- * Serialises "is there room for me, and if so add me" for a PVP join. Its own
- * key rather than the action lock's: a join is not a board write, and a lobby
- * that has not started has no moves to wait behind.
+ * Serialises a PVP join. Its own key rather than the action lock's: a join is
+ * not a board write, and an unstarted lobby has no moves to wait behind.
  */
 const withJoinLock = (room, owner, fn) => withLock(joinLockKey(room), owner, fn);
 

@@ -1,17 +1,9 @@
 /**
  * Which achievements a player satisfies, given the aggregates after a game and
- * the game itself. Pure — the same reason `streak.js` is: threshold logic that
- * can only be observed through a database reports plausible wrong answers
- * forever.
- *
- * Returns everything CURRENTLY satisfied, not what changed. The caller inserts
- * with ON CONFLICT DO NOTHING and lets Postgres decide what is new, which is
- * also what makes counters retroactive for free: a player who qualified before
- * this feature existed collects on their next finished game, with no backfill
- * involved.
- *
- * Catalog and metric names live in `shared/achievements.js` — outside the
- * server's layer graph, like every other shared module.
+ * the game itself. Pure, like `streak.js`. Returns everything CURRENTLY
+ * satisfied, not what changed: the caller inserts with ON CONFLICT DO NOTHING,
+ * which also makes counters retroactive for free. Catalog and metric names live
+ * in `shared/achievements.js`.
  */
 
 const {
@@ -36,8 +28,7 @@ const onWin = (test) => (result) => result.won === true && test(result);
 
 /**
  * Exactly this board, whoever cleared it. Compares the BOARD PART, so a co-op
- * clear's group suffix ('16x16/40@3') does not slip past an equality check the
- * way it would against the whole key.
+ * clear's group suffix does not defeat the equality check.
  */
 const isBoard = (result, board) => boardPartOf(result.boardKey) === board;
 
@@ -45,13 +36,9 @@ const isBoard = (result, board) => boardPartOf(result.boardKey) === board;
 const under = (result, limit) => typeof result.durationMs === 'number' && result.durationMs < limit;
 
 /**
- * At least as big as the smallest board the game offers.
- *
- * Difficulty is a DENSITY, so without a floor an 8x8 custom board with 13
- * mines tiers as Extreme and hands over the two hardest-sounding achievements
- * for a grid a quarter the size of the daily. Custom boards go down to 8x8,
- * which is below every shipped size — so this excludes only the degenerate
- * ones and nothing a player would reach by picking from the UI.
+ * At least as big as the smallest shipped board. Difficulty is a DENSITY, so
+ * without a floor an 8x8 custom board with 13 mines tiers as Extreme and earns
+ * the two hardest-sounding achievements.
  */
 const atLeastShippedSize = (result) => {
     const board = parseBoardKey(result.boardKey);
@@ -59,9 +46,8 @@ const atLeastShippedSize = (result) => {
 };
 
 /**
- * One predicate per `moment: true` catalog entry, keyed by id. The catalog and
- * this table are checked against each other in `achievements.test.js` — a
- * moment with no predicate would otherwise be unearnable with nothing failing.
+ * One predicate per `moment: true` catalog entry, keyed by id; the catalog and
+ * this table are checked against each other in `achievements.test.js`.
  */
 const MOMENTS = Object.freeze({
     'extreme-measures': onWin((r) => difficultyTierOf(r.boardKey) === 'Extreme' && atLeastShippedSize(r)),
@@ -91,8 +77,7 @@ const MOMENTS = Object.freeze({
 /**
  * Every achievement id the player now satisfies.
  *
- * @param stats  aggregates AFTER this result — camelCase, as getProfile shapes
- *               them (coopGames, coopWins, ..., bestStreak, dailyBestStreak)
+ * @param stats  aggregates AFTER this result, camelCase as getProfile shapes them
  * @param result { mode, boardKey, won, durationMs|null, players }
  */
 const earnedFrom = (stats, result) => {
@@ -102,12 +87,9 @@ const earnedFrom = (stats, result) => {
     return ACHIEVEMENTS.filter((achievement) => {
         if (!achievement.moment) return (metrics[achievement.metric] ?? 0) >= achievement.threshold;
         /*
-         * A moment with no predicate is skipped, not thrown on. This runs
-         * inside recordResult's transaction, so a bare `MOMENTS[id](game)`
-         * turns a catalog typo into a TypeError that rolls back the whole
-         * result — the game row, the aggregates and the streak — for every
-         * player, every game, logged only as a dropped stats write.
-         * `achievements.test.js` still fails on the missing predicate.
+         * A moment with no predicate is skipped, not thrown on: this runs in
+         * recordResult's transaction, where a TypeError would roll back the
+         * whole result. `achievements.test.js` still fails on the gap.
          */
         const predicate = MOMENTS[achievement.id];
         return typeof predicate === 'function' && predicate(game) === true;

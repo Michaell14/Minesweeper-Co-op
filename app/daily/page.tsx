@@ -8,13 +8,8 @@ const DESCRIPTION =
     "One Minesweeper board a day, identical for every player, ranked by time. One attempt. No sign-up, no download — play today's puzzle in your browser.";
 
 /**
- * Its own canonical, title and description, not inherited.
- *
- * Next merges metadata per top-level key, so a route that omits `alternates`
- * silently keeps the root layout's — which points at the homepage. On the
- * noindex routes that costs nothing; here it would tell Google this page is a
- * duplicate of `/` and drop it from the index, which is the opposite of why the
- * route exists.
+ * Its own canonical, not inherited: Next merges metadata per top-level key,
+ * and the root layout's `alternates` would mark this page a duplicate of `/`.
  */
 export const metadata: Metadata = {
     title: TITLE,
@@ -30,15 +25,10 @@ export const metadata: Metadata = {
 };
 
 /**
- * The daily challenge's own page.
- *
- * The prose below is the whole reason this is a route rather than a flag: it is
- * what a crawler reads, and it is server-rendered so that does not depend on
- * running the app. `DailyClient` renders it BELOW the board — the page opens on
- * the puzzle, and the rules a first-time player needs are a dialog instead.
- *
- * Its headings start at h2 for that reason: the board renders the page's h1
- * (components/DailyChallenge.tsx), and this sits underneath it.
+ * The daily challenge's own page. The prose below is why this is a route rather
+ * than a flag: crawlers read it, and it is server-rendered. `DailyClient` renders
+ * it BELOW the board, so the page opens on the puzzle and the rules are a dialog.
+ * Headings start at h2 because the board renders the h1 (components/DailyChallenge.tsx).
  */
 export default function DailyPage() {
     return (

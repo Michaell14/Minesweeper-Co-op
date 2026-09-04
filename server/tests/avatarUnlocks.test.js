@@ -1,11 +1,7 @@
 /**
- * The seam between two shared catalogs.
- *
- * `shared/avatars.js` names achievements from `shared/achievements.js` by id,
- * and neither file can see the other. A typo'd or retired id makes an avatar
- * permanently unearnable — the gate asks for something nobody can ever hold —
- * and nothing else in the suite would notice, because every OTHER check on
- * these two files passes with the string being nonsense.
+ * The seam between two shared catalogs: `shared/avatars.js` names achievements
+ * by id and neither file can see the other. A typo'd or retired id makes an
+ * avatar permanently unearnable, and nothing else in the suite would notice.
  */
 const { AVATARS, DEFAULT_AVATAR, canUseAvatar, requirementFor } = require('../../shared/avatars');
 const { ACHIEVEMENTS } = require('../../shared/achievements');
@@ -25,10 +21,8 @@ describe('what the earned avatars ask for', () => {
         },
     );
 
-    // A hidden achievement is one whose description the shelf withholds until
-    // it is earned, so gating a VISIBLE card on one leaves a lock with nothing
-    // legible to do about it. Allowed eventually — but it needs its own "???"
-    // treatment in the picker first, and this fails until someone builds it.
+    // Gating a VISIBLE card on a hidden achievement leaves a lock with nothing
+    // legible to do about it; the picker needs a "???" treatment first.
     test.each(gated.map((a) => [a.id, a.requires]))(
         '%s does not hide its requirement behind a hidden achievement',
         (_id, requires) => {

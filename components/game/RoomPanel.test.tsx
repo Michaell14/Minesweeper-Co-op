@@ -5,9 +5,8 @@ import { useMinesweeperStore } from "@/app/store";
 import type { PlayerStats } from "@/shared/socketPayloads";
 
 /*
- * The panel reads `useSession` to decide whether to offer the invite button,
- * and the real hook throws outside a <SessionProvider>. Signed OUT by default
- * so every case below is about the code and the copy, as it was.
+ * The real `useSession` throws outside a <SessionProvider>. Signed OUT by
+ * default so every case below is about the code and the copy.
  */
 const mockStatus = vi.fn(() => "unauthenticated");
 vi.mock("next-auth/react", () => ({ useSession: () => ({ status: mockStatus() }) }));
@@ -15,22 +14,18 @@ vi.mock("next-auth/react", () => ({ useSession: () => ({ status: mockStatus() })
 import RoomPanel from "./RoomPanel";
 
 /**
- * The room code, and whether it reads as an invitation.
- *
- * A co-op room with nobody else in it is the most common state a new player
- * sees, and it used to be indistinguishable from a full one. The difference is
- * pure copy, which is exactly the kind of thing that regresses quietly: nothing
- * throws, nothing looks broken, the prompt just stops appearing.
+ * The room code, and whether it reads as an invitation. A co-op room of one
+ * used to be indistinguishable from a full one; the difference is pure copy,
+ * which regresses quietly.
  */
 
 const stats = (...names: string[]): PlayerStats[] =>
     names.map((name) => ({ name, score: 0 }));
 
 /**
- * jsdom has no clipboard, and `navigator.clipboard` is getter-only so it cannot
- * simply be assigned. Without a stub the component's own catch swallows the
- * failure and the button silently never changes — which would make the test
- * below pass for the wrong reason.
+ * jsdom has no clipboard and `navigator.clipboard` is getter-only. Without a
+ * stub the component's catch swallows the failure and the test passes for the
+ * wrong reason.
  */
 const stubClipboard = (writeText: () => Promise<void>) =>
     Object.defineProperty(navigator, "clipboard", {
@@ -92,11 +87,7 @@ describe("once someone joins", () => {
     });
 });
 
-/*
- * PVP has its own waiting-for-opponent copy and a Start button gated on the
- * second player, so it already says all of this. Saying it twice would be two
- * places to keep in step.
- */
+/* PVP has its own waiting-for-opponent copy, so the prompt would be two places to keep in step. */
 describe("in PVP", () => {
     test("stays quiet even with one player, because PVP says it elsewhere", () => {
         setRoom("pvp", stats("Alice"));
@@ -130,8 +121,7 @@ describe("always", () => {
         await waitFor(() =>
             expect(screen.getByRole("button", { name: /copy/i }).textContent).toBe("Copied!"));
         expect(writeText).toHaveBeenCalledWith(expect.stringContaining("ABC123"));
-        // A hidden live region, because a screen reader will not reliably
-        // announce a change to the button's own label.
+        // A hidden live region: a screen reader will not reliably announce a label change.
         expect(screen.getByText("Link copied to clipboard")).toBeDefined();
     });
 
@@ -148,10 +138,7 @@ describe("always", () => {
 });
 
 describe("the invite button", () => {
-    /*
-     * Signed-in only: a friend list needs an account. The Copy Link path above
-     * is what a guest uses, and it stays the primary way in for everybody.
-     */
+    /* Signed-in only: a friend list needs an account. Copy Link stays the way in for guests. */
     test("is not offered to a guest", () => {
         mockStatus.mockReturnValue("unauthenticated");
         render(<RoomPanel inviteFriend={vi.fn()} />);
@@ -164,8 +151,7 @@ describe("the invite button", () => {
         expect(screen.getByRole("button", { name: "Invite a friend to this room" })).toBeTruthy();
     });
 
-    // The daily passes no handler: it is not a room, and there is nobody to
-    // invite into it.
+    // The daily passes no handler: it is not a room.
     test("is not offered where there is no room to invite into", () => {
         mockStatus.mockReturnValue("authenticated");
         render(<RoomPanel />);
@@ -173,9 +159,8 @@ describe("the invite button", () => {
     });
 
     /*
-     * The panel is mounted once per layout cluster, so it must carry the
-     * button and NOT the dialog — two <dialog> elements sharing an id is one
-     * openDialog away from opening the wrong one.
+     * Mounted once per layout cluster, so it carries the button and NOT the
+     * dialog: two <dialog>s sharing an id is one openDialog from the wrong one.
      */
     test("carries no dialog of its own", () => {
         mockStatus.mockReturnValue("authenticated");

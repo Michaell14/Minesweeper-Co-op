@@ -3,18 +3,10 @@ import { beforeEach, describe, expect, test, vi } from "vitest";
 import { DIALOGS, openDialog, closeDialog } from "./dialogs";
 
 /**
- * Opening a dialog twice.
- *
- * `showModal()` THROWS on a dialog that is already open, and these are opened
- * from socket handlers — where the same outcome legitimately arrives twice: a
- * duplicated `gameOver`, a resume landing on a summary nobody closed. The
- * exception does not merely fail to open anything; it aborts the handler that
- * threw, halfway through whatever else it was doing.
- *
- * jsdom does not implement `showModal` at all, so the spec's behaviour is
- * installed here rather than assumed. Standing that up IS the test: without it
- * there is nothing to observe, since a missing method fails differently from a
- * throwing one.
+ * Opening a dialog twice. `showModal()` THROWS on an open dialog, and these are
+ * opened from socket handlers where the same outcome legitimately arrives
+ * twice; the exception aborts the handler. jsdom does not implement
+ * `showModal`, so the spec's behaviour is installed here.
  */
 
 const ID = DIALOGS.gameSummary;

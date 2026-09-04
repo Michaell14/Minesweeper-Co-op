@@ -1,14 +1,10 @@
 import { dayBefore } from "@/lib/dailyCalendar";
 
 /**
- * This browser's daily-challenge results, one per puzzle date, kept for the
- * share text's streak line. Local-first on purpose: works for guests, no
- * network at share time — the tradeoff is that a signed-in player alternating
- * devices can see a shorter streak here than their profile shows.
- *
- * Keys are the PUZZLE date (the server-issued `dailyDate`), never a
- * client-derived "today" — an attempt finished just after UTC midnight
- * belongs to the day it was set, the same rule game/daily.js applies to stats.
+ * This browser's daily results, one per puzzle date, for the share text's
+ * streak line. Local-first so it works for guests with no network at share
+ * time; a player alternating devices may see a shorter streak than their
+ * profile. Keys are the server-issued puzzle date, never a client "today".
  */
 
 export interface DailyResult {
@@ -25,8 +21,7 @@ const parseEntry = (value: unknown): DailyResult | null => {
     return typeof won === "boolean" ? { won } : null;
 };
 
-/** Everything stored, with anything unreadable dropped — localStorage is
- * untrusted input (bestTimes.ts's rule). */
+/** Everything stored, with anything unreadable dropped: localStorage is untrusted input. */
 export const readDailyHistory = (): Record<string, DailyResult> => {
     if (typeof window === "undefined") return {};
 
@@ -56,9 +51,8 @@ export const readDailyHistory = (): Record<string, DailyResult> => {
 };
 
 /**
- * Files a terminal result under its puzzle date. First write wins: an attempt
- * is immutable once terminal, so a second write for the same date is always a
- * re-delivery (a resume, a second tab), never new information.
+ * Files a terminal result under its puzzle date. First write wins: a second
+ * write for the same date is always a re-delivery, never new information.
  */
 export const recordDailyResult = (date: string, result: DailyResult): void => {
     if (typeof window === "undefined" || !isDayKey(date)) return;
@@ -73,8 +67,7 @@ export const recordDailyResult = (date: string, result: DailyResult): void => {
     }
 };
 
-/** Consecutive daily WINS ending on `endDate` — a loss or missing day there
- * is 0, so a loss's share never brags about the streak it just ended. */
+/** Consecutive daily WINS ending on `endDate`; a loss there is 0, so its share never brags. */
 export const dailyWinStreak = (history: Record<string, DailyResult>, endDate: string): number => {
     let streak = 0;
     let day = endDate;

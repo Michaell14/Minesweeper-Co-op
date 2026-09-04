@@ -1,12 +1,9 @@
 /**
- * The play-streak: consecutive UTC days with at least one finished game (any
- * mode, win or loss — showing up is the streak). Pure, because day-boundary
- * maths is exactly the kind of logic that produces plausible wrong answers
- * forever if it can only be observed through a database.
- *
- * Days are 'YYYY-MM-DD' strings in UTC throughout. Strings, not Date objects:
- * pg hands `date` columns back as local-midnight JS Dates, which off-by-ones
- * across the very boundaries this module is about.
+ * The play-streak: consecutive UTC days with at least one finished game, any
+ * mode, win or loss. Pure, because day-boundary maths gives plausible wrong
+ * answers if only observable through a database. Days are 'YYYY-MM-DD' UTC
+ * strings, not Dates: pg returns `date` columns as local-midnight Dates, which
+ * off-by-one across the boundaries this is about.
  */
 
 /** The UTC day an epoch-ms timestamp falls on. */
@@ -17,12 +14,9 @@ const dayBefore = (day) =>
     new Date(Date.parse(`${day}T00:00:00Z`) - 86400000).toISOString().slice(0, 10);
 
 /**
- * The streak after a game finishing on `day`.
- *
- * Same day again → unchanged; the day after the last → extends; anything else
- * (first game ever, or a gap) → back to 1. A `day` EARLIER than lastPlayedDay
- * (clock skew, backfill) leaves the streak alone rather than resetting it —
- * an old-looking result must never destroy a live streak.
+ * The streak after a game on `day`: same day, unchanged; the day after the
+ * last, extends; otherwise back to 1. A `day` EARLIER than lastPlayedDay
+ * (skew, backfill) leaves the streak alone.
  */
 const advanceStreak = ({ currentStreak, bestStreak, lastPlayedDay }, day) => {
     let next;
@@ -43,19 +37,13 @@ const advanceStreak = ({ currentStreak, bestStreak, lastPlayedDay }, day) => {
 };
 
 /**
- * Streaks recomputed from the full set of days, newest first.
- *
- * advanceStreak accumulates and assumes days ARRIVE in order — true for the
- * play streak, whose day comes from a monotonic server clock. The daily-clear
- * streak keys on the PUZZLE date instead, and a leftover attempt can win
- * AFTER a later day already recorded (48h attempt TTL); an accumulator can
- * only refuse to go backwards, never repair the gap the ordering opened. So
- * that streak is derived from its calendar table, where arrival order cannot
- * matter.
- *
- * `daysDesc`: unique 'YYYY-MM-DD' strings, newest first (the caller's ORDER
- * BY is the contract). Current = the run ending at the newest day; whether
- * that run is still alive is the DISPLAY's question, not storage's.
+ * Streaks recomputed from the full set of days, newest first. advanceStreak
+ * assumes days ARRIVE in order, true for the play streak but not the daily
+ * clear streak, which keys on the PUZZLE date and where a leftover attempt can
+ * win AFTER a later day recorded (48h TTL). So that one is derived from its
+ * calendar table. `daysDesc`: unique days, newest first (the caller's ORDER BY
+ * is the contract). Whether the newest run is still alive is the display's
+ * question.
  */
 const streaksFromDays = (daysDesc) => {
     if (daysDesc.length === 0) {

@@ -5,17 +5,11 @@ import { useMinesweeperStore } from "@/app/store";
 import type { AppSocket } from "@/lib/initSocket";
 
 /**
- * Feeds connectionSlice from the socket's lifecycle events.
- *
- * These are socket.io's RESERVED events, not protocol events, so they cannot go
- * through the `useSocketEvents` table — its keys are typed to
- * `ServerToClientEvents` on purpose. Registered directly instead, the same way
- * `useMatchReconnect` listens for `connect`.
- *
- * `connect_error` only downgrades to 'unreachable' when nothing has ever got
- * through: after a mid-game drop the same event fires per failed retry, but the
- * user's situation is still "reconnecting" — socket.io keeps redialling either
- * way (`reconnection: true`), so neither state is a dead end.
+ * Feeds connectionSlice from the socket's lifecycle events. These are
+ * socket.io's RESERVED events, so they cannot go through the `useSocketEvents`
+ * table (typed to `ServerToClientEvents`); registered directly, like
+ * `useMatchReconnect`. `connect_error` only downgrades to 'unreachable' when
+ * nothing has ever got through; after a mid-game drop it is still "reconnecting".
  */
 export function useConnectionStatus(socket: AppSocket | null): void {
     useEffect(() => {
@@ -27,14 +21,11 @@ export function useConnectionStatus(socket: AppSocket | null): void {
         const onDisconnect = (reason: string) => {
             const store = useMinesweeperStore.getState();
             if (reason === "io client disconnect") {
-                // The client hanging up on purpose — navigating between `/` and
-                // `/daily` redials (see useGameSession). Not a drop; reset for
-                // the next route's socket rather than reporting a reconnect.
+                // The client hanging up on purpose (navigating between `/` and
+                // `/daily` redials). Not a drop; reset for the next socket.
                 store.setConnectionStatus("connecting");
-                // A deliberate disconnect discards the socket's send buffer, so
-                // a join/create emit waiting in it is dead — the flag must not
-                // outlive the request. A network drop keeps the buffer (socket.io
-                // flushes it on reconnect), so pending rightly survives below.
+                // A deliberate disconnect discards the send buffer, so a pending
+                // join/create is dead. A network drop keeps it, so pending survives below.
                 store.setJoinPending(null);
                 return;
             }

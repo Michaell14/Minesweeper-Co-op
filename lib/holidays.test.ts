@@ -54,11 +54,7 @@ describe("the windows land where they should", () => {
     });
 });
 
-/*
- * Lunar New Year overlaps Valentine's in a handful of years and lands INSIDE
- * it in others. Precedence is declared, not incidental, so it gets asserted at
- * the years where it actually bites.
- */
+/* Lunar New Year sometimes overlaps Valentine's; precedence is declared, so assert it where it bites. */
 describe("the Lunar New Year / Valentine's collision", () => {
     test("Lunar New Year takes the years it overlaps", () => {
         expect(activeHoliday(on("2029-02-13"))?.themeId).toBe("lunar-new-year");
@@ -72,11 +68,7 @@ describe("the Lunar New Year / Valentine's collision", () => {
 
 });
 
-/*
- * New Year is the only window that crosses into the next Gregorian year, and
- * the reason `activeHoliday` scans neighbouring years at all — a scan that
- * shipped unused and unproven until this palette existed.
- */
+/* The only window crossing into the next year, and why `activeHoliday` scans neighbouring years. */
 describe("the window that crosses New Year", () => {
     test.each([
         ["2026-12-30", "newyear-2026"],
@@ -93,9 +85,8 @@ describe("the window that crosses New Year", () => {
     });
 
     /*
-     * One key across the boundary is the point: dismissing it at 23:00 on the
-     * 31st must not un-dismiss itself an hour later, which is exactly what a
-     * key derived from the CURRENT year rather than the window's would do.
+     * One key across the boundary: a dismissal at 23:00 on the 31st must not
+     * un-dismiss itself an hour later, as a key from the CURRENT year would.
      */
     test("a dismissal on the way in survives midnight", () => {
         const prefs = { seasonalThemes: true, seasonalDismissed: "newyear-2026" };
@@ -105,10 +96,8 @@ describe("the window that crosses New Year", () => {
 });
 
 /*
- * Windows overlapping by accident is the failure a schedule this size invites:
- * the loser simply never paints, and nothing says so. Counting the days each
- * holiday actually wins catches a new window eating an old one, which asserting
- * a few dates does not.
+ * Overlapping windows fail silently: the loser never paints. Counting the days
+ * each holiday wins catches a new window eating an old one.
  */
 describe("no holiday quietly eats another", () => {
     const SPANS: Record<string, number> = {
@@ -152,10 +141,8 @@ describe("no holiday quietly eats another", () => {
 });
 
 /*
- * Region gating. Thanksgiving is the only holiday it applies to, and the rule
- * that matters is which way it fails: a browser claiming no region at all must
- * still see everything, because "we could not tell" is not a reason to hide a
- * holiday from someone who keeps it.
+ * Region gating applies to Thanksgiving alone, and it fails OPEN: a browser
+ * claiming no region must still see everything.
  */
 describe("region gating", () => {
     const thanksgiving2026 = on("2026-11-26");
@@ -179,8 +166,7 @@ describe("region gating", () => {
         expect(activeHoliday(thanksgiving2026, ["GB", "US"])?.themeId).toBe("thanksgiving");
     });
 
-    /* Everything else is deliberately global; a regression here is a palette
-     * quietly disappearing for most of the world. */
+    /* Everything else is global; a regression here hides a palette from most of the world. */
     test.each([
         ["2026-12-25", "christmas"],
         ["2026-10-31", "halloween"],
@@ -207,8 +193,7 @@ describe("browserRegions", () => {
         else delete (globalThis as { navigator?: unknown }).navigator;
     });
 
-    /* A bare "en" must NOT resolve to US — that is the whole point of not
-     * maximising the tag, and it is what would hand Thanksgiving to Britain. */
+    /* A bare "en" must NOT resolve to US, or Thanksgiving goes to Britain. */
     test("reads regions from language tags, and only when present", () => {
         set("en-GB", ["en-GB", "fr-FR"]);
         expect(browserRegions()).toEqual(["GB", "FR"]);
@@ -220,11 +205,7 @@ describe("browserRegions", () => {
         expect(browserRegions()).toEqual(["US"]);
     });
 
-    /*
-     * The region is not always the second subtag. Reading these as region-less
-     * is not a harmless miss: no region fails the gate OPEN, so every one of
-     * them used to be painted American Thanksgiving.
-     */
+    /* The region is not always the second subtag, and no region fails the gate OPEN. */
     test.each([
         ["zh-Hans-CN", "CN"],
         ["zh-Hant-TW", "TW"],
@@ -238,8 +219,7 @@ describe("browserRegions", () => {
         expect(browserRegions()).toEqual([region]);
     });
 
-    /* `ca` here is a calendar key, not Canada — the region is matched by
-     * position, so a tag carrying none still reports none. */
+    /* `ca` is a calendar key, not Canada: the region is matched by position. */
     test.each(["en-u-ca-gregory", "en", "es-419"])("claims no region for %s", (tag) => {
         set(tag, [tag]);
         expect(browserRegions()).toEqual([]);
@@ -247,11 +227,7 @@ describe("browserRegions", () => {
 });
 
 describe("the schedule stays serviceable", () => {
-    /*
-     * The Lunar New Year table is finite and silently stops firing when it
-     * runs out — the failure a table has instead of a formula. Five years of
-     * runway is the reminder to top it up.
-     */
+    /* The table is finite and silently stops firing when it runs out; five years of runway is the reminder. */
     test("Lunar New Year is scheduled at least five years out", () => {
         const soon = new Date();
         soon.setFullYear(soon.getFullYear() + 5);
@@ -260,10 +236,7 @@ describe("the schedule stays serviceable", () => {
         expect(found).toBe(true);
     });
 
-    /*
-     * A window with no palette behind it stamps a data-theme matching no rules:
-     * the default renders while the schedule believes a holiday is on.
-     */
+    /* A window with no palette stamps a data-theme matching no rules, and the default renders. */
     test("every scheduled holiday has a palette to paint", () => {
         for (const id of HOLIDAY_THEME_IDS) {
             expect(THEMES.find((t) => t.id === id)).toBeDefined();
@@ -271,10 +244,7 @@ describe("the schedule stays serviceable", () => {
     });
 });
 
-/*
- * The only instant at which activeHoliday can change, and therefore the whole
- * scheduling story for a tab that stays open (components/SettingsSync.tsx).
- */
+/* The only instant activeHoliday can change; the whole scheduling story for an open tab (SettingsSync.tsx). */
 describe("msUntilLocalMidnight", () => {
     test("counts to the next local midnight, not 24h from now", () => {
         expect(msUntilLocalMidnight(on("2026-06-15"))).toBe(12 * 60 * 60 * 1000);

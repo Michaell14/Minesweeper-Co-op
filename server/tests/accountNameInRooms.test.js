@@ -1,13 +1,7 @@
 /**
- * A signed-in player's name reaching the scoreboard.
- *
- * `displayNameFor` has its own tests, but they cannot see whether the handlers
- * actually CALL it — and that wiring is where this feature regresses: revert
- * one of the four sites, or add a fifth entry point that forgets, and every
- * other test stays green while signed-in players quietly play under whatever
- * they typed. So this drives server.js's real handlers, the way
- * joinRoomHost.test.js and practiceResume.test.js do, and reads back what
- * landed in Redis.
+ * A signed-in player's name reaching the scoreboard. `displayNameFor` has its
+ * own tests, but only driving server.js's real handlers (as joinRoomHost.test.js
+ * does) shows the handlers actually CALL it; this reads back what landed in Redis.
  */
 
 const emitsByTarget = {};
@@ -21,9 +15,7 @@ const mockUse = jest.fn();
 
 jest.mock('../utils/initializeClient', () => ({
     app: { use: jest.fn(), get: jest.fn(), post: jest.fn(), put: jest.fn(), delete: jest.fn() },
-    // `sockets.sockets` is the live socket map. Presence scans it on every
-    // connect now (utils/presence.js), so a mock without one is a mock of a
-    // socket.io that never existed.
+    // Presence scans the live socket map on every connect (utils/presence.js).
     io: { on: mockOn, to: mockTo, use: mockUse, sockets: { sockets: new Map() } },
     server: { listen: jest.fn() },
 }));
@@ -46,11 +38,8 @@ require('../server');
 
 const onConnection = mockOn.mock.calls.find(([event]) => event === 'connection')[1];
 
-/*
- * The identity is attached by io.use MIDDLEWARE, not by the connection handler
- * — so a harness that only calls the connection handler sees every socket as
- * signed out, and would have passed this whole file while proving nothing.
- */
+// Identity is attached by io.use MIDDLEWARE, not the connection handler; a
+// harness that skipped it would see every socket signed out and prove nothing.
 const [attachIdentity] = mockUse.mock.calls[0];
 
 const ROOM = 'roomcode';
@@ -109,10 +98,8 @@ describe('creating a room', () => {
     });
 
     /*
-     * The client skips its name dialog on the belief that it is signed in. If
-     * the handshake's token did not resolve HERE, the name it sends is the only
-     * one there is — dropping it would refuse the create with nothing on screen
-     * to explain why.
+     * The client skipped its name dialog believing it was signed in; if the
+     * token did not resolve here, the name it sent is the only one there is.
      */
     test('an unresolved account still creates, on the name the client sent', async () => {
         const socket = await connect();

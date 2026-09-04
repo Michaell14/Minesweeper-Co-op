@@ -12,13 +12,9 @@ interface KeyboardCursorProps {
 
 /**
  * The keyboard selection cursor: a cell-sized frame layered over the board, so
- * moving it re-renders zero cells (Cell's memo comparator would ignore a cursor
- * prop anyway). Position reuses the measured-geometry technique from the remote
- * cursors — the cell size token is a clamp() and cannot be parsed.
- *
- * The live region announces the selected cell to screen readers in the same
- * words as the cell's own aria-label. It stays mounted even with no cursor, so
- * the first announcement is not lost to a region that appeared with its text.
+ * moving it re-renders zero cells. Positioned from measured geometry like the
+ * remote cursors, since the cell size token is a clamp(). The live region
+ * stays mounted even with no cursor, so the first announcement is not lost.
  */
 export default function KeyboardCursor({ boardRef }: KeyboardCursorProps) {
     const kbCursor = useMinesweeperStore((state) => state.kbCursor);
@@ -29,14 +25,12 @@ export default function KeyboardCursor({ boardRef }: KeyboardCursorProps) {
     const metrics = useCellMetrics(boardRef);
     const frameRef = useRef<HTMLDivElement>(null);
 
-    // Keeps the cursor visible inside the board's overflow scroll container.
-    // Optional call: jsdom renders this component without a scrollIntoView.
+    // Keeps the cursor visible inside the scroll container. Optional call: jsdom has no scrollIntoView.
     useEffect(() => {
         frameRef.current?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
     }, [kbCursor]);
 
-    // A cursor left out of bounds by a board change renders nothing; the next
-    // movement key clamps it back in bounds.
+    // A cursor left out of bounds by a board change renders nothing; the next key clamps it.
     const cell = kbCursor === null ? undefined : board[kbCursor.r]?.[kbCursor.c];
     const minesRevealed = gameOver || (mode === 'pvp' && pvpWinner !== null);
     const stride = metrics.size + metrics.gap;
@@ -56,9 +50,8 @@ export default function KeyboardCursor({ boardRef }: KeyboardCursorProps) {
                     }}
                 />
             )}
-            {/* Marked, not found by position: the board carries a second
-                polite region for pings, and picking by DOM order makes
-                whichever layer mounts first the one that answers. */}
+            {/* Marked, not found by position: the board carries a second polite
+                region for pings, and DOM order would pick whichever mounted first. */}
             <div className="sr-only" role="status" aria-live="polite" data-kb-announcer>
                 {cell !== undefined && kbCursor !== null
                     ? cellAriaLabel(cell, kbCursor.r, kbCursor.c, minesRevealed)

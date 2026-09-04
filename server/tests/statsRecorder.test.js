@@ -1,7 +1,6 @@
 /**
- * The socket→stats bridge's contract: authenticated sockets record, guests
- * and gone sockets are skipped silently, a dead database means nothing runs,
- * and a repo failure is swallowed — this rides game-over emits.
+ * The socket→stats bridge: authenticated sockets record, guests and gone
+ * sockets skip silently, a dead database runs nothing, a repo failure is swallowed.
  */
 
 const mockSockets = new Map();
@@ -31,15 +30,13 @@ jest.mock('../data/statsRepo', () => ({
 
 const { recordForSockets } = require('../utils/statsRecorder');
 
-/** A 9x9 board holding 10 mines, which is what the keys below are derived from. */
 const boardOf = (rows, cols, mines) => {
     const board = Array.from({ length: rows }, () => Array.from({ length: cols }, () => ({ isMine: false })));
     for (let i = 0; i < mines; i++) board[Math.floor(i / cols)][i % cols].isMine = true;
     return board;
 };
 
-// dailyDate included to pin the pass-through contract: every field but the
-// board rides along to the repo untouched.
+// dailyDate pins the pass-through contract: every field but the board reaches the repo untouched.
 const RESULT = { mode: 'daily', board: boardOf(9, 9, 10), won: true, durationMs: 1000, players: 1, finishedAt: 1, dailyDate: '2026-08-02' };
 
 /** What the repo should have been handed: the result, with a key for a board. */
@@ -58,12 +55,8 @@ beforeEach(() => {
 /** Lets the recordResult promise and its .then settle. */
 const settle = () => new Promise((r) => setImmediate(r));
 
-/**
- * The key a result is filed under, derived HERE from the board and the room
- * rather than at the four game-over sites. Each of those states its mode and
- * its player count once; a key built beside them would state both a second
- * time, and a key that disagrees with its own count is a record nothing reads.
- */
+/* The key is derived HERE, not at the four game-over sites, which would state
+ * the mode and count a second time and could disagree with themselves. */
 describe('the key it derives', () => {
     const keyFor = (result) => {
         mockSockets.set('sock-user', { data: { user: { id: 'uuid-1' } } });
@@ -79,12 +72,8 @@ describe('the key it derives', () => {
         expect(keyFor({ ...RESULT, mode: 'co-op', board: boardOf(2, 3, 2), players: 3 })).toBe('2x3/2@3');
     });
 
-    /*
-     * The one that used to caption a race "with 2 players": both racers clear
-     * the WHOLE board themselves, so a race is solo work however many are in
-     * the room. The client derives the same count for the same clear — the
-     * point of the rule living in shared/.
-     */
+    /* Both racers clear the WHOLE board themselves, so a race is solo work.
+     * The client derives the same count; the rule lives in shared/. */
     test('a race files as solo, not as the two players in the room', () => {
         expect(keyFor({ ...RESULT, mode: 'pvp', board: boardOf(2, 3, 2), players: 2 })).toBe('2x3/2');
     });
@@ -93,7 +82,6 @@ describe('the key it derives', () => {
         expect(keyFor({ ...RESULT, board: boardOf(2, 3, 2) })).toBe('2x3/2');
     });
 
-    /* The board is the recorder's input, not the repo's: it stops here. */
     test('hands the repo a key and never the board itself', () => {
         keyFor(RESULT);
         expect(mockRecordResult.mock.calls[0][1]).not.toHaveProperty('board');
@@ -154,11 +142,8 @@ describe('the unlock announcement', () => {
         expect(emitted).toEqual([]);
     });
 
-    /*
-     * The one that matters: a badge announced by a write that then failed is a
-     * badge the profile will not have. The emit hangs off the resolution, so a
-     * rejection can never reach it.
-     */
+    /* A badge announced by a write that then failed is a badge the profile will
+     * not have; the emit hangs off the resolution, so a rejection cannot reach it. */
     test('announces nothing when the write failed', async () => {
         mockSockets.set('sock-user', { data: { user: { id: 'uuid-1' } } });
         mockRecordResult.mockRejectedValue(new Error('pg down'));
@@ -169,8 +154,7 @@ describe('the unlock announcement', () => {
         expect(emitted).toEqual([]);
     });
 
-    // Co-op finishes one board for everyone, but the shelves behind each
-    // player differ — so this is per socket, never to the room.
+    // One board finishes for everyone, but each player's shelf differs: per socket, never the room.
     test('addresses each player separately', async () => {
         mockSockets.set('sock-a', { data: { user: { id: 'uuid-a' } } });
         mockSockets.set('sock-b', { data: { user: { id: 'uuid-b' } } });
@@ -196,10 +180,9 @@ describe('the unlock announcement', () => {
     });
 
     /*
-     * The finishing socket is not the socket to announce to. Each route dials
-     * its own (ARCHITECTURE.md §5), so navigating to /daily or reconnecting
-     * through a blip during the transaction leaves it dead — and emitting at a
-     * captured id dropped the toast while the write landed fine.
+     * Each route dials its own socket (ARCHITECTURE.md §5), so navigating or
+     * reconnecting during the transaction leaves the finishing socket dead;
+     * emitting at a captured id dropped the toast while the write landed.
      */
     test('follows the player to whatever socket they are on now', async () => {
         mockSockets.set('sock-old', { data: { user: { id: 'uuid-1' } } });
@@ -225,8 +208,7 @@ describe('the unlock announcement', () => {
         expect(emitted.map((e) => e.id).sort()).toEqual(['sock-a', 'sock-b']);
     });
 
-    // Closed the tab and did not come back: the row is written, and /profile's
-    // unseen badge is what surfaces it. Nothing to emit at, and no throw.
+    // Gone entirely: the row is written and /profile's unseen badge surfaces it. No throw.
     test('says nothing when the player has gone entirely', async () => {
         mockSockets.set('sock-user', { data: { user: { id: 'uuid-1' } } });
         mockRecordResult.mockResolvedValue(['first-clear']);
@@ -238,7 +220,6 @@ describe('the unlock announcement', () => {
         expect(emitted).toEqual([]);
     });
 
-    // A guest on the same box must not collect someone else's announcement.
     test('never announces to a socket belonging to another account', async () => {
         mockSockets.set('sock-user', { data: { user: { id: 'uuid-1' } } });
         mockSockets.set('sock-other', { data: { user: { id: 'uuid-2' } } });
@@ -251,11 +232,8 @@ describe('the unlock announcement', () => {
         expect(emitted.map((e) => e.id)).toEqual(['sock-user']);
     });
 
-    /*
-     * A failed EMIT must not be reported as a failed WRITE. Under one trailing
-     * `.catch` every socket problem printed "Stats write dropped" and sent
-     * whoever was on call to look at a healthy Postgres.
-     */
+    /* A failed EMIT must not be reported as a failed WRITE: one trailing `.catch`
+     * sent whoever was on call to look at a healthy Postgres. */
     test('a broken emit is logged as an announce failure, not a write failure', async () => {
         const { io } = require('../utils/initializeClient');
         mockSockets.set('sock-user', { data: { user: { id: 'uuid-1' } } });

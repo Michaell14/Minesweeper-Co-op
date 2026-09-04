@@ -3,7 +3,6 @@ const { generateBoard } = require('../domain/boardGen');
 
 describe('Minesweeper Solver Utils', () => {
     test('Identifies a completely solvable 8x8 easy board', () => {
-        // Generate standard 8x8 board with 10 mines
         let solvableFound = false;
         for (let attempt = 0; attempt < 50; attempt++) {
             const board = generateBoard(8, 8, 10, 0, 0);
@@ -16,36 +15,23 @@ describe('Minesweeper Solver Utils', () => {
     });
 
     test('Correctly identifies an unsolvable 50:50 deadlock board', () => {
-        // Construct a manual 2x2 board where 1 mine is hidden between (0,1) and (1,1)
-        // (0,0) is open with 1 mine neighbor. Both (0,1) and (1,1) touch (0,0) identically.
+        // 2x2 with one mine: (0,0) opens showing 1, and (0,1)/(1,1) touch it identically.
         const unsolvableBoard = [
             [{ isMine: false, nearbyMines: 1 }, { isMine: true, nearbyMines: 0 }],
             [{ isMine: false, nearbyMines: 1 }, { isMine: false, nearbyMines: 0 }]
         ];
         
-        // Starting at (0,0), player opens '1', leaving (0,1) and (1,1) as identical 50:50 candidates.
         const isSolvable = isBoardSolvable(unsolvableBoard, 0, 0);
         expect(isSolvable).toBe(false);
     });
 
     /**
-     * A guard against the solver blowing up, not a benchmark.
-     *
-     * It matters because no-guess generation calls isBoardSolvable in a
-     * generate-and-verify loop — many times per board — so an exponential
-     * regression here doesn't slow room creation down, it hangs it.
-     *
-     * This used to time a single cold call with Date.now() and assert under
-     * 10ms, and CI failed it at 12ms. That wasn't a slow solver: a warm solve
-     * measured here is ~0.2ms, so the old test was mostly measuring JIT warm-up
-     * and Date.now()'s ~1ms resolution. Warming up first and taking a median
-     * removes both.
-     *
-     * Measured locally: 0.11ms fastest, 0.18ms median, 0.89ms worst of fifteen.
-     * The 25ms budget is ~140x the median and ~28x the worst run, which leaves
-     * room for a CI runner several times slower than this machine plus a GC
-     * pause, while still failing on anything in the same league as a 100x
-     * regression. Tighter than that starts measuring the runner again.
+     * A guard against the solver blowing up, not a benchmark: no-guess
+     * generation calls isBoardSolvable many times per board, so an exponential
+     * regression hangs room creation. Warmed up and taken as a median, because
+     * a cold single call mostly measured JIT warm-up. Measured locally: 0.18ms
+     * median, 0.89ms worst; 25ms leaves room for a slow CI runner while still
+     * failing a 100x regression.
      */
     test('Performance: a 16x16 solve stays far away from pathological', () => {
         const board = generateBoard(16, 16, 40, 5, 5);
@@ -66,9 +52,8 @@ describe('Minesweeper Solver Utils', () => {
 
 describe('solveWithStats', () => {
     /**
-     * The daily challenge (server/game/daily.js) picks the hardest of many
-     * solvable candidates by rule2Count -- these tests are what pin down that
-     * "hardest" actually tracks something real, not just a number that moves.
+     * The daily (server/game/daily.js) picks the hardest candidate by
+     * rule2Count; these pin that "hardest" tracks something real.
      */
 
     test('agrees with isBoardSolvable on solvability', () => {
@@ -88,10 +73,7 @@ describe('solveWithStats', () => {
     });
 
     test('a board solvable by single-cell deduction alone needs zero Rule 2 steps', () => {
-        // 1x3, mine at the far end: starting on the 0 cascades open the
-        // middle '1', whose only unrevealed neighbor is the mine -- a single
-        // Rule 1 flag finishes the board. No overlapping-neighborhood
-        // reasoning ever comes up.
+        // 1x3, mine at the far end: the cascade opens the middle '1', and one Rule 1 flag finishes it.
         const board = [[
             { isMine: false, nearbyMines: 0 },
             { isMine: false, nearbyMines: 1 },
@@ -105,13 +87,9 @@ describe('solveWithStats', () => {
     });
 
     test('a board requiring subset reasoning reports at least one Rule 2 step', () => {
-        // No single hand-built board reliably demonstrates this: the solver
-        // only ever opens what's reachable from ONE start cell's cascade, so
-        // hand-placing "given" clues next to unknowns without also leaking
-        // mine-adjacency into the cells that are supposed to cascade them
-        // open is exactly the kind of subset puzzle this test is about --
-        // search real generated boards instead, at a high enough density that
-        // pure single-cell deduction usually isn't enough on its own.
+        // No hand-built board reliably shows this: the solver only opens what
+        // ONE start cell's cascade reaches, so search generated boards at a
+        // density where single-cell deduction usually is not enough.
         let found = null;
         for (let attempt = 0; attempt < 200 && !found; attempt++) {
             const board = generateBoard(16, 16, 53, 8, 8, { noGuess: false });
@@ -124,12 +102,9 @@ describe('solveWithStats', () => {
     });
 
     test('sampling many candidates at the same density finds a real spread of hardness', () => {
-        // The premise the daily challenge's "hardest of a pool" selection
-        // depends on: solvable boards at a given density are NOT uniformly
-        // difficulty -- some need far more Rule 2 reasoning than others, so
-        // picking the max out of many is a genuine choice, not a coin flip.
-        // ~7% of candidates are solvable at this density (ARCHITECTURE.md
-        // §5), so 400 attempts comfortably clears the sample size below.
+        // The premise of the daily's "hardest of a pool": solvable boards at one
+        // density are NOT uniformly hard. ~7% are solvable here (ARCHITECTURE.md
+        // §5), so 400 attempts clears the sample size below.
         const rule2Counts = [];
         for (let attempt = 0; attempt < 400 && rule2Counts.length < 25; attempt++) {
             const board = generateBoard(16, 16, 53, 8, 8, { noGuess: false });

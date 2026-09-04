@@ -30,10 +30,7 @@ export interface Lesson {
     intro: string;
 }
 
-/**
- * Named patterns first — they are what players search for — then the general
- * rule that retires them.
- */
+/** Named patterns first (what players search for), then the general rule that retires them. */
 export const LESSONS: readonly Lesson[] = [
     {
         id: 'counting',

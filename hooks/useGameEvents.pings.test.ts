@@ -1,11 +1,8 @@
 // @vitest-environment jsdom
 /**
- * The RECEIVE side of a ping — what gets drawn on the board, and what does not.
- *
- * The rule worth the file: a ping is scoped to ONE room. The relay outlives the
- * membership that produced it, so the handler has to say which board a cell
- * belongs to; `PingLayer.test.tsx` covers what the ring looks like once it has
- * been let through, and this covers whether it should have been.
+ * The RECEIVE side of a ping. The rule worth the file: a ping is scoped to ONE
+ * room, since the relay outlives the membership that produced it.
+ * `PingLayer.test.tsx` covers what the ring looks like once let through.
  */
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { useMinesweeperStore } from "@/app/store";
@@ -47,8 +44,7 @@ describe("an incoming ping", () => {
 
     /*
      * Gated on the same preference as reactions: "show me what other players
-     * send" is one setting, and splitting it would mean a second toggle for
-     * the same class of thing.
+     * send" is one setting.
      */
     test("is refused when reactions are switched off", () => {
         state().setSetting("emotes", false);
@@ -61,12 +57,9 @@ describe("an incoming ping", () => {
 
 describe("a ping from a room this browser is no longer in", () => {
     /*
-     * The bug this guard exists for. A ping broadcast while the socket was
-     * still in room A is delivered even after the leave — the server sent it
-     * before the leave was processed, and the socket outlives the room.
-     * `leaveRoom` clears what is already stored but cannot refuse what has not
-     * arrived, so the ring landed on room B's board: a marker on a cell nobody
-     * there pointed at, under a name not in the room.
+     * The bug this guard exists for: a ping broadcast while the socket was
+     * still in room A is delivered after the leave, and `leaveRoom` cannot
+     * refuse what has not arrived, so the ring landed on room B's board.
      */
     test("does not draw on the room joined next", () => {
         state().setRoom("room-b");
@@ -76,9 +69,8 @@ describe("a ping from a room this browser is no longer in", () => {
         expect(state().playerPings).toEqual([]);
     });
 
-    // The other half of the window: still on Landing, joined to nothing. The
-    // code alone is not enough there — `room` also holds what is being TYPED
-    // into the join form, so it matches again mid-keystroke.
+    // Still on Landing, joined to nothing: `room` also holds what is being
+    // TYPED into the join form, so the code alone matches mid-keystroke.
     test("does not draw while typing that room's code on Landing", () => {
         state().setPlayerJoined(false);
 

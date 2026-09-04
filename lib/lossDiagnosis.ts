@@ -5,10 +5,8 @@ import { LESSON_RULES, deduce, explain, nextHint, type Explanation } from './dri
 import type { Coord, LessonId } from './drills';
 
 /**
- * A live position in the layout format lib/drillDeduction.ts consumes.
- *
- * Flags are dropped deliberately: deduce() re-derives mines from the opened
- * numbers, so a wrong flag cannot make the diagnosis lie.
+ * A live position in the layout format lib/drillDeduction.ts consumes. Flags
+ * are dropped: deduce() re-derives mines, so a wrong flag cannot make it lie.
  */
 export function positionToLayout(preLoss: Cell[][], revealed: Cell[][]): string[] {
     return preLoss.map((row, r) =>
@@ -52,11 +50,8 @@ function spans(run: string, pattern: string, offsets: number[]): boolean {
 }
 
 /**
- * Which lesson a deduction belongs to.
- *
- * Localised to the clue cells on purpose: `121` turns up somewhere in almost
- * every 16x16 board, and a whole-board scan would name a shape that had nothing
- * to do with the step that fired.
+ * Which lesson a deduction belongs to. Localised to the clue cells: `121` is on
+ * almost every 16x16 board, so a whole-board scan would name an unrelated shape.
  */
 export function classifyLesson(layout: readonly string[], why: Explanation): LessonId {
     if (why.rule === 'counting') return 'counting';
@@ -121,11 +116,9 @@ const NAMED_LESSONS: ReadonlySet<LessonId> =
 
 /**
  * Case B's target: the first provable cell whose lesson names a pattern,
- * scanning deduce()'s cells mines-then-safe, row-major within each — a
- * counting step is provable on nearly every real board, so picking whichever
- * cell the solver reaches first almost never surfaces the pattern that was
- * actually there to teach. Null when nothing on the board names one, so the
- * caller can fall back to the plain first-hint order.
+ * scanning mines-then-safe, row-major. A counting step is provable on nearly
+ * every board, so the solver's first cell almost never surfaces the pattern.
+ * Null when nothing names one; the caller falls back to first-hint order.
  */
 function namedPatternHint(
     layout: readonly string[],
@@ -142,11 +135,8 @@ function namedPatternHint(
 }
 
 /**
- * Provable mines the player had already flagged.
- *
- * A flag is the move, so these are moves they made, not ones they missed.
- * Only mines: a flag on a provably SAFE cell is still a miss, and the
- * deduction arithmetic keeps ignoring flags either way.
+ * Provable mines the player had already flagged: moves they made, not missed.
+ * Only mines, since a flag on a provably SAFE cell is still a miss.
  */
 function flaggedMines(preLoss: Cell[][], layout: readonly string[]): Coord[] {
     return deduce(layout).mines.filter(([r, c]) => preLoss[r]?.[c]?.isFlagged);
@@ -179,10 +169,8 @@ const from = (
 });
 
 /**
- * What the run should have done instead, or null if nothing was provable.
- *
- * Null should be unreachable on a no-guess board — more open cells never reduce
- * what is deducible — but it must go quiet rather than claim something false.
+ * What the run should have done instead, or null if nothing was provable. Null
+ * should be unreachable on a no-guess board, but must go quiet, not claim falsely.
  */
 export function diagnoseLoss(preLoss: Cell[][], revealed: Cell[][]): LossDiagnosis | null {
     const layout = positionToLayout(preLoss, revealed);

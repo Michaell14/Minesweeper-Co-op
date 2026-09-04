@@ -3,18 +3,15 @@ import type { ClientToServerEvents, ServerToClientEvents } from "@/shared/socket
 import { getBridgeToken } from "@/lib/authBridge";
 
 /**
- * The socket, carrying the protocol with it.
- *
- * Typing it here is what makes `socket.emit(...)` and every handler in
- * `hooks/useGameEvents.ts` checked against `shared/socketPayloads.ts`. Use this
- * alias rather than a bare `Socket`, which accepts any event with any payload.
+ * The socket, carrying the protocol: emits and the `hooks/useGameEvents.ts`
+ * handlers are checked against `shared/socketPayloads.ts`. Use this alias, not
+ * a bare `Socket`, which accepts anything.
  */
 export type AppSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
 
 /**
- * Backend URL. NEXT_PUBLIC_SOCKET_URL overrides it, and is inlined at build
- * time, so changing it needs a Vercel rebuild. Exported for lib/profileApi.ts,
- * which speaks HTTP to the same backend.
+ * Backend URL. NEXT_PUBLIC_SOCKET_URL overrides it, inlined at build time (a
+ * change needs a Vercel rebuild). Exported for lib/profileApi.ts.
  */
 export const serverURL =
     process.env.NEXT_PUBLIC_SOCKET_URL ||
@@ -23,18 +20,12 @@ export const serverURL =
         : "https://nameless-coast-33840-33c3fd45fe2d.herokuapp.com"); // no trailing slash
 
 /**
- * Creates the client socket. Connection is deferred to hooks/useSocketEvents.
- *
- * The server reads two things off the handshake: `sessionId`, to recognise a
- * reconnecting player rather than a newcomer (lib/session.ts), and
- * `authToken`, the bridge token that ties the socket to an account
+ * Creates the client socket; connection is deferred to hooks/useSocketEvents.
+ * The handshake carries `sessionId` (lib/session.ts) and `authToken`
  * (lib/authBridge.ts). `auth` is a function so BOTH are re-read on every
- * (re)connect attempt — an object would freeze the token minted before the
- * first connect and present it, long expired, on a reconnect days later.
- *
- * A missing token is sent as "" and the server treats the player as
- * anonymous; OAuth sign-in is a full-page redirect, so the socket always
- * reconnects fresh afterwards and picks the new token up here.
+ * (re)connect; an object would present a long-expired token days later. A
+ * missing token is sent as "" (anonymous); OAuth sign-in is a full-page
+ * redirect, so the socket reconnects fresh with the new token.
  */
 export function initSocket(sessionId?: string): AppSocket {
     return io(serverURL, {

@@ -10,14 +10,9 @@ export interface CellMetrics {
 export const DEFAULT_METRICS: CellMetrics = { size: 40, gap: 3 };
 
 /**
- * Measures the board's real geometry rather than reading the size tokens.
- *
- * Custom properties compute to a token sequence, not a length, so once
- * --cell-size became a clamp(), `parseFloat` on it returned NaN and every cursor
- * silently fell back to 40px. Measuring a real cell is immune to that.
- *
- * `getComputedStyle().width`, not `getBoundingClientRect()`: cells carry a scale
- * transform during the cascade reveal, and a rect reports the animating size.
+ * Measures the board's real geometry: a clamp() custom property is not a
+ * length, so `parseFloat` on the token returned NaN and every cursor fell back
+ * to 40px. `getComputedStyle().width`, not a rect: cells scale during the cascade.
  */
 const readCellMetrics = (board: HTMLElement): CellMetrics => {
     const cell = board.querySelector('[role="gridcell"]');

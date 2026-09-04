@@ -1,18 +1,12 @@
-/* The emote art, in a PURE module like avatarArt.ts and spriteArt.ts: no React,
- * no CSS import. The id catalog (ids + labels) lives in shared/emotes.js because
- * the server validates against it; only the drawing lives here.
- */
+/* Emote art, PURE like avatarArt.ts and spriteArt.ts: no React, no CSS. The
+ * id catalog lives in shared/emotes.js because the server validates against it. */
 import { type PixelArt } from "./pixelArt";
 
 /**
- * Every emote paints in TOKENS, the same three as the avatars: outlines and
- * solid shapes in the page ink, interiors in the opened-cell fill, and the mine
- * colour as the single accent. An emote is drawn on whichever palette the
- * player runs — including a custom one — so a literal colour would vanish on
- * one of them the way a black bomb does on Game Boy (CLAUDE.md trap 11).
- *
- * Sized for ~28px in the tray and the feed, which is why nothing here relies on
- * a one-pixel detail to read.
+ * Every emote paints in TOKENS, the same three as the avatars, because it is
+ * drawn on whichever palette the player runs, including custom ones, where a
+ * literal colour can vanish (CLAUDE.md trap 11). Sized for ~28px, so nothing
+ * relies on a one-pixel detail.
  */
 const INK = "var(--ms-ink-strong)";
 const OPEN = "var(--ms-cell-open)";
@@ -20,8 +14,7 @@ const ACCENT = "var(--ms-cell-mine)";
 
 const PALETTE = { "#": INK, o: OPEN, R: ACCENT } as const;
 
-/* An open hand, three fingers and a thumb — legible at 28px, which four
- * fingers and their gaps are not. */
+/* An open hand, three fingers and a thumb; four are not legible at 28px. */
 const WAVE: PixelArt = {
     palette: PALETTE,
     rows: [
@@ -67,8 +60,7 @@ const NICE: PixelArt = {
     ],
 };
 
-/* A question mark: "I don't know what to do here", the single most common
- * thing one player wants to say to another on a shared board. */
+/* A question mark: "I don't know what to do here". */
 const UNSURE: PixelArt = {
     palette: PALETTE,
     rows: [
@@ -91,8 +83,7 @@ const UNSURE: PixelArt = {
     ],
 };
 
-/* A lit mine — "I think that one is a bomb". The spark is the accent, the one
- * place a warning colour earns its keep. */
+/* A lit mine, "I think that one is a bomb". The spark is the accent. */
 const CAREFUL: PixelArt = {
     palette: PALETTE,
     rows: [
@@ -138,8 +129,7 @@ const HURRY: PixelArt = {
     ],
 };
 
-/* A heart. The one emote drawn mostly in the accent — it is the shape people
- * expect in colour, and an all-ink heart reads as a spade. */
+/* A heart, mostly in the accent: an all-ink heart reads as a spade. */
 const THANKS: PixelArt = {
     palette: PALETTE,
     rows: [
@@ -173,13 +163,9 @@ export const EMOTE_ART: Readonly<Record<string, PixelArt>> = {
 };
 
 /**
- * The art for an id, or null for one this client cannot draw.
- *
- * Null rather than a fallback glyph, which is the opposite of `avatarArtById`
- * and deliberate: an avatar must always draw something because a row in a
- * leaderboard needs a face, but an unknown emote is a message this build does
- * not know — showing an arbitrary one puts words in someone's mouth. The feed
- * drops it instead.
+ * The art for an id, or null for one this client cannot draw. Null rather than
+ * a fallback glyph, unlike `avatarArtById`: an unknown emote is a message this
+ * build does not know, and showing an arbitrary one puts words in someone's mouth.
  */
 export const emoteArtById = (id: string | null | undefined): PixelArt | null =>
     (id && EMOTE_ART[id]) || null;

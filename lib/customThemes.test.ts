@@ -1,8 +1,7 @@
 // @vitest-environment jsdom
 /**
- * Custom themes: the derivation's promises (coherent, contrast-aware, and the
- * only source of what reaches a style attribute), sanitisation of untrusted
- * blobs, and storage round-trips.
+ * Custom themes: the derivation's promises (coherent, contrast-aware, the only
+ * source of what reaches a style attribute), sanitisation, and storage round-trips.
  */
 import { beforeEach, describe, expect, it } from "vitest";
 import {
@@ -84,8 +83,7 @@ describe("derivePalette", () => {
 
     it("darkness-codes numbers that stop reading on a dark board", () => {
         const palette = derivePalette(DARK_CORE);
-        // Every number must clear large-text AA on the custom open cell,
-        // whatever mix of classic and derived that took.
+        // Every number must clear large-text AA on the custom open cell.
         for (let n = 1; n <= 8; n++) {
             expect(
                 hexContrast(palette[`--ms-palette-num-${n}`], DARK_CORE.cellOpen),

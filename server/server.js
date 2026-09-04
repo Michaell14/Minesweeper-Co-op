@@ -12,10 +12,8 @@ const presence = require('./utils/presence');
 const { register: registerSocketRoutes } = require('./routes');
 const { PORT } = require('./config');
 
-// The account routes — the server's first HTTP surface beyond health checks.
-// The JSON body parser is mounted here, ONCE, ahead of every registration:
-// scoped to /api (nothing else on this server reads a body), and owned by no
-// particular controller so registration order stays order, not load-bearing.
+// The JSON body parser is mounted ONCE, scoped to /api and owned by no
+// controller, so registration order stays order rather than load-bearing.
 app.use('/api', express.json());
 registerProfileRoutes(app);
 registerSettingsRoutes(app);
@@ -25,16 +23,12 @@ registerStatsRoutes(app);
 
 /**
  * Who this socket belongs to, resolved once at connect. `null` is an anonymous
- * player — fully supported, and the guaranteed outcome when the token is
- * absent, invalid, or the database is missing; auth being down never blocks a
- * connection. Skipped on connection-state recovery (`skipMiddlewares: true`),
- * where the previous `socket.data` is restored instead.
- *
- * This is a CONNECT-TIME SNAPSHOT: a rename or deletion mid-session does not
- * update it until the socket reconnects. Consumers that show the name
- * somewhere durable re-read it (dailyController.submitDailyScore); stats
- * writes for a deleted account fail the users FK and are dropped by
- * statsRecorder, which is the intended outcome.
+ * player, and the guaranteed outcome when the token is absent, invalid, or the
+ * database is missing; auth being down never blocks a connection. Skipped on
+ * connection-state recovery (`skipMiddlewares: true`). A CONNECT-TIME SNAPSHOT:
+ * a rename or deletion mid-session shows only on reconnect; durable consumers
+ * re-read it (dailyController.submitDailyScore), and stats writes for a deleted
+ * account fail the users FK and are dropped.
  */
 io.use(async (socket, next) => {
     socket.data.user = await resolveSocketUser(socket.handshake.auth);
@@ -44,23 +38,17 @@ io.use(async (socket, next) => {
 io.on('connection', async (socket) => {
     /*
      * Every protocol event, from the table in routes/index.js. The registrar
-     * wraps each one in the same pipeline — rate limit, validate, guard,
-     * handler — so this file has no opinion about any individual event, and
-     * adding one never touches it.
+     * applies rate limit, validate, guard, handler, so adding one never touches this file.
      */
     registerSocketRoutes(socket, io);
 
     /*
-     * `disconnect` stays here rather than in the table: it is socket.io's own
-     * event, not part of this protocol, and it is connection lifecycle rather
-     * than a message anyone sent.
+     * `disconnect` stays out of the table: it is socket.io's own lifecycle
+     * event, not a protocol message.
      */
     socket.on('disconnect', async () => {
-        // Closing the tab while queued is the ordinary way to leave the queue,
-        // so this is the cleanup path that carries the weight. `playerLeave` is
-        // deliberately NOT hooked: being in a room and being in the queue are
-        // mutually exclusive (findMatch refuses a socket that already has a
-        // player record), so there is nothing there to remove.
+        // Closing the tab while queued is the ordinary way to leave the queue.
+        // `playerLeave` is NOT hooked: a socket in a room is never in the queue.
         await leaveQueue(socket);
 
         try {
@@ -73,23 +61,18 @@ io.on('connection', async (socket) => {
         // `leaveQueue` so a leaver is never sent their own departure.
         await broadcastOnlineCount();
 
-        // Best-effort and last: a friend's presence is cosmetic, and a Postgres
-        // outage must not hold up a disconnect. Only announces when this was
-        // the account's LAST socket — see utils/presence.js.
+        // Best-effort: presence is cosmetic, and a Postgres outage must not hold up a disconnect.
         await presence.onDisconnect(socket);
     });
 
-    // After the routes, deliberately: this can prompt the client to send
-    // `joinRoom` straight back, and the handler for it has to already exist
-    // when that lands.
+    // After the routes: this can prompt an immediate `joinRoom`, whose handler must already exist.
     try {
         await offerResume(socket);
     } catch (error) {
         console.error('Error offering session resume:', error);
     }
 
-    // After the resume, which a reloading player is waiting on: this socket now
-    // counts towards "how many are here", and anyone queued is one behind.
+    // After the resume a reloading player is waiting on; this socket now counts as here.
     await broadcastOnlineCount();
 
     // Guests fall straight through this; it needs an account to have a graph.
@@ -97,17 +80,10 @@ io.on('connection', async (socket) => {
 });
 
 /**
- * The backstop under the registrar's own catch, for the rejection nobody
- * wrapped.
- *
- * Node's default for an unhandled rejection is to exit, which on a game server
- * means one unguarded path in one handler ends every game in progress for
- * everyone. Staying up with a logged error is the lesser failure: the room
- * states live in Redis, so the blast radius of continuing is one player's one
- * action, and the blast radius of exiting is the whole server.
- *
- * Deliberately does NOT swallow quietly — anything reaching here is a bug the
- * registrar should have caught, and the log is how it gets found.
+ * The backstop under the registrar's own catch. Node's default for an
+ * unhandled rejection is to exit, which ends every game in progress for one
+ * unguarded path. Room state lives in Redis, so continuing costs one player's
+ * one action. Logged loudly: anything reaching here is a bug.
  */
 process.on('unhandledRejection', (reason) => {
     console.error('Unhandled promise rejection (server kept running):', reason);

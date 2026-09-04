@@ -1,18 +1,10 @@
 /**
  * Records which commit was built, so the running server can say what it is.
- *
- * Written at BUILD time because that is the only moment the commit is known:
- * Heroku exposes SOURCE_VERSION to the build and not to the dyno, and the slug
- * has no git history to ask.
- *
- * This exists for the post-deploy check. Without it, CI has no way to tell the
- * new release from the one it replaced, so `npm run verify:deploy` would run
- * against whatever happened to be live — passing against the OLD build and
- * reporting the release as verified. A green check that proves nothing is worse
- * than no check.
- *
- * Runs from `heroku-postbuild`. Locally there is nothing to write and nothing
- * that reads it; `/health` just reports an unknown commit.
+ * Written at BUILD time (from `heroku-postbuild`) because Heroku exposes
+ * SOURCE_VERSION to the build and not to the dyno. Without it
+ * `npm run verify:deploy` cannot tell the new release from the one it
+ * replaced, and would pass against the OLD build. Locally `/health` just
+ * reports an unknown commit.
  */
 
 const fs = require('fs');

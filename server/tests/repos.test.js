@@ -1,10 +1,6 @@
 /**
- * Tests for server/data — the Redis key schema and the repositories.
- *
- * The keys matter more than they look: a mistyped field name is a SILENT no-op
- * (hGet returns null, hSet writes a field nobody reads), so these lock the exact
- * strings the production data already uses. Changing one is a data migration,
- * not a rename.
+ * The Redis key schema and repositories. A mistyped key is a silent no-op, so
+ * these lock the exact production strings; changing one is a data migration.
  */
 
 const keys = require('../data/keys');
@@ -35,14 +31,13 @@ describe('keys', () => {
     test('the pvp action lock is keyed per PLAYER, and never collides with the co-op one', () => {
         expect(keys.pvpActionLockKey('abc', 0)).toBe('action_lock:abc:p0');
         expect(keys.pvpActionLockKey('abc', 1)).toBe('action_lock:abc:p1');
-        // Two racers must never share a key, or PVP stops being a race.
+        // Racers sharing a key would stop PVP being a race.
         expect(keys.pvpActionLockKey('abc', 0)).not.toBe(keys.pvpActionLockKey('abc', 1));
         expect(keys.pvpActionLockKey('abc', 0)).not.toBe(keys.actionLockKey('abc'));
     });
 
     test('PVP fields are ONE-based while the player index is zero-based', () => {
-        // Player index 0 reads and writes the player1* fields. Getting this
-        // wrong would silently point a player at their opponent's board.
+        // Wrong here silently points a player at their opponent's board.
         expect(keys.pvpPlayerFields(0)).toEqual({
             boardKey: 'player1Board',
             initializedKey: 'player1Initialized',
@@ -62,7 +57,7 @@ describe('keys', () => {
     });
 
     test('the action lock leases for less than the others, since every move takes one', () => {
-        // A process that dies holding it blocks the room for this long.
+        // A process dying with it held blocks the room this long.
         expect(keys.ACTION_LOCK_TTL_SECONDS).toBe(5);
         expect(keys.ACTION_LOCK_TTL_SECONDS).toBeLessThan(keys.LOCK_TTL_SECONDS);
     });
@@ -188,8 +183,7 @@ describe('withActionLock', () => {
     });
 
     test('a contender waits for the lock instead of losing its move', async () => {
-        // SET NX reports the lock as taken twice, then free — the shape of one
-        // player clicking while another's move is still in flight.
+        // Taken twice, then free: one player clicking while another's move is in flight.
         client.set
             .mockResolvedValueOnce(null)
             .mockResolvedValueOnce(null)
@@ -211,8 +205,7 @@ describe('withActionLock', () => {
     });
 
     test('does not release a lock it never held', async () => {
-        // Otherwise a caller that gave up waiting would delete the key out
-        // from under the player who actually holds it.
+        // A caller that gave up waiting must not delete the real holder's key.
         jest.spyOn(Date, 'now')
             .mockReturnValueOnce(0)              // deadline is computed from this
             .mockReturnValue(Number.MAX_SAFE_INTEGER);
@@ -226,16 +219,9 @@ describe('withActionLock', () => {
     });
 
     /*
-     * The lease is short — five seconds — because every move takes one and a
-     * process that dies holding it blocks that board for the full lease. The
-     * flip side is that a move CAN outlive it: once it expires the key is gone,
-     * the next move acquires freely, and the first one's release then deletes a
-     * lock it no longer holds, putting two moves inside the section at once.
-     *
-     * Which is also why the key does not hold the caller's socket id. On a PVP
-     * or daily lock the key is per player, so the contention IS one socket's own
-     * two moves, and an owner check on the socket alone could not tell them
-     * apart.
+     * A move can outlive the short lease, and its release would then delete
+     * the next holder's lock. The value is per acquisition, not per socket:
+     * on a per-player PVP/daily lock the contention is one socket's own moves.
      */
     describe('releasing a lock the lease already took away', () => {
         test('holds a value unique to this acquisition, not just the owner', async () => {
@@ -254,7 +240,7 @@ describe('withActionLock', () => {
             const [script, options] = client.eval.mock.calls[0];
             expect(script).toContain('redis.call("get", KEYS[1])');
             expect(options.keys).toEqual(['action_lock:r1']);
-            // The token it acquired with, so a re-acquired key is left alone.
+            // The acquisition token, so a re-acquired key is left alone.
             expect(options.arguments[0]).toBe(client.set.mock.calls[0][1]);
         });
     });
@@ -267,15 +253,8 @@ describe('withActionLock', () => {
     });
 
     /*
-     * This test used to assert the OPPOSITE — that an exhausted wait ran the
-     * move anyway rather than dropping it. That was the wrong trade, and it was
-     * measured: 203 daily cell opens fired together left 62 of them missing
-     * from the stored board, because "run it anyway" means running exactly the
-     * overlapping read-modify-write the lock exists to prevent. The lost writes
-     * are not the refused move, they are whichever moves the racing writes
-     * erase, and the attempt could then never be completed.
-     *
-     * A refused move leaves the board consistent and can be made again.
+     * Running unlocked is the racing write the lock exists to prevent: 203
+     * concurrent daily opens once lost 62 cells. A refused move can be retried.
      */
     test('an exhausted wait refuses the move rather than running it unlocked', async () => {
         jest.spyOn(Date, 'now')
@@ -287,7 +266,6 @@ describe('withActionLock', () => {
         await expect(roomRepo.withActionLock('r1', 'sock-2', move))
             .rejects.toThrow(/never came free/);
 
-        // The whole point: the board is never touched without the lock.
         expect(move).not.toHaveBeenCalled();
         Date.now.mockRestore();
     });
@@ -304,7 +282,7 @@ describe('playerRepo', () => {
     test('create seeds a zero score and starts the 24h expiry', async () => {
         await playerRepo.create('sock-1', { room: 'r1', name: 'Mike' });
 
-        // avatar '' is the stored form of "anonymous" — the hash holds strings.
+        // avatar '' is the stored form of "anonymous".
         expect(client.hSet).toHaveBeenCalledWith('player:sock-1', { room: 'r1', name: 'Mike', avatar: '', score: '0', sessionId: '' });
         expect(client.expire).toHaveBeenCalledWith('player:sock-1', 86400);
     });

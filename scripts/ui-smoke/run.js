@@ -1,22 +1,11 @@
 #!/usr/bin/env node
 /**
- * End-to-end UI smoke test.
- *
- * Drives the real client in headless Chrome against a local backend, which is
- * the only automated coverage the frontend has -- there are no unit tests for
- * components. Run it after touching anything under app/, components/ or hooks/.
- *
- *   npm run dev:all        # in one terminal: redis + backend :3001 + client :3000
- *   npm run test:ui        # in another
- *
- * Covers: creating a room, the first-click cascade, flagging, the flag counter,
- * reset, leaving, the board-size/difficulty selectors, a two-client PVP round
- * (lobby, start, per-player boards, opponent progress), joining via a shareable
- * room link, and keyboard play (arrow cursor, Space reveal, F flag, Escape).
- *
- * NOT covered: chording. Making a chord do something visible requires knowing
- * where the mines are, which a browser client deliberately cannot see since
- * boards are projected server-side. Test that against the server instead.
+ * End-to-end UI smoke test: drives the real client in headless Chrome against
+ * a local backend (`npm run dev:all` first, then `npm run test:ui`). Run it
+ * after touching app/, components/ or hooks/. Covers room creation, the first
+ * click cascade, flagging, reset, leaving, the size/difficulty selectors, a
+ * two-client PVP round, join links and keyboard play. NOT chording: a browser
+ * client cannot see the mines, so that is tested against the server.
  */
 const { launchChrome, attach, newTarget, sleep } = require('./cdp');
 
@@ -28,20 +17,11 @@ const pass = (label) => console.log(`  \x1b[32mPASS\x1b[0m  ${label}`);
 const fail = (label, detail) => { failures++; console.log(`  \x1b[31mFAIL\x1b[0m  ${label}${detail ? '\n        ' + detail : ''}`); };
 const check = (condition, label, detail) => (condition ? pass(label) : fail(label, detail));
 
-/**
- * Waits for an expression to become true and reports whether it did, instead of
- * throwing. For assertions about a second client, which may lag the first.
- */
+/** Waits for an expression and reports whether it held, instead of throwing; for a lagging second client. */
 const settles = (page, expression, timeout = 8000) =>
     page.waitFor(expression, { timeout }).then(() => true).catch(() => false);
 
-/**
- * There is exactly one board in the DOM.
- *
- * These used to pick the visible grid out of two, because Grid.tsx rendered the
- * board once per layout. They can address it directly now — and `gridCount`
- * below asserts that, so this stays honest if the duplication ever returns.
- */
+/** Exactly one board in the DOM; `gridCount` below asserts it stays that way. */
 const VISIBLE_CELLS = `
     const grid = document.querySelector('[role=grid]');
     return grid ? [...grid.querySelectorAll('[role=gridcell]')] : [];
@@ -69,11 +49,8 @@ async function preflight() {
 }
 
 /**
- * Ticks one radio card, addressed by its group's aria-label and its own label.
- *
- * Scoped to the group on purpose: "Medium" is both a board size and a
- * difficulty now, so a document-wide text search would pick whichever came
- * first in the DOM.
+ * Ticks one radio card by its group's aria-label and its own label. Scoped to
+ * the group: "Medium" is both a size and a difficulty.
  */
 const selectCard = (page, groupLabel, cardLabel) => page.evaluate(`
     const group = document.querySelector('[aria-label=${JSON.stringify(groupLabel)}]');
@@ -123,10 +100,7 @@ async function coop(page) {
     // A cold `next dev` compiles on first request; wait for hydration, not just markup.
     await page.waitFor(`!!document.querySelector('form[aria-label="Create new room form"] button[type=submit]')`,
         { timeout: 60000, label: 'landing page compiles and renders' });
-    // The profile in /tmp outlives the run, so a large-cell preference an
-    // aborted one left behind would still be here. The ceiling check below
-    // assumes the default: at 1440px a large board is clamped under its own
-    // ceiling, which reads as the fit maths measuring the wrong box.
+    // The profile outlives the run; a leaked large-cell preference would break the ceiling check below.
     await page.evaluate(`localStorage.removeItem('minesweeper_settings'); return true;`);
     await page.goto(CLIENT);
     await page.waitFor(`!!document.querySelector('form[aria-label="Create new room form"] button[type=submit]')`,
@@ -134,13 +108,11 @@ async function coop(page) {
     pass('landing renders the create-room form');
 
     await enterRoom(page, { room, name: 'Alice' });
-    // `>=` rather than `===` so a duplicated board does not stall here for ten
-    // seconds and report a timeout; the check below then names the real problem.
+    // `>=` so a duplicated board fails the count check below instead of timing out here.
     await page.waitFor(`${cellCount} >= 256`, { label: 'a 16x16 board renders' });
     pass('createRoom round-trips and the board renders');
 
-    // One board, not one per layout. The duplicate copy was invisible, so
-    // nothing on screen gave it away — only the cell count does.
+    // One board, not one per layout; only the cell count gives a duplicate away.
     check(await page.evaluate(`return ${gridCount};`) === 1 && await page.evaluate(`return ${cellCount};`) === 256,
         'the board is mounted once (1 grid, 256 cells)',
         `got ${await page.evaluate(`return ${gridCount};`)} grids and ${await page.evaluate(`return ${cellCount};`)} cells; ` +
@@ -148,22 +120,14 @@ async function coop(page) {
     check(await page.evaluate(`return document.body.textContent.includes(${JSON.stringify(room)});`), 'room code is displayed');
 
     /*
-     * The board fits the window it is given — the whole point of the fit maths.
-     *
-     * This used to assert the cell sat exactly on the --ms-cell-size ceiling,
-     * which held while the clamp only answered the WIDTH question. It answers
-     * both axes now (components/game/board.module.css), and this window is
-     * 1440x900 with roughly 813px of usable height, so the height half is the
-     * one that binds and the ceiling is no longer the invariant.
-     *
-     * What is asserted instead is what a player actually gets, plus the floor
-     * the ceiling check was really guarding: cells collapsing to --ms-cell-min
-     * is the signature of the fit maths measuring a box that resolved to zero.
+     * The board fits the window it is given. The clamp now answers both axes
+     * (components/game/board.module.css) and at 1440x900 the height half binds,
+     * so the ceiling is no longer the invariant; what is asserted is the range,
+     * and the floor: cells at --ms-cell-min means the fit measured a zero box.
      */
     const deskCell = parseFloat(await page.evaluate(
         `return getComputedStyle(document.querySelector('[role=gridcell]')).width;`));
-    // From the GRID: the cell-size setting overrides --ms-cell-size on
-    // .gameBoard, so the root keeps the default whatever the preference is.
+    // From the GRID: the cell-size setting overrides --ms-cell-size on .gameBoard, not the root.
     const deskMax = parseFloat(await page.evaluate(
         `return getComputedStyle(document.querySelector('[role=grid]')).getPropertyValue('--ms-cell-size');`));
     const deskMin = parseFloat(await page.evaluate(
@@ -173,10 +137,8 @@ async function coop(page) {
         `cell is ${deskCell}px, outside (${deskMin}, ${deskMax}] — the fit maths is measuring the wrong box`);
 
     /*
-     * Absolute offsets, not the raw rect. getBoundingClientRect is relative to
-     * the SCROLL position, and entering a room leaves this page scrolled down —
-     * so a board hanging 20px past the fold measured as fitting, and this check
-     * passed on exactly the layout it exists to reject.
+     * Absolute offsets: getBoundingClientRect is relative to the SCROLL position,
+     * and entering a room leaves this page scrolled down.
      */
     const boardFit = JSON.parse(await page.evaluate(`
         const r = document.querySelector('[role=grid]').getBoundingClientRect();
@@ -203,8 +165,7 @@ async function coop(page) {
     const revealed = await page.evaluate(`return ${revealedCount};`);
     check(revealed > 1, `first click cascaded (${revealed} cells revealed)`, 'expected a cascade, not a single cell');
 
-    // Scoring is a point per cell opened, so a cascade of N is worth N — the
-    // leaderboard is where a regression to one-point-per-click would show.
+    // A point per cell opened, so a cascade of N scores N; the leaderboard shows a regression.
     const leaderboardScore = () => page.evaluate(`
         const table = [...document.querySelectorAll('table')].find(t => t.offsetParent !== null);
         if (!table) return null;
@@ -234,11 +195,9 @@ async function coop(page) {
     const after = await flagsRemaining();
     check(after === before - 1, `right-click flags a cell (counter ${before} -> ${after})`);
     /*
-     * The flag is pixel art (components/ds/sprites.tsx), so there is no glyph in
-     * any textContent to look for: a <use> in the cell pointing at a <symbol>
-     * mounted in the layout. A renamed id leaves the <use> resolving to nothing
-     * and paints an empty cell, which is why the art is measured rather than the
-     * element counted.
+     * The flag is pixel art (components/ds/sprites.tsx): a <use> pointing at a
+     * <symbol> in the layout. A renamed id paints an empty cell, so the art is
+     * measured rather than the element counted.
      */
     const flagSprite = JSON.parse(await page.evaluate(`
         const grid = document.querySelector('[role=grid]');
@@ -261,8 +220,7 @@ async function coop(page) {
     check(flagSprite && flagSprite.width > 8,
         `the sprite is drawn at a usable size (${flagSprite && flagSprite.width}px)`,
         `sprite measured ${flagSprite && flagSprite.width}px — an svg with no CSS size collapses`);
-    // It covers most of the square, so a sprite that takes clicks is a flag that
-    // cannot be removed by tapping it.
+    // A sprite that takes clicks is a flag that cannot be removed by tapping it.
     check(flagSprite && flagSprite.hits === 'none',
         'the sprite lets clicks through to the cell',
         `pointer-events: ${flagSprite && flagSprite.hits}`);
@@ -279,34 +237,18 @@ async function coop(page) {
     check((await flagsRemaining()) === 40, 'flag counter returns to 40 after reset');
 
     /*
-     * Back leaves the ROOM, not the site.
-     *
-     * The room is store state on `/` and changes no URL, so before
-     * hooks/useRoomHistory.ts the history stack still held whatever came
-     * before the site and Back walked out of a game in progress.
-     *
-     * Here rather than in the hook's unit tests because jsdom cannot answer
-     * it: this needs a real session history with our pushed entry in it, and a
-     * real traversal back across it. `history.back()` is the same traversal
-     * the toolbar button performs.
-     */
-    /*
-     * Fired on a timer so this evaluate returns BEFORE the navigation starts.
-     * Called inline, a back() that crosses documents tears down the execution
-     * context the evaluate is still waiting on, and CDP answers "Inspected
-     * target navigated or closed" instead of running the checks below.
-     *
-     * The assertions still carry the weight either way: a Back that reloaded
-     * the document would be resumed straight back into the room by
-     * sessionController, and the landing form below would never appear.
+     * Back leaves the ROOM, not the site (hooks/useRoomHistory.ts). Only a real
+     * session history can prove it, so it is here rather than in jsdom.
+     * Fired on a timer so this evaluate returns BEFORE the navigation: called
+     * inline, a cross-document back() tears down the execution context and CDP
+     * answers "Inspected target navigated or closed".
      */
     await page.evaluate(`setTimeout(() => window.history.back(), 0); return true;`);
     await page.waitFor(`!!document.querySelector('form[aria-label="Create new room form"]')`,
         { label: 'Back returns to the landing page' });
     pass('the browser Back button leaves the room, not the site');
 
-    // Back out of a room is a real leave, so the board has to be gone with it —
-    // a landing page rendered over a room still joined would pass the check above.
+    // A real leave takes the board down; a landing page over a joined room would pass the check above.
     check(await page.evaluate(`return ${gridCount};`) === 0,
         'Back tore the board down too',
         'the landing form is showing but the board is still mounted');
@@ -326,14 +268,9 @@ async function coop(page) {
 }
 
 /**
- * Board size and difficulty are two selectors, and the mine count is derived
- * from the pair rather than typed anywhere.
- *
- * The co-op run above already covers the default pair (Medium/Medium is 16x16
- * with 40 mines). What is untested by that is whether changing an axis actually
- * recomputes the other's numbers and whether the derived count survives the
- * round trip into a real room — a mismatch between the card and the flag
- * counter is exactly the bug this split could introduce.
+ * Size and difficulty are two selectors and the mine count is derived. Co-op
+ * covers the default pair; this checks that changing one axis reprices the
+ * other and that the derived count survives the round trip into a real room.
  */
 async function sizeAndDifficulty(page) {
     console.log('\n\x1b[1m--- SIZE x DIFFICULTY ---\x1b[0m');
@@ -371,8 +308,7 @@ async function sizeAndDifficulty(page) {
         `Small builds one 9x9 board (${cells} cells)`,
         `expected 81 cells in 1 grid, got ${cells}`);
 
-    // The derived count reaching the server is the whole point: the flag
-    // counter is read back from the room the server actually created.
+    // The flag counter is read back from the room the server actually created.
     const flags = await page.evaluate(`
         const el = [...document.querySelectorAll('strong')].find(e => /^\\s*-?\\d+\\s*$/.test(e.textContent));
         return el ? parseInt(el.textContent, 10) : null;
@@ -387,9 +323,7 @@ async function sizeAndDifficulty(page) {
     `);
     await page.waitFor(`!!document.querySelector('form[aria-label="Create new room form"]')`, { label: 'returns to landing' });
 
-    // Leaving resets BOTH axes, not just difficulty.
-    // Scoped to the create form: the page has other radio groups (the palette
-    // picker lives on /settings), and this check is about mode/size/difficulty.
+    // Leaving resets BOTH axes. Scoped to the create form: the page has other radio groups.
     const backToDefaults = await page.evaluate(`
         const form = document.querySelector('form[aria-label="Create new room form"]');
         return [...form.querySelectorAll('input[type=radio]')].filter(r => r.checked).map(r => r.value).join(',');
@@ -400,35 +334,23 @@ async function sizeAndDifficulty(page) {
 }
 
 /**
- * The desktop layout has to fit the width it switches ON at.
- *
- * `xl:` is 1280px and the arrangement it turns on wanted ~1307, so the rails
- * hung off the page at the commonest laptop width there is. Run at the
- * breakpoint itself, where the margin is smallest. The ceiling check is half
- * the point: a board that fits by shrinking its cells has not been fixed.
- *
- * The HUD's position is only observable here — jsdom has no layout engine, so
- * nothing else can tell that it drifted back out to a side rail.
- *
- * A 17px scrollbar is forced so every machine measures the same worst case:
- * `xl:` matches on the window, which counts the scrollbar, but the row lays
- * out in what is left. macOS overlay scrollbars are 0px and hide that.
+ * The desktop layout has to fit the width it switches ON at: `xl:` is 1280px
+ * and the arrangement once wanted ~1307. Run at the breakpoint, where the
+ * margin is smallest; a board that fits by shrinking its cells is not fixed.
+ * The HUD's position is only observable here (jsdom has no layout). A 17px
+ * scrollbar is forced so every machine measures the same worst case: `xl:`
+ * matches on the window, which counts the scrollbar, but the row lays out in
+ * what is left.
  */
 async function desktopFit(page) {
     console.log('\n\x1b[1m--- DESKTOP FIT ---\x1b[0m');
     const room = 'smokedesk' + Date.now().toString().slice(-6);
 
-    // 1000 tall, not 900: this section is about the WIDTH axis at the xl
-    // breakpoint, and at 900 the height half of the clamp binds first, which
-    // takes cells off the ceiling for a reason that has nothing to do with the
-    // rails the checks below are about. The height axis is covered in CO-OP.
+    // 1000 tall, not 900: at 900 the height half of the clamp binds first. Height is covered in CO-OP.
     await page.send('Emulation.setDeviceMetricsOverride', {
         width: 1280, height: 1000, deviceScaleFactor: 1, mobile: false,
     });
-    // Resume would otherwise put this page back in the previous section's room.
-    // The settings blob goes too: the profile in /tmp outlives the run, so a
-    // large-cell preference an aborted one left behind would still be here, and
-    // the ceiling check below reads as a layout regression when it is.
+    // Resume would put this page back in the previous room; the settings blob outlives the run too.
     await page.goto(CLIENT);
     await page.evaluate(`sessionStorage.clear(); localStorage.removeItem('minesweeper_settings'); return true;`);
     await page.goto(CLIENT);
@@ -481,8 +403,7 @@ async function desktopFit(page) {
     check(m.clockOnBoardEdge, "the clock sits on the board's top edge",
         "the timer is not within the board's width above it — the HUD has drifted back out to a side rail");
 
-    // Leave, or the next section inherits a board instead of a landing page:
-    // only leaving clears the room from the session.
+    // Leave, or the next section inherits a board: only leaving clears the room from the session.
     await page.evaluate(`
         document.getElementById('smoke-classic-scrollbar')?.remove();
         const btn = [...document.querySelectorAll('button')]
@@ -497,21 +418,15 @@ async function desktopFit(page) {
 }
 
 /**
- * The board has to fit the phone it is played on.
- *
- * This is the regression the board-first layout fixed: the default 16x16 board
- * was 571px wide on a 375px screen, so players scrolled sideways to see the
- * game, and ~420px of chrome sat above it so they scrolled down to find it
- * first. Nothing else in this suite runs at a phone viewport, so without this
- * the board could silently start overflowing again.
+ * The board has to fit the phone it is played on: the default 16x16 was once
+ * 571px wide on a 375px screen under ~420px of chrome. Nothing else here runs
+ * at a phone viewport.
  */
 async function mobileFit(page) {
     console.log('\n\x1b[1m--- MOBILE ---\x1b[0m');
     const room = 'smokemob' + Date.now().toString().slice(-6);
 
-    // mobile:false is deliberate. Setting it true turns on touch emulation, and
-    // the harness drives Input.dispatchMouseEvent — the clicks stop landing and
-    // every room in this section times out. Only the viewport size matters here.
+    // mobile:false: touch emulation would stop Input.dispatchMouseEvent clicks landing.
     await page.send('Emulation.setDeviceMetricsOverride', {
         width: 375, height: 812, deviceScaleFactor: 1, mobile: false,
     });
@@ -520,25 +435,11 @@ async function mobileFit(page) {
         { timeout: 60000, label: 'landing renders at phone width' });
 
     /*
-     * Nothing may overflow the DOCUMENT on the landing page.
-     *
-     * On a real phone Chrome widens the layout viewport to cover whatever
-     * overflows the documentElement, and every `position: fixed` element then
-     * centres on that instead of on the visible content — 442px of layout for
-     * 375px of page. The cause was the option cards' clipped radio inputs:
-     * absolutely positioned with no positioned ancestor, so their containing
-     * block was the ICB, and a card scrolled past the fold put its overflow on
-     * the document rather than inside `.scrollable`.
-     *
-     * Measured against the BODY, not `window.innerWidth`. The two are the same
-     * here only because the harness runs `mobile: false` (see above), which
-     * skips the viewport-meta handling that does the widening — so the real
-     * symptom cannot be reproduced in this suite at all, and `scrollWidth <=
-     * innerWidth` below would have been satisfied by the very growth it was
-     * meant to catch. The overflow underneath it is what is checkable.
-     *
-     * Has to run HERE, before the room: the cards are a landing-page control
-     * and are gone by the time a board is mounted.
+     * Nothing may overflow the DOCUMENT on the landing page: on a real phone
+     * Chrome widens the layout viewport to cover it and every `position: fixed`
+     * element centres on that. Measured against the BODY, not innerWidth: with
+     * `mobile: false` the widening itself cannot be reproduced here, only the
+     * overflow under it. Before the room, because the cards are a landing control.
      */
     const landing = JSON.parse(await page.evaluate(`
         return JSON.stringify({
@@ -597,17 +498,10 @@ async function mobileFit(page) {
 
     check(m.board <= m.viewport, `the board fits the viewport (${m.board}px in ${m.viewport}px)`,
         `board ${m.board}px overflows ${m.viewport}px`);
-    // Against the CONTAINER, not the window. Both other width checks pass on a
-    // board that overflows its container, because the container's own scroll
-    // absorbs it and it never reaches the document — which is how a 367px board
-    // in 343px of room shipped looking green.
-    //
-    // Unless the cells are already at --ms-cell-min: below that the board is
-    // allowed to overflow and scroll, which is the whole point of the floor.
-    //
-    // The width is asserted to be real as well: a container that measured 0
-    // satisfied "or the cells are floored" every time, so this check quietly
-    // stopped meaning anything at the exact moment the layout broke.
+    // Against the CONTAINER, not the window: its own scroll absorbs an overflow
+    // before it reaches the document. Unless the cells are already at
+    // --ms-cell-min, where overflow is the floor's point. The width must be real
+    // too: a container measuring 0 satisfied "or floored" every time.
     check(m.container > 0 && (m.board <= m.container || m.cell <= m.min),
         `the board fits its container (${m.board}px in ${m.container}px)`,
         `board ${m.board}px overflows its ${m.container}px container above the floor`);
@@ -615,17 +509,10 @@ async function mobileFit(page) {
         `scrollWidth ${m.scrollWidth}px vs viewport ${m.viewport}px`);
     check(m.chromeAbove < 300, `the board is above the fold (${m.chromeAbove}px of chrome)`,
         `${m.chromeAbove}px of chrome above the board`);
-    // Guards the fit maths from collapsing to the floor if --board-cols breaks.
-    //
-    // Only when there was room to do better: how much room a phone-width
-    // container has left after the page padding and the platform's scrollbars
-    // is not ours to decide, and CI's classic 15px bars leave less than macOS's
-    // overlay ones. Floor-because-it-genuinely-does-not-fit is correct
-    // behaviour; floor-with-room-to-spare is the broken calc this is here for.
-    //
-    // Compared unrounded either way: sixteen columns work out at 18.31px on a
-    // 375px phone, and rounding that to 18 is indistinguishable from the clamp
-    // bottoming out.
+    // Guards the fit maths from collapsing to the floor if --board-cols breaks,
+    // but only when there was room to do better: CI's classic scrollbars leave
+    // less than macOS's overlay ones. Compared unrounded: 18.31px rounds to 18,
+    // indistinguishable from the clamp bottoming out.
     const hasRoom = m.container > m.floorWidth;
     check(m.cell > m.min || !hasRoom,
         `cells are sized to fit, not floored (${m.cell.toFixed(2)}px in ${m.container}px)`,
@@ -636,13 +523,9 @@ async function mobileFit(page) {
 
 
 /**
- * Site navigation must never sit over the board.
- *
- * This replaced a cluster of icons floated over the bottom-right of the page,
- * which at ~1300px widths with a wide board landed exactly on the bottom-right
- * cells — and an icon over a cell is a cell nobody can click. The header is
- * static and in normal flow, so it cannot repeat that; this holds it to it,
- * at the worst case the repo can produce (1320px, large cells).
+ * Site navigation must never sit over the board. This replaced icons floated
+ * over the bottom-right, which landed on cells at ~1300px with a wide board.
+ * Held at the worst case the repo can produce (1320px, large cells).
  */
 async function headerClearance(page) {
     console.log('\n\x1b[1m--- HEADER CLEARANCE ---\x1b[0m');
@@ -652,17 +535,14 @@ async function headerClearance(page) {
         width: 1320, height: 900, deviceScaleFactor: 1, mobile: false,
     });
     await page.goto(CLIENT);
-    // Large cells widen a 16-wide board to ~900px — into the icons' corner.
-    // The session is cleared too: the previous section left its room joined,
-    // and the resume offer would put this page straight back into it instead
-    // of on the landing form.
+    // Large cells widen a 16-wide board to ~900px. Session cleared too, or
+    // resume would skip the landing form.
     await page.evaluate(`
         sessionStorage.clear();
         localStorage.setItem('minesweeper_settings', JSON.stringify({ version: 1, cellSize: 'large' }));
     `);
     await page.goto(CLIENT); // reload so hydration reads the blob
-    // The removal has to run even if a wait above times out: the profile is
-    // reused across runs, so a leaked preference outlives this section.
+    // The removal must run even if a wait times out: the profile is reused across runs.
     try {
         await page.waitFor(`!!document.querySelector('form[aria-label="Create new room form"] button[type=submit]')`,
             { timeout: 60000, label: 'landing renders at 1320px' });
@@ -689,8 +569,7 @@ async function headerClearance(page) {
         check(m.drills, 'the header still reaches the content pages during a game');
         check(!m.overlaps, 'the header does not cover the board',
             'the header intersects the board rect — cells behind it cannot be clicked');
-        // The widest board the app can produce — 52px cells on MAX_COLS — also has
-        // to fit beside the rails, and every check above passed while it did not.
+        // The widest board the app can produce also has to fit beside the rails.
         check(m.scrollWidth <= m.viewport, `large cells do not scroll the page sideways (${m.viewport}px)`,
             `scrollWidth ${m.scrollWidth}px vs viewport ${m.viewport}px with large cells`);
     } finally {
@@ -701,25 +580,17 @@ async function headerClearance(page) {
 }
 
 /**
- * A reload must not cost you your game — and must not drag you back into one
- * you walked out of.
- *
- * Both halves matter and they pull in opposite directions, which is exactly why
- * this is worth a browser check. Server-side they are indistinguishable: a
- * deliberate leave and a dropped connection reach the same `removePlayer`. The
- * only thing separating them is that leaving clears the room from the session,
- * and nothing but an end-to-end reload proves that still holds.
+ * A reload must not cost you your game, and must not drag you back into one
+ * you left. Server-side the two are the same `removePlayer`; only leaving
+ * clears the room from the session, and only a real reload proves that.
  */
 async function rejoinOnReload(page) {
     console.log('\n\x1b[1m--- REJOIN ---\x1b[0m');
     const room = 'smokejoin' + Date.now().toString().slice(-6);
 
     /*
-     * Start from the landing page, whatever the previous section left behind.
-     * This is not defensive noise: with resume in place, a tab that ended inside
-     * a room now lands straight back in it, so `goto` alone no longer guarantees
-     * a create form. That is the feature working, and this section has to arm
-     * itself rather than inherit a clean slate from whoever ran before it.
+     * Start from the landing page whatever the previous section left: with
+     * resume in place a tab that ended inside a room lands straight back in it.
      */
     await page.goto(CLIENT);
     await sleep(1500);
@@ -745,14 +616,9 @@ async function rejoinOnReload(page) {
     const openedBefore = await page.evaluate(`return ${revealedCount};`);
 
     /*
-     * The score on the board's own scoreboard, before and after the reload.
-     *
-     * Player records are keyed by socket id, so a rejoin deletes one record and
-     * creates another. Everything else about that seam was carried across and
-     * the score was not: a co-op player who refreshed came back at 0 with the
-     * clock still running and their cells still open, which reads as the game
-     * having forgotten them. Server-side coverage is in
-     * server/tests/reconnectScore.test.js; this is the end-to-end half.
+     * The score before and after. Player records are keyed by socket id, so a
+     * rejoin creates a new one; the score once came back as 0. Server side is
+     * server/tests/reconnectScore.test.js.
      */
     const scoreOnBoard = () => page.evaluate(`
         const table = [...document.querySelectorAll('table')].find(t => t.offsetParent !== null);
@@ -804,33 +670,14 @@ async function rejoinOnReload(page) {
 }
 
 /**
- * Every palette, measured against WCAG AA in a real browser.
+ * Every palette against WCAG AA in a real browser: contrast depends on what
+ * was painted, and a theme overrides only the palette layer, so a semantic
+ * token can pass on one palette and fail on another. Not screenshot diffing:
+ * fonts rasterise differently on macOS and Linux.
  *
- * This is the check that cannot be done anywhere else. Contrast depends on what
- * the browser actually painted, and a theme overrides only the palette layer —
- * so a semantic token can pass on one palette and fail on another with nothing
- * in the source changing. `dark` in particular deliberately KEEPS the NES
- * accent hues while inverting the surfaces, which is exactly the arrangement
- * that once shipped white-on-yellow at 1.16:1.
- *
- * Screenshot diffing would be the other way to do this and would be worse: dev
- * is macOS, CI is Linux, and the font rasterises differently on each, so the
- * baselines would be permanently red for reasons unrelated to the design
- * system. Resolved colours are exact on both.
- *
- * ## Why this is a ratchet and not a pass/fail
- *
- * The two most restricted palettes cannot meet AA everywhere and still be what
- * they are. Game Boy is four shades of green; eight distinguishable cell
- * numbers at 4.5:1 do not exist inside it. C64 has the same problem across its
- * sixteen. `app/ds/contrast.ts` says as much in its own header — a restricted
- * retro palette makes this failure easy.
- *
- * So the known failures are listed below rather than fixed, and this asserts
- * that the set does not GROW. A new failure, or one theme's failure appearing
- * in another, fails the suite; the existing ones are printed every run so the
- * debt is visible in CI rather than only to whoever opens /ds. Removing an
- * entry here is the reward for improving a palette.
+ * A ratchet, not a pass/fail: Game Boy and C64 cannot meet AA everywhere and
+ * still be themselves, so the known failures are listed and the set must not
+ * GROW. Fixing one prints a note to delete the entry.
  */
 const KNOWN_CONTRAST_FAILURES = {
     __default__: [],
@@ -861,9 +708,7 @@ const KNOWN_CONTRAST_FAILURES = {
     pacman: [],
     minecraft: [],
     mario: [],
-    // Seasonal. Audited here year-round on purpose: /ds offers every palette
-    // regardless of the date, so a Christmas regression is caught in June
-    // rather than by whoever opens the site on the 15th of December.
+    // Seasonal, audited year-round: /ds offers every palette whatever the date.
     halloween: [],
     christmas: [],
     'lunar-new-year': [],
@@ -876,14 +721,10 @@ const KNOWN_CONTRAST_FAILURES = {
 };
 
 /*
- * The palette cards preview each theme's colours by reading tokens.css out of
- * the CSSOM, NOT out of the cascade — a Game Boy card has to show Game Boy
- * green while the page is painted in NES. Reading computed style instead would
- * give every card the same five colours and look entirely plausible, which is
- * why the load-bearing check below is that the cards DIFFER from each other.
- *
- * Only a real browser can see this: jsdom has no stylesheet to walk, so the
- * component renders no swatches there and a unit test would pass on nothing.
+ * The palette cards read tokens.css out of the CSSOM, not the cascade, so a
+ * Game Boy card shows Game Boy green on an NES page. Reading computed style
+ * would give every card the same colours, so the load-bearing check is that
+ * the cards DIFFER. Only a real browser has a stylesheet to walk.
  */
 async function themeSwatches(page) {
     console.log('\n\x1b[1m--- THEME SWATCHES ---\x1b[0m');
@@ -911,15 +752,13 @@ async function themeSwatches(page) {
     check(wrong.length === 0, `each card shows all five swatches`,
         `cards with the wrong count: ${wrong.map((c) => `${c.value}:${c.swatches.length}`).join(', ')}`);
 
-    // A colour that failed to resolve paints transparent, which reads as "no
-    // swatch" rather than as an error.
+    // A colour that failed to resolve paints transparent, not an error.
     const blank = cards.filter((c) =>
         c.swatches.some((s) => !s || s === 'rgba(0, 0, 0, 0)' || s === 'transparent'));
     check(blank.length === 0, 'no swatch resolved to transparent',
         `cards with an unresolved swatch: ${blank.map((c) => c.value).join(', ')}`);
 
-    // The whole point. Identical rows across every card would mean the swatches
-    // are reading the APPLIED palette, which is the bug this feature can have.
+    // The whole point: identical rows would mean the swatches read the APPLIED palette.
     const byValue = Object.fromEntries(cards.map((c) => [c.value, c.swatches.join('|')]));
     const distinct = new Set(Object.values(byValue));
     check(distinct.size > 1,
@@ -955,20 +794,15 @@ async function themeContrast(page) {
             return true;
         `);
         /*
-         * The report re-measures in an effect keyed on the theme, and stamps
-         * the palette it measured on the container when it commits. Waiting for
-         * that rather than sleeping is the difference between a check and a
-         * coin toss: a read that lands early sees the PREVIOUS palette's rows,
-         * finds no new failures in them, and passes — which is the exact false
-         * pass this ratchet exists to catch.
+         * The report stamps the palette it measured on the container when its
+         * effect commits. Waiting for that, not sleeping: an early read sees the
+         * PREVIOUS palette's rows and passes falsely.
          */
         await page.waitFor(
             `document.querySelector('[data-audited-theme]')?.dataset.auditedTheme === ${JSON.stringify(theme)}`,
             { label: `${theme} audit re-measures` });
 
-        // Each row is <p><span>{label}</span><span>{ratio} (needs N)</span></p>;
-        // only a FAILING row carries the "(needs N)" suffix. Scoped to the
-        // report so no other <p> on the catalog can be read as a row.
+        // Only a FAILING row carries the "(needs N)" suffix; scoped to the report.
         const failing = JSON.parse(await page.evaluate(`
             const report = document.querySelector('[data-audited-theme]');
             const rows = [...report.querySelectorAll('p')].filter(el =>
@@ -981,9 +815,7 @@ async function themeContrast(page) {
         const regressions = failing.filter((f) => !known.includes(f));
         const fixed = known.filter((k) => !failing.includes(k));
 
-        // The label prints above the failure detail either way, so it states
-        // what was measured rather than a verdict that would read as a lie on a
-        // failing run.
+        // The label states what was measured, not a verdict that reads as a lie on a failing run.
         const summary = failing.length === 0
             ? `${theme}: every audited pair meets AA`
             : `${theme}: ${failing.length} failing (${failing.join(', ')})`;
@@ -998,16 +830,9 @@ async function themeContrast(page) {
 
 /*
  * The avatar hover animations (components/ds/avatarArt.ts + Avatar.module.css).
- *
- * Here rather than in a unit test because the failure this exists for is
- * invisible to one. The frames are named by `animation-name: frogRest`, and
- * CSS Modules HASHES `@keyframes frogRest` at build time and rewrites the
- * references it can see. Write that name anywhere it cannot -- inside a custom
- * property, say -- and the stylesheet still compiles, the test that reads the
- * source still passes, and every avatar silently stops moving. Only a real
- * browser resolving real keyframes knows the difference.
- *
- * So: hover each face, ask the page what is actually running.
+ * CSS Modules HASHES `@keyframes frogRest` and rewrites only the references
+ * it can see; a name inside a custom property compiles fine and every avatar
+ * silently stops moving. Only a real browser resolving keyframes knows.
  */
 async function avatarHover(page) {
     console.log('\n\x1b[1m--- AVATARS ---\x1b[0m');
@@ -1040,9 +865,7 @@ async function avatarHover(page) {
         if (frames < 2) continue;
 
         await page.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y });
-        // Polled rather than slept on: this suite is the flakiest thing in CI
-        // and a fixed wait for the browser to register an animation is how it
-        // earns that. A miss here still fails below, just without the wait.
+        // Polled, not slept: a fixed wait is how this suite earns its flakiness.
         await settles(page,
             `document.querySelector('svg[data-avatar="${id}"]')`
             + `.getAnimations({ subtree: true }).length === ${frames}`,
@@ -1055,8 +878,7 @@ async function avatarHover(page) {
             return JSON.stringify({ running: running.length, lit });
         `);
         const { running, lit } = JSON.parse(hovered);
-        // One frame lit at a time: these are opaque portraits stacked on each
-        // other, so two at once is not a blend, it is a mess.
+        // One frame lit at a time: opaque portraits stacked, so two at once is a mess.
         if (running !== frames || lit !== 1) {
             stuck = stuck || `${id}: ${running}/${frames} keyframes resolved, ${lit} frames visible`;
         } else {
@@ -1065,9 +887,7 @@ async function avatarHover(page) {
         await page.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 2, y: 2 });
     }
 
-    // `animated` is ASSERTED, not just printed: `frames < 2` skips silently
-    // above, so a regression that stripped the frames off eleven faces would
-    // otherwise report (1/12) and pass.
+    // `animated` is ASSERTED: `frames < 2` skips silently above, so 1/12 would otherwise pass.
     check(!stuck && animated === ids.length,
         `every avatar animates on hover (${animated}/${ids.length})`,
         stuck || `${ids.length - animated} avatar(s) had no frames to animate`);
@@ -1082,27 +902,21 @@ async function avatarHover(page) {
 }
 
 /*
- * The seasonal mine and flag (components/ds/sprites.tsx).
- *
- * The art is mounted once as two <symbol>s and swapped when `data-theme`
- * changes, which the catalog does directly rather than through the store — so
- * this also covers the path a unit test cannot reach, where the palette moves
- * without a single React state change anywhere.
+ * The seasonal mine and flag (components/ds/sprites.tsx): two <symbol>s
+ * swapped on `data-theme`, which the catalog sets directly rather than through
+ * the store, so this covers the path with no React state change at all.
  */
 async function themeSprites(page) {
     console.log('\n\x1b[1m--- SPRITES ---\x1b[0m');
 
     await page.goto(`${CLIENT}/ds`);
-    // The Chrome profile persists across runs — clear the settings blob, then
-    // reload, so the page mounts against defaults rather than whatever an
-    // earlier run left behind.
+    // The Chrome profile persists across runs; clear the settings blob and reload.
     await page.evaluate(`localStorage.removeItem('minesweeper_settings'); return true;`);
     await page.goto(`${CLIENT}/ds`);
     await page.waitFor(`!!document.querySelector('[data-sprite="mine"] use')`,
         { timeout: 60000, label: 'the board preview renders' });
 
-    // The drawn art itself, so a swap that changes nothing is a failure rather
-    // than two identical passes.
+    // The drawn art itself, so a swap that changes nothing fails.
     const read = () => page.evaluate(`
         const of = (kind) => {
             const use = document.querySelector('[data-sprite="' + kind + '"] use');
@@ -1136,8 +950,7 @@ async function themeSprites(page) {
             `${theme} is still drawing the default pair`);
     }
 
-    // And back: the swap has to be reversible, or the board keeps December's
-    // art until the tab is reloaded.
+    // And back: the swap has to be reversible.
     await pick('gameboy');
     const plain = JSON.parse(await read());
     check(plain.mine === base.mine && plain.flag === base.flag,
@@ -1161,16 +974,13 @@ async function pvp(host, guest) {
     await enterRoom(guest, { room, name: 'Guest', mode: 'join' });
     await host.waitFor(`document.body.textContent.includes('Guest')`, { label: 'host sees guest' });
     pass('both players see each other in the lobby');
-    // Poll rather than read once: the two clients render the lobby independently,
-    // and against a real deployment the guest can trail the host by a beat.
+    // Poll: the guest can trail the host by a beat.
     check(await settles(guest, `document.body.textContent.includes('Waiting for host')`), 'the non-host is told to wait');
 
     /*
-     * The lobby banner is the tallest chrome the board ever sits under — the
-     * opponent line plus the Start Game button is 119px that an in-play board
-     * never pays for. A fixed --ms-board-reserve cannot cover both, which is
-     * why Board.tsx measures its own top offset instead; this is the check that
-     * says so, and it fails on any reserve that went back to being a guess.
+     * The lobby banner is the tallest chrome the board ever sits under, which
+     * is why Board.tsx measures its own top offset rather than using a fixed
+     * --ms-board-reserve; this fails on any reserve that went back to a guess.
      */
     const lobbyFit = JSON.parse(await host.evaluate(`
         const r = document.querySelector('[role=grid]').getBoundingClientRect();
@@ -1195,8 +1005,7 @@ async function pvp(host, guest) {
     await guest.waitFor(`document.body.textContent.includes('Progress')`, { label: 'guest progress panel' });
     pass('starting the game gives both players a progress panel');
 
-    // Both players now start from the SAME board with a shared opening already
-    // revealed, so these are measured as deltas rather than against zero.
+    // Both start from the SAME board with a shared opening, so these are deltas.
     const hostProgress = () => host.evaluate(`
         const m = document.body.textContent.match(/You:\\s*(\\d+)%/);
         return m ? parseInt(m[1], 10) : -1;
@@ -1215,12 +1024,8 @@ async function pvp(host, guest) {
     const seenBefore = await guestSeesHost();
 
     /**
-     * Opens the nth still-closed cell.
-     *
-     * The index matters: resetting restores the same starting board, so always
-     * taking the FIRST closed cell means clicking the same square again — and if
-     * that square is a mine, every attempt dies on it. One local run spent 19 of
-     * 20 attempts that way. Advancing the index walks past it.
+     * Opens the nth still-closed cell. The index matters: reset restores the
+     * same board, so always taking the FIRST closed cell re-clicks the same mine.
      */
     const openAClosedCell = (nth) => host.evaluate(`
         const grid = document.querySelector('[role=grid]');
@@ -1238,18 +1043,10 @@ async function pvp(host, guest) {
     `);
 
     /*
-     * Two things make a single click a bad test of progress.
-     *
-     * Progress is a whole percent, so one cell need not move the number: CI
-     * opened 108 of 216 safe cells, exactly 50%, and 109 is still 50% rounded.
-     * And a closed cell may be a mine — the client cannot tell which, by design
-     * (boards are projected), so roughly a quarter of blind clicks end the
-     * host's game and freeze their progress entirely.
-     *
-     * So: keep opening cells until the HOST's own number moves, taking the
-     * reset whenever a mine ends the run. Then check the guest saw the same
-     * number. Clicking once and hoping made this pass or fail on whether that
-     * cell happened to cascade.
+     * One click is a bad test of progress: it is a whole percent, so one cell
+     * need not move it, and a blind click may hit a mine. So keep opening cells
+     * until the HOST's number moves, taking the reset after a mine, then check
+     * the guest saw the same number.
      */
     let hostAfter = hostBefore;
     let deaths = 0;
@@ -1281,15 +1078,10 @@ async function pvp(host, guest) {
         `expected ${guestBoardAtStart}, got ${guestBoardAfter}`);
 
     /*
-     * Reloading mid-race.
-     *
-     * Two things have to hold and neither is visible in a screenshot. The
-     * reloader must not FORFEIT — a disconnect and a refresh look identical to
-     * the server, and the win used to be handed over instantly. And the board
-     * they come back to must actually be playable: the room addresses each
-     * racer's board by socket id, so a returning player whose slot was not
-     * repointed gets their board back and every click on it is ignored, with one
-     * line in the server log and nothing at all on screen.
+     * Reloading mid-race: the reloader must not FORFEIT (a disconnect and a
+     * refresh look identical to the server), and the restored board must be
+     * playable: boards are addressed by socket id, and a slot not repointed
+     * ignores every click with nothing on screen.
      */
     await guest.goto(CLIENT);
     await guest.waitFor(`${cellCount} === 256`, { timeout: 30000, label: 'the reload lands back in the race' });
@@ -1316,10 +1108,7 @@ async function pvp(host, guest) {
         'the board came back but ignores every click — the slot was not repointed');
 }
 
-/**
- * A join link (?room=...) pre-fills the room code and jumps straight to the
- * name dialog, rather than making the guest type the code in by hand.
- */
+/** A join link (?room=...) pre-fills the room code and jumps straight to the name dialog. */
 async function joinLink(host, guest) {
     console.log('\n\x1b[1m--- JOIN LINK ---\x1b[0m');
     const room = 'smokelink' + Date.now().toString().slice(-6);
@@ -1352,9 +1141,8 @@ async function joinLink(host, guest) {
 }
 
 /**
- * Keyboard play: arrows show and move the selection cursor, Space reveals, F
- * flags, Escape dismisses. Drives the same emits as the mouse, so this only
- * needs to prove the keys reach them — scoring etc. is covered elsewhere.
+ * Keyboard play: arrows move the cursor, Space reveals, F flags, Escape
+ * dismisses. Same emits as the mouse, so this only proves the keys reach them.
  */
 async function keyboardPlay(page) {
     console.log('\n\x1b[1m--- KEYBOARD PLAY ---\x1b[0m');
@@ -1366,8 +1154,7 @@ async function keyboardPlay(page) {
     await enterRoom(page, { room, name: 'Keys' });
     await page.waitFor(`${cellCount} >= 256`, { label: 'board renders' });
 
-    // The cursor's live region announces the selected cell — it doubles as the
-    // scenario's way of knowing what is under the cursor.
+    // The cursor's live region doubles as the way of knowing what is under the cursor.
     const cursorLabel = () => page.evaluate(
         `return document.querySelector('[data-kb-announcer]')?.textContent || '';`);
 
@@ -1381,9 +1168,7 @@ async function keyboardPlay(page) {
     await page.waitFor(`${revealedCount} > 0`, { label: 'Space reveals' });
     pass('Space reveals the selected cell');
 
-    // Walk to a still-covered cell for the flag check: to the corner (clamping
-    // proves the cursor cannot leave the board), then scan until the live
-    // region says Unrevealed.
+    // Walk to the corner (clamping proves the cursor stays on the board), then scan for an Unrevealed cell.
     for (let i = 0; i < 16; i++) await page.key('ArrowUp', { code: 'ArrowUp', keyCode: 38 });
     for (let i = 0; i < 16; i++) await page.key('ArrowLeft', { code: 'ArrowLeft', keyCode: 37 });
     let found = (await cursorLabel()).startsWith('Unrevealed');
@@ -1412,14 +1197,10 @@ async function keyboardPlay(page) {
 }
 
 /**
- * /daily opens on the board, with the prose kept below it.
- *
- * Three things only a real browser can prove. That the route mounts a board
- * with no click — the whole point of the page. That the prose is still SERVED
- * and sits BELOW the board rather than in front of it, which is a layout fact
- * jsdom has no engine to measure. And that the first-visit explainer is keyed
- * to real localStorage: showing it once is the entire contract, and both ways
- * to break it (never, or every morning) look identical in the markup.
+ * /daily opens on the board, with the prose below it. Only a real browser can
+ * prove the route mounts a board with no click, that the prose is still served
+ * BELOW the board (a layout fact jsdom cannot measure), and that the first-visit
+ * explainer is keyed to real localStorage.
  */
 async function daily(page) {
     console.log('\n\x1b[1m--- DAILY ---\x1b[0m');
@@ -1441,8 +1222,8 @@ async function daily(page) {
     check(boards === 1, 'the daily board mounts exactly once', `found ${boards} grids`);
 
     /*
-     * The prose is why /daily is a route rather than a flag. It has to survive
-     * the board being in front of it — served, and below the fold, not deleted.
+     * The prose is why /daily is a route rather than a flag: it must stay served,
+     * below the board, not deleted.
      */
     const prose = await page.evaluate(`
         const copy = document.querySelector('.ms-prose');
@@ -1461,11 +1242,7 @@ async function daily(page) {
     check(prose.headings === 0, 'the prose leaves the page one h1',
         `the copy still carries ${prose.headings} h1s alongside the board's`);
 
-    /*
-     * The rules moved into this dialog when the page stopped explaining itself,
-     * so a first-time player who never sees it is handed an unexplained
-     * one-shot timed board.
-     */
+    /* The rules live in this dialog now; a newcomer who never sees it gets an unexplained one-shot board. */
     const introOpen = await page.evaluate(
         `return !!document.querySelector('#dialog-daily-intro[open]')`);
     check(introOpen, 'the explainer greets a browser that has never played',
@@ -1477,10 +1254,8 @@ async function daily(page) {
     pass('Got it dismisses the explainer');
 
     /*
-     * Closing it has to WRITE the flag, not just hide the dialog. The button
-     * marks it seen itself rather than leaving that to Dialog's onClose,
-     * because the <dialog> `close` event does not fire in every engine — it
-     * never fires in Claude Code's embedded Chrome, where this was found.
+     * Closing has to WRITE the flag, not just hide the dialog. The button marks
+     * it seen itself because the <dialog> `close` event does not fire in every engine.
      */
     const stored = await page.evaluate(
         `return localStorage.getItem('minesweeper_daily_explainer_seen')`);
@@ -1497,9 +1272,8 @@ async function daily(page) {
         'a returning player is re-read the rules every morning');
 
     /*
-     * The front page's link. Plain /daily, never a parameterised one: the route
-     * reads none, so anything appended is state a sender chose for a reader on
-     * a puzzle whose premise is that it arrives the same way for everybody.
+     * The front page's link. Plain /daily, never parameterised: the route reads
+     * no parameters, so anything appended is state a sender chose for a reader.
      */
     await page.goto(CLIENT);
     await sleep(1500);
@@ -1524,13 +1298,9 @@ async function daily(page) {
 }
 
 /**
- * Reactions: two clients in one co-op room, one taps an emote, the other sees
- * it — and it goes away on its own.
- *
- * The parts that need a real browser: the tray is mounted ONCE for both
- * layouts, the feed must not cover the buttons that send it, and the chip's
- * lifetime is a timer rather than an animation, so a jsdom test can prove the
- * state changes but never that anything was on screen.
+ * Reactions: one client taps an emote, the other sees it, and it goes away on
+ * its own. Needs a real browser: the tray is mounted ONCE for both layouts,
+ * and the chip's lifetime is a timer, so jsdom cannot show it was on screen.
  */
 async function emotes(host, guest) {
     console.log('\n\x1b[1m--- EMOTES ---\x1b[0m');
@@ -1552,11 +1322,8 @@ async function emotes(host, guest) {
         'two trays in the DOM — the layouts duplicated it');
 
     /*
-     * The VISIBLE chips only. The wrapper's own textContent would do just as
-     * well for `.includes` — and would be satisfied by the sr-only live region
-     * alone, so a feed that rendered nothing at all would still pass every
-     * check below. A chip is the only <span> wrapping an emote glyph; the tray
-     * puts its glyphs in <button>s.
+     * The VISIBLE chips only: the wrapper's textContent would be satisfied by
+     * the sr-only live region alone. A chip is the only <span> wrapping a glyph.
      */
     const feedText = `(() => {
         const tray = document.querySelector('[aria-label="Send a reaction"]');
@@ -1578,13 +1345,11 @@ async function emotes(host, guest) {
         "the other player sees who reacted",
         'the reaction never reached the second client');
 
-    // Everyone sees the same feed, the sender included — the server fans out
-    // with io.to rather than socket.to for exactly this.
+    // Everyone sees the same feed, sender included: the server fans out with io.to.
     check(await settles(host, `${feedText}.includes('Emoter')`),
         'the sender sees their own reaction too');
 
-    /* Scoped to the tray's own subtree: the game screen carries four other
-       polite live regions, and a document-wide query finds the room panel's. */
+    /* Scoped to the tray's subtree: the game screen carries four other polite live regions. */
     const feedAnnouncement = `(() => {
         const tray = document.querySelector('[aria-label="Send a reaction"]');
         const live = tray && tray.parentElement.querySelector('[aria-live=polite]');
@@ -1594,25 +1359,20 @@ async function emotes(host, guest) {
         'it is announced as speech, not as a picture',
         'the live region never carried the reaction');
 
-    /* PingLayer keeps its own region, addressed by its own marker: the grid
-       also holds the keyboard cursor's, and picking by DOM order would make
-       this pass or fail on the order two layers happen to be mounted in. */
+    /* PingLayer's own region by its own marker: the grid also holds the keyboard cursor's. */
     const pingAnnouncement = `(() => {
         const live = document.querySelector('[data-ping-announcer]');
         return live ? live.textContent : '';
     })()`;
 
-    // The lifetime is a plain timer, so this is the one assertion that has to
-    // wait in real time. Generous: the check is that it clears at all.
+    // The lifetime is a plain timer, so this one has to wait in real time.
     check(await settles(guest, `!${feedText}.includes('Emoter')`, 8000),
         'it clears itself without anyone dismissing it',
         'the chip is still on screen well past its lifetime');
 
     /*
-     * Pings. The half that needs a real browser is the CLICK: the interception
-     * runs in the capture phase on the grid, ahead of four different handlers
-     * across Cell's four render branches, and what it has to prove is a
-     * negative — that the cell it pointed at did not also get played.
+     * Pings. The CLICK needs a real browser: the interception runs in the
+     * capture phase on the grid, and what it proves is a negative.
      */
     const openCount = `document.querySelectorAll('[role=gridcell][aria-label^="Unrevealed"]').length`;
     const closedBefore = await host.evaluate(`return ${openCount};`);
@@ -1628,11 +1388,8 @@ async function emotes(host, guest) {
         'the button did not change state');
 
     /*
-     * A REAL press, not `.click()`: that dispatches a click and nothing else,
-     * and the interception listens on mousedown — the opened-cell branch acts
-     * on mouse up, so waiting for the click would be too late to stop it. The
-     * sequence below is what a browser actually sends, which is the thing
-     * under test.
+     * A REAL press, not `.click()`: the interception listens on mousedown, and
+     * the opened-cell branch acts on mouseup, so a bare click is too late.
      */
     await host.evaluate(`
         const cell = document.querySelector('[role=gridcell][data-row="2"][data-col="3"]');
@@ -1689,8 +1446,7 @@ async function emotes(host, guest) {
         const guest = await attach(await newTarget('about:blank'));
         await pvp(host, guest);
 
-        // Fresh tabs, not the PVP pair: those two are still in a race, and a
-        // reload puts them straight back into it rather than on Landing.
+        // Fresh tabs: the PVP pair are still in a race and a reload puts them back in it.
         const emoteHost = await attach(await newTarget('about:blank'));
         const emoteGuest = await attach(await newTarget('about:blank'));
         await emotes(emoteHost, emoteGuest);

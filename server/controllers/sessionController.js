@@ -1,13 +1,9 @@
 /**
- * Putting a returning browser back where it was.
- *
- * A reload gives you a new socket, and player records are keyed by socket id, so
- * the player is gone. The session outlives it and remembers the room — this is
- * what turns that memory into a rejoin.
- *
- * The distinction that makes it safe: leaving on purpose and dropping off the
- * network arrive at the same `removePlayer`. Only the deliberate exit calls
- * `forgetRoom`, so only the accidental one is ever resumed.
+ * Putting a returning browser back where it was. A reload gives a new socket,
+ * so the player is gone; the session outlives it and remembers the room.
+ * Leaving on purpose and dropping off the network both reach `removePlayer`,
+ * but only the deliberate exit calls `forgetRoom`, so only the accidental one
+ * is ever resumed.
  */
 
 const roomRepo = require('../data/roomRepo');
@@ -23,34 +19,24 @@ const sessionIdOf = (socket) => {
 };
 
 /**
- * Tells a reconnecting socket which room it can rejoin, if any.
- *
- * The offer is only made, never taken: the client answers with an ordinary
- * `joinRoom`, so a resume runs the same validated path as a manual join rather
- * than a parallel one that could drift from it.
- *
- * PVP needs more than co-op — the room addresses each racer's board by socket
- * id, so the slot has to be repointed — but that lives in `restorePvpRacer`,
- * which runs as part of the join this offer triggers.
+ * Tells a reconnecting socket which room it can rejoin. The offer is only
+ * made, never taken: the client answers with an ordinary `joinRoom`, so a
+ * resume runs the same validated path as a manual join. PVP's slot repointing
+ * lives in `restorePvpRacer`, inside that join.
  */
 const offerResume = async (socket) => {
     const sessionId = sessionIdOf(socket);
     if (!sessionId) return false;
 
     /*
-     * Not while someone is still holding it. The offer names a room code and a
-     * display name, so making it to whoever presents the id turns a leaked
-     * session into "here is the room they are in, and who to appear as".
-     *
-     * A reload, a dropped network and a closed tab all leave the previous socket
-     * disconnected, which is every case this exists for; a socket that is still
-     * connected is a player sitting in that room right now.
+     * Not while someone still holds it: the offer names a room and a display
+     * name, so a leaked session id would otherwise yield both. Every case this
+     * exists for leaves the previous socket disconnected.
      */
     if (await isTakeoverOfLiveSession(sessionId, socket.id)) return false;
 
     const { room, name } = await sessionRepo.getState(sessionId);
-    // Both are required: `joinRoom` is rejected without a name, so offering a
-    // resume we know cannot be accepted would just bounce the player.
+    // `joinRoom` is rejected without a name, so an offer without one would just bounce.
     if (!room || !name) return false;
 
     // The room may have expired while they were away.

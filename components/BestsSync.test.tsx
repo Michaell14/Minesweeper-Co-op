@@ -5,14 +5,10 @@ import { useMinesweeperStore } from '@/app/store';
 import { boardKey, clearBestTimes, hasImportedBests, recordBestTime, type BestTime } from '@/lib/bestTimes';
 
 /**
- * The lifecycle nobody sees: who the store's account records belong to, and
- * the one-time fold-in of what this browser already held.
- *
- * Both behaviours fail silently. Skip the clear on sign-out and a shared
- * machine shows one account's records to whoever signs in next, with nothing
- * visibly wrong. Skip the fold-in and everyone playing today loses their times
- * from the in-game banner on the day the account read ships — every record in
- * existence is in localStorage.
+ * Who the store's account records belong to, and the one-time fold-in of what
+ * this browser held. Both fail silently: skip the clear on sign-out and a shared
+ * machine shows one account's records to the next; skip the fold-in and every
+ * localStorage record is lost the day the account read ships.
  */
 
 const mockStatus = vi.fn<() => string>(() => 'unauthenticated');
@@ -92,11 +88,9 @@ describe('who the records belong to', () => {
 });
 
 /*
- * The whole reason a clear is retained rather than filed: sign-in resolving is
- * what STARTS the fetch, so the table is in flight for as long as a round trip
- * takes — two of them on a first sign-in, since the import goes ahead of it.
- * A board finished in that window is only in the store; the response was read
- * before the run existed and would otherwise replace it with an older record.
+ * Why a clear is retained rather than filed: sign-in STARTS the fetch, so the
+ * table is in flight for a round trip (two on first sign-in). A board finished
+ * in that window is only in the store, and the older response would replace it.
  */
 describe('a clear finished while the table is in flight', () => {
     test('survives the response that predates it', async () => {
@@ -109,8 +103,7 @@ describe('a clear finished while the table is in flight', () => {
         render(<BestsSync />);
         await act(async () => {});
 
-        // Mid-flight: no table to file against, so the win handler shows what
-        // the browser's copy made of the run.
+        // Mid-flight: no table to file against, so the win handler shows the browser copy's verdict.
         expect(state().accountBests).toBeNull();
         act(() => {
             expect(state().recordAccountBest('16x16/40', { seconds: 75, players: 1, at: 9 })).toBeNull();
@@ -183,8 +176,7 @@ describe('folding this browser\'s records in', () => {
         await signedIn();
 
         expect(mockImportBests).not.toHaveBeenCalled();
-        // Not marked: this browser may yet be played on signed out, and those
-        // records deserve the same fold-in.
+        // Not marked: this browser may yet be played on signed out.
         expect(hasImportedBests()).toBe(false);
     });
 });

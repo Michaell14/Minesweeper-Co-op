@@ -1,11 +1,7 @@
 // @vitest-environment jsdom
 /**
- * Who gets asked for a name.
- *
- * The smoke suite is signed OUT, so it exercises the dialog path and nothing
- * else — these tests are the whole net for the signed-in one. Both directions
- * fail quietly: a signed-in player asked for a name they already have, or a
- * guest sent straight into a room with no name at all.
+ * Who gets asked for a name. The smoke suite is signed OUT, so these tests
+ * are the whole net for the signed-in path. Both directions fail quietly.
  */
 import React from 'react';
 import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react';
@@ -26,9 +22,8 @@ vi.mock('@/lib/profileApi', async () => {
 });
 
 /*
- * `openDialog` is spied rather than observed: this jsdom has no showModal at
- * all, so a <dialog> here can never report itself open. Asserting the CALL is
- * also the more precise question — whether the name gate decided to ask.
+ * `openDialog` is spied: this jsdom has no showModal, so a <dialog> can never
+ * report itself open, and the CALL is the more precise question anyway.
  */
 const mockOpenDialog = vi.fn();
 vi.mock('@/lib/dialogs', async () => {
@@ -36,8 +31,7 @@ vi.mock('@/lib/dialogs', async () => {
     return { ...actual, openDialog: (...args: unknown[]) => mockOpenDialog(...args) };
 });
 
-// The board-size cards and the best-time panel have their own coverage; this
-// file is about the name gate, and they drag the whole store in with them.
+// The cards and best-time panel have their own coverage and drag the whole store in.
 vi.mock('@/components/landing/AnnouncementBanner', () => ({ default: () => null }));
 vi.mock('@/components/game/BestForBoard', () => ({ default: () => null }));
 
@@ -118,9 +112,8 @@ describe('a signed-in player', () => {
     });
 
     /*
-     * The name is seeded into the store even though the server prefers its own
-     * snapshot — it is the only name the emit carries if the handshake's token
-     * did not resolve server-side.
+     * Seeded even though the server prefers its own snapshot: it is the only
+     * name the emit carries if the handshake's token did not resolve.
      */
     it('carries its account name in the store for the emit', async () => {
         signedIn();
@@ -154,9 +147,8 @@ describe('a signed-out player', () => {
 });
 
 /*
- * The window between mount and the profile arriving. A guest and a signed-in
- * player look identical here, and the join-link path decides on mount — so
- * getting this wrong sends signed-in players to a dialog they should not see.
+ * Between mount and the profile arriving, a guest and a signed-in player look
+ * identical, and the join-link path decides on mount.
  */
 describe('while the account is still loading', () => {
     it('asks rather than guessing', async () => {
@@ -171,11 +163,7 @@ describe('while the account is still loading', () => {
     });
 });
 
-/*
- * Quick Match is one click with nothing to type first, so it is the action a
- * signed-in player reaches inside the window before the profile lands. Falling
- * through to the dialog there asks for a name the server would overrule anyway.
- */
+/* Quick Match is one click with nothing to type, so it is reached before the profile lands. */
 describe('quick matching before the account resolves', () => {
     const pendingAccount = () => {
         mockUseSession.mockReturnValue({ status: 'authenticated' });
@@ -198,8 +186,7 @@ describe('quick matching before the account resolves', () => {
 
         await waitFor(() => expect(actions.findMatch).toHaveBeenCalled());
         expect(mockOpenDialog).not.toHaveBeenCalledWith(DIALOGS.nameMatch);
-        // The account name has to be in the store first — findMatch drops an
-        // emit without one.
+        // The account name has to be in the store first; findMatch drops an emit without one.
         expect(useMinesweeperStore.getState().name).toBe('Miguel');
     });
 
@@ -227,10 +214,9 @@ describe('quick matching before the account resolves', () => {
 });
 
 /*
- * The join link (?room=...) is the one path that decides on MOUNT, before an
- * account can possibly have loaded — which is why the forms take a tri-state
- * prop instead of a plain optional. Collapsing "guest" and "not yet" sends
- * every signed-in player arriving by link to a dialog they should never see.
+ * The join link decides on MOUNT, before an account can have loaded, which is
+ * why the forms take a tri-state prop: collapsing "guest" and "not yet" sends
+ * every signed-in player arriving by link to a dialog.
  */
 describe('arriving by join link', () => {
     const withLink = () => window.history.replaceState(null, '', '/?room=shared');
@@ -273,10 +259,9 @@ describe('arriving by join link', () => {
 });
 
 /*
- * `fetchProfile` answers with null rather than throwing, but the hook must not
+ * `fetchProfile` answers null rather than throwing, but the hook must not
  * DEPEND on that: `resolved` gates the join-link path, so a promise that never
- * settles is a landing page that silently does nothing — no room joined, and
- * no name dialog offered either.
+ * settles is a landing page that silently does nothing.
  */
 describe('when the profile fetch rejects outright', () => {
     it('still falls back to asking, rather than hanging on a join link', async () => {

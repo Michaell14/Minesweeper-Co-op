@@ -7,14 +7,9 @@ import { useMinesweeperStore } from '@/app/store';
 const SLOW_HINT_MS = 8_000;
 
 /**
- * "Joining room…", shown on Landing while a create/join emit awaits its reply.
- *
- * The name dialog closes on Confirm and nothing changes until the server
- * answers — on a cold Heroku dyno that gap runs to many seconds, and a player
- * who sees Landing again assumes the click was swallowed and re-submits. Quick
- * match and the daily both show their wait; this is the same treatment for
- * rooms. The flag is set at emit (useGameActions) and cleared by whichever
- * reply lands (hooks/useGameEvents.ts).
+ * "Joining room…", shown on Landing while a create/join emit awaits its reply,
+ * so a cold-dyno wait does not read as a swallowed click. Set at emit
+ * (useGameActions), cleared by whichever reply lands (hooks/useGameEvents.ts).
  */
 export default function JoinPendingIndicator() {
     const pending = useMinesweeperStore((state) => state.joinPending);

@@ -1,14 +1,9 @@
 /**
- * Board primitives. Must stay dependency-free (no io, no Redis, no other server
- * modules): this exists so gameUtils and playerUtils share board helpers without
- * requiring each other, a cycle that silently broke resetGame(). See
- * ARCHITECTURE.md §7.
+ * Board primitives. Must stay dependency-free: gameUtils and playerUtils share
+ * these without requiring each other (ARCHITECTURE.md §7).
  */
 
-/**
- * Creates a rows x cols grid of closed, unflagged, mine-free cells.
- * Every cell is a distinct object, so mutating one never affects another.
- */
+/** A rows x cols grid of closed, unflagged, mine-free cells, each a distinct object. */
 const createEmptyBoard = (numRows, numCols) =>
     Array.from({ length: numRows }, () =>
         Array.from({ length: numCols }, () => ({
@@ -20,9 +15,8 @@ const createEmptyBoard = (numRows, numCols) =>
     );
 
 /**
- * Returns the up-to-8 neighbours of (row, col), each shallow-copied with its own
- * row/col attached. Callers rely on the copy: mutating a returned entry does NOT
- * affect the board, which is why chording re-reads through `board[r][c]`.
+ * The up-to-8 neighbours of (row, col), each shallow-copied with row/col
+ * attached. Mutating a returned entry does NOT affect the board.
  */
 const getAdjacentCells = (row, col, grid) => {
     const directions = [
@@ -50,21 +44,11 @@ const getAdjacentCells = (row, col, grid) => {
 };
 
 /**
- * Flood-fill reveal, shared by both game modes.
- *
- * Mutates `board` (opening cells) and appends every opened cell to `toUpdate` as
- * `{...cell, row, col}`, ready to emit. Traversal rules:
- *   - out-of-bounds, already-open and flagged cells are skipped
- *   - opening a cell with no adjacent mines cascades to its neighbours
- *   - opening a MINE stops immediately: the mine is opened and pushed, and the
- *     rest of the stack is abandoned
- *
- * Returns `{ hitMine, cellsRevealed }`, where cellsRevealed counts safe cells
- * only. What hitting a mine *means* is the caller's call — the only thing co-op
- * and PVP ever disagreed on: co-op ends the game for the room, PVP for that
- * player alone.
- *
- * Pure — no io, no Redis.
+ * Flood-fill reveal, shared by both modes. Mutates `board` and appends every
+ * opened cell to `toUpdate` as `{...cell, row, col}`. Skips out-of-bounds,
+ * open and flagged cells; a zero cascades; a MINE is opened, pushed, and stops
+ * the traversal. Returns `{ hitMine, cellsRevealed }` (safe cells only); what
+ * a mine means is the caller's call (co-op ends the room, PVP that player).
  */
 const revealFrom = (board, r, c, toUpdate) => {
     const stack = [[r, c]];
@@ -101,13 +85,9 @@ const revealFrom = (board, r, c, toUpdate) => {
 };
 
 /**
- * Hides everything a player is not entitled to know about one cell.
- *
- * A closed cell gives away neither `isMine` nor `nearbyMines`: the first is the
- * answer outright, and the second is nearly as good, since it lets you solve the
- * board offline. Both report the neutral 0/false a closed cell renders as
- * anyway. Open cells tell the truth, and `isFlagged` is public by design — flags
- * are shared state in co-op.
+ * Hides what a player may not know about one cell: a closed cell gives away
+ * neither `isMine` nor `nearbyMines` (the second lets you solve the board
+ * offline). `isFlagged` is public — flags are shared state in co-op.
  */
 const projectCell = (cell, revealMines) => {
     const visible = revealMines || cell.isOpen;
@@ -120,11 +100,8 @@ const projectCell = (cell, revealMines) => {
 };
 
 /**
- * Board as a specific recipient is allowed to see it. Never mutates the input —
- * Redis keeps the full truth.
- *
- * Pass `revealMines: true` only for terminal states (that player lost, or the
- * game was won), where the UI is meant to show every mine.
+ * Board as a recipient may see it; never mutates the input. Pass
+ * `revealMines: true` only for terminal states.
  */
 const projectBoard = (board, { revealMines = false } = {}) =>
     board.map((row) => row.map((cell) => projectCell(cell, revealMines)));

@@ -1,11 +1,8 @@
 /**
- * The settings sync routes. Same transport and failure policy as the REST
- * side of profileController — bearer-authenticated, honest 401/503 — and it
- * borrows that module's requireUser so there is exactly one definition of
- * "who is this request".
- *
- * The blob itself is opaque here (see settingsRepo); validation.js only caps
- * its size and shape.
+ * The settings sync routes. Same transport and failure policy as
+ * profileController's REST side, whose requireUser it borrows so there is one
+ * definition of "who is this request". The blob is opaque here (see
+ * settingsRepo); validation.js only caps its size and shape.
  */
 
 const { requireUser } = require('./profileController');

@@ -1,17 +1,11 @@
 /**
- * Board generation for PVP.
- *
- * Both players race ONE board now: startPvpGame generates it, no-guess verified
- * around a shared start cell, and hands the same layout to both. The sharing
- * itself is covered in sharedPvpBoard.test.js; this file covers the generator's
- * first-click safe zone, which that shared start cell relies on.
+ * Board generation for PVP. Both players race ONE board (sharedPvpBoard.test.js
+ * covers the sharing); this covers the generator's first-click safe zone.
  */
 
 const { generateBoard } = require('../domain/boardGen');
 
-// ---------------------------------------------------------------------------
 // helpers
-// ---------------------------------------------------------------------------
 
 const countMines = (board) =>
     board.reduce((total, row) => total + row.filter((cell) => cell.isMine).length, 0);
@@ -78,9 +72,8 @@ describe('generateBoard first-click safe zone', () => {
 });
 
 describe('PVP progress math', () => {
-    // Mirrors the formulas in server/controllers/pvpController.js (totalSafeCells)
-    // and components/Grid.tsx (progress percentage). Kept here so a change to
-    // either formula has a visible counterpart in the suite.
+    // Mirrors pvpController.js (totalSafeCells) and Grid.tsx (percentage), so
+    // a change to either has a counterpart here.
     test('totalSafeCells excludes mines and percentage is rounded', () => {
         const numRows = 10;
         const numCols = 10;

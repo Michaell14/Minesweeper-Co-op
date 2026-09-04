@@ -1,26 +1,14 @@
 /**
- * The socket protocol's event names — the one copy.
- *
- * Imported by BOTH halves: the client via `@/shared/events`, the server via
- * `require('../shared/events')`. CommonJS so it works untouched from the CJS
- * server and from the bundler. Viable only because the whole repo deploys, the
- * same as shared/boardConfig — see ARCHITECTURE.md §6.
- *
- * A typed-out literal produces an event nobody listens to and no error anywhere,
- * so `server/tests/events.test.js` enforces that the server uses these constants.
- *
- * Payload shapes live in `shared/socketPayloads.ts`, which binds the client only
- * — this file stays plain JS because the server requires it at runtime.
- *
- * **`Object.freeze` is load-bearing, not defensive.** TypeScript widens a plain
- * object's string properties to `string`, too wide to look a payload up by:
- * `{ [SERVER_EVENTS.BOARD_UPDATE]: handler }` would key on a plain string and the
- * handler's argument would fall back to `any`. Frozen, it infers the literal
- * `'boardUpdate'`, which is what type-checks the table in useGameEvents.ts — and
- * is why no hand-written `events.d.ts` is needed.
+ * The socket protocol's event names, the one copy, imported by BOTH halves
+ * (CommonJS so the server can require it at runtime). Payload shapes live in
+ * shared/socketPayloads.ts and bind the client only; server/tests/events.test.js
+ * enforces that the server uses these constants rather than literals.
+ * `Object.freeze` is load-bearing: TypeScript then infers the literal
+ * 'boardUpdate' instead of `string`, which is what types the handler table in
+ * useGameEvents.ts without a hand-written events.d.ts.
  */
 
-/** Client -> server. Every one is a `socket.on` handler in server/server.js. */
+/** Client -> server. Every one is a row in server/routes/index.js. */
 const CLIENT_EVENTS = Object.freeze({
     CREATE_ROOM: 'createRoom',
     JOIN_ROOM: 'joinRoom',
@@ -45,8 +33,7 @@ const CLIENT_EVENTS = Object.freeze({
     CANCEL_MATCH: 'cancelMatch',
     START_PRACTICE_RACE: 'startPracticeRace',
 
-    // Daily challenge -- NOT room-scoped, addressed by date + attempt token.
-    // See server/data/keys.js for why this is a separate system from rooms.
+    // Daily challenge: NOT room-scoped, addressed by date + attempt token (server/data/keys.js).
     START_DAILY: 'startDaily',
     DAILY_OPEN_CELL: 'dailyOpenCell',
     DAILY_CHORD_CELL: 'dailyChordCell',
@@ -78,8 +65,7 @@ const SERVER_EVENTS = Object.freeze({
     PLAYER_EMOTE: 'playerEmote',
     PLAYER_PING: 'playerPing',
 
-    // Friends. Not room-scoped: a friend's presence and an invitation to a
-    // room you are NOT in are both about the account, not the game.
+    // Friends. Not room-scoped: presence and invites are about the account, not the game.
     FRIENDS_ONLINE: 'friendsOnline',
     FRIEND_PRESENCE: 'friendPresence',
     FRIEND_INVITE: 'friendInvite',
@@ -89,9 +75,7 @@ const SERVER_EVENTS = Object.freeze({
     SESSION_RESUME: 'sessionResume',
     PLAYER_LEFT: 'playerLeft',
 
-    // Achievements -- sent to ONE socket, and only when a result actually
-    // unlocked something. Not room-scoped: an achievement is the player's,
-    // not the game's, and it can be earned in any mode including the daily.
+    // Achievements: sent to ONE socket, only when a result unlocked something; any mode, daily included.
     ACHIEVEMENTS_UNLOCKED: 'achievementsUnlocked',
 
     // PVP
@@ -110,8 +94,7 @@ const SERVER_EVENTS = Object.freeze({
     PVP_HOST_TRANSFERRED: 'pvpHostTransferred',
     PVP_REMATCH_STARTED: 'pvpRematchStarted',
 
-    // Matchmaking. A found match arrives as an ordinary joinRoomSuccess +
-    // pvpRoomReady -- the queue's only job is to build the room.
+    // Matchmaking. A found match arrives as an ordinary joinRoomSuccess + pvpRoomReady.
     MATCH_SEARCHING: 'matchSearching',
     MATCH_ONLINE_COUNT: 'matchOnlineCount',
     MATCH_CANCELLED: 'matchCancelled',

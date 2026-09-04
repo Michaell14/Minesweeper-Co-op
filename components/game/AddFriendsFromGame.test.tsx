@@ -1,13 +1,8 @@
 // @vitest-environment jsdom
 /**
- * The add-friend offer at the end of a game — the path that decides whether
- * the friend graph gets used at all, since a code is a fine way to add
- * somebody you already know and a terrible way to add the stranger a quick
- * match just paired you with.
- *
- * The list is entirely the server's (it excludes you, guests, blocks and
- * anybody who has left), so what is testable here is what the offer SAYS about
- * each state and that it asks for the list at all.
+ * The add-friend offer at the end of a game, the path that decides whether
+ * the graph gets used at all. The list is entirely the server's, so what is
+ * testable is what the offer SAYS about each state and that it asks at all.
  */
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -40,8 +35,7 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('signed out', () => {
-    // A guest has no graph to add anybody to, and the server sends them no
-    // list — so there is nothing to draw even if one arrived.
+    // A guest has no graph to add anybody to, and the server sends them no list.
     it('renders nothing', () => {
         mockStatus.mockReturnValue('unauthenticated');
         roster(PAT);
@@ -68,10 +62,7 @@ describe('a co-player', () => {
         expect(props.addRoomFriend).toHaveBeenCalledWith('sock-pat');
     });
 
-    /*
-     * They asked first, so pressing this accepts rather than requests —
-     * `requestFriend` folds the two together, and "Accept" is the honest word.
-     */
+    /* They asked first, so pressing this accepts rather than requests; "Accept" is the honest word. */
     it('who already asked is offered as Accept', () => {
         renderOffer();
         roster({ ...PAT, status: 'incoming' });

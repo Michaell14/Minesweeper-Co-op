@@ -1,10 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CASCADE_BANDS, cascadeBand, prefersReducedMotion } from "./motion";
 
-// Every test here stubs `window` wholesale, so unstubbing restores matchMedia
-// with it. Restoring matchMedia by hand as well would have to run BEFORE this
-// line to mean anything, and by then `window` may be the `undefined` that the
-// no-window test stubbed in — the restore would throw and this would never run.
+// Every test stubs `window` wholesale, so unstubbing restores matchMedia too.
+// Restoring it by hand would throw once `window` is the stubbed `undefined`.
 afterEach(() => {
     vi.unstubAllGlobals();
 });
@@ -39,8 +37,7 @@ describe("prefersReducedMotion", () => {
     });
 
     it("defaults to allowing motion when matchMedia is missing", () => {
-        // Some embedded webviews have `window` but no matchMedia; throwing here
-        // would take down the win handler that calls it.
+        // Some embedded webviews have `window` but no matchMedia; throwing would take down the win handler.
         vi.stubGlobal("window", {});
         expect(() => prefersReducedMotion()).not.toThrow();
         expect(prefersReducedMotion()).toBe(false);
@@ -60,8 +57,7 @@ describe("cascadeBand", () => {
     });
 
     it("bounds the wait no matter where on the board the cascade starts", () => {
-        // The bug this replaced: a cascade at the far corner waited for its
-        // absolute diagonal index, so the first cell appeared ~240ms late.
+        // The bug this replaced: a far-corner cascade waited for its absolute diagonal, ~240ms.
         expect(cascadeBand(0, 0)).toBe(0);
         expect(cascadeBand(31, 15)).toBeLessThan(CASCADE_BANDS);
     });
@@ -80,9 +76,7 @@ describe("cascadeBand", () => {
 
 describe("cascadeBand measured from the cell a reveal started at", () => {
     it("puts no delay at all on the cell that was clicked", () => {
-        // The bug: the delay came off the board diagonal, so opening a single
-        // cell at (3, 4) sat invisible for seven bands before it appeared, and
-        // (3, 5) for eight. Which is to say the lag varied by where you clicked.
+        // The bug: the delay came off the board diagonal, so the lag varied by where you clicked.
         expect(cascadeBand(3, 4, { row: 3, col: 4 })).toBe(0);
         expect(cascadeBand(9, 9, { row: 9, col: 9 })).toBe(0);
     });

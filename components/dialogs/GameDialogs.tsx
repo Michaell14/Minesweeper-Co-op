@@ -5,13 +5,9 @@ import { Button, Dialog, DialogClose } from '@/components/ds';
 import GameSummary from '@/components/game/GameSummary';
 
 /**
- * The app-level dialogs: game over, room errors, and the PVP outcomes.
- *
- * These are opened imperatively by the socket handlers in hooks/useGameEvents.ts
- * via `openDialog(DIALOGS.x)`; this component only renders the markup.
- *
- * <Dialog> owns the shell — positioning, the form, the aria wiring and the
- * action row — so what is left here is only what differs between them.
+ * The app-level dialogs: game over, room errors, and the PVP outcomes. Opened
+ * imperatively by hooks/useGameEvents.ts via `openDialog(DIALOGS.x)`; <Dialog>
+ * owns the shell, so only what differs between them lives here.
  */
 export interface GameDialogsProps {
     /** Threaded to every summary: the add-friend offer lives in it. */
@@ -30,8 +26,7 @@ export default function GameDialogs({ resetGame, addRoomFriend }: GameDialogsPro
     return (
         <>
             {/* End of a co-op run, won or lost. One dialog for both: only the
-                headline and the button's tone differ, since the numbers a win
-                and a loss want to show are the same numbers. */}
+                headline and the button's tone differ. */}
             <Dialog
                 id={DIALOGS.gameSummary}
                 title={gameWon ? 'Board Cleared!' : 'Uh Oh!'}
@@ -40,9 +35,8 @@ export default function GameDialogs({ resetGame, addRoomFriend }: GameDialogsPro
                 actions={
                     <>
                         <DialogClose aria-label="Close summary">Close</DialogClose>
-                        {/* type="submit" so the dialog closes on the same click —
-                            Button defaults to type="button", which would leave
-                            the summary covering the fresh board. */}
+                        {/* type="submit" so the dialog closes on the same click;
+                            Button defaults to type="button". */}
                         <Button
                             type="submit"
                             intent={gameWon ? 'success' : 'primary'}
@@ -57,9 +51,8 @@ export default function GameDialogs({ resetGame, addRoomFriend }: GameDialogsPro
                 <GameSummary {...summaryProps} />
             </Dialog>
 
-            {/* Both room errors carry a way out. They used to be a bare title
-                over a button labelled "Cancel": a dead end, on the one screen
-                where the player has no idea what to do differently. */}
+            {/* Both room errors carry a way out; a bare title over "Cancel" was
+                a dead end on the one screen where the player needs direction. */}
             <Dialog
                 id={DIALOGS.createRoomError}
                 title="That room code is taken."
@@ -69,8 +62,7 @@ export default function GameDialogs({ resetGame, addRoomFriend }: GameDialogsPro
                     <>
                         <DialogClose aria-label="Close error dialog">Close</DialogClose>
                         {/* type="submit" so the dialog closes on the same click.
-                            Deliberately no "join it instead": the room holding
-                            that code is usually a stranger's. */}
+                            No "join it instead": that room is usually a stranger's. */}
                         <Button
                             type="submit"
                             intent="primary"
@@ -118,9 +110,8 @@ export default function GameDialogs({ resetGame, addRoomFriend }: GameDialogsPro
             </Dialog>
 
             {/* Every PVP dialog that ENDS the race carries the summary.
-                `pvpGameOver` deliberately does not: hitting a mine stops YOUR
-                clock, but the opponent plays on and you can reset back into the
-                race, so a final scoreline there would be a lie. */}
+                `pvpGameOver` does not: the opponent plays on and you can reset
+                back into the race, so a final scoreline would be a lie. */}
             <Dialog
                 id={DIALOGS.pvpGameOver}
                 title="Boom!"

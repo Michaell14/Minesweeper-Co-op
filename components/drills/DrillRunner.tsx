@@ -13,11 +13,8 @@ export interface DrillRunnerProps {
     onSolved?: (id: string, mistakes: number) => void;
 }
 
-/**
- * Solved is measured against the DECLARED solution, never against the layout's
- * mines — the two statements of the same fact stay independent all the way to
- * the UI, and `validateDrill` is what holds them together.
- */
+/** Solved is measured against the DECLARED solution, never the layout's mines;
+ * `validateDrill` is what keeps the two in step. */
 const matches = (marks: DrillMarks, want: readonly Coord[], state: 'flagged' | 'open') => {
     const marked = marks.flat().filter((m) => m === state).length;
     return marked === want.length && want.every(([r, c]) => marks[r][c] === state);
@@ -80,8 +77,7 @@ export default function DrillRunner({ drill, onSolved }: DrillRunnerProps) {
 
         if (next === 'wrong') {
             setMistakes((n) => n + 1);
-            // The reason comes from the RULES, not from the layout's mines — a
-            // drill that just said "that was a mine" would teach nothing.
+            // Explain from the RULES, not the layout: "that was a mine" teaches nothing.
             setMessage(explain(drill.layout, row, col)?.text ?? null);
         }
         setMarks((prev) => prev.map((r, ri) =>

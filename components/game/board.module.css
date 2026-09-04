@@ -1,7 +1,6 @@
 /*
- * The cell-size setting: a different CEILING for the fit clamp below, never a
- * fixed size — "large" still shrinks on a phone, "compact" still respects
- * --ms-cell-min. Board.tsx stamps data-cell-size from the settings slice.
+ * The cell-size setting is a CEILING for the fit clamp below, never a fixed
+ * size. Board.tsx stamps data-cell-size from the settings slice.
  */
 .gameBoard[data-cell-size="compact"] {
     --ms-cell-size: var(--ms-cell-size-compact);
@@ -10,39 +9,22 @@
     --ms-cell-size: var(--ms-cell-size-large);
 }
 
-/* Grid container for the game board - using CSS Grid for better performance */
+/* The board grid. */
 .gameBoard {
-    /*
-     * Re-exported from the tokens under their local names because
-     * CursorLayer.tsx reads --cell-size and --cell-gap off this element at
-     * runtime to position remote cursors. The responsive shrink lives on the
-     * token now (app/tokens.css), so there is no media query here.
-     */
+    /* Local names: CursorLayer.tsx reads --cell-size and --cell-gap off this element at runtime. */
     --cell-gap: var(--ms-cell-gap);
     /*
-     * Fit the board to the space it actually has instead of overflowing it.
+     * Fit the board to the space it has. --board-cols is set inline by
+     * Board.tsx; the token is the ceiling, and a phone gets whatever fits down
+     * to --ms-cell-min.
      *
-     * --board-cols is set inline by Board.tsx because only it knows the shape.
-     * The token is the ceiling, so desktop is unchanged at 40px and a phone
-     * gets whatever fits, down to --ms-cell-min.
+     * cqw, not vw: 100vw counts the page scrollbar and the container's padding,
+     * neither of which the board may use (CI's 15px scrollbars broke a vw
+     * version). 100cqw is the container's content box; Grid.tsx marks it
+     * `container-type: inline-size`. The viewport fallback covers /ds.
      *
-     * cqw, not vw. 100vw is the WINDOW: it counts the page's own scrollbar and
-     * the padding on the container the board sits in, neither of which the
-     * board may use. Reserving the padding by hand got the phone case right and
-     * still failed CI, where classic 15px scrollbars take another 30px that no
-     * viewport unit can see — a 335px board in 313px of room. 100cqw is the
-     * container's content box, so every one of those is already subtracted and
-     * the sum is right on whatever the platform does with scrollbars.
-     * Grid.tsx marks that container with `container-type: inline-size`.
-     *
-     * Falling back to the viewport when there is no such container is fine: the
-     * /ds catalog is the other consumer, and it is a desktop page where the
-     * clamp lands on the 40px ceiling either way.
-     *
-     * The fallback matters: without a value the calc() is invalid, --cell-size
-     * resolves to nothing and cells collapse to non-square boxes. This
-     * stylesheet has a second consumer in the /ds catalog, which is exactly
-     * where that happened.
+     * The --board-cols fallback matters: without it the calc() is invalid and
+     * cells collapse to non-square boxes (seen on /ds).
      */
     --board-cols-safe: var(--board-cols, 16);
     --cell-fit: calc(
@@ -50,26 +32,16 @@
         / var(--board-cols-safe)
     );
     /*
-     * The same sum down the other axis, so a board that fits across still fits
-     * DOWN. Without it the clamp only ever answered the width question: a 16x16
-     * board on a 1280x720 laptop kept its 40px ceiling and ran 160px past the
-     * fold, with 290px of unused width either side.
+     * The same sum down the other axis, so a board that fits across also fits
+     * DOWN (a 16x16 on a 1280x720 laptop ran 160px past the fold).
      *
-     * Viewport units, not cqh: the container Grid.tsx marks is
-     * `container-type: inline-size`, which resolves cqw and NOT cqh. Sizing it
-     * both ways would need `container-type: size`, which demands a fixed block
-     * size the page does not have. So the page's own vertical chrome is
-     * subtracted by hand as --ms-board-reserve.
+     * Viewport units, not cqh: the container is `container-type: inline-size`,
+     * which resolves cqw and not cqh, so the page's vertical chrome is
+     * subtracted by hand as --ms-board-reserve. --ms-board-inset is subtracted
+     * here too because the frame is on both axes.
      *
-     * --ms-board-inset is subtracted here as well as across, because the frame
-     * is on both axes: (rows + 1) * gap accounts for the 15 gaps and the 2px of
-     * padding, but not the border. Leaving it out cost the board its border on
-     * this axis alone, and that was 8 of the 20px it ran past the fold.
-     *
-     * Declared twice on purpose. dvh is the one that discounts mobile browser
-     * chrome, but on anything that does not know the unit the whole calc() is
-     * invalid, --cell-size resolves to nothing and every cell collapses to a
-     * non-square box. The vh line above it is what such a browser keeps.
+     * Declared twice: dvh discounts mobile browser chrome, but a browser that
+     * does not know the unit drops the whole calc() and keeps the vh line.
      */
     --board-rows-safe: var(--board-rows, 16);
     --cell-fit-h: calc(
@@ -111,17 +83,9 @@
 }
 
 /*
- * A teammate's cursor on a cell.
- *
- * The class is doubled to raise specificity to (0,3,0). `.cell.open`,
- * `.cell.mine` and `.cell.closed` all set `animation` or `box-shadow` at
- * (0,2,0), so at equal weight this rule would win or lose purely on where it
- * sits in the file — and it lost: adding the cascade reveal to `.cell.open`
- * silently stopped opened cells pulsing, while closed ones still did.
- *
- * Winning on specificity says "a hovered cell pulses" outright, instead of
- * depending on line order that the next edit can reshuffle. It also makes the
- * `!important` that used to be on background-color unnecessary.
+ * A teammate's cursor on a cell. The class is doubled to reach (0,3,0):
+ * `.cell.open`, `.cell.mine` and `.cell.closed` set `animation`/`box-shadow`
+ * at (0,2,0), and at equal weight this rule wins or loses on source order.
  */
 .cell.hovered.hovered {
     background-color: var(--hover-color);
@@ -129,12 +93,7 @@
     animation: pulse 1s ease-in-out infinite;
 }
 
-/*
- * The pulse is the one piece of motion in the app that never stops, and it can
- * be running on several cells at once. Dropping the animation leaves the static
- * box-shadow above, which still shows which cell a teammate is on — the glow is
- * the information, the pulsing is only decoration.
- */
+/* The one animation that never stops. The static glow that remains is the information. */
 @media (prefers-reduced-motion: reduce) {
     /* Must match the doubled specificity above, or it cannot win. */
     .cell.hovered.hovered {
@@ -151,7 +110,7 @@
     }
 }
 
-/* Remote co-op cursors — overlay sits above the cells, ignores pointer events */
+/* Remote co-op cursor overlay. */
 .cursorLayer {
     position: absolute;
     inset: 0;
@@ -193,19 +152,9 @@
 }
 
 /*
- * The keyboard selection cursor — a cell-sized frame above the remote cursors
- * (the local player's marker should win). The two-tone ring is what keeps it
- * legible on every palette without a token of its own: whichever tone matches
- * the cell beneath, the other contrasts.
- */
-/*
  * A ping: a ring on the cell somebody pointed at, in that player's cursor
- * colour so the two read as the same person.
- *
- * Above the keyboard cursor (z-index 6) because it is transient and someone
- * else's — it should not be the thing hidden when the two land on one cell.
- * pointer-events stays off: the cell underneath must still be playable while
- * the ring is on it.
+ * colour. Above the keyboard cursor (z-index 6) because it is transient and
+ * someone else's; pointer-events off so the cell stays playable under it.
  */
 .pingRing {
     position: absolute;
@@ -219,10 +168,7 @@
     animation: pingPulse var(--ms-duration-loop) var(--ms-ease-step) infinite;
 }
 
-/*
- * The label rides ABOVE the ring rather than inside it: a name over the cell
- * would cover the number the ping is drawing attention to.
- */
+/* The label rides above the ring: a name over the cell would cover the number it points at. */
 .pingLabel {
     position: absolute;
     bottom: 100%;
@@ -242,13 +188,9 @@
 }
 
 /*
- * Two steps, not a fade: this is a pixel interface, and the ring reads as
- * blinking rather than breathing.
- *
- * Switched off by hand under reduced motion rather than left to the zeroed
- * duration token, the same as the hover pulse above — a zero-duration INFINITE
- * animation is still an animation. What remains is the solid ring, which is the
- * information; the blink is only what draws the eye to it.
+ * Two steps, not a fade: pixel interfaces blink. Switched off by hand under
+ * reduced motion, like the hover pulse: a zero-duration INFINITE animation is
+ * still an animation. The solid ring that remains is the information.
  */
 @media (prefers-reduced-motion: reduce) {
     .pingRing {
@@ -261,6 +203,10 @@
     50%, 100% { opacity: 0.35; }
 }
 
+/*
+ * The keyboard selection frame, above the remote cursors. The two-tone ring
+ * stays legible on every palette without a token of its own.
+ */
 .kbCursor {
     position: absolute;
     top: 0;
@@ -287,10 +233,8 @@
 }
 
 /*
- * Unopened cells are raised, the same way buttons are: light edge top-left,
- * dark edge bottom-right. Two inset shadows rather than the four-shadow notched
- * outline the controls use — a board can hold 512 cells, and notched corners on
- * a tight grid read as noise rather than as pixel art.
+ * Unopened cells are raised like buttons. Two inset shadows, not the controls'
+ * notched outline: 512 notched corners on a tight grid read as noise.
  */
 .cell.closed,
 .cell.flagged {
@@ -301,31 +245,18 @@
 }
 
 /*
- * The press.
+ * The press. A cell changes only when the server's updateCells lands, so
+ * without this the board is frozen from mousedown until the reply. Sinking the
+ * cell to the opened face is the original game's answer.
  *
- * Nothing about a click is local: the cell changes only when the server's
- * updateCells lands a round trip later, so without this the board is visually
- * frozen from mousedown until the reply arrives. Sinking the cell to the opened
- * face is the original game's answer, and it is most of why a click feels
- * immediate there even on slow hardware.
+ * Not motion, so no duration token: a press that eases in is late.
  *
- * Not motion, so no duration token — a press that eases in is a press that is
- * late, which is the thing this exists to fix.
+ * `data-pressed` rather than `:active`: CSS cannot ask which button is down,
+ * and only the open button should depress. Flagged cells have no rule for the
+ * same reason: the server refuses the open, so depressing one lies.
  *
- * `data-pressed` rather than `:active`, because the affordance is a promise
- * about ONE action. CSS cannot ask which button is down, so `:active` depressed
- * the cell for a flag and a chord as readily as for an open — Cell.tsx sets the
- * attribute only for the button that opens, whichever way the swap setting has
- * them mapped.
- *
- * FLAGGED cells have no rule of their own for the same reason: a flag is
- * protection and the server refuses the open, so depressing one would promise a
- * reveal that never comes.
- *
- * `:not([aria-disabled])` is redundant with the JS gate and kept anyway — it is
- * what carries this to (0,4,0), clear of the (0,3,0) hover rule above. At equal
- * weight the two would be decided by source order, which is the tie this file
- * has already been bitten by twice.
+ * `:not([aria-disabled])` is redundant with the JS gate but carries this to
+ * (0,4,0), clear of the (0,3,0) hover rule, so source order cannot decide it.
  */
 .cell.closed:not([aria-disabled])[data-pressed] {
     background-color: var(--ms-cell-open);
@@ -338,20 +269,12 @@
 }
 
 /*
- * Cascade reveal.
+ * Cascade reveal. Each cell waits for its distance along the board diagonal
+ * before popping in, so a cascade sweeps outward instead of blinking in at once.
  *
- * Opening a big cascade is the most satisfying moment in Minesweeper, and
- * ninety cells blinking into existence at once throws that away. Each cell
- * waits for its distance along the board diagonal before popping in, so the
- * reveal sweeps outward instead.
- *
- * This is deliberately CSS only. The cell is already open in the DOM — its
- * aria-label, its number and the store all updated on the server response —
- * so nothing a screen reader or a test observes is delayed by the animation.
- * A stagger that gated state would make the board lie about itself.
- *
- * `both` keeps the cell hidden through its delay, which is what produces the
- * wave. steps() rather than a smooth curve: this is a pixel board.
+ * CSS only: the cell is already open in the DOM, so nothing a screen reader or
+ * a test observes is delayed. `both` keeps the cell hidden through its delay,
+ * which is what produces the wave. steps() because it is a pixel board.
  */
 @keyframes cellReveal {
     from {
@@ -367,29 +290,19 @@
 .cell.open,
 .cell.mine {
     /*
-     * steps(3, start), not end: with `end` each cell holds the from-value for
-     * the first third of its animation, which put ~40ms of nothing on top of
-     * every cell's delay and made even a fast cascade feel like it stalled.
-     * `start` jumps to the first visible step immediately.
+     * steps(3, start), not end: `end` holds the from-value for the first third,
+     * ~40ms of nothing on top of every cell's delay.
      */
     animation: cellReveal var(--ms-duration-quick) steps(3, start) both;
     animation-delay: var(--reveal-delay, 0ms);
 }
 
 /*
- * A revealed cell under a teammate's cursor runs BOTH, rather than letting the
- * pulse rule replace the reveal.
- *
- * `.cell.hovered.hovered` sets the `animation` shorthand, so at (0,3,0) it used
- * to drop `cellReveal` entirely. Ending the hover put it back — and because the
- * animation-name changed, the browser counted that as a brand-new animation:
- * `both` applied the from-keyframe backwards (opacity 0.25, scale 0.55) for the
- * whole `--reveal-delay`, so every hover-leave blinked the cell out and popped
- * it back in, all game long.
- *
- * Listing both names keeps `cellReveal` at index 0 in either state. When the
- * hover ends and the list shrinks back to one, it is matched by name and left
- * running (finished, filling forwards) instead of restarted.
+ * A revealed cell under a teammate's cursor runs BOTH animations. The hover
+ * rule alone replaced `cellReveal`, and putting it back when the hover ended
+ * counted as a new animation: `both` re-applied the from-keyframe for the whole
+ * `--reveal-delay`, so every hover-leave blinked the cell out. Listing both
+ * keeps `cellReveal` at index 0, matched by name and left finished.
  */
 .cell.open.hovered.hovered,
 .cell.mine.hovered.hovered {
@@ -399,10 +312,7 @@
     animation-delay: var(--reveal-delay, 0ms), 0ms;
 }
 
-/*
- * The wave is the decoration; the revealed board is the information. Under
- * reduced motion the cells are simply there.
- */
+/* The revealed board is the information; the wave is decoration. */
 @media (prefers-reduced-motion: reduce) {
     .cell.open,
     .cell.mine {
@@ -410,10 +320,8 @@
     }
 
     /*
-     * Matches the combined rule above at (0,4,0). It has to live in THIS block
-     * rather than with the other reduced-motion pulse override near the top of
-     * the file: equal specificity is decided by source order, and up there it
-     * would sit before the rule it is meant to cancel.
+     * Matches the combined rule at (0,4,0). It lives here, after that rule,
+     * because equal specificity is decided by source order.
      */
     .cell.open.hovered.hovered,
     .cell.mine.hovered.hovered {
@@ -426,10 +334,8 @@
 }
 
 /*
- * The mine and the flag (components/ds/sprites.tsx).
- *
- * Absolute rather than a flex child, so the flagged cell's two tap targets keep
- * the whole square, and clicks pass straight through the art to them.
+ * The mine and the flag (components/ds/sprites.tsx). Absolute, so the flagged
+ * cell's two tap targets keep the whole square and clicks pass through the art.
  */
 .cellSprite {
     position: absolute;
@@ -481,8 +387,7 @@
     font-weight: bold;
 }
 
-/* The missed deduction, over a finished daily board. Above the cursors: the
-   run is over, so nothing else on this board is live. */
+/* The missed deduction over a finished daily board. Above the cursors: nothing else is live. */
 .deductionLayer {
     position: absolute;
     inset: 0;

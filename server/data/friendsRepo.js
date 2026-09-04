@@ -1,30 +1,19 @@
 /**
- * The friend graph. One row per pair, holding the direction it was created in
- * (see the migration), so every query here looks BOTH ways and the repo — not
- * the caller — decides what a row means from where the asking user sits in it.
- *
- * Two rules are enforced here rather than in the controller, because they are
- * properties of the graph rather than of a request:
- *
- *   - **Caps.** A friend list is a fan-out surface: presence pushes and invites
- *     both walk it, so an unbounded one is an unbounded per-event cost.
- *   - **Blocks win.** A blocked pair cannot request, accept or be listed, in
- *     either direction, however the call arrives.
- *
- * Both are check-then-write, so every mutation runs inside `withPairLock` —
- * see there for why a row lock cannot stand in for it.
- *
- * Throws when Postgres is missing or down; the controller owns the policy.
+ * The friend graph. One row per pair, in the direction it was created (see the
+ * migration), so every query looks BOTH ways and the repo decides what a row
+ * means from where the asking user sits. Two graph rules live here, not in the
+ * controller: caps (a friend list is a fan-out surface for presence and
+ * invites) and blocks win in either direction. Both are check-then-write, so
+ * every mutation runs inside `withPairLock`. Throws when Postgres is missing
+ * or down; the controller owns the policy.
  */
 
 const { pgPool, query } = require('../utils/initializePgClient');
 
 /**
- * Both caps are about fan-out, not storage.
- *
- * 100 friends is the ceiling on the presence scan and the friend-list join;
- * 20 outstanding requests is what stops one account papering every inbox on
- * the server, which is the only spam vector a mutual-accept graph has.
+ * Both caps bound fan-out, not storage: 100 friends caps the presence scan and
+ * the list join; 20 outstanding requests closes the one spam vector a
+ * mutual-accept graph has.
  */
 const MAX_FRIENDS = 100;
 const MAX_OUTGOING_REQUESTS = 20;
@@ -41,30 +30,18 @@ const rowToProfile = (row) => ({
 });
 
 /**
- * Every read below takes a `runner` — anything with `.query`. The default is
- * the pool; a mutation passes the client of the transaction it holds, so its
- * checks and its write see one snapshot instead of two.
+ * Reads take a `runner` (anything with `.query`): the pool by default, or the
+ * transaction client a mutation holds so its checks and write see one snapshot.
  */
 const pool = { query: (text, params) => query(text, params) };
 
 /**
- * Serialise every mutation touching an unordered pair, in one transaction.
- *
- * The caps and the block boundary are all check-then-write: a count or an edge
- * is read, and the statement acting on it runs later. Row locks cannot close
- * that window — a cap counts rows other than the one being written, and the
- * block race is about a row that does not exist yet — so the pair takes an
- * ADVISORY lock instead. Without it: two requests from one account both read
- * 19 outgoing and both insert, two accepts both read 99 friends and both
- * commit, and a request that read no edge inserts `A -> B` pending after `B`
- * blocked `A`, leaving both orientations on the table and a block that a later
- * accept walks straight through.
- *
- * TWO locks, one per account, taken in sorted id order so overlapping pairs
- * queue instead of deadlocking. Locking both ends is what makes a per-user
- * aggregate safe: every accept that could push MY count over the cap holds my
- * lock, whoever is at the other end of it. `hashtextextended` collisions only
- * ever make two unrelated pairs wait for each other.
+ * Serialises every mutation touching an unordered pair, in one transaction.
+ * Caps and the block boundary are check-then-write, and row locks cannot close
+ * that window (a cap counts OTHER rows; the block race is about a row that
+ * does not exist yet), so the pair takes an advisory lock. Two locks, one per
+ * account, in sorted id order so overlapping pairs queue instead of
+ * deadlocking; locking both ends is what makes a per-user cap safe.
  */
 const withPairLock = async (a, b, fn) => {
     if (!pgPool) throw new Error('Postgres is not configured (DATABASE_URL is unset)');
@@ -73,8 +50,7 @@ const withPairLock = async (a, b, fn) => {
     const client = await pgPool.connect();
     try {
         await client.query('BEGIN');
-        // One statement each: the order of two lock calls inside a single
-        // target list is not guaranteed, and the order is the whole point.
+        // One statement each: lock order inside a single target list is not guaranteed.
         await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))', [first]);
         await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))', [second]);
         const outcome = await fn(client);
@@ -89,12 +65,9 @@ const withPairLock = async (a, b, fn) => {
 };
 
 /**
- * The single row between two accounts, whichever way round it was created.
- *
- * `direction` is the caller's own orientation — 'outgoing' means `me` is the
- * requester — because every decision above this line is about what the ASKING
- * user may do, and re-deriving that at each call site is where the mistakes
- * would be.
+ * The single row between two accounts, whichever way round. `direction` is the
+ * caller's orientation ('outgoing' means `me` requested), so call sites never
+ * re-derive it.
  */
 const findEdge = async (me, them, runner = pool) => {
     const result = await runner.query(
@@ -116,12 +89,8 @@ const findEdge = async (me, them, runner = pool) => {
 };
 
 /**
- * The edges between one account and MANY others, keyed by the other account's
- * id — the batched form of `findEdge`.
- *
- * One statement rather than one per candidate: the caller is walking a room,
- * co-op rooms have no size limit, and a query per player is a query per player
- * every time a game ends.
+ * Batched `findEdge`, keyed by the other account's id. One statement because
+ * the caller walks a room, and co-op rooms have no size limit.
  */
 const findEdges = async (me, others) => {
     if (!Array.isArray(others) || others.length === 0) return new Map();
@@ -149,19 +118,10 @@ const findEdges = async (me, others) => {
 };
 
 /**
- * Everything one account's graph holds, in one round trip.
- *
- * Four lists rather than one with a status field, because they are four
- * different things on screen: people you can play with, requests waiting on
- * you, requests waiting on somebody else, and people you have blocked.
- *
- * The blocks are MINE ONLY — never one placed on me, which is the whole point
- * of a block being invisible from the other side. The PRD had them not
- * returned at all, on the grounds that a block is a thing you do rather than a
- * list you maintain; that was wrong in one direction. Blocking is the only
- * edge a player cannot undo without seeing it, so leaving it off the list
- * makes it a one-way door: their friend's code simply stops working, with
- * nothing on screen to explain it or lift it.
+ * Everything one account's graph holds, in one round trip, as four lists
+ * because they are four different things on screen. Blocks are MINE only: one
+ * placed on me stays invisible, and mine come back because a block is the one
+ * edge I cannot lift without seeing it.
  */
 const listGraph = async (me) => {
     const result = await query(
@@ -209,22 +169,13 @@ const countOutgoingRequests = async (userId, runner = pool) => {
 };
 
 /**
- * Ask somebody to be friends, or accept their standing ask.
- *
- * Returns one of: 'requested', 'accepted' (they had already asked you),
- * 'already-friends', 'already-requested', 'blocked', 'blocked-by-me',
- * 'cap-reached', 'their-cap-reached', 'request-cap-reached'.
- *
- * The reciprocal case is the one worth spelling out: if B already has a
- * pending request to A and A now "requests" B, the two of them have agreed,
- * and the honest answer is to accept the existing row rather than insert a
- * second one facing the other way. Without that, a unique-violation on the
- * pair key would surface as a server error for two people doing exactly what
- * the feature asks of them.
- *
- * A block answers 'blocked' from EITHER side, and says nothing about which:
- * "your request was not delivered" is all the blocked party learns, because
- * the alternative tells them they were blocked and by whom.
+ * Ask somebody to be friends, or accept their standing ask. Returns one of
+ * 'requested', 'accepted' (they had already asked), 'already-friends',
+ * 'already-requested', 'blocked', 'blocked-by-me', 'cap-reached',
+ * 'their-cap-reached', 'request-cap-reached'. A reciprocal request accepts
+ * the existing row rather than inserting one facing the other way, which
+ * would violate the pair key. A block placed on me answers 'blocked' and
+ * tells the blocked party nothing more.
  */
 const requestFriend = async (me, them) => {
     if (me === them) return 'self';
@@ -235,25 +186,19 @@ const requestFriend = async (me, them) => {
 const requestUnderLock = async (client, me, them) => {
     const edge = await findEdge(me, them, client);
     if (edge) {
-        // Told apart on purpose. A block placed on ME answers like a code
-        // nobody holds, so the blocked party learns nothing; a block I placed
-        // is my own doing, and saying so is the only way I would ever work out
-        // why a friend's code stopped working.
+        // A block placed on ME answers like a code nobody holds; one I placed
+        // is named, or I could never work out why a friend's code stopped working.
         if (edge.status === STATUS.blocked) {
             return edge.direction === 'outgoing' ? 'blocked-by-me' : 'blocked';
         }
         if (edge.status === STATUS.accepted) return 'already-friends';
         if (edge.direction === 'outgoing') return 'already-requested';
-        // They asked first: this is an acceptance, not a new request. Same
-        // lock, same transaction — never `acceptRequest`, which would take the
-        // pair lock a second time on a different connection and wait on this
-        // one forever.
+        // They asked first, so this is an acceptance. Same lock and transaction:
+        // `acceptRequest` would re-take the pair lock on another connection and wait forever.
         return acceptUnderLock(client, me, them);
     }
 
-    // Caps checked on BOTH sides: a request that could never be accepted
-    // because the other account is full is better refused now than left
-    // pending forever, and their inbox is not the place to store my overflow.
+    // Both sides' caps: a request that could never be accepted is better refused than left pending.
     if ((await countFriends(me, client)) >= MAX_FRIENDS) return 'cap-reached';
     if ((await countFriends(them, client)) >= MAX_FRIENDS) return 'their-cap-reached';
     if ((await countOutgoingRequests(me, client)) >= MAX_OUTGOING_REQUESTS) return 'request-cap-reached';
@@ -267,24 +212,12 @@ const requestUnderLock = async (client, me, them) => {
 };
 
 /**
- * Accept a request addressed to me.
- *
- * Returns 'accepted', 'cap-reached' (mine), 'their-cap-reached', or
- * 'no-request'.
- *
- * The cap is re-checked inside the same statement rather than before it: an
- * account that filled up while a request sat pending must not be able to
- * exceed the cap by accepting the backlog. That subselect reads the
- * transaction's snapshot, so it only bounds the accepts it can SEE — the pair
- * lock is what makes two simultaneous accepts into my inbox see each other.
- *
- * BOTH ends are counted. `requestFriend` checks both too, but that check is
- * only true of the moment the request was made: the requester can fill up
- * while their ask sits in my inbox, and accepting then would put THEM at 101
- * — a cap breach that neither of us asked for and only they can see.
- *
- * Only a PENDING row addressed to me can be accepted, which is also what stops
- * a requester accepting their own request.
+ * Accept a request addressed to me. Returns 'accepted', 'cap-reached' (mine),
+ * 'their-cap-reached' or 'no-request'. BOTH caps are re-checked inside the
+ * statement: either account can fill up while the request sits pending. The
+ * subselect only bounds accepts in its snapshot; the pair lock makes two
+ * simultaneous accepts see each other. Only a PENDING row addressed to me
+ * qualifies, which also stops a requester accepting their own request.
  */
 const acceptRequest = async (me, them) =>
     withPairLock(me, them, (client) => acceptUnderLock(client, me, them));
@@ -304,8 +237,7 @@ const acceptUnderLock = async (client, me, them) => {
     );
     if (result.rows.length > 0) return 'accepted';
 
-    // Which cap stopped it, so the answer can say. Both reads are on the same
-    // locked transaction as the update that just declined to fire.
+    // Which cap stopped it, read on the same locked transaction.
     if ((await countFriends(me, client)) >= MAX_FRIENDS) return 'cap-reached';
     if ((await countFriends(them, client)) >= MAX_FRIENDS) return 'their-cap-reached';
     return 'no-request';
@@ -322,12 +254,8 @@ const declineRequest = async (me, them) => {
 };
 
 /**
- * Unfriend, cancel a request, or unblock — whatever the pair currently holds,
- * from my side.
- *
- * One operation rather than three, because from the acting user's point of
- * view it is one: "I no longer want this edge". A block is only removable by
- * the account that placed it, which is the one asymmetry.
+ * Unfriend, cancel a request, or unblock: from the acting user's side it is
+ * one operation. A block is only removable by the account that placed it.
  */
 const removeEdge = async (me, them) => {
     const result = await query(
@@ -340,15 +268,10 @@ const removeEdge = async (me, them) => {
 };
 
 /**
- * Block somebody, whatever the pair held before.
- *
- * DELETE then INSERT, under the pair lock: leaving an accepted row behind would
- * keep two people listed as friends while one had blocked the other, and the
- * pair key means the block cannot simply be inserted alongside. The lock is
- * what makes the block WIN a race with an in-flight request — otherwise a
- * request that had already read "no edge" inserts its pending row afterwards.
- * The block is stored on the BLOCKER's row, which is what `removeEdge` reads to
- * decide that only they may lift it.
+ * Block somebody, whatever the pair held before. DELETE then INSERT under the
+ * pair lock: an accepted row cannot be left behind, the pair key forbids
+ * inserting alongside, and the lock is what lets the block WIN a race with an
+ * in-flight request. Stored on the BLOCKER's row, which `removeEdge` reads.
  */
 const blockUser = async (me, them) => {
     if (me === them) return false;

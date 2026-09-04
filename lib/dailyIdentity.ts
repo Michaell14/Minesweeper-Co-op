@@ -1,13 +1,9 @@
 /**
- * The daily challenge's attempt token: a localStorage id, deliberately NOT
- * lib/session.ts's per-tab sessionStorage id. Daily needs the opposite of what
- * that exists for — the SAME token across every tab, so two tabs can't each
- * start a fresh attempt. It carries no meaning across days: the record is
- * discarded the moment its date isn't today.
- *
- * NOT an anti-cheat boundary. Clearing storage gets a free attempt, an accepted
- * gap with no account system. The server re-validates via dailyRepo regardless,
- * which is the actual backstop.
+ * The daily challenge's attempt token: a localStorage id, NOT lib/session.ts's
+ * per-tab sessionStorage id, because daily needs the SAME token across tabs so
+ * two cannot each start an attempt. Discarded once its date is not today. Not
+ * an anti-cheat boundary: clearing storage gets a free attempt, and dailyRepo
+ * re-validates on the server regardless.
  */
 const STORAGE_KEY = "minesweeper_daily_identity";
 
@@ -16,8 +12,7 @@ interface DailyIdentityRecord {
     token: string;
 }
 
-/** The client's own guess at "today", UTC. Used only to decide whether the
- * stored record is stale -- the server's date gates everything else. */
+/** The client's guess at "today", UTC; only decides whether the stored record is stale. */
 const todayUtc = () => new Date().toISOString().slice(0, 10);
 
 const generateToken = (): string =>
@@ -26,14 +21,10 @@ const generateToken = (): string =>
         : Math.random().toString(36).substring(2) + Date.now().toString(36);
 
 /**
- * The token THIS page is playing under, set whenever an attempt is started.
- *
- * Not a cache of localStorage, and deliberately not reconciled against it: the
- * two answer different questions. Storage answers "does this browser have a
- * token for today", which is what starting an attempt asks. This answers "which
- * attempt is on screen right now", which is what a move asks — and once a move
- * exists, the server has a record under this exact token and no later reading of
- * storage may contradict it.
+ * The token THIS page is playing under, set whenever an attempt starts. Not a
+ * cache of localStorage: storage answers "does this browser have a token for
+ * today", this answers "which attempt is on screen", and once a move exists no
+ * later reading of storage may contradict it.
  */
 let inFlightRecord: DailyIdentityRecord | null = null;
 
@@ -51,18 +42,11 @@ const readStoredRecord = (): DailyIdentityRecord | null => {
 };
 
 /**
- * The token the attempt in flight belongs to, whatever day it was minted on and
- * whatever storage says now. Never mints one.
- *
- * Moves and score submissions use THIS, not the function below. Re-deriving
- * "today" on every click meant a browser crossing UTC midnight mid-attempt
- * silently swapped its token: the server still held the attempt under the old
- * one, so every move addressed a record that did not exist and was dropped
- * without a word. The board simply stopped responding.
- *
- * Falling back to storage covers only the case where nothing has been started
- * on this page — there is no attempt to contradict, so the last one this browser
- * recorded is the best answer available.
+ * The token the in-flight attempt belongs to, whatever storage says now. Never
+ * mints one. Moves and submissions use THIS: re-deriving "today" per click
+ * swapped the token when a browser crossed UTC midnight mid-attempt, and every
+ * move then addressed a record that did not exist. Storage is the fallback
+ * only when nothing has started on this page.
  */
 export function readDailyAttemptToken(): string {
     if (typeof window === "undefined") return "";
@@ -75,8 +59,7 @@ export function getOrCreateDailyAttemptToken(): string {
 
     const today = todayUtc();
 
-    // Storage, not the in-flight record: it is shared across tabs, so this is
-    // what stops a second tab starting a second attempt for the same day.
+    // Storage, not the in-flight record: shared across tabs, so it stops a second attempt.
     const stored = readStoredRecord();
     if (stored?.date === today) {
         inFlightRecord = stored;
@@ -88,10 +71,8 @@ export function getOrCreateDailyAttemptToken(): string {
     try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(minted));
     } catch {
-        // Blocked or full, e.g. Safari private browsing. `inFlightRecord` keeps
-        // the attempt playable for this page; only surviving a reload is lost.
-        // Throwing here used to take the whole feature out — the button did
-        // nothing at all, because this call sits inside `startDaily`.
+        // Blocked or full (Safari private browsing). `inFlightRecord` keeps the
+        // attempt playable; throwing here used to take the whole feature out.
     }
     return minted.token;
 }

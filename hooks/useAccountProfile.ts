@@ -8,27 +8,18 @@ export interface AccountProfile {
     /** The signed-in account, or null: signed out, still loading, or API down. */
     profile: ProfileUser | null;
     /**
-     * Whether `profile` is an ANSWER rather than a not-yet. Callers that change
-     * behaviour for a signed-in player need this — acting on `profile === null`
-     * while the fetch is in flight treats every signed-in player as a guest for
-     * the first few hundred milliseconds of the page.
+     * Whether `profile` is an ANSWER rather than a not-yet; acting on
+     * `profile === null` mid-fetch treats every signed-in player as a guest.
      */
     resolved: boolean;
 }
 
 /*
- * One fetch per sign-in, shared by every consumer — the header is in the
- * layout and the landing page mounts this again, so without a shared copy
- * every page issues a GET per consumer. Only a SUCCESSFUL read is shared: a
- * null is not cached, so consumers on a page whose account API is down each
- * retry rather than inheriting the failure.
- *
- * `generation` is what makes the sharing safe across a sign-out. Anything the
- * previous session opened must not reach the next one — neither by writing the
- * copy after it was cleared, nor by having its in-flight promise handed over —
- * or a different person signing in reads the departed account's name and face
- * until an update event or a reload. It also covers the smaller case of an
- * update event landing mid-fetch, where the event is strictly fresher.
+ * One fetch per sign-in, shared by every consumer (the header and the landing
+ * page both mount this). Only a SUCCESSFUL read is shared, so consumers retry
+ * rather than inherit a failure. `generation` keeps a sign-out's in-flight
+ * fetch or late write from reaching the next account, and covers an update
+ * event landing mid-fetch, which is strictly fresher.
  */
 let cachedProfile: ProfileUser | null = null;
 let inFlight: Promise<ProfileUser | null> | null = null;
@@ -57,31 +48,21 @@ const loadProfile = (): Promise<ProfileUser | null> => {
 const rememberProfile = (user: ProfileUser | null) => {
     generation++;
     cachedProfile = user;
-    // The open fetch belongs to the generation that just ended. Leaving it here
-    // would hand the next sign-in the previous account's answer.
+    // The open fetch belongs to the generation that just ended.
     inFlight = null;
 };
 
 /**
- * Drops the shared copy. For tests, which would otherwise serve one test's
- * account to the next — the same reason profileController exports
- * `clearIdentityCache`.
- *
- * Nothing in the app calls this: a sign-out clears it through the hook, and a
- * save through the update event. The copy is a per-page-load memo, so a rename
- * made in ANOTHER tab does not reach this one until it reloads.
+ * Drops the shared copy. For tests only, like profileController's
+ * `clearIdentityCache`; the app clears it through sign-out and the update
+ * event. The copy is a per-page-load memo, so a rename in ANOTHER tab does
+ * not reach this one until reload.
  */
 export const clearAccountProfileCache = () => rememberProfile(null);
 
 /**
- * The signed-in account, kept fresh.
- *
- * Fetched once per sign-in, then updated from the profile-updated event: a
- * rename or a new face on /profile has to reach anything already mounted, and
- * without the event it would show the old value until a full reload.
- *
- * Shared rather than copied because of the race below, which is easy to get
- * wrong and invisible when you do.
+ * The signed-in account, fetched once per sign-in and then updated from the
+ * profile-updated event so a rename on /profile reaches anything already mounted.
  */
 export function useAccountProfile(): AccountProfile {
     const { status } = useSession();
@@ -102,23 +83,19 @@ export function useAccountProfile(): AccountProfile {
 
         let cancelled = false;
         /*
-         * The initial GET is not part of the save queue, so it can resolve
-         * AFTER a save's update event with a snapshot read before that save.
-         * Any event heard while the fetch is in flight is strictly fresher —
-         * the save it reports was issued after the fetch began — so once one
-         * arrives, the fetch result is stale and must not apply.
+         * The initial GET is outside the save queue, so it can resolve AFTER a
+         * save's update event with an older snapshot. Any event heard while it
+         * is in flight is fresher, so the fetch result must not apply.
          */
         let heardUpdate = false;
         loadProfile()
             .then((user) => {
                 if (cancelled) return;
                 if (!heardUpdate) setProfile(user);
-                // Resolved either way: a null here is "the account API had
-                // nothing for us", which is an answer, not a pending state.
+                // A null here is an answer, not a pending state.
                 setResolved(true);
             })
-            // `resolved` has to settle whatever happens: callers WAIT on it,
-            // so a promise that never resolves is a page that does nothing.
+            // `resolved` must settle whatever happens: callers WAIT on it.
             .catch(() => { if (!cancelled) setResolved(true); });
         const onProfileUpdated = (event: Event) => {
             heardUpdate = true;

@@ -11,15 +11,10 @@ export interface InviteFriendDialogProps {
 }
 
 /**
- * Pick a friend to pull into this room.
- *
- * Only ONLINE friends are offered. An invite to somebody who is not here is a
- * message with nowhere to go — the server drops it, and a button that silently
- * does nothing is worse than a list that is honest about being empty.
- *
- * The list is fetched when the dialog is opened rather than held by the room:
- * a roster is not game state, and mounting it into the board's render path
- * would put a REST call behind every game.
+ * Pick a friend to pull into this room. Only ONLINE friends are offered: the
+ * server drops an invite to somebody absent, and an honest empty list beats a
+ * button that does nothing. Fetched when opened rather than held by the room,
+ * so no REST call sits in the board's render path.
  */
 export default function InviteFriendDialog({ inviteFriend }: InviteFriendDialogProps) {
     const onlineFriendIds = useMinesweeperStore((state) => state.onlineFriendIds);
@@ -27,22 +22,17 @@ export default function InviteFriendDialog({ inviteFriend }: InviteFriendDialogP
     const [failed, setFailed] = React.useState(false);
     const [invited, setInvited] = React.useState<string[]>([]);
 
-    // One fetch, the first time the dialog is opened. Presence arrives on the
-    // socket afterwards, so the list stays current without re-fetching.
-    //
-    // Two refs, not one: "we have the roster" and "a request is in flight" are
-    // different reasons not to start another, and only the first should
-    // survive a failure. Refs rather than the state above because the listener
-    // below is registered once and would close over the first render's values.
+    // One fetch, the first time the dialog opens; presence arrives on the
+    // socket afterwards. Two refs: "we have the roster" and "a request is in
+    // flight" are different reasons not to start another, and only the first
+    // survives a failure. Refs because the listener is registered once.
     const loaded = React.useRef(false);
     const inFlight = React.useRef(false);
     /*
-     * An open that landed while a request was in flight. It cannot start a
-     * second one, but it is still a request for fresh data — so if the flight
-     * FAILS, it is honoured then. Without it that open edge is spent, and the
-     * dialog the player is looking at sits on the error until they close and
-     * open it a second time. Cleared at the start of every attempt, so a
-     * failing endpoint retries once per reopen rather than in a loop.
+     * An open that landed mid-flight: it cannot start a second request, but
+     * if the flight FAILS it is honoured then, so the player is not left on
+     * the error until they reopen. Cleared per attempt, so a failing endpoint
+     * retries once per reopen rather than in a loop.
      */
     const reopened = React.useRef(false);
     React.useEffect(() => {
@@ -54,9 +44,8 @@ export default function InviteFriendDialog({ inviteFriend }: InviteFriendDialogP
             setFailed(false);
             const graph = await fetchFriends();
             inFlight.current = false;
-            // A fetch that failed is not a graph with nobody in it. Leave it
-            // unloaded so the next open tries again, rather than answering "no
-            // friends online" for the rest of the session over one blip.
+            // A failed fetch is not an empty graph: leave it unloaded so the
+            // next open tries again.
             if (!graph) {
                 if (reopened.current && (dialog as HTMLDialogElement).open) return load();
                 setFailed(true);
@@ -73,9 +62,8 @@ export default function InviteFriendDialog({ inviteFriend }: InviteFriendDialogP
             }
             void load();
         };
-        // `toggle` rather than a store flag: these dialogs are opened
-        // imperatively with showModal(), so the element is the only thing that
-        // knows it happened.
+        // `toggle` rather than a store flag: showModal() is imperative, so the
+        // element is the only thing that knows it opened.
         dialog.addEventListener('toggle', onToggle);
         return () => dialog.removeEventListener('toggle', onToggle);
     }, []);
@@ -84,9 +72,8 @@ export default function InviteFriendDialog({ inviteFriend }: InviteFriendDialogP
 
     const send = (friend: FriendProfile) => {
         inviteFriend(friend.id);
-        // The server answers nothing on success — every refusal is a silent
-        // drop, deliberately — so this is the only feedback there is. It says
-        // "sent", not "delivered", which is exactly what the client knows.
+        // The server answers nothing on success (every refusal is a silent
+        // drop), so this is the only feedback: "sent", not "delivered".
         setInvited((sent) => [...sent, friend.id]);
     };
 

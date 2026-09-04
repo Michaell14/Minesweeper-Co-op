@@ -5,16 +5,11 @@ import { useMinesweeperStore } from "@/app/store";
 import { useChording } from "./useChording";
 
 /**
- * Chording, and the state it has to leave behind.
- *
- * `bothPressed` is a latch: it suppresses the open and the flag that the two
- * buttons would otherwise fire on release. Nothing on screen shows whether it is
- * still set, so both ways of getting it wrong are invisible — clear it too early
- * and the chord's own second release opens a cell, clear it too late (or never)
- * and the next ordinary left-click chords instead.
- *
- * `Cell` only sees a mouse-up that happens over a cell, which is why letting go
- * anywhere else is the case that used to latch it forever.
+ * Chording, and the state it leaves behind. `bothPressed` is a latch that
+ * suppresses the open and flag the two releases would fire. Nothing on screen
+ * shows it, so clearing it too early opens a cell on the second release and
+ * too late chords the next plain left-click. `Cell` only sees a mouse-up over
+ * a cell, so releasing elsewhere used to latch it forever.
  */
 
 const Probe = ({ chordCell }: { chordCell: (row: number, col: number) => void }) => {
@@ -69,9 +64,8 @@ describe("firing the chord", () => {
     });
 
     /*
-     * The detection subscribes to the whole store now (so a press costs no
-     * component a render), which means it runs on EVERY write — a hover, a
-     * clock tick, anything. Only the rising edge of the pair may chord.
+     * The detection subscribes to the whole store, so it runs on EVERY write.
+     * Only the rising edge of the pair may chord.
      */
     test("unrelated store writes while both are held do not chord again", () => {
         const chordCell = vi.fn();
@@ -102,8 +96,7 @@ describe("letting go somewhere that is not a cell", () => {
         expect(state().rightClick).toBe(false);
         expect(state().bothPressed).toBe(false);
 
-        // The proof it is really unlatched: pressing one button now does
-        // nothing, where a stuck pair would have chorded immediately.
+        // The proof it is unlatched: one button now does nothing.
         press({ left: true, row: 5, col: 5 });
         expect(chordCell).not.toHaveBeenCalled();
     });
@@ -121,10 +114,8 @@ describe("letting go somewhere that is not a cell", () => {
     });
 
     /*
-     * The reason this listens on `buttons` rather than clearing on every
-     * mouse-up. A chord ends in TWO releases, and the suppression has to survive
-     * the first one — otherwise the second release fires the open or flag that
-     * chording exists to swallow.
+     * Why this listens on `buttons`: a chord ends in TWO releases, and the
+     * suppression has to survive the first.
      */
     test("keeps the latch while the other button is still down", () => {
         render(<Probe chordCell={vi.fn()} />);
@@ -161,8 +152,7 @@ describe("with chording disabled in settings", () => {
         press({ right: true });
 
         expect(chordCell).not.toHaveBeenCalled();
-        // The latch still guards the releases: without it, letting go would
-        // fire the open AND the flag the two buttons mean on their own.
+        // The latch still guards the releases, or letting go fires the open AND the flag.
         expect(state().bothPressed).toBe(true);
 
         useMinesweeperStore.setState((s) => ({

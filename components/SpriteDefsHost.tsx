@@ -6,18 +6,12 @@ import { useMinesweeperStore } from '@/app/store';
 import { readStoredSettings } from '@/lib/settings';
 
 /**
- * Mounts the sprite art with the player's pin from the store. This wiring
- * lives here rather than in SpriteDefs so the ds primitive stays store-free —
- * same split as SettingsSync.
- *
- * The store hydrates in a post-paint effect, so waiting for it would paint a
- * returning player's first frame with follow-the-palette art. The stored pin
- * is read here in a LAYOUT effect instead: after hydration (so the server
- * markup matches) but before paint (so the wrong pair is never shown).
- *
- * A pin changed on ANOTHER device still repaints when the server sync lands —
- * deliberately. That value cannot be known before a network round trip, and
- * it is the same server-wins contract the theme has (lib/settings.ts).
+ * Mounts the sprite art with the player's pin from the store; the wiring lives
+ * here so the ds primitive stays store-free, as with SettingsSync. The store
+ * hydrates post-paint, so the stored pin is read in a LAYOUT effect: after
+ * hydration (server markup matches) but before paint (the wrong pair is never
+ * shown). A pin changed on ANOTHER device still repaints when the sync lands,
+ * the same server-wins contract as the theme (lib/settings.ts).
  */
 export default function SpriteDefsHost() {
     const hydrated = useMinesweeperStore((s) => s.settingsHydrated);

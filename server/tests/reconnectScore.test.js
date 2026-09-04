@@ -2,23 +2,12 @@
  * A reload must not cost you your score.
  *
  * Player records are keyed by socket id, so a reconnect deletes the old record
- * and creates a new one. `addPlayerToRoom` carries everything else across that
- * seam — the room slot, the host role, the PVP board, the running clock — and
- * for a long time silently dropped the one number on screen: a co-op player who
- * refreshed came back sitting at 0 with the clock still running.
- *
- * On fakeRedis rather than the canned mock ON PURPOSE. The mock hands back
- * scripted values with no store behind them, so it cannot show whether a value
- * survived a delete followed by a create — which is the entire question here. A
- * green test there would have been no evidence at all.
- *
- * And the sequence below runs `removePlayer` FIRST, because that is what a
- * reload really does: the tab's socket drops, the disconnect handler deletes
- * the player record, and only then does the new socket rejoin. A test that
- * rejoins while the old record is still sitting there describes a world that
- * never happens — it passes against a fix that reads the score off a record
- * reality has already deleted, which is exactly how the first attempt at this
- * shipped green and did nothing.
+ * and creates a new one; `addPlayerToRoom` carries everything else across that
+ * seam and for a long time dropped the score. On fakeRedis because the canned
+ * mock has no store and cannot show whether a value survived a delete then a
+ * create. `removePlayer` runs FIRST because that is what a reload really does:
+ * a test that rejoins while the old record still exists passes against a fix
+ * that reads a record reality has already deleted.
  */
 
 const mockEmit = jest.fn();
@@ -57,8 +46,7 @@ const seed = (mode = 'co-op') => {
         gameWon: 'false',
         board: JSON.stringify(createEmptyBoard(2, 2)),
         numRows: '2', numCols: '2', numMines: '1',
-        // A real run stamp: with both ends blank the run check below would pass
-        // by agreeing that nothing had started.
+        // A real run stamp: with both ends blank the run check would pass vacuously.
         startedAt: '1700000000000',
         players: JSON.stringify([OLD]),
     });
@@ -71,10 +59,7 @@ const scoreOf = (socketId) => mockRedis.read(`player:${socketId}`).score;
 /** The socket object removePlayer needs. */
 const fakeSocket = (id) => ({ id, leave: jest.fn(), to: jest.fn(() => ({ emit: jest.fn() })) });
 
-/**
- * A reload, in the order the server really sees it: the old socket drops and is
- * cleaned up, then the new one joins carrying the same session id.
- */
+/** A reload in server order: old socket cleaned up, then the new one joins on the same session. */
 const reload = async (name = 'Ana') => {
     await removePlayer(fakeSocket(OLD), OLD);
     await addPlayerToRoom(ROOM, NEW, name, SESSION);
@@ -101,8 +86,7 @@ describe('reloading mid-game', () => {
     test('puts that score on the scoreboard the room is sent', async () => {
         await reload();
 
-        // What the room actually receives — a score restored on the record but
-        // missing from the broadcast would still show as 0 on every screen.
+        // A score restored on the record but missing from the broadcast would still show 0.
         const stats = mockEmit.mock.calls
             .map(([, payload]) => payload)
             .filter((payload) => Array.isArray(payload) && payload.some((p) => p && p.name === 'Ana'))
@@ -126,17 +110,10 @@ describe('a PVP racer reloading', () => {
 
 /*
  * Leaving on purpose is not a reload, and must not bank a score for later.
- *
- * Both arrive at the same removePlayer and are indistinguishable there — what
- * separates them is that only a deliberate leave clears the session's room, and
- * a score is stashed only for a session that can still resume into the room it
- * was earned in. Without that a player could leave a room, walk back in, and
- * start on the score they left with.
- *
- * Through the real `playerLeave` route rather than its two halves by hand. The
- * route clears the session BEFORE removePlayer runs, and calling them in the
- * other order is what hid this: the stash was written after the clear that was
- * supposed to drop it, and the assertion below passed anyway.
+ * Only a deliberate leave clears the session's room, and a score is stashed
+ * only for a session that can still resume into that room. Through the real
+ * `playerLeave` route: it clears the session BEFORE removePlayer runs, and
+ * calling the halves in the other order hid this.
  */
 describe('leaving a room on purpose', () => {
     beforeEach(() => {
@@ -161,17 +138,15 @@ describe('leaving a room on purpose', () => {
     test('leaves nothing stashed on the session either', async () => {
         await leave({ socket: leaver() });
 
-        // Not just unread — a stash left behind would be taken by a join to
-        // the same room from any later socket carrying this session.
+        // A stash left behind would be taken by any later socket carrying this session.
         expect(mockRedis.read(`session:${SESSION}`).score).toBeUndefined();
     });
 });
 
 /*
- * Two tabs can hold the same session id — duplicating a tab copies
- * sessionStorage — and only one of them owns the session. The other joined as
- * itself, so its score is its own and must not be banked onto a session the
- * first tab is still going to resume with.
+ * Two tabs can hold the same session id (duplicating a tab copies
+ * sessionStorage) and only one owns it; the other's score must not be banked
+ * onto a session the first tab will resume with.
  */
 describe('a second tab sharing the session id', () => {
     test('does not stash its score onto the session it does not own', async () => {
@@ -186,12 +161,9 @@ describe('a second tab sharing the session id', () => {
 });
 
 /*
- * A score is restored ONCE.
- *
- * Co-op joins take no lock, so two tabs resuming the same session can both read
- * the stash before either consumes it. Read-then-return handed the same number
- * to both and doubled it across two player records; the delete has to be what
- * decides. On fakeRedis, whose every command yields, so the two really overlap.
+ * A score is restored ONCE. Co-op joins take no lock, so two tabs resuming the
+ * same session can both read the stash; the delete has to decide. On fakeRedis
+ * so the two really overlap.
  */
 describe('two sockets resuming the same session at once', () => {
     test('restores the score to exactly one of them', async () => {
@@ -210,16 +182,11 @@ describe('two sockets resuming the same session at once', () => {
 });
 
 /*
- * A score belongs to a GAME, not just to a room.
- *
- * The room outlives the run: reset clears the clock and zeroes everyone still
- * sitting there, and the next first click stamps a new one. A player who
- * dropped out at 107 while that happened was not on the scoreboard to be
- * zeroed, so without a run stamp on the stash they walked back into a fresh
- * board already 107 points ahead of everybody on it.
- *
- * Through the real resetGame, since what has to line up is the field IT
- * rewrites and the one the stash was pinned to.
+ * A score belongs to a GAME, not just a room. Reset zeroes everyone still
+ * there and the next first click stamps a new run; a player who dropped out
+ * at 107 meanwhile was not there to be zeroed, so the stash is pinned to the
+ * run stamp. Through the real resetGame, since the field IT rewrites is what
+ * has to line up.
  */
 describe('rejoining a room that was reset while away', () => {
     beforeEach(() => {
@@ -241,16 +208,15 @@ describe('rejoining a room that was reset while away', () => {
         await resetGame(ROOM);
         await addPlayerToRoom(ROOM, NEW, 'Ana', SESSION);
 
-        // Refused is not enough: left in place it would match again the moment
-        // this run's own startedAt happened to be read.
+        // Left in place it would match again the moment this run's own startedAt was read.
         expect(mockRedis.read(`session:${SESSION}`).score).toBeUndefined();
     });
 });
 
 /*
- * The other half of the rule. The seat is only handed over when the previous
- * socket is GONE; a session id presented while its owner is still connected is
- * a takeover attempt, and must not become a way to inherit their score.
+ * The seat is only handed over when the previous socket is GONE; a session id
+ * presented while its owner is connected is a takeover attempt, not a way to
+ * inherit a score.
  */
 describe('someone arriving with a live session id', () => {
     beforeEach(() => {

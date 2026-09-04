@@ -1,21 +1,12 @@
 /**
- * An in-memory stand-in for the Redis client that behaves like a NETWORK.
- *
- * The global mock in mockInfra.js hands back canned values with no store behind
- * them, which is what most tests want. It cannot show a read-modify-write race,
- * for two reasons: nothing a test writes is ever read back, and every command
- * settles in call order.
- *
- * This one keeps a real store and makes every command yield to the event loop
- * before it resolves, so two overlapping handlers interleave the way they do
- * against a real server: both reads land before either write.
- *
- * Values are stringified on write, like Redis — booleans and numbers come back
- * out as 'true' / '3'.
+ * An in-memory Redis stand-in that behaves like a NETWORK: a real store, and
+ * every command yields to the event loop before resolving, so two overlapping
+ * handlers interleave as they do against a real server (both reads land before
+ * either write). mockInfra's canned mock cannot show that race. Values are
+ * stringified on write, like Redis.
  */
 
-/** One round trip. setImmediate, not a bare microtask, so timers and I/O in the
- *  code under test get a turn too. */
+/** One round trip. setImmediate, not a microtask, so timers and I/O get a turn too. */
 const tick = () => new Promise((resolve) => setImmediate(resolve));
 
 const createFakeRedis = () => {
@@ -74,11 +65,7 @@ const createFakeRedis = () => {
             return Object.keys(fields).length;
         },
 
-        /*
-         * One field or a list of them, like node-redis v4. Single-field only
-         * was a quiet lie: a repo deleting three fields at once dropped only
-         * the first here and passed every assertion about the other two.
-         */
+        /* One field or a list, like node-redis v4; single-field only silently dropped all but the first. */
         hDel: async (key, field) => {
             await tick();
             const hash = store.get(key);
@@ -103,8 +90,7 @@ const createFakeRedis = () => {
             return store.delete(key) ? 1 : 0;
         },
 
-        // SET NX: only the first caller gets 'OK'. TTLs are accepted and ignored
-        // — no test here holds a lock long enough for one to matter.
+        // SET NX: only the first caller gets 'OK'. TTLs are accepted and ignored.
         set: async (key, value, options = {}) => {
             await tick();
             if (options.NX) lockAttempts.push(key);
@@ -119,11 +105,8 @@ const createFakeRedis = () => {
         },
 
         /*
-         * The only script the server runs is data/locks.js's release-if-owned,
-         * so this simulates that one rather than interpreting Lua: delete
-         * KEYS[0] iff it still holds ARGV[0]. Getting this wrong in the fake
-         * would hide exactly the bug the real script exists to prevent, so it
-         * asserts rather than guessing at anything else.
+         * Simulates the one script the server runs (data/locks.js's
+         * release-if-owned) rather than interpreting Lua; anything else throws.
          */
         eval: async (script, { keys = [], arguments: args = [] } = {}) => {
             await tick();

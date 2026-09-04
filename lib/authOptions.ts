@@ -1,16 +1,10 @@
 /**
- * NextAuth configuration — OAuth only, JWT sessions, no database adapter.
- *
- * The Next app deliberately owns no user storage: it proves who you are to the
- * OAuth provider, and the game server (which owns Postgres) creates the account
- * row the first time it sees the identity. That is why the jwt callback stashes
- * the provider identity pair — it is the whole payload the bridge token
- * (app/api/socket-token) carries across to Heroku.
- *
- * Providers appear only when their env vars are set, following the repo's
- * config convention: an unset variable degrades (sign-in button absent) rather
- * than crashing the deploy. The client discovers what is available via
- * NextAuth's own /api/auth/providers endpoint, not env inspection.
+ * NextAuth configuration: OAuth only, JWT sessions, no database adapter. The
+ * Next app owns no user storage; the game server creates the account row the
+ * first time it sees the identity, which is why the jwt callback stashes the
+ * provider pair the bridge token (app/api/socket-token) carries to Heroku.
+ * Providers appear only when their env vars are set: an unset variable
+ * degrades (no sign-in button) rather than crashing the deploy.
  */
 
 import type { AuthOptions } from "next-auth";
@@ -42,8 +36,7 @@ export const authOptions: AuthOptions = {
     session: { strategy: "jwt" },
     callbacks: {
         jwt({ token, account }) {
-            // `account` exists only on the sign-in request; the claims then
-            // ride the session JWT for its lifetime.
+            // `account` exists only on the sign-in request; the claims then ride the session JWT.
             if (account) {
                 token.provider = account.provider;
                 token.providerAccountId = account.providerAccountId;
