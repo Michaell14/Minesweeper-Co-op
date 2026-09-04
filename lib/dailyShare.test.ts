@@ -66,10 +66,10 @@ describe("buildDailyShareText: losses", () => {
 
 describe("buildDailyShareText: the link", () => {
     /*
-     * Pins lib/dailyIntent.ts's rule: starting consumes the reader's one
-     * attempt, so a query parameter must not be able to spend it for them.
+     * /daily reads no parameters: a share link that grew one would be state the
+     * sender chose for the reader.
      */
-    test("carries no query string that could auto-start an attempt", () => {
+    test("carries no query string", () => {
         const url = buildDailyShareText({ ...base, rank: 1, totalEntries: 2, streak: 9 })
             .split("\n")
             .at(-1)!;

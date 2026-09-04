@@ -61,8 +61,8 @@ export function percentCleared(board: Cell[][]): number | null {
 /**
  * Wordle-style share text: outcome, time and pace, never the board. Everyone
  * plays the same seeded board, so anything POSITIONAL would spoil it. The link
- * is plain /daily, never an auto-start: starting consumes the reader's one
- * attempt (lib/dailyIntent.ts).
+ * is the plain /daily URL: the route reads no parameters, so anything appended
+ * is dead or makes one reader's arrival differ from everyone else's.
  */
 export function buildDailyShareText({ date, status, elapsedMs, rank, totalEntries, streak, progressPercent, milestones }: ShareableDailyResult): string {
     const origin = typeof window !== "undefined" ? window.location.origin : "";

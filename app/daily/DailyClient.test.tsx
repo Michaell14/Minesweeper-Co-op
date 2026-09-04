@@ -1,15 +1,16 @@
 // @vitest-environment jsdom
 
-import { describe, expect, test, vi, beforeEach } from 'vitest';
+import { beforeAll, describe, expect, test, vi, beforeEach } from 'vitest';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import DailyClient from './DailyClient';
 import { useMinesweeperStore } from '@/app/store';
-import { consumePlayIntent, markPlayIntent } from '@/lib/dailyIntent';
+import { markDailyExplainerSeen } from '@/lib/dailyExplainerSeen';
+import { DIALOGS } from '@/lib/dialogs';
 
 /**
  * Not about the socket. These tests cover what fails SILENTLY: a page that
- * quietly spends the day's one attempt, or a player still holding a room
- * behind the daily view, looks like one that does not.
+ * quietly stops starting the attempt, a player still holding a room behind the
+ * daily view, or an explainer that greets a regular every morning.
  */
 const startDaily = vi.fn();
 const leaveDaily = vi.fn();
@@ -32,18 +33,33 @@ vi.mock('@/hooks/useGameSession', () => ({
     }),
 }));
 
-const intro = <h1>Minesweeper Daily Challenge</h1>;
+const intro = <h2>Minesweeper Daily Challenge</h2>;
 
-const playButton = () => screen.getByRole('button', { name: /daily challenge/i });
+const introHeading = () => screen.queryByRole('heading', { name: 'Minesweeper Daily Challenge' });
 
-/** Pressing the front page's button is a gesture in this tab; everything else is a cold arrival. */
-const pressedPlay = () =>
-    markPlayIntent({ button: 0, metaKey: false, ctrlKey: false, shiftKey: false, altKey: false });
+/*
+ * jsdom has no showModal; the rest of the suite sets `dialog.open` by hand.
+ * Here the call itself is under test, so it is stubbed rather than bypassed.
+ */
+beforeAll(() => {
+    HTMLDialogElement.prototype.showModal = function showModal() {
+        this.open = true;
+    };
+});
+
+const explainerIsOpen = () =>
+    (document.getElementById(DIALOGS.dailyIntro) as HTMLDialogElement | null)?.open === true;
+
+/** The server answering `startDaily`. */
+const boardArrives = () =>
+    act(() => {
+        useMinesweeperStore.getState().setDailyStatus('ready');
+    });
 
 beforeEach(() => {
     [startDaily, leaveDaily, leaveRoom, cancelMatch, push].forEach((m) => m.mockClear());
     mockSocket = { id: 'test-socket' };
-    consumePlayIntent(); // drop anything a previous test left pending
+    localStorage.clear();
     vi.useRealTimers();
     act(() => {
         const store = useMinesweeperStore.getState();
@@ -54,72 +70,33 @@ beforeEach(() => {
     });
 });
 
-describe('/daily before the player opts in', () => {
-    test('renders the intro rather than a board', () => {
-        render(<DailyClient intro={intro} />);
-
-        expect(screen.getByRole('heading', { name: 'Minesweeper Daily Challenge' })).toBeTruthy();
-    });
-
-    test('does NOT start an attempt on mount', () => {
-        render(<DailyClient intro={intro} />);
-
-        // Arriving from a search result must not consume the day's one attempt.
-        expect(startDaily).not.toHaveBeenCalled();
-    });
-
-    test('the play button starts the attempt', () => {
-        render(<DailyClient intro={intro} />);
-
-        fireEvent.click(playButton());
-
-        expect(startDaily).toHaveBeenCalledTimes(1);
-    });
-
-    /* `startDaily` returns silently without a socket, and the button is live from hydration. */
-    test('a click before the socket exists still starts once it arrives', () => {
-        mockSocket = null;
-        const { rerender } = render(<DailyClient intro={intro} />);
-
-        fireEvent.click(playButton());
-        expect(startDaily).not.toHaveBeenCalled();
-
-        mockSocket = { id: 'test-socket' };
-        rerender(<DailyClient intro={intro} />);
-
-        expect(startDaily).toHaveBeenCalledTimes(1);
-    });
-});
-
 /*
- * The daily and a room are exclusive views sharing one board field, and
- * hooks/useGameEvents.ts refuses a SESSION_RESUME while `dailyActive` is set,
- * so this route raises it for the INTRO too. Starting consumes the day's one
- * attempt (server/controllers/dailyController.js), so pressing play is a
- * decision and landing from a search result is not.
+ * The page opens on the puzzle. Starting consumes the day's attempt
+ * (server/controllers/dailyController.js), but a fresh attempt is stored with
+ * `startedAt: null` and resumes under the same token, so arriving costs nothing.
  */
-describe('/daily arrived at by pressing play', () => {
-    test('starts the attempt without a second click', () => {
-        pressedPlay();
-
+describe('/daily on arrival', () => {
+    test('starts the attempt on mount, with no click', () => {
         render(<DailyClient intro={intro} />);
 
         expect(startDaily).toHaveBeenCalledTimes(1);
     });
 
-    test('does not show the intro copy while the board is on its way', () => {
-        pressedPlay();
-
+    test('shows neither the prose nor a play button while the board is on its way', () => {
         render(<DailyClient intro={intro} />);
 
-        // A page of prose and a second button reading what the player already pressed.
-        expect(screen.queryByRole('heading', { name: 'Minesweeper Daily Challenge' })).toBeNull();
+        // No page of prose in front of the puzzle.
+        expect(introHeading()).toBeNull();
         expect(screen.queryByRole('button', { name: /daily challenge/i })).toBeNull();
-        expect(screen.getByRole('status')).toBeTruthy();
+        expect(screen.getByText(/Loading today/)).toBeTruthy();
     });
 
-    test('still starts when the socket lands after the intent is read', () => {
-        pressedPlay();
+    /*
+     * `startDaily` returns silently without a socket, and this effect runs
+     * before `useSocket`'s — dropping the start there would leave the page on a
+     * loading line for fifteen seconds before offering a button.
+     */
+    test('still starts when the socket lands after mount', () => {
         mockSocket = null;
         const { rerender } = render(<DailyClient intro={intro} />);
         expect(startDaily).not.toHaveBeenCalled();
@@ -128,44 +105,86 @@ describe('/daily arrived at by pressing play', () => {
         rerender(<DailyClient intro={intro} />);
 
         expect(startDaily).toHaveBeenCalledTimes(1);
-    });
-
-    /* Consumed on read, or one press would keep starting attempts on later visits. */
-    test('does not start again on a later visit in the same tab', () => {
-        pressedPlay();
-        const { unmount } = render(<DailyClient intro={intro} />);
-        expect(startDaily).toHaveBeenCalledTimes(1);
-        unmount();
-        startDaily.mockClear();
-
-        render(<DailyClient intro={intro} />);
-
-        expect(startDaily).not.toHaveBeenCalled();
-        expect(screen.getByRole('heading', { name: 'Minesweeper Daily Challenge' })).toBeTruthy();
     });
 
     /*
      * The server handler emits nothing on failure, so the page has nothing to
      * wait for and must hand the button back rather than load forever.
      */
-    test('falls back to the intro when the server never answers', () => {
+    test('falls back to the prose and a retry button when the server never answers', () => {
         vi.useFakeTimers();
-        pressedPlay();
 
         render(<DailyClient intro={intro} />);
-        expect(screen.queryByRole('heading', { name: 'Minesweeper Daily Challenge' })).toBeNull();
+        expect(introHeading()).toBeNull();
 
         act(() => {
             vi.advanceTimersByTime(20_000);
         });
 
-        expect(screen.getByRole('heading', { name: 'Minesweeper Daily Challenge' })).toBeTruthy();
+        expect(introHeading()).toBeTruthy();
+        const retry = screen.getByRole('button', { name: /daily challenge/i });
+        startDaily.mockClear();
+        fireEvent.click(retry);
+        expect(startDaily).toHaveBeenCalledTimes(1);
+    });
+
+    /*
+     * The held start fires whenever the socket lands, including after the
+     * timeout has already handed the page back — and a request in flight has
+     * to say so, or the page sits on the prose with nothing to fall back from.
+     */
+    test('shows the loading line again when the socket lands after the timeout', () => {
+        vi.useFakeTimers();
+
+        mockSocket = null;
+        const { rerender } = render(<DailyClient intro={intro} />);
+        act(() => {
+            vi.advanceTimersByTime(20_000);
+        });
+        expect(introHeading()).toBeTruthy();
+
+        mockSocket = { id: 'test-socket' };
+        act(() => {
+            rerender(<DailyClient intro={intro} />);
+        });
+
+        expect(startDaily).toHaveBeenCalledTimes(1);
+        expect(screen.getByText(/Loading today/)).toBeTruthy();
+
+        // And it can time out again rather than stranding them on it.
+        act(() => {
+            vi.advanceTimersByTime(20_000);
+        });
+        expect(screen.getByRole('button', { name: /daily challenge/i })).toBeTruthy();
+    });
+
+    /*
+     * A retry against a server that is still down has to look like a retry.
+     * Without the pending state the click leaves the prose and the button
+     * exactly where they were, and arms no second timeout to fall back from.
+     */
+    test('the retry button shows the loading line again, and can time out again', () => {
+        vi.useFakeTimers();
+
+        render(<DailyClient intro={intro} />);
+        act(() => {
+            vi.advanceTimersByTime(20_000);
+        });
+
+        fireEvent.click(screen.getByRole('button', { name: /daily challenge/i }));
+        expect(screen.getByText(/Loading today/)).toBeTruthy();
+        expect(introHeading()).toBeNull();
+
+        act(() => {
+            vi.advanceTimersByTime(20_000);
+        });
+
+        expect(screen.queryByText(/Loading today/)).toBeNull();
         expect(screen.getByRole('button', { name: /daily challenge/i })).toBeTruthy();
     });
 
     test('does not fall back once the board has arrived', () => {
         vi.useFakeTimers();
-        pressedPlay();
 
         render(<DailyClient intro={intro} />);
         act(() => {
@@ -173,37 +192,71 @@ describe('/daily arrived at by pressing play', () => {
             vi.advanceTimersByTime(20_000);
         });
 
-        expect(screen.queryByRole('heading', { name: 'Minesweeper Daily Challenge' })).toBeNull();
+        // Not queryByRole('status') — the board's own empty state is one too.
+        expect(screen.queryByText(/Loading today/)).toBeNull();
+        expect(introHeading()).toBeTruthy();
     });
 });
 
 /*
- * Intent comes from a gesture in this tab, never a URL: a public `?play=1`
- * link would spend the reader's one attempt on arrival.
+ * The rules are a dialog now, so this flag being read correctly is all that
+ * stands between a first-time player and an unexplained one-shot timed board.
  */
-describe('the play intent cannot be forged', () => {
-    test('a query parameter does not start anything', () => {
-        window.history.replaceState(null, '', '/daily?play=1');
-
+describe('the first-visit explainer', () => {
+    test('opens once the board is there, on a browser that has never played', () => {
         render(<DailyClient intro={intro} />);
+        expect(explainerIsOpen()).toBe(false); // nothing to explain yet
 
-        expect(startDaily).not.toHaveBeenCalled();
-        expect(screen.getByRole('heading', { name: 'Minesweeper Daily Challenge' })).toBeTruthy();
+        boardArrives();
 
-        window.history.replaceState(null, '', '/daily');
+        expect(explainerIsOpen()).toBe(true);
     });
 
-    test('a modified click does not record intent for this tab', () => {
-        // Cmd-click opens a new tab with fresh module state; recording here would arm THIS tab.
-        markPlayIntent({ button: 0, metaKey: true, ctrlKey: false, shiftKey: false, altKey: false });
+    test('does not open for a browser that has already seen it', () => {
+        markDailyExplainerSeen();
 
         render(<DailyClient intro={intro} />);
+        boardArrives();
 
-        expect(startDaily).not.toHaveBeenCalled();
-        expect(screen.getByRole('heading', { name: 'Minesweeper Daily Challenge' })).toBeTruthy();
+        expect(explainerIsOpen()).toBe(false);
+    });
+
+    /*
+     * A terminal resume loads a board through the same field, and
+     * DAILY_ALREADY_ATTEMPTED opens the submit / already-played dialog itself.
+     * Both are showModal'd, so an explainer that fires here lands on top of the
+     * result the player came back for.
+     */
+    test.each(['won_pending_submit', 'completed', 'failed'] as const)(
+        'stays shut on a terminal resume (%s), where a result dialog is already up',
+        (status) => {
+            render(<DailyClient intro={intro} />);
+            act(() => {
+                useMinesweeperStore.getState().setDailyStatus(status);
+            });
+
+            expect(explainerIsOpen()).toBe(false);
+        },
+    );
+
+    /*
+     * Dismissal is what writes the flag, via the dialog's own onClose — Escape
+     * closes a native <dialog> without submitting any form, so a flag written
+     * on the button alone would bring the explainer back forever.
+     */
+    test('is not marked seen merely by being shown', () => {
+        render(<DailyClient intro={intro} />);
+        boardArrives();
+
+        expect(localStorage.getItem('minesweeper_daily_explainer_seen')).toBeNull();
     });
 });
 
+/*
+ * The daily and a room are mutually exclusive views sharing one board field.
+ * hooks/useGameEvents.ts refuses a SESSION_RESUME offer while `dailyActive` is
+ * set, so this route has to raise it before any offer can arrive.
+ */
 describe('/daily is exclusive with a room', () => {
     test('marks the daily view active on arrival, before any board exists', () => {
         render(<DailyClient intro={intro} />);
@@ -251,22 +304,21 @@ describe('/daily is exclusive with a room', () => {
 });
 
 describe('/daily once the attempt is loaded', () => {
-    test('swaps the intro for the board', () => {
+    test('shows the board with the prose below it, not instead of it', () => {
         render(<DailyClient intro={intro} />);
 
-        act(() => {
-            useMinesweeperStore.getState().setDailyStatus('ready');
-        });
+        boardArrives();
 
-        expect(screen.queryByRole('heading', { name: 'Minesweeper Daily Challenge' })).toBeNull();
+        // Both on the page: the board is what the player came for, the prose is
+        // what makes /daily worth indexing.
+        expect(screen.getByRole('heading', { name: 'Daily Challenge' })).toBeTruthy();
+        expect(introHeading()).toBeTruthy();
     });
 
-    /* The button says "Return to Home"; clearing daily state alone lands on this page's intro. */
+    /* The button says "Return to Home"; clearing daily state alone lands on this page's prose. */
     test('leaving clears daily state AND goes home, as the button promises', () => {
         render(<DailyClient intro={intro} />);
-        act(() => {
-            useMinesweeperStore.getState().setDailyStatus('ready');
-        });
+        boardArrives();
         leaveDaily.mockClear();
 
         fireEvent.click(screen.getByRole('button', {
