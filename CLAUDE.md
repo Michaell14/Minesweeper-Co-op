@@ -79,7 +79,7 @@ Backend deps install separately: `npm --prefix server install`.
 | Colours, type scale, spacing, border width | `app/tokens.css`, surfaced to Tailwind in `tailwind.config.ts` |
 | Component catalog (every primitive on one page) | `app/ds/` — `/ds` route, noindex |
 | Token/theme invariants | `app/tokens.test.ts` (parses tokens.css); cross-theme contrast in `scripts/ui-smoke/run.js` |
-| Board/controls UI | `components/game/` (Board, StatusBanner, ProgressBar, ScoreTable, FlagCounter, Timer, RoomPanel, GameSummary); `components/Grid.tsx` is layout only |
+| Board/controls UI | `components/game/` (Board, StatusBanner, CoopLives, ProgressBar, ScoreTable, FlagCounter, Timer, RoomPanel, GameSummary); `components/Grid.tsx` is layout only |
 | Daily challenge UI | `components/DailyChallenge.tsx`, `components/dialogs/DailyDialogs.tsx`, `state/dailySlice.ts` |
 | The run clock | `server/domain/clock.js` (server), `lib/gameClock.ts` (the one reading), `components/game/Timer.tsx` |
 | Personal best times | `shared/boardKeys.js` (how a record is KEYED — both halves), `hooks/useBestTime.ts` (which store to read), `state/bestsSlice.ts` + `components/BestsSync.tsx` (the account's copy), `lib/bestTimes.ts` (the guest copy, localStorage) |

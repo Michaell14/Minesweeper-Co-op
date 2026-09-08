@@ -11,6 +11,7 @@ import { useMinesweeperStore } from '@/app/store';
 import { Button, Dialog, DialogClose, Panel, Switch, TrophyIcon } from '@/components/ds';
 import Board from '@/components/game/Board';
 import StatusBanner from '@/components/game/StatusBanner';
+import CoopLives from '@/components/game/CoopLives';
 import ProgressBar, { opponentBarColor } from '@/components/game/ProgressBar';
 import PracticeProgress from '@/components/game/PracticeProgress';
 import ScoreTable from '@/components/game/ScoreTable';
@@ -202,6 +203,9 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
 
                     {/* MOBILE: everything else, below the board. */}
                     <div className="flex flex-col items-center gap-2 xl:hidden mt-6 w-full">
+                        {/* Here, not above the board: see CoopLives. */}
+                        <CoopLives />
+
                         {mode === 'pvp' && pvpStarted && showProgressBar &&
                             <div className="w-full max-w-60 mb-4">
                                 <div className="mb-2">

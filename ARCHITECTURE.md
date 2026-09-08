@@ -47,6 +47,7 @@ components/
     Board.tsx             The grid of cells; publishes --board-cols for the fit maths
     CursorLayer.tsx       Remote co-op cursors, positioned from measured cell geometry
     StatusBanner.tsx      PVP lobby states and win/loss badges
+    CoopLives.tsx         Shared lives in a three-life room: in the banner on desktop, below the board on mobile
     ProgressBar.tsx       One PVP progress bar
     ScoreTable.tsx        Co-op leaderboard
     FlagCounter.tsx       Mines remaining

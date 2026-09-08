@@ -10,6 +10,7 @@ import { bestsForImport, boardKey, clearBestTimes, labelForKey, readBestTime, re
 import type { AppSocket } from '@/lib/initSocket';
 import CreateRoomForm from '@/components/landing/CreateRoomForm';
 import StatusBanner from '@/components/game/StatusBanner';
+import CoopLives from '@/components/game/CoopLives';
 vi.mock('@/lib/confetti', () => ({ shootConfetti: vi.fn() }));
 const handlers = () => useGameEvents({ id: 'alice', emit: vi.fn() } as unknown as AppSocket, vi.fn());
 beforeEach(() => {
@@ -36,12 +37,22 @@ test('shared-life events update feedback without ending play and ignore other ro
     useMinesweeperStore.getState().setPlayerJoined(true);
     const events = handlers();
     events[E.COOP_LIVES]!({ room: 'relax', relaxed: true, livesRemaining: 2 });
-    render(<StatusBanner startPvpGame={vi.fn()} emitConfetti={vi.fn()} variant="mobile" />);
+    render(<CoopLives />);
     expect(screen.getByText('Standard · 2 / 3 shared lives')).toBeTruthy();
     expect(screen.getByText(/Keep sweeping together/)).toBeTruthy();
     expect(useMinesweeperStore.getState().gameOver).toBe(false);
     events[E.COOP_LIVES]!({ room: 'other', relaxed: true, livesRemaining: 0 });
     expect(useMinesweeperStore.getState().livesRemaining).toBe(2);
+});
+
+test('the lives line is in the desktop banner only; mobile shows it below the board', () => {
+    // Above the board on a phone it costs the last of the fold (mobileFit in the smoke suite).
+    useMinesweeperStore.setState({ mode: 'co-op', relaxed: true, livesRemaining: 3 });
+    const { unmount } = render(<StatusBanner startPvpGame={vi.fn()} emitConfetti={vi.fn()} variant="desktop" />);
+    expect(screen.getByText('Standard · 3 / 3 shared lives')).toBeTruthy();
+    unmount();
+    render(<StatusBanner startPvpGame={vi.fn()} emitConfetti={vi.fn()} variant="mobile" />);
+    expect(screen.queryByText(/shared lives/)).toBeNull();
 });
 
 test('joining a classic room clears previously selected relaxed rules', () => {
