@@ -83,6 +83,7 @@ export interface ClientToServerEvents {
         numMines: number;
         name: string;
         mode: GameMode;
+        relaxed?: boolean;
     }) => void;
     joinRoom: (payload: { room: string; name: string }) => void;
 
@@ -152,6 +153,8 @@ export interface ServerToClientEvents {
          * it, since a practice request can be answered with a real match.
          */
         practice?: boolean;
+        relaxed?: boolean;
+        livesRemaining?: number;
     }) => void;
     joinRoomError: () => void;
     createRoomError: () => void;
@@ -167,6 +170,7 @@ export interface ServerToClientEvents {
     gameWon: () => void;
     /** Carries the name of whoever hit the mine, not a room code. */
     gameOver: (playerName: string) => void;
+    coopLives: (payload: { room: string; relaxed: boolean; livesRemaining: number }) => void;
     resetEveryone: () => void;
 
     // --- Presence and fun ---
@@ -196,6 +200,7 @@ export interface ServerToClientEvents {
         fromAvatar: string | null;
         room: string;
         mode: GameMode;
+        relaxed?: boolean;
     }) => void;
     /**
      * Signed-in players in this room, to the asker alone; "me" is excluded

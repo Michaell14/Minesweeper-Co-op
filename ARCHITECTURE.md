@@ -1289,3 +1289,22 @@ through both modes and compares, so the two can't drift apart again.
 | The run clock's reading | `lib/gameClock.ts` | the live timer and the summary both use it, so they cannot disagree |
 | Daily terminal statuses | `server/data/dailyRepo.js` (`TERMINAL_STATUSES`) | mirrored by name in `state/dailySlice.ts`'s `DailyStatus` |
 | A board's identity for records | `shared/boardKeys.js` (`boardKey`, `playersForClear`) | dimensions + mines + how many cleared it, never the size/difficulty labels; read by BOTH halves so a record is spelled one way |
+
+## Relaxed co-op
+
+Co-op rooms optionally set `relaxed: 'true'` and `livesRemaining: '3'` in Redis.
+Classic and legacy rooms retain the one-mine loss rule. The server validates the
+optional `createRoom.relaxed` boolean and refuses it for PvP. Mine hits spend a
+shared life under the existing room action lock; a nonfatal chord stops at its
+first mine. Open mines remain visible, count toward adjacent chord mine totals,
+and reduce the remaining flag count. Other closed mines remain projected.
+
+`coopLives { room, relaxed, livesRemaining }` synchronizes hits, resets, and
+arrivals before terminal outcomes; `joinRoomSuccess` includes relaxed room
+configuration. Reset retains the rules and restores all three lives.
+
+Relaxed best-time keys use `relaxed:` before the usual board/player key, e.g.
+`relaxed:16x16/40@2`. Account writes, guest storage, import, and profile labels
+preserve that namespace. Games still count toward co-op participation totals
+and streaks, but relaxed results do not award classic moment/skill achievements.
+No database migration is required because board keys are stored as text.

@@ -176,6 +176,10 @@ const addPlayerToRoom = async (room, socketId, name, sessionId, avatar) => {
     const roomState = await roomRepo.getState(room);
     const mode = roomState.mode || 'co-op';
 
+    // Send the rules before replaying a terminal outcome (which files best times).
+    io.to(socketId).emit(SERVER_EVENTS.COOP_LIVES, { room, relaxed: roomState.relaxed === 'true',
+        livesRemaining: Number(roomState.livesRemaining ?? (roomState.relaxed === 'true' ? 3 : 1)) });
+
     // A reconnecting host keeps the host role.
     if (reconnectedFrom && roomState.hostSocket === reconnectedFrom) {
         await roomRepo.setFields(room, { hostSocket: socketId });

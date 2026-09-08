@@ -18,6 +18,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
     {
+        id: 'relaxed-coop',
+        date: '2026-09-08',
+        tag: 'New',
+        title: 'Relaxed co-op: three shared lives',
+        bullets: [
+            'Choose Relaxed when creating a co-op room to keep sweeping after a mistake. The third mine ends the game.',
+            'An uncovered mine stays visible, and one mistaken chord costs at most one life.',
+            'Relaxed best times are recorded separately from classic games.',
+        ],
+    },
+    {
         id: 'friends-and-pings',
         date: '2026-08-31',
         tag: 'New',

@@ -77,7 +77,7 @@ export default function Landing({ createRoom, joinRoom, findMatch, cancelMatch, 
         <>
             <AnnouncementBanner />
 
-            {/* Tight: with three option rows the create form only fits 800px if the header gives space back. */}
+            {/* Keep the heading compact to leave room for the game options. */}
             <div className="text-center pt-4 lg:pt-8">
                 <h1 className="text-pixel-2xl md:text-pixel-4xl font-bold">Minesweeper Co-op</h1>
                 {/* Inline shortcuts, not bordered sections, so they do not compete with Join/Create. */}

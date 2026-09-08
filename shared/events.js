@@ -58,6 +58,7 @@ const SERVER_EVENTS = Object.freeze({
     // Win / loss
     GAME_WON: 'gameWon',
     GAME_OVER: 'gameOver',
+    COOP_LIVES: 'coopLives',
     RESET_EVERYONE: 'resetEveryone',
 
     // Presence and fun

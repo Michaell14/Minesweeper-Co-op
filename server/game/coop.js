@@ -18,13 +18,19 @@ const { recordForSockets } = require('../utils/statsRecorder');
 const { SERVER_EVENTS } = require('../../shared/events');
 
 /**
- * Reveals from (r, c) and returns how many SAFE cells opened (the score), or
- * -1 for a mine, which ends the game for the WHOLE room and records who did it.
- * The -1 is what stops a chord's loop revealing on after the game has ended.
+ * Returns safe cells opened, -1 for a fatal mine, or -2 for a nonfatal mine.
+ * Relaxed rooms spend one shared life; either mine result stops a chord.
  */
-const reveal = async (board, r, c, room, socketId, toUpdate) => {
+const reveal = async (board, r, c, room, socketId, toUpdate, roomState) => {
     const { hitMine, cellsRevealed } = revealFrom(board, r, c, toUpdate);
     if (!hitMine) return cellsRevealed;
+
+    if (roomState.relaxed === 'true') {
+        const livesRemaining = Math.max(0, Number(roomState.livesRemaining ?? 3) - 1);
+        await roomRepo.setFields(room, { livesRemaining: String(livesRemaining), board: JSON.stringify(board) });
+        io.to(room).emit(SERVER_EVENTS.COOP_LIVES, { room, relaxed: true, livesRemaining });
+        if (livesRemaining > 0) return -2;
+    }
 
     const gameOverName = await playerRepo.getName(socketId);
     const endedAt = Date.now();
@@ -46,6 +52,7 @@ const reveal = async (board, r, c, room, socketId, toUpdate) => {
         const players = JSON.parse((await roomRepo.getField(room, 'players')) || '[]');
         recordForSockets(players, {
             mode: 'co-op',
+            relaxed: roomState.relaxed === 'true',
             board,
             won: false,
             durationMs: Number.isFinite(startedAt) ? endedAt - startedAt : null,
@@ -128,7 +135,7 @@ const openCell = async (row, col, room, socketId, roomState, playerScore) => {
     }
 
     const toUpdate = [];
-    const safeCellsRevealed = await reveal(board, row, col, room, socketId, toUpdate);
+    const safeCellsRevealed = await reveal(board, row, col, room, socketId, toUpdate, roomState);
 
     // One point per safe cell opened, cascades included, the same rule PVP
     // uses (server/tests/scoringParity.test.js). A detonation (-1) scores nothing.
@@ -166,10 +173,10 @@ const chordCell = async (row, col, room, socketId, roomState) => {
 
     if (!board || !Array.isArray(board) || board.length === 0) return;
     if (row < 0 || row >= board.length || col < 0 || col >= board[0].length) return;
-    if (!board[row][col].isOpen) return;
+    if (!board[row][col].isOpen || board[row][col].isMine) return;
 
     const adjacentCells = getAdjacentCells(row, col, board);
-    const flaggedCells = adjacentCells.filter((adj) => adj.isFlagged).length;
+    const flaggedCells = adjacentCells.filter((adj) => adj.isFlagged || (adj.isOpen && adj.isMine)).length;
 
     let scoreIncrement = 0;
     const toUpdate = [];
@@ -177,7 +184,7 @@ const chordCell = async (row, col, room, socketId, roomState) => {
     if (flaggedCells === board[row][col].nearbyMines) {
         for (const adj of adjacentCells) {
             if (!adj.isFlagged && !adj.isOpen) {
-                const safeCellsRevealed = await reveal(board, adj.row, adj.col, room, socketId, toUpdate);
+                const safeCellsRevealed = await reveal(board, adj.row, adj.col, room, socketId, toUpdate, roomState);
 
                 // A chord can uncover more than one mine; `reveal` has already
                 // ended the game and sent the whole board, so carrying on would
@@ -187,6 +194,7 @@ const chordCell = async (row, col, room, socketId, roomState) => {
                     return;
                 }
 
+                if (safeCellsRevealed === -2) break;
                 scoreIncrement += safeCellsRevealed;
             }
         }

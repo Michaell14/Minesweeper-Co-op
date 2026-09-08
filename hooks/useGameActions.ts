@@ -112,6 +112,8 @@ export function useGameActions(socket: AppSocket | null) {
         store.setPingArmed(false);
         store.resetPvpState(); // also resets gameOver/gameWon
         store.setMode("co-op");
+        store.setRelaxed(false);
+        store.setLivesRemaining(3);
         // `recordClear` treats a set clock as proof of a run; left standing,
         // joining an already-won room filed the previous game's time as a best.
         store.setClock({ startedAt: null, endedAt: null });
@@ -127,7 +129,9 @@ export function useGameActions(socket: AppSocket | null) {
         if (!room || !socket) return;
         // Cleared by joinRoomSuccess or an error handler (useGameEvents).
         store.setJoinPending('create');
-        socket.emit(CLIENT_EVENTS.CREATE_ROOM, { room, numRows, numCols, numMines, name, mode });
+        socket.emit(CLIENT_EVENTS.CREATE_ROOM, { room, numRows, numCols, numMines, name, mode,
+            ...(mode === 'co-op' && store.relaxed && { relaxed: true }),
+        });
     }, [socket]);
 
     const joinRoom = useCallback(() => {

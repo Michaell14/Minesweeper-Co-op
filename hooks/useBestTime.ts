@@ -21,6 +21,7 @@ export function useBestTime(refreshKey: unknown = null): { best: BestTime | null
     const numRows = useMinesweeperStore((state) => state.numRows);
     const numCols = useMinesweeperStore((state) => state.numCols);
     const numMines = useMinesweeperStore((state) => state.numMines);
+    const relaxed = useMinesweeperStore((state) => state.relaxed);
     const mode = useMinesweeperStore((state) => state.mode);
     const playersInRoom = useMinesweeperStore((state) => state.playerStatsInRoom.length);
     const accountBests = useMinesweeperStore((state) => state.accountBests);
@@ -31,8 +32,8 @@ export function useBestTime(refreshKey: unknown = null): { best: BestTime | null
     const [best, setBest] = useState<BestTime | null>(null);
 
     useEffect(() => {
-        setBest(bestFrom(accountBests, boardKey(numRows, numCols, numMines, players)));
-    }, [numRows, numCols, numMines, players, accountBests, refreshKey]);
+        setBest(bestFrom(accountBests, boardKey(numRows, numCols, numMines, players, mode === 'co-op' && relaxed)));
+    }, [numRows, numCols, numMines, players, accountBests, refreshKey, mode, relaxed]);
 
-    return { best, label: boardLabel(numRows, numCols, numMines) };
+    return { best, label: `${mode === 'co-op' && relaxed ? 'Relaxed · ' : ''}${boardLabel(numRows, numCols, numMines)}` };
 }

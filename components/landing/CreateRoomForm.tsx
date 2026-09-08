@@ -56,6 +56,8 @@ export default function CreateRoomForm({ createRoom }: CreateRoomFormProps) {
     const numMines = useMinesweeperStore((state) => state.numMines);
     const boardSize = useMinesweeperStore((state) => state.boardSize);
     const difficulty = useMinesweeperStore((state) => state.difficulty);
+    const relaxed = useMinesweeperStore((state) => state.relaxed);
+    const setRelaxed = useMinesweeperStore((state) => state.setRelaxed);
     const mode = useMinesweeperStore((state) => state.mode);
     const setBoardSize = useMinesweeperStore((state) => state.setBoardSize);
     const setBoardConfig = useMinesweeperStore((state) => state.setBoardConfig);
@@ -153,6 +155,19 @@ export default function CreateRoomForm({ createRoom }: CreateRoomFormProps) {
                     <RadioCard label="Co-op" description={<CardNote>One shared board</CardNote>} value="co-op" />
                     <RadioCard label="PvP" description={<CardNote>Race an opponent</CardNote>} value="pvp" />
                 </OptionRow>
+
+                {mode === 'co-op' && (
+                    <OptionRow label="Co-op rules:" ariaLabel="Co-op rules" name="coop-rules"
+                        value={relaxed ? 'relaxed' : 'classic'} onChange={(value) => setRelaxed(value === 'relaxed')}>
+                        <RadioCard label="Classic" value="classic" description="One mine ends the game" />
+                        <RadioCard label="Relaxed" value="relaxed" description="Three shared lives" />
+                    </OptionRow>
+                )}
+                {mode === 'co-op' && relaxed && (
+                    <p className="text-pixel-2xs text-ink-muted mt-2">
+                        Keep sweeping after a mistake. The third mine ends the game. Relaxed best times are recorded separately.
+                    </p>
+                )}
 
                 <OptionRow
                     label={"Board Size:"}

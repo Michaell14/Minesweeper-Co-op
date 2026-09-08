@@ -91,6 +91,7 @@ const earnedFrom = (stats, result) => {
          * recordResult's transaction, where a TypeError would roll back the
          * whole result. `achievements.test.js` still fails on the gap.
          */
+        if (String(game.boardKey).startsWith('relaxed:')) return false;
         const predicate = MOMENTS[achievement.id];
         return typeof predicate === 'function' && predicate(game) === true;
     }).map((achievement) => achievement.id);

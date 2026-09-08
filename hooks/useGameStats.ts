@@ -14,7 +14,7 @@ export function useGameStats() {
     const remainingFlags = useMemo(() => {
         let flagCount = 0;
         for (const row of board) {
-            for (const cell of row) if (cell.isFlagged) flagCount++;
+            for (const cell of row) if (cell.isFlagged || (cell.isOpen && cell.isMine)) flagCount++;
         }
         return numMines - flagCount;
     }, [board, numMines]);

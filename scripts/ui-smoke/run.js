@@ -92,6 +92,27 @@ async function enterRoom(page, { room, name, mode }) {
     await page.click(`#${dialogId} button[type=submit]`);
 }
 
+async function relaxedCoop(page) {
+    console.log('\n--- RELAXED CO-OP ---');
+    await page.goto(CLIENT);
+    await page.waitFor(`!!document.querySelector('input[name="coop-rules"][value="relaxed"]')`);
+    await selectCard(page, 'Co-op rules', 'Relaxed');
+    const room = 'relax' + Date.now().toString().slice(-6);
+    await enterRoom(page, { room, name: 'Relaxed' });
+    await page.waitFor(`document.body?.textContent.includes('Relaxed · 3 / 3 shared lives')`);
+    pass('relaxed room starts with three shared lives');
+    await page.send('Page.reload');
+    await page.waitFor(`document.body?.textContent.includes('Relaxed · 3 / 3 shared lives')`, { timeout: 20000 });
+    pass('relaxed rules and lives survive a reload');
+    await page.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
+    const screenshot = await page.send('Page.captureScreenshot', { format: 'png' });
+    require('fs').writeFileSync('/tmp/minesweeper-relaxed-mobile.png', Buffer.from(screenshot.data, 'base64'));
+    check(await page.evaluate(`return document.documentElement.scrollWidth <= window.innerWidth;`), 'relaxed mobile game fits the viewport');
+    await page.send('Emulation.clearDeviceMetricsOverride');
+    await page.evaluate(`document.querySelector('button[aria-label="Leave room and return to home page"]')?.click();`);
+    await page.waitFor(`!!document.querySelector('form[aria-label="Create new room form"]')`);
+}
+
 async function coop(page) {
     console.log('\n\x1b[1m--- CO-OP ---\x1b[0m');
     const room = 'smoke' + Date.now().toString().slice(-6);
@@ -328,7 +349,7 @@ async function sizeAndDifficulty(page) {
         const form = document.querySelector('form[aria-label="Create new room form"]');
         return [...form.querySelectorAll('input[type=radio]')].filter(r => r.checked).map(r => r.value).join(',');
     `);
-    check(backToDefaults === 'co-op,Medium,Medium',
+    check(backToDefaults === 'co-op,classic,Medium,Medium',
         'leaving resets size and difficulty to the defaults',
         `got "${backToDefaults}"`);
 }
@@ -1430,6 +1451,7 @@ async function emotes(host, guest) {
     try {
         const page = await attach(await newTarget('about:blank'));
         await coop(page);
+        await relaxedCoop(page);
         await sizeAndDifficulty(page);
         await desktopFit(page);
         await mobileFit(page);
