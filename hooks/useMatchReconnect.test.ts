@@ -1,16 +1,9 @@
 // @vitest-environment jsdom
 
 /**
- * Getting back in the queue after the socket redials.
- *
- * The queue is keyed by socket id and cleaned up on `disconnect`, so a dropped
- * connection removed the entry and nothing put it back. Measured against a real
- * server: queue 1 -> 0, the client reconnected, the client still displayed
- * "Looking for an opponent", and a second searcher was NOT paired with them.
- * The wait could never end.
- *
- * Invisible from either side — the client had been told it was searching, and
- * the server had been told the socket left.
+ * Getting back in the queue after the socket redials. The queue is keyed by
+ * socket id and cleaned up on `disconnect`, so a dropped connection removed
+ * the entry, and the client kept "searching" forever with nothing to pair.
  */
 
 import { beforeEach, describe, expect, test, vi } from 'vitest';
@@ -61,15 +54,14 @@ describe('when the socket comes back', () => {
         const findMatch = vi.fn();
         renderHook(() => useMatchReconnect(socket as unknown as AppSocket, findMatch));
 
-        // The first connect of every session lands here too.
+        // The first connect of a session lands here too.
         socket.reconnect();
 
         expect(findMatch).not.toHaveBeenCalled();
     });
 
     test('a player already in a room is never dragged back into the queue', () => {
-        // The server refuses to queue a socket that has a player record, so
-        // asking would only put a matchError over a live game.
+        // The server refuses a socket with a player record; asking would put a matchError over a live game.
         state().setMatchSearching(true);
         state().setPlayerJoined(true);
         const socket = fakeSocket();

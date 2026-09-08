@@ -7,9 +7,8 @@ export interface RoomSlice {
     room: string;
     playerJoined: boolean;                      // true once this player is in a room
     /**
-     * Whether this browser has ever LEFT a room on this socket. Latches: it is
-     * about the session's history, not its present. The only reader is the
-     * relay guard in `useGameEvents` — see `belongsToCurrentRoom`.
+     * Whether this browser has ever LEFT a room on this socket. Latches. Read
+     * only by the relay guard in `useGameEvents` (`belongsToCurrentRoom`).
      */
     leftARoom: boolean;
     name: string;                               // this player's display name
@@ -20,27 +19,20 @@ export interface RoomSlice {
     playerEmotes: PlayerEmote[];
     /** Cells being pointed at, oldest first. Bounded the same way. */
     playerPings: PlayerPing[];
-    /** In the quick-match queue: waiting to be paired, not yet in a room.
-     *  Lives here rather than in its own slice because the only thing it
-     *  produces is a room, and it ends the moment `playerJoined` begins. */
+    /** In the quick-match queue, not yet in a room. Ends the moment `playerJoined` begins. */
     matchSearching: boolean;
-    /** Connected players other than you — everyone on the site, not everyone
-     *  queued. Kept current while the search runs by `matchOnlineCount`. */
+    /** Connected players other than you, site-wide. Kept current by `matchOnlineCount`. */
     matchOthersOnline: number;
     /**
-     * The time this run is racing, in ms, or null when it is not a practice
-     * race. Non-null is what makes the room a practice race — the SERVER has no
-     * such concept, it just built a co-op room of one.
+     * The time this run is racing, in ms, or null. Non-null is what makes the
+     * room a practice race; the SERVER just built a co-op room of one.
      */
     practiceTargetMs: number | null;
     /** Whether `practiceTargetMs` is the player's own record or the fixed par. */
     practiceTargetIsPersonal: boolean;
     /**
-     * Ticks when the create-room collision dialog asks for a different code.
-     *
-     * A counter rather than the code itself: the create form owns the field
-     * (react-hook-form), and a second copy of the value in the store is a copy
-     * that can disagree with what is on screen. This only says "ask again".
+     * Ticks when the create-room collision dialog asks for a different code. A
+     * counter, not the code: the form owns the field (react-hook-form).
      */
     roomCreateNonce: number;
 
@@ -62,8 +54,7 @@ export interface RoomSlice {
     updatePlayerHover: (id: string, row: number, col: number, name: string, color: string) => void;
     removePlayerHover: (id: string) => void;
     clearAllHovers: () => void;
-    /** Separate from the hover clear: a board reset leaves reactions alone
-     *  (they are about the moment, not the board), leaving the room does not. */
+    /** Separate from the hover clear: a board reset leaves reactions alone, leaving the room does not. */
     clearPlayerEmotes: () => void;
     clearPlayerPings: () => void;
 }
@@ -86,8 +77,7 @@ export const createRoomSlice: StateCreator<MinesweeperState, [], [], RoomSlice> 
 
     setRoom: (newRoom) => set({ room: newRoom }),
     requestNewRoomCode: () => set((state) => ({ roomCreateNonce: state.roomCreateNonce + 1 })),
-    // Going false IS the leave: `leaveRoom` and the leave button are the only
-    // callers, and neither a reconnect nor a resume passes through here.
+    // Going false IS the leave; neither a reconnect nor a resume passes here.
     setPlayerJoined: (isPlayerJoined) => set(
         isPlayerJoined ? { playerJoined: true } : { playerJoined: false, leftARoom: true },
     ),
@@ -104,26 +94,20 @@ export const createRoomSlice: StateCreator<MinesweeperState, [], [], RoomSlice> 
         }),
 
     /*
-     * Capped at three. A full room can emote faster than anyone reads, and an
-     * unbounded feed is both a wall of glyphs and a way for one player to push
-     * the rest off screen — the cap is the display half of the server's bucket.
+     * Capped at three: an unbounded feed is a wall of glyphs and a way to push
+     * others off screen. The display half of the server's bucket.
      */
     pushPlayerEmote: (emote) =>
         set((state) => ({ playerEmotes: [...state.playerEmotes, emote].slice(-3) })),
 
-    /*
-     * Three, like the reactions, and for the same reason — but pings land ON
-     * the board, so an unbounded list is also a way to paper the grid with
-     * rings nobody can see through.
-     */
+    /* Three, like the reactions; pings land ON the board, so unbounded would paper the grid. */
     pushPlayerPing: (ping) =>
         set((state) => ({ playerPings: [...state.playerPings, ping].slice(-3) })),
 
     expirePlayerEmotes: (now) =>
         set((state) => {
             const live = state.playerEmotes.filter((emote) => emote.expiresAt > now);
-            // Same array when nothing expired, so a tick that changes nothing
-            // does not re-render the feed.
+            // Same array when nothing expired, so the tick does not re-render the feed.
             return live.length === state.playerEmotes.length ? {} : { playerEmotes: live };
         }),
 

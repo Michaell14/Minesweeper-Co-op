@@ -1,26 +1,15 @@
 // @vitest-environment jsdom
 /**
- * Where the add-friend list is asked for, and which answers are believed.
- *
- * It used to be asked for by the component that draws it — which is mounted
- * once per summary DIALOG, and dialogs in this app are always rendered rather
- * than conditionally mounted. So it fired four times, on ROOM JOIN, before
- * anybody had played anything, and each one walked the room on the server.
- *
- * The ask belongs with the OPEN. These are the tests that keep it there.
- *
- * The answers are stamped with a room because they are NOT ordered by when
- * they were asked for — each one is emitted when its Redis and Postgres work
- * finishes, so the answer for a room you have left can overtake the one for
- * the room you are in.
+ * Where the add-friend list is asked for, and which answers are believed. The
+ * ask belongs with the dialog OPEN, not the component that draws the list:
+ * dialogs are always rendered, so a component-owned ask fired four times on
+ * room join. Answers are stamped with a room because they are ordered by when
+ * their Redis/Postgres work finishes, not by when they were asked for.
  */
 import { beforeEach, describe, expect, test, vi } from "vitest";
 /*
- * The win handler shoots confetti, and the real one schedules an animation
- * frame that outlives this file's jsdom window — the callback then finds a
- * null canvas context and throws where no test can catch it. Every test passes
- * and the run still exits 1. Mocked here for the same reason
- * useGameEvents.test.ts mocks it.
+ * The real confetti schedules an animation frame that outlives jsdom's window
+ * and throws where no test can catch it. Mocked as in useGameEvents.test.ts.
  */
 vi.mock("@/lib/confetti", () => ({ shootConfetti: vi.fn() }));
 
@@ -49,8 +38,7 @@ beforeEach(() => {
     state().setRoom("wired-room");
     state().setPlayerJoined(true);
     state().setMode("co-op");
-    // The counters deliberately outlive a room, so a clean slate per test is
-    // a store reset rather than anything the app itself does.
+    // The counters outlive a room, so the clean slate is a store reset.
     useMinesweeperStore.setState({ roomFriends: [], roomFriendsToken: 0, roomFriendsSeen: 0 });
 });
 
@@ -81,8 +69,7 @@ describe("a game ending", () => {
 });
 
 describe("not in a room", () => {
-    // Landing has a `room` too — whatever is being typed into the join box —
-    // so `playerJoined` is what tells the two apart.
+    // Landing has a `room` too (the join box), so `playerJoined` tells them apart.
     test("nothing is asked", () => {
         const emit = vi.fn();
         state().setPlayerJoined(false);
@@ -104,10 +91,8 @@ describe("a list arriving", () => {
     });
 
     /*
-     * The regression: room A is asked, the player moves to room B, B answers,
-     * and THEN A's answer lands. Believing it would offer somebody from the
-     * previous game — and the socket id it sends with B is one the server
-     * refuses, so the button is not merely wrong but dead.
+     * The regression: room A is asked, the player moves to B, B answers, THEN
+     * A's answer lands. Believing it offers somebody from the previous game.
      */
     test("for a room we have left does not overwrite the one we are in", () => {
         const handlers = useGameEvents(socketWith(), vi.fn());
@@ -121,12 +106,9 @@ describe("a list arriving", () => {
     });
 
     /*
-     * The same race within ONE room, which the room guard cannot see: the
-     * game-end list is asked for, the player adds somebody, the add's reply
-     * lands with them as `friends` — and then the game-end reply, which read
-     * Postgres before the add, arrives saying `none`. The button would go back
-     * to "Add friend" under somebody who is already added, and stay wrong
-     * until the next game ended.
+     * The same race within ONE room, invisible to the room guard: the add's
+     * reply lands as `friends`, then the older game-end reply arrives saying
+     * `none` and puts "Add friend" back under somebody already added.
      */
     test("for the same room does not undo a newer one", () => {
         const handlers = useGameEvents(socketWith(), vi.fn());
@@ -138,9 +120,8 @@ describe("a list arriving", () => {
     });
 
     /*
-     * Why the check is against what we HAVE and not against what we last
-     * asked: the server answers a request it refuses with silence, so an ask
-     * that never comes back would strand the good answer before it.
+     * Checked against what we HAVE, not what we last asked: a refused request
+     * is answered with silence, which would strand the good answer before it.
      */
     test("is kept even when a later ask never answers", () => {
         const handlers = useGameEvents(socketWith(), vi.fn());
@@ -154,9 +135,8 @@ describe("a list arriving", () => {
     });
 
     /*
-     * And why the counters outlive the room: rejoining the one just left would
-     * otherwise reuse its tokens, and an answer still in flight from the last
-     * visit would be taken as this visit's — former players, offered again.
+     * Why the counters outlive the room: rejoining would otherwise reuse its
+     * tokens, and an answer still in flight from the last visit would pass.
      */
     test("from a previous visit to the same room is dropped", () => {
         const handlers = useGameEvents(socketWith(), vi.fn());
@@ -174,10 +154,8 @@ describe("a list arriving", () => {
     });
 
     /*
-     * The harder half of the same thing: the visit ended with its ask still
-     * unanswered, so `seen` never rose to meet it. Leaving has to retire the
-     * ask itself, or the answer arrives into the new visit newer than
-     * anything taken and is believed.
+     * The visit ended with its ask unanswered, so `seen` never rose to meet it.
+     * Leaving has to retire the ask itself.
      */
     test("from a previous visit that never answered is dropped", () => {
         const handlers = useGameEvents(socketWith(), vi.fn());

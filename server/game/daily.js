@@ -1,11 +1,8 @@
 /**
  * Daily challenge: one seeded board, identical for every player, ranked by
- * server-authoritative completion time. NOT a room — see data/keys.js for why.
- *
- * Generation mirrors pvpController's buildSharedBoard — generate once around a
- * fixed center cell, open it up front, hand every player the identical result —
- * but draws from a seed derived from the date rather than Math.random(), once
- * per day rather than once per room.
+ * server-authoritative completion time. NOT a room — see data/keys.js.
+ * Generation mirrors pvpController's buildSharedBoard but from a date-derived
+ * seed, once per day.
  */
 
 const { generateSingleCandidateBoard } = require('../domain/boardGen');
@@ -21,29 +18,22 @@ const { TERMINAL_STATUSES } = dailyRepo;
 const { SERVER_EVENTS } = require('../../shared/events');
 const { DAILY_PRESET } = require('../../shared/boardConfig');
 
-/**
- * Safety net on the raw candidate count, for an unlucky seed. Generation runs
- * once a day, not per click, so it can afford to be generous — roughly 10x the
- * ~430 candidates expected to fill DAILY_CANDIDATE_POOL_SIZE at this density.
- */
+/** Safety net on the raw candidate count for an unlucky seed; ~10x what the pool needs. */
 const DAILY_MAX_ATTEMPTS = 5000;
 
 /**
- * How many solvable candidates to sample before keeping the hardest. "Hardest"
- * means the one that needed the most subset/overlap reasoning rather than easy
- * single-cell deductions — see solveWithStats. A pool of 1 is what the daily
- * used to do (first solvable board wins); this turns "solvable" into "hard"
- * without changing what solvable means.
+ * Solvable candidates sampled before keeping the hardest (most subset/overlap
+ * reasoning, see solveWithStats). Turns "solvable" into "hard" without
+ * changing what solvable means.
  */
 const DAILY_CANDIDATE_POOL_SIZE = 30;
 
 const dailySeedString = (date) => `minesweeper-daily:${date}`;
 
 /**
- * Draws candidates from `rng` until DAILY_CANDIDATE_POOL_SIZE solvable ones are
- * found (or DAILY_MAX_ATTEMPTS is exhausted), and returns whichever needed the
- * most Rule 2 (subset-reduction) steps. Ties keep the first found, so the result
- * stays a pure function of the seed. Null if no candidate was ever solvable.
+ * Draws candidates until the pool is full (or attempts run out) and returns
+ * the one needing the most Rule 2 steps. Ties keep the first, so the result is
+ * a pure function of the seed. Null if none was solvable.
  */
 const hardestSolvableCandidate = (rows, cols, mines, startRow, startCol, rng) => {
     let best = null;
@@ -64,17 +54,11 @@ const hardestSolvableCandidate = (rows, cols, mines, startRow, startCol, rng) =>
 };
 
 /**
- * Builds the day's board: deterministic from `date` alone, no-guess verified,
- * opened at a fixed center cell (same shape as PVP's shared board).
- *
- * Regular rooms accept the FIRST solvable candidate, which is not necessarily
- * hard. This samples a pool from the same deterministic seed and keeps the one
- * that demanded the most reasoning — which board gets picked, not what
- * "solvable" means.
- *
- * A failing daily seed would fail identically forever, so this throws rather
- * than hand out an unverified board; deterministic fallback seeds are tried
- * first, in order.
+ * Builds the day's board: deterministic from `date`, no-guess verified,
+ * opened at a fixed center cell. Regular rooms accept the FIRST solvable
+ * candidate; this keeps the hardest of a pool. A failing seed would fail
+ * forever, so fallback seeds are tried in order and then it throws rather than
+ * hand out an unverified board.
  */
 const generateDailyBoardForDate = (date) => {
     const { rows, cols, mines } = DAILY_PRESET;
@@ -103,14 +87,9 @@ const generateDailyBoardForDate = (date) => {
 };
 
 /**
- * Stamps the server-authoritative start of the clock, the first time an
- * attempt sees a real move (open or chord) rather than at attempt-creation.
- * Idempotent: once `in_progress`, this is a no-op and the ORIGINAL startedAt
- * is what a refresh resumes from, never a fresh one.
- *
- * Returns the effective startedAt either way — on the first move the stamp it
- * just wrote, after that the stored one — so callers can compute an elapsed
- * time for pace milestones without re-reading the attempt.
+ * Stamps the clock's start on the first real move (open or chord), not at
+ * attempt creation. Idempotent: once `in_progress` the ORIGINAL startedAt is
+ * what a refresh resumes from. Returns the effective startedAt either way.
  */
 const markStartedIfNeeded = async (date, token, attempt) => {
     if (attempt.status === 'ready') {
@@ -119,17 +98,14 @@ const markStartedIfNeeded = async (date, token, attempt) => {
         return startedAt;
     }
     const startedAt = parseInt(attempt.startedAt, 10);
-    // A blank stamp shouldn't exist alongside in_progress (markStarted writes
-    // both in one hSet), but NaN here would poison every later milestone.
+    // A blank stamp shouldn't coexist with in_progress, but NaN would poison every milestone.
     return Number.isFinite(startedAt) ? startedAt : Date.now();
 };
 
 /**
- * The pace deciles this move crossed (see shared/pace.js), or null when it
- * crossed none. Pure — the caller hands the result to setAttemptBoard so the
- * milestones land in the SAME write as the board they describe: written
- * separately, a board write failing after a milestone write left durable
- * pace stamps from a move that never completed.
+ * The pace deciles this move crossed (shared/pace.js), or null. Pure: the
+ * caller hands it to setAttemptBoard so milestones land in the SAME write as
+ * the board, never as durable stamps from a move that failed.
  */
 const newlyCrossedPace = (attempt, board, startedAt) => {
     const before = parseMilestones(attempt.milestones);
@@ -138,16 +114,14 @@ const newlyCrossedPace = (attempt, board, startedAt) => {
 };
 
 /**
- * Ends today's attempt, win or loss: computes elapsedMs from the two server
- * timestamps (never a client-supplied value), reveals the full board and
- * notifies this socket. A win does not touch the leaderboard yet — that happens
- * at submitScore, once the player has supplied a name.
+ * Ends today's attempt, win or loss: elapsedMs from two server timestamps
+ * (never client-supplied), full board revealed, this socket notified. The
+ * leaderboard waits for submitScore, once the player has supplied a name.
  */
 const finishAttempt = async (date, token, socketId, board, { won }) => {
     const attempt = await dailyRepo.getAttempt(date, token);
-    // Re-check rather than trust the caller's read: two near-simultaneous moves
-    // for the same token (two tabs) could both pass openCell/chordCell's own
-    // terminal check before either wrote, so only the first here emits a result.
+    // Re-check rather than trust the caller's read: two tabs can both pass the
+    // move handlers' terminal check, and only the first here may emit.
     if (!attempt || TERMINAL_STATUSES.includes(attempt.status)) return;
 
     const startedAt = parseInt(attempt.startedAt, 10);
@@ -168,14 +142,12 @@ const finishAttempt = async (date, token, socketId, board, { won }) => {
     await dailyRepo.setAttemptBoard(date, token, board);
 
     io.to(socketId).emit(SERVER_EVENTS.DAILY_BOARD_UPDATE, { board: projectBoard(board, { revealMines: true }) });
-    // The re-read above already holds the final move's pace crossings — its
-    // caller wrote them before running the win check.
+    // The re-read already holds the final move's pace crossings.
     const milestones = parseMilestones(attempt.milestones);
     io.to(socketId).emit(won ? SERVER_EVENTS.DAILY_WON : SERVER_EVENTS.DAILY_GAME_OVER, { elapsedMs, milestones });
 
-    // Stats record at the FINISH, not at leaderboard submit: the private
-    // profile counts the game whether or not the player publishes a score.
-    // Fire-and-forget, guests skipped inside.
+    // Recorded at the FINISH, not at leaderboard submit: the profile counts the
+    // game whether or not a score is published. Fire-and-forget, guests skipped.
     try {
         recordForSockets([socketId], {
             mode: 'daily',
@@ -184,9 +156,8 @@ const finishAttempt = async (date, token, socketId, board, { won }) => {
             durationMs: elapsedMs,
             players: 1,
             finishedAt,
-            // The PUZZLE date, not the finish day: this attempt can be
-            // yesterday's daily finished after UTC midnight, and the profile
-            // calendar files it under the day it was set.
+            // The PUZZLE date, not the finish day: yesterday's daily finished
+            // after UTC midnight files under the day it was set.
             dailyDate: date,
         });
     } catch (error) {
@@ -204,11 +175,9 @@ const checkDailyWin = async (date, token, socketId, board) => {
 };
 
 /*
- * The three move handlers below each read the attempt's board, mutate it and
- * write the whole field back, so none is safe to run concurrently for one
- * attempt. Each holds that attempt's action lock and reads inside it — the token
- * lives in localStorage and is shared across tabs, and two fast clicks are
- * enough on their own.
+ * The three move handlers each read, mutate and write the whole board back,
+ * so each holds the attempt's action lock and reads inside it — the token is
+ * shared across tabs.
  */
 const openCell = async (date, token, socketId, row, col) =>
     dailyRepo.withAttemptLock(date, token, socketId, async () => {
@@ -230,8 +199,7 @@ const openCell = async (date, token, socketId, row, col) =>
             return;
         }
 
-        // Written BEFORE the win check: finishAttempt re-reads the attempt,
-        // and the winning move's own crossings must be there to emit.
+        // Before the win check: finishAttempt re-reads, and needs this move's crossings.
         await dailyRepo.setAttemptBoard(date, token, board, newlyCrossedPace(attempt, board, startedAt));
 
         const won = await checkDailyWin(date, token, socketId, board);
@@ -265,9 +233,8 @@ const chordCell = async (date, token, socketId, row, col) =>
         }
 
         if (hitMine) {
-            // A chord that booms may still have opened safe cells before the
-            // mine, but the run is over — the bar ends at the last decile the
-            // player SURVIVED crossing, so those part-crossings don't record.
+            // Safe cells opened before the boom don't record: the bar ends at
+            // the last decile the player SURVIVED crossing.
             await finishAttempt(date, token, socketId, board, { won: false });
             return;
         }
@@ -280,8 +247,7 @@ const chordCell = async (date, token, socketId, row, col) =>
         }
 });
 
-/** Flagging is not a "real move" for timing purposes -- the clock starts on
- * open/chord only (see markStartedIfNeeded's callers), so this never stamps it. */
+/** Flagging is not a real move for timing: the clock starts on open/chord only. */
 const toggleFlag = async (date, token, socketId, row, col) =>
     dailyRepo.withAttemptLock(date, token, socketId, async () => {
         const attempt = await dailyRepo.getAttempt(date, token);
@@ -294,10 +260,8 @@ const toggleFlag = async (date, token, socketId, row, col) =>
         board[row][col].isFlagged = !board[row][col].isFlagged;
         const toUpdate = [{ ...board[row][col], row, col }];
 
-        // Save before telling anyone, as openCell and chordCell do. A flag that
-        // only exists on screen is worse than one that never appeared: every
-        // later action re-reads the stored board, so the next move silently
-        // undoes it and nothing reports a problem.
+        // Save before telling anyone: every later action re-reads the stored
+        // board, so an unsaved flag is silently undone by the next move.
         await dailyRepo.setAttemptBoard(date, token, board);
         io.to(socketId).emit(SERVER_EVENTS.DAILY_UPDATE_CELLS, projectCells(toUpdate));
 });

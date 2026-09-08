@@ -5,16 +5,11 @@ import Link from 'next/link';
 import { LATEST_ENTRY, dismissBanner, isBannerDismissed } from '@/lib/changelog';
 
 /**
- * The dismissable strip above the title.
- *
- * Copy is DERIVED from the newest changelog entry, never written here — the
- * hardcoded version outlived the release it announced by five entries.
- * Dismissal is per-entry (lib/changelog.ts), so closing it lasts until there is
- * genuinely something new to say.
+ * The dismissable strip above the title. Copy is DERIVED from the newest
+ * changelog entry, never written here; dismissal is per-entry (lib/changelog.ts).
  */
 export default function AnnouncementBanner() {
-    // Starts hidden so the first client render matches SSR; the strip appears
-    // after mount, once storage has been read.
+    // Starts hidden so the first client render matches SSR.
     const [visible, setVisible] = React.useState(false);
 
     React.useEffect(() => {

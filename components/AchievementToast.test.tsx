@@ -1,8 +1,7 @@
 // @vitest-environment jsdom
 /**
- * The unlock toast. What fails silently here: a toast that never leaves (a
- * re-render re-arming its timer resets the countdown forever), and an id from
- * a newer server rendered as a raw slug.
+ * The unlock toast. What fails silently: a toast that never leaves (a re-render
+ * re-arming its timer), and an id from a newer server rendered as a raw slug.
  */
 import React from 'react';
 import { render, screen, cleanup, act } from '@testing-library/react';
@@ -50,9 +49,8 @@ describe('the toast', () => {
     });
 
     /*
-     * The regression worth the fake timers. A second push re-renders the
-     * component; if that re-armed the first toast's timer, it would never
-     * expire — a permanent overlay on the board.
+     * A second push re-renders the component; if that re-armed the first
+     * toast's timer, it would never expire.
      */
     it('a later unlock does not restart the earlier one', () => {
         render(<AchievementToast />);

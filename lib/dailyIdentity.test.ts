@@ -2,28 +2,19 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 /**
- * The token a daily attempt is filed under.
- *
- * It is opaque and per-browser, so nothing about it looks wrong when it is
- * wrong. Two failures used to live here, and both took the whole feature out
- * with no error anywhere:
- *
- *  - it was re-derived from the CLIENT's "today" on every single move, so a
- *    browser crossing UTC midnight mid-attempt swapped it. The server still
- *    held the attempt under the old one, so every click addressed a record that
- *    did not exist and was dropped in silence — the board just stopped.
- *
- *  - the write was unguarded, so with storage blocked (Safari private browsing)
- *    it threw out of `startDaily` and the button did nothing at all.
+ * The token a daily attempt is filed under: opaque and per-browser, so nothing
+ * looks wrong when it is. Two silent failures lived here: re-deriving it from
+ * the CLIENT's "today" on every move swapped it at UTC midnight mid-attempt
+ * (the board just stopped), and an unguarded write threw out of `startDaily`
+ * with storage blocked.
  */
 
 const STORAGE_KEY = "minesweeper_daily_identity";
 const MIDNIGHT = new Date("2026-08-01T23:59:50Z");
 
 /**
- * A fresh copy of the module, i.e. a fresh page load. The in-memory fallback is
- * module state that deliberately outlives every call on one page, so a shared
- * import would leak one test's token into the next.
+ * A fresh copy of the module, i.e. a fresh page load: the in-memory fallback
+ * is module state, so a shared import would leak one test's token into the next.
  */
 const loadIdentity = () => {
     vi.resetModules();
@@ -77,8 +68,7 @@ describe("a move made by an attempt already in flight", () => {
 
         const started = getOrCreateDailyAttemptToken();
 
-        // Ten seconds later the browser's day has rolled over. The server's
-        // attempt has not: it is still filed under the token above.
+        // The browser's day has rolled over; the server's attempt is still under the token above.
         vi.setSystemTime(new Date("2026-08-02T00:00:00Z"));
 
         expect(readDailyAttemptToken()).toBe(started);
@@ -115,11 +105,8 @@ describe("when localStorage cannot be written", () => {
     });
 
     /*
-     * The write failing leaves YESTERDAY's record in storage, still perfectly
-     * readable and completely wrong. A fallback that merely prefers storage
-     * "when it has something" hands moves the old token while the attempt the
-     * server actually created is under the new one — which is the same silent
-     * freeze this whole file exists to prevent, reintroduced one level down.
+     * The failed write leaves YESTERDAY's record in storage, readable and wrong.
+     * Preferring storage "when it has something" would reintroduce the silent freeze.
      */
     test("does not fall back to the token of a day that has already gone", async () => {
         const { getOrCreateDailyAttemptToken, readDailyAttemptToken } = await loadIdentity();

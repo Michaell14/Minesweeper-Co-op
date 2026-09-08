@@ -1,27 +1,12 @@
 /**
- * Re-files user_board_bests under the key each row's own `players` implies.
+ * Re-files user_board_bests under the key each row's own `players` implies
+ * (`shared/boardKeys.js`). Keyed by board alone, a group clear took the slot
+ * and no solo run could be a record again. The count was stored all along.
  *
- * The table was keyed by board alone, with the player count as a column — so a
- * three-player co-op clear and a solo run competed for one row. Groups split
- * the board and finish faster more or less by construction, so the group time
- * took the slot and no solo run afterwards could ever be a record again. The
- * browser's copy has keyed on the count for a while (`shared/boardKeys.js`);
- * this brings the server's rows onto the same identity, which is what lets the
- * in-game banner read the account instead of localStorage.
- *
- * Nothing is invented: the count has been stored on every row all along, and
- * this is the same rule `byPlayerCount` applies to a browser's records on read.
- *
- * ONE thing it cannot recover: a PVP race recorded `players: 2` (the room)
- * before this change, and the table has no mode column to tell that from a
- * two-player co-op clear. Those rows move to '…@2' with the pairs. That is the
- * safe direction — an old race record may sit beside the solo slot instead of
- * being read as one, rather than a race's time being presented as your solo
- * best. New races file as solo, which is what they are.
- *
- * Collisions are handled rather than assumed away (the faster row survives,
- * as everywhere else), though there should be none: suffixed keys were
- * REJECTED by validation until now, so no row can already hold one.
+ * Unrecoverable: a PVP race recorded `players: 2` before this change, with no
+ * mode column to tell it from a two-player co-op clear. Those move to '@2',
+ * the safe direction. Collisions keep the faster row, though there should be
+ * none: validation rejected suffixed keys until now.
  */
 
 /** Rows that need moving, and where each one goes. */
@@ -29,8 +14,7 @@ const NEEDS_SUFFIX = `a.players > 1 AND position('@' in a.board_key) = 0`;
 const TARGET = `a.board_key || '@' || a.players`;
 
 exports.up = (pgm) => {
-    // The incoming row loses a tie: an existing correctly-keyed record is the
-    // one someone actually set under that identity.
+    // The incoming row loses a tie: the existing record was set under that identity.
     pgm.sql(`
         DELETE FROM user_board_bests a
         USING user_board_bests b
@@ -56,11 +40,7 @@ exports.up = (pgm) => {
     `);
 };
 
-/**
- * Back to one row per board, keeping the faster where a group and a solo record
- * collapse together — which is lossy, and unavoidably so: the two identities
- * the up migration separated do not fit in one key.
- */
+/** Back to one row per board, keeping the faster where two collapse. Lossy, unavoidably. */
 exports.down = (pgm) => {
     pgm.sql(`
         DELETE FROM user_board_bests a

@@ -1,12 +1,9 @@
 // @vitest-environment jsdom
 /**
- * The profile-save queue. Serialisation is the CORRECTNESS mechanism for the
- * whole save path: with one request in flight at a time, in call order, a
- * response is always the newest server state when it arrives — which is what
- * lets the panel apply it and the header's event listener trust it without
- * any ordering guards. These tests pin the two properties everything else
- * leans on: strict one-at-a-time ordering, and a failure not wedging the
- * queue shut.
+ * The profile-save queue. One request in flight at a time, in call order, is
+ * what makes every response the newest server state, so the panel and the
+ * header need no ordering guards. Pins that ordering, and that a failure does
+ * not wedge the queue.
  */
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
@@ -24,7 +21,7 @@ const response = (avatar: string) => ({
     json: async () => ({ user: { avatar } }),
 });
 
-/** Let queued microtasks and the chained save start, without real waiting. */
+/** Lets queued microtasks and the chained save start. */
 const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 let heard: string[] = [];
@@ -50,7 +47,7 @@ it("saves run one at a time, in call order", async () => {
     const fox = updateAvatar("fox");
     const penguin = updateAvatar("penguin");
     await settle();
-    // The second save must not have LEFT the queue while the first is open.
+    // The second save must not leave the queue while the first is open.
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
     resolveFox(response("fox"));
@@ -88,12 +85,7 @@ it("a lone save broadcasts its response", async () => {
     expect(heard).toEqual(["kitty"]);
 });
 
-/*
- * The read path's failure shape. Everything downstream only handles
- * fulfilment: the account panel's `profileState` and the landing page's
- * `resolved` both stay pending forever on a rejection, which is a page that
- * silently does nothing rather than one that degrades.
- */
+/* The read path must resolve, not reject: everything downstream only handles fulfilment. */
 it("answers null when a 200 carries something that is not JSON", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => ({
         ok: true,

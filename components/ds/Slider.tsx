@@ -16,10 +16,8 @@ export interface SliderProps {
 }
 
 /**
- * A restyled native range input — keyboard, drag and screen-reader behaviour
- * come from the browser, only the paint is ours. Built for the sound volume
- * (its first consumer); anything continuous-valued uses this rather than
- * inventing another track.
+ * A restyled native range input: keyboard, drag and screen-reader behaviour
+ * come from the browser, only the paint is ours. Anything continuous-valued uses this.
  */
 export default function Slider({
     value,

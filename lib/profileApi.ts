@@ -1,12 +1,7 @@
 /**
- * The account REST calls — the client's only HTTP traffic to the game server
- * (everything game-shaped stays on the socket). Bearer-authenticated with the
- * bridge token; the server side is server/controllers/profileController.js.
- *
- * Failure shape: null/false for "not available" (signed out, server down,
- * accounts unconfigured) — the UI shows the signed-out or unavailable state —
- * and a thrown ProfileApiError only for an answered request that refused
- * (invalid name, vanished account), where the message is worth showing.
+ * The account REST calls, the client's only HTTP traffic to the game server
+ * (server/controllers/profileController.js). Null/false means "not available";
+ * a thrown ProfileApiError is only an ANSWERED refusal, worth showing.
  */
 
 import { serverURL } from "@/lib/initSocket";
@@ -23,10 +18,8 @@ export interface ProfileUser {
 }
 
 /**
- * Fired on window with the fresh ProfileUser as detail whenever a profile
- * save answers. The header's avatar icon listens: it is mounted once in the
- * layout, so without a signal it would show a stale avatar until a full
- * reload after the picker on /profile changed it.
+ * Fired on window with the fresh ProfileUser when a save answers. The header's
+ * avatar icon, mounted once in the layout, listens.
  */
 export const PROFILE_UPDATED_EVENT = "ms:profile-updated";
 
@@ -85,28 +78,19 @@ export async function fetchProfile(): Promise<ProfileUser | null> {
         return (data?.user as ProfileUser) ?? null;
     } catch {
         /*
-         * A 200 carrying something that is not JSON — a proxy interstitial, a
-         * truncated body. Tolerated the same way `errorFrom` tolerates it on
-         * the refusal path, because the contract at the top of this file is
-         * that only an ANSWERED REFUSAL throws. A raw SyntaxError escaping
-         * here reaches callers that only handle fulfilment: the account panel
-         * sits on "Loading…" for the rest of the page's life, and a signed-in
-         * player following a room link never gets in and is never asked for a
-         * name either.
+         * A 200 that is not JSON (a proxy interstitial, a truncated body). Only
+         * an ANSWERED REFUSAL throws; a raw SyntaxError here would leave the
+         * account panel on "Loading…" for good.
          */
         return null;
     }
 }
 
 /**
- * Profile saves run strictly ONE AT A TIME, in call order. The queue is the
- * correctness mechanism, not a nicety: when saves could overlap, ordering
- * bugs arrived in five flavours — responses racing, failed saves suppressing
- * successes, recovery snapshots regressing newer writes — each patched with
- * another rank guard, and review kept finding more, because issue order and
- * server processing order are not reconcilable from the client. Serialised,
- * a response IS the newest server state when it arrives, so it applies and
- * announces unconditionally and every guard went away.
+ * Profile saves run ONE AT A TIME, in call order. This is the correctness
+ * mechanism: overlapping saves needed a rank guard per ordering bug, and
+ * review kept finding more. Serialised, a response IS the newest server state,
+ * so it applies unconditionally.
  */
 let saveChain: Promise<unknown> = Promise.resolve();
 
@@ -121,8 +105,7 @@ function updateProfile(body: { displayName?: string; avatar?: string }): Promise
         window.dispatchEvent(new CustomEvent(PROFILE_UPDATED_EVENT, { detail: user }));
         return user;
     };
-    // Start after the previous save settles — success or failure — and keep
-    // the chain itself from ever rejecting.
+    // Start after the previous save settles either way; the chain itself never rejects.
     const next = saveChain.then(run, run);
     saveChain = next.catch(() => {});
     return next;
@@ -136,11 +119,7 @@ export const updateDisplayName = (displayName: string): Promise<ProfileUser> =>
 export const updateAvatar = (avatar: string): Promise<ProfileUser> =>
     updateProfile({ avatar });
 
-/**
- * Deletes the account, hard. Returns whether the server confirmed it; the
- * caller signs out afterwards regardless. Drops the cached bridge token so a
- * lingering tab cannot keep acting as the deleted account.
- */
+/** Deletes the account, hard. Drops the bridge token so a lingering tab cannot keep acting as it. */
 export async function deleteAccount(): Promise<boolean> {
     const res = await request("DELETE");
     const ok = !!res && (res.status === 204 || res.ok);

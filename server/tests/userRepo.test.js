@@ -1,8 +1,6 @@
 /**
- * The users repo, against a mocked pool — the per-file-mock pattern from
- * mockInfra.js applied to Postgres for the first time. Asserting on the SQL's
- * *behaviourally load-bearing* parts (ON CONFLICT target, what DO UPDATE
- * touches), not the whole string.
+ * The users repo against a mocked pool. Asserts on the SQL's load-bearing
+ * parts (ON CONFLICT target, what DO UPDATE touches), not the whole string.
  */
 
 const mockQuery = jest.fn();
@@ -93,8 +91,7 @@ describe('updateUser', () => {
         mockQuery.mockResolvedValue({ rows: [{ ...ROW, avatar: 'fox' }] });
         const user = await userRepo.updateUser('uuid-1', { avatar: 'fox' });
         expect(user).toEqual({ ...USER, avatar: 'fox' });
-        // displayName was not provided, so its parameter must be null (kept),
-        // and the SQL must coalesce both columns onto themselves.
+        // displayName was omitted, so its parameter is null and the SQL coalesces both columns.
         const [sql, params] = mockQuery.mock.calls[0];
         expect(params).toEqual(['uuid-1', null, 'fox']);
         expect(sql).toMatch(/display_name = COALESCE\(\$2, display_name\)/);

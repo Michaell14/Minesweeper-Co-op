@@ -1,10 +1,9 @@
 import React from "react";
 import Link from "next/link";
-// Straight from the file, not the barrel — the second sanctioned exception
-// after Cell.tsx. This is a SERVER component, and the barrel re-exports
-// RadioCard, whose module-level `createContext` throws the moment a server
-// component imports it. Nothing about the failure points here: the error names
-// RadioCard, a component this page does not use and never renders.
+// Straight from the file, not the barrel (the second sanctioned exception
+// after Cell.tsx): this is a SERVER component, and the barrel re-exports
+// RadioCard, whose module-level `createContext` throws when a server
+// component imports it.
 import ButtonLink from "@/components/ds/ButtonLink";
 
 interface ProsePageProps {
@@ -17,15 +16,11 @@ interface ProsePageProps {
 }
 
 /**
- * The shell every content page wears: heading, readable body column, a call to
- * action, and links on to the other content pages.
- *
- * `ms-prose` is what switches body copy off the global pixel face — see the
- * rule in app/globals.css. Headings stay pixel.
- *
- * The footer links are not decoration. A page reachable only from the sitemap is
- * barely crawled; internal links are what make these pages worth publishing at
- * all, and putting them here means a new page gets them by construction.
+ * The shell every content page wears: heading, readable body column, a call
+ * to action, and links on to the other content pages. `ms-prose` switches body
+ * copy off the global pixel face (app/globals.css); headings stay pixel. The
+ * footer links are what get these pages crawled, and a new page gets them by
+ * construction.
  */
 export default function ProsePage({ title, lede, children, cta }: ProsePageProps) {
     return (

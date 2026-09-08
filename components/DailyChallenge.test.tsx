@@ -5,17 +5,11 @@ import { useMinesweeperStore } from "@/app/store";
 import DailyChallenge from "./DailyChallenge";
 
 /**
- * Chording on the daily board.
- *
- * `Cell` records which buttons are down whatever the mode, but the hook that
- * READS that state was mounted by Grid alone. So two-button chording did
- * nothing here — no error, no clue, just a move the game quietly did not make —
- * and the button state Cell had recorded was left set, so the first chord in a
- * room opened afterwards fired on a cell nobody had pressed twice.
- *
- * Rendered with an empty board on purpose: `useChording` is called before the
- * has-a-board branch, so this exercises the wiring without mounting Board, whose
- * CursorLayer wants a ResizeObserver jsdom does not have.
+ * Chording on the daily board. `Cell` records which buttons are down, but the
+ * hook that READS them was mounted by Grid alone, so chording did nothing here
+ * and the leftover button state leaked into the next room. Rendered with an
+ * empty board: `useChording` runs before the has-a-board branch, so this skips
+ * Board, whose CursorLayer wants a ResizeObserver jsdom lacks.
  */
 
 const props = (dailyChordCell: (row: number, col: number) => void) => ({
@@ -80,17 +74,12 @@ describe("the daily view", () => {
     });
 });
 
-/**
- * The view-only strip under a settled board — the replay's caption. It keeps
- * submit/leaderboard reachable after their dialog is dismissed, and must NOT
- * appear mid-game.
- */
+/** The view-only strip under a settled board: keeps submit/leaderboard reachable, never mid-game. */
 describe("the replay strip", () => {
     const CELL = { isMine: false, isOpen: true, isFlagged: false, nearbyMines: 0 };
 
     beforeEach(() => {
-        // Board mounts CursorLayer, which measures with a ResizeObserver
-        // jsdom does not ship.
+        // Board's CursorLayer measures with a ResizeObserver jsdom does not ship.
         vi.stubGlobal("ResizeObserver", class {
             observe() {}
             unobserve() {}

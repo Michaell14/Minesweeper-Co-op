@@ -3,11 +3,7 @@ import React from 'react';
 export interface ProgressBarProps {
     label: string;
     percent: number;
-    /**
-     * Background class for the filled portion. Must be a `bg-progress-*`
-     * token class — a raw palette class (`bg-blue-500`) would survive a theme
-     * change while everything around it moved.
-     */
+    /** Fill class. Must be a `bg-progress-*` token class, or it survives a theme change. */
     colorClass: string;
     /** Desktop bars are taller and carry ARIA; mobile bars are compact. */
     size?: 'sm' | 'md';
@@ -16,11 +12,8 @@ export interface ProgressBarProps {
 }
 
 /**
- * One labelled progress bar, used for both players in PVP.
- *
- * The show/hide setting is applied by Grid.tsx, not here: the desktop bars sit
- * inside a titled "Progress" panel, and hiding only the bars would leave an
- * empty box with a heading.
+ * One labelled progress bar, used for both PVP players. The show/hide setting
+ * is applied by Grid.tsx: hiding only the bars would leave an empty titled panel.
  */
 export default function ProgressBar({ label, percent, colorClass, size = 'md', ariaLabel, boldPercent }: ProgressBarProps) {
     const track = size === 'md' ? 'w-full bg-surface-track rounded h-4 overflow-hidden' : 'w-full bg-surface-track rounded h-3';
@@ -49,6 +42,6 @@ export default function ProgressBar({ label, percent, colorClass, size = 'md', a
     );
 }
 
-/** Bar colour follows the opponent's state, matching the previous inline logic. */
+/** Bar colour follows the opponent's state. */
 export const opponentBarColor = (status: string) =>
     status === 'failed' ? 'bg-progress-failed' : status === 'won' ? 'bg-progress-won' : 'bg-progress-opponent';

@@ -1,14 +1,9 @@
 /**
- * Who among your friends is on the site right now, and telling them about you.
- *
- * Presence is DERIVED, never stored: it is exactly "does this account have a
- * live socket", and the socket map already knows. Nothing to write on connect,
- * nothing to prune on disconnect, and no state that can survive a crash and
- * report a ghost as online.
- *
- * Best-effort by contract, like statsRecorder: a Postgres outage means friends
- * appear offline, never that a connection is refused or a game is delayed.
- * Nothing here is awaited by a game path.
+ * Which friends are on the site, and telling them about you. Presence is
+ * DERIVED from the live socket map, never stored: nothing is written on
+ * connect, pruned on disconnect, or survives a crash as a ghost. Best-effort
+ * like statsRecorder: a Postgres outage makes friends appear offline, never
+ * refuses a connection or delays a game.
  */
 
 const { io } = require('./initializeClient');
@@ -17,19 +12,10 @@ const friendsRepo = require('../data/friendsRepo');
 const { SERVER_EVENTS } = require('../../shared/events');
 
 /**
- * The live socket map, indexed by account: `Map<userId, [socketId, socket][]>`.
- *
- * ONE pass, reused for every lookup the caller then makes. Built rather than
- * scanned per question because the questions come in bunches: announcing a
- * departure asks "is this friend online?" once per friend and then "which
- * sockets do they have?" for each one who is, so a scan per lookup made a
- * single connect O(friends x sockets) — at the 100-friend cap, two hundred
- * walks of the whole map, on the connection path. That is the shape of thing
- * that is free in testing and quadratic in production.
- *
- * Entries rather than ids alone, because `isOnlineExcept` compares socket
- * INSTANCES: an index of ids could not answer it, and would leave a second
- * scan standing beside this one.
+ * The live socket map indexed by account: `Map<userId, [socketId, socket][]>`.
+ * One pass reused for a bunch of lookups; a scan per lookup made a connect
+ * O(friends x sockets). Entries rather than ids because `isOnlineExcept`
+ * compares socket instances.
  */
 const indexSocketsByUser = () => {
     const byUser = new Map();
@@ -44,18 +30,10 @@ const indexSocketsByUser = () => {
 };
 
 /**
- * Every live socket belonging to an account, resolved NOW rather than assumed.
- *
- * A scan rather than a `user:<id>` room, which would be the idiomatic answer
- * anywhere else: room codes here are arbitrary strings (`validation.js` bounds
- * only the length), so `socket.join('user:<uuid>')` shares a namespace with
- * whatever players type into the join box — and anyone who knew a victim's id
- * could create that room and receive their traffic.
- *
- * Moved here from statsRecorder, which now imports it: two copies of this
- * scan would be two places for the `user:<id>` shortcut to creep back in.
- * That caller asks once, on a rare unlock, so it pays for its own pass; the
- * paths below that ask in bunches read one index directly instead.
+ * Every live socket of an account, resolved now. A scan rather than a
+ * `user:<id>` room: room codes are arbitrary strings, so anyone who knew a
+ * victim's id could create that room and receive their traffic. statsRecorder
+ * imports this rather than keeping a copy, so the shortcut has one place to creep back in.
  */
 const socketEntriesOf = (userId) => indexSocketsByUser().get(userId) ?? [];
 
@@ -68,27 +46,14 @@ const socketsOf = (userId) => socketEntriesOf(userId).map(([, socket]) => socket
 const isOnline = (userId) => socketIdsOf(userId).length > 0;
 
 /**
- * The same question with one socket left out — the one that is leaving.
- *
- * By INSTANCE, not by id: `connectionStateRecovery` is on, so a client that
- * reconnects inside the window comes back under the SAME socket id. Excluding
- * by id would filter that live socket out and report a player who is still
- * here as gone. Excluding by identity leaves it counted — a recovered socket
- * is a new object.
- *
- * Not by count either: whether the leaver is still in the map when a handler
- * runs depends on the disconnect path, and this answers the same either way.
+ * `isOnline` with one socket (the leaver) left out. By INSTANCE, not id:
+ * `connectionStateRecovery` brings a reconnect back under the SAME id, so
+ * excluding by id would report a player who is still here as gone.
  */
 const isOnlineExcept = (userId, exceptSocket) =>
     socketsOf(userId).some((socket) => socket !== exceptSocket);
 
-/**
- * Whether this socket is the account's LAST one.
- *
- * The reason a disconnect cannot simply announce "offline": a player with the
- * game open in two tabs closes one, and their friends would watch them wink
- * out while they are still playing.
- */
+/** Whether this socket is the account's LAST one, so closing one of two tabs is not "offline". */
 const isLastSocketOf = (socket) => {
     const userId = socket?.data?.user?.id;
     if (!userId) return false;
@@ -111,11 +76,8 @@ const emitToUser = (userId, event, payload) => {
 };
 
 /**
- * Tell an arriving socket which of its friends are already here.
- *
- * A SNAPSHOT rather than a stream of deltas, because a client that just
- * connected has no prior state to apply deltas to — and one that reconnects
- * has state that may be arbitrarily stale.
+ * Tells an arriving socket which friends are already here. A SNAPSHOT, not
+ * deltas: a fresh client has no state to apply them to, and a reconnect's may be stale.
  */
 const sendPresenceSnapshot = async (socket) => {
     const userId = socket?.data?.user?.id;
@@ -125,49 +87,27 @@ const sendPresenceSnapshot = async (socket) => {
     try {
         ids = await onlineFriendIds(userId);
     } catch (error) {
-        // Fall through to the EMPTY snapshot rather than returning.
-        //
-        // Sending nothing looks like the safe failure and is the opposite. A
-        // reconnecting client keeps whatever it last held, and this is the one
-        // message that would have corrected it — the reason the snapshot is a
-        // snapshot rather than a delta is that a reconnect's state may be
-        // arbitrarily stale. Silence leaves friends lit who may be long gone,
-        // and the invite beside them does nothing when pressed, because the
-        // send path asks Postgres the same question that just failed.
-        //
-        // Empty is also what this module's contract already promises: an
-        // outage means friends appear offline, never that anything about a
-        // game changes.
+        // Fall through to an EMPTY snapshot. Silence would leave a reconnecting
+        // client's stale list uncorrected, with dead invites beside friends long
+        // gone; empty is what the header's contract promises for an outage.
         console.error('Presence snapshot failed, sending an empty one:', error.message);
     }
     socket.emit(SERVER_EVENTS.FRIENDS_ONLINE, { ids });
 };
 
 /**
- * Tell this account's online friends that it came or went.
- *
- * A DELTA here, unlike the snapshot: recomputing every recipient's whole list
- * would be one query per friend per connect, and the recipient already holds a
- * set to add to or remove from.
- *
- * Only friends who are ONLINE are told — an offline friend has no socket to
- * receive it, and will get a snapshot of their own when they arrive.
- *
- * `exceptSocket` is the leaver on the disconnect path, so the recheck below
- * asks the same question this was called with rather than counting the socket
- * whose departure it is announcing.
+ * Tells this account's online friends it came or went. A DELTA, unlike the
+ * snapshot: recipients already hold a set. Offline friends get their own
+ * snapshot on arrival. `exceptSocket` is the leaver on the disconnect path.
  */
 const announcePresence = async (userId, online, exceptSocket) => {
     if (!userId || !isDbEnabled()) return;
     try {
         const friendIds = await friendsRepo.listFriendIds(userId);
-        // The socket map moves while that query is in flight — a reload
-        // reconnects inside it — and a stale `false` arriving after the new
-        // socket's `true` leaves friends looking at a ghost. Re-read, and drop
-        // an announcement the map no longer agrees with.
+        // The map moves while the query is in flight (a reload reconnects inside
+        // it); drop an announcement it no longer agrees with, or friends see a ghost.
         if (isOnlineExcept(userId, exceptSocket) !== online) return;
-        // One index for the whole fan-out: every "which sockets are theirs"
-        // below is answered from it, rather than a walk per friend.
+        // One index for the whole fan-out, not a walk per friend.
         const byUser = indexSocketsByUser();
         for (const friendId of friendIds) {
             for (const [socketId] of byUser.get(friendId) ?? []) {
@@ -179,11 +119,7 @@ const announcePresence = async (userId, online, exceptSocket) => {
     }
 };
 
-/**
- * A socket arrived: catch it up, and tell its friends — but only if it is the
- * account's FIRST socket, or a second tab would announce an arrival for
- * somebody who never left.
- */
+/** A socket arrived: catch it up, and tell friends only if it is the account's FIRST socket. */
 const onConnect = async (socket) => {
     try {
         const userId = socket?.data?.user?.id;
@@ -192,8 +128,7 @@ const onConnect = async (socket) => {
         await sendPresenceSnapshot(socket);
         if (!alreadyHere) await announcePresence(userId, true);
     } catch (error) {
-        // The contract in the header, enforced: presence is cosmetic, and
-        // nothing about it may refuse a connection.
+        // Presence is cosmetic; nothing about it may refuse a connection.
         console.error('Presence on connect failed:', error.message);
     }
 };

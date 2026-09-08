@@ -9,16 +9,10 @@ import { useMinesweeperStore } from '@/app/store';
 const DEFAULT_THEME = '__default__';
 
 /**
- * The five-colour strip under a palette's name.
- *
- * `aria-hidden`: the card's label already names the palette, and five unlabelled
- * colours read aloud would be noise. `title` gives a pointer user the hex.
- *
- * Fills are inline because they ARE data — read from tokens.css at runtime, not
- * a colour decision taken here. The outline is what keeps a white or near-black
- * swatch from vanishing into the card, and is deliberately a 1px hairline
- * rather than `border-pixel`: --ms-border-width is 4px, which on a 12px swatch
- * would leave more edge than colour.
+ * The five-colour strip under a palette's name. `aria-hidden`: the label
+ * already names the palette. Fills are inline because they ARE data, read from
+ * tokens.css at runtime. The outline is a 1px hairline, not `border-pixel`:
+ * 4px on a 12px swatch would leave more edge than colour.
  */
 function Swatches({ colors, label }: { colors: string[]; label: string }) {
     if (colors.length === 0) return null;
@@ -38,34 +32,24 @@ function Swatches({ colors, label }: { colors: string[]; label: string }) {
 }
 
 /**
- * The palette cards, mounted by the /settings Appearance section. The selection
- * lives in the settings slice rather than local state, so this stays in step
- * with the theme however it was last changed.
- *
- * The store hydrates from storage after mount (see settingsSlice); until then
- * this briefly shows the default selected, while the PAINTED theme is already
- * correct via the no-flash script. `seasonalOverride` is read from the store
- * for the same reason it is stored rather than derived here: it moves on the
- * clock, and a value computed during render would go stale at midnight with
- * no state change to re-render it.
- *
- * `name` must be unique per mounted instance: these are real radio inputs,
- * and two groups sharing one name would steal each other's checked state.
+ * The palette cards, mounted by the /settings Appearance section. Selection
+ * lives in the settings slice, which hydrates after mount, so the default
+ * briefly shows selected while the PAINTED theme is already right.
+ * `seasonalOverride` comes from the store because it moves on the clock and
+ * would go stale at midnight if derived here. `name` must be unique per
+ * instance: real radio inputs sharing a name steal each other's checked state.
  */
 export default function ThemeCards({ name }: { name: string }) {
     // Field by field, not the whole slice: `setSetting` rebuilds the settings
-    // object on every write, so selecting it wholesale would re-render all
-    // seventeen cards on each step of the volume slider further down the page.
+    // object on every write, which would re-render every card per slider step.
     const theme = useMinesweeperStore((s) => s.settings.theme);
     const holiday = useMinesweeperStore((s) => s.seasonalOverride);
     const customThemes = useMinesweeperStore((s) => s.customThemes);
     const setSetting = useMinesweeperStore((s) => s.setSetting);
 
     /*
-     * After mount, not during render: the values come out of the CSSOM, which
-     * does not exist on the server. Once only — tokens.css is static, so
-     * re-reading on every theme change would be seventeen sheet walks to
-     * produce the same map.
+     * After mount: the values come out of the CSSOM, which the server lacks.
+     * Once only, since tokens.css is static.
      */
     const [swatches, setSwatches] = React.useState<Map<string | null, string[]>>(new Map());
     React.useEffect(() => setSwatches(readSwatches()), []);
@@ -73,11 +57,7 @@ export default function ThemeCards({ name }: { name: string }) {
     const choose = (value: string) =>
         setSetting('theme', value === DEFAULT_THEME ? null : value);
 
-    /*
-     * Out-of-season palettes are hidden, not removed — they stay valid ids, so
-     * one already stored (a sync from a browser mid-holiday, say) keeps a card
-     * to be checked rather than leaving the group with nothing selected.
-     */
+    /* Out-of-season palettes are hidden, not removed: a stored one keeps a card to be checked. */
     const offered = THEMES.filter(
         (t) => !isSeasonal(t.id) || t.id === holiday?.themeId || t.id === theme,
     );

@@ -1,23 +1,12 @@
 /**
- * friendships — the social graph, one row per relationship.
- *
- * MUTUAL, not follows: a one-way edge that can invite you into a room is a
- * spam primitive, so a friendship exists only once both sides have agreed.
- *
- * Direction is preserved in the COLUMNS rather than normalised away, because a
- * PENDING row has to know who asked — that is the difference between "you have
- * a request" and "you sent one". "My friends" is therefore the union of both
- * directions where status is 'accepted' (friendsRepo.listGraph). Uniqueness is
- * still over the unordered pair, so only one of the two orientations can exist
- * at a time; see friendships_pair_key.
- *
- * A BLOCK is stored on the blocker's row, and blocking first deletes whatever
- * the pair already had: leaving an accepted row behind would keep two people
- * listed as friends while one of them had blocked the other.
- *
- * ON DELETE CASCADE on both sides, so `userRepo.deleteUser` stays the single
- * deletion point — deleting an account takes its edges with it, in both
- * directions.
+ * friendships — the social graph, one row per relationship. MUTUAL, not
+ * follows: a one-way edge that can invite you into a room is a spam primitive.
+ * Direction is kept in the COLUMNS because a PENDING row has to know who
+ * asked; "my friends" is the union of both directions where status is
+ * 'accepted' (friendsRepo.listGraph), and uniqueness is over the unordered
+ * pair (friendships_pair_key). A BLOCK is stored on the blocker's row and
+ * first deletes whatever the pair had. ON DELETE CASCADE on both sides keeps
+ * `userRepo.deleteUser` the single deletion point.
  */
 
 exports.up = (pgm) => {
@@ -30,20 +19,12 @@ exports.up = (pgm) => {
         responded_at: { type: 'timestamptz' },
     });
 
-    // One row per UNORDERED pair. Direction is preserved in the columns, but
-    // both orientations must never exist at once: `A -> B pending` sitting
-    // beside `B -> A blocked` is a block a later accept walks straight through,
-    // and it makes "the edge between these two" ambiguous for every read here.
-    // The repo already avoids it — the reciprocal (B asks A while A's request
-    // to B is pending) accepts the existing row rather than inserting a mirror,
-    // and friendsRepo.withPairLock serialises the pair so a request and a block
-    // cannot interleave. This index is the backstop under both, so a caller
-    // that ever bypasses the lock fails loudly instead of quietly splitting the
-    // pair in two.
-    //
-    // Raw SQL because the uniqueness is over expressions, which
-    // pgm.addConstraint cannot express. LEAST/GREATEST on uuid are immutable
-    // (uuid_lt is), which is what lets them be indexed.
+    // One row per UNORDERED pair: `A -> B pending` beside `B -> A blocked` is a
+    // block a later accept walks through. The repo already avoids it (the
+    // reciprocal accepts the existing row, withPairLock serialises the pair);
+    // this is the backstop, so a caller bypassing the lock fails loudly.
+    // Raw SQL because pgm.addConstraint cannot express uniqueness over
+    // expressions; LEAST/GREATEST on uuid are immutable, so indexable.
     pgm.sql(`
         CREATE UNIQUE INDEX friendships_pair_key ON friendships (
             least(requester_id, addressee_id),
@@ -53,8 +34,7 @@ exports.up = (pgm) => {
     pgm.addConstraint('friendships', 'friendships_distinct_users', {
         check: 'requester_id <> addressee_id',
     });
-    // The status vocabulary lives here as well as in the repo: a typo'd status
-    // would otherwise be a row that no query matches and nothing rejects.
+    // The vocabulary lives here as well as in the repo, so a typo'd status is rejected.
     pgm.addConstraint('friendships', 'friendships_status_check', {
         check: "status IN ('pending', 'accepted', 'blocked')",
     });

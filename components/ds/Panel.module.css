@@ -1,7 +1,6 @@
 /*
- * A bordered region. Square corners, not notched — in this aesthetic controls
- * have cut corners and regions do not, and mixing the two is what made the old
- * markup read as several different UIs.
+ * A bordered region. Square corners, not notched: controls have cut corners
+ * and regions do not, and mixing the two read as several different UIs.
  */
 .panel {
     --panel-fill: var(--ms-surface-panel);
@@ -19,14 +18,9 @@
 }
 
 /*
- * A title that sits ON the top border, punched out of it.
- *
- * `display: table` shrink-wraps to the text so the knockout is exactly as wide
- * as the label, and the negative top margin lifts it onto the border line.
- *
- * The background is --panel-fill rather than a fixed colour: every panel in the
- * app carries a tint, and a hardcoded white here would show as a pale gap
- * across the border exactly where the title punches through.
+ * A title punched out of the top border: `display: table` shrink-wraps the
+ * knockout to the label, the negative margin lifts it onto the border. The
+ * background is --panel-fill; a hardcoded white would show as a pale gap.
  */
 .title {
     display: table;

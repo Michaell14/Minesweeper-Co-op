@@ -1,23 +1,13 @@
 /*
- * Native <dialog>. Kept native deliberately — see CLAUDE.md trap #5: the ids
- * are opened imperatively via openDialog(), and `form method="dialog"` is what
- * gives the buttons their close-on-submit behaviour. Converting these to
- * conditional rendering would silently break both.
+ * Native <dialog>, kept native (CLAUDE.md trap #5): ids are opened via
+ * openDialog() and `form method="dialog"` gives buttons close-on-submit.
  */
 .dialog {
     /*
-     * Centred in the viewport. This is what the UA already does for an open
-     * modal — `position: fixed; inset: 0; margin: auto` — stated outright for
-     * the same reason the border below is.
-     *
-     * It used to be `absolute left-1/2 top-60 -translate-x-1/2` from Dialog.tsx,
-     * which set only `left` and `top`: the UA's `right: 0` and `bottom: 0`
-     * survived, so `margin: auto` centred the box inside the region below-right
-     * of that point and the translate pulled it back by half its own width. The
-     * dialog landed down-and-right of centre by an offset that depended on its
-     * own size, and `position: absolute` meant it was placed against the
-     * document rather than the viewport — on a page taller than the window it
-     * could open entirely off-screen.
+     * Centred in the viewport, stated outright (the UA does this for an open
+     * modal). Setting only `left`/`top` with `position: absolute` left the
+     * UA's `right: 0; bottom: 0` in place, so the box landed off-centre by its
+     * own size and could open off-screen on a tall page.
      */
     position: fixed;
     inset: 0;
@@ -25,12 +15,7 @@
     padding: 24px 32px;
     color: var(--ms-ink-strong);
     background-color: var(--ms-surface-dialog);
-    /*
-     * The UA stylesheet gives <dialog> `border: solid` with an initial width
-     * and currentColor. NES.css leaned on that and only set border-width, so
-     * the dialog border was really being drawn by browser defaults. Stated
-     * outright here instead.
-     */
+    /* The UA gives <dialog> `border: solid` in currentColor; stated outright rather than relied on. */
     border: var(--ms-border-width) solid var(--ms-border-color);
 }
 

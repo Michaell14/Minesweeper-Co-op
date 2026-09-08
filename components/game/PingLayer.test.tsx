@@ -1,12 +1,8 @@
 // @vitest-environment jsdom
 /**
- * The ping rings and what a screen reader is told about them.
- *
- * The ring is `aria-hidden`, so the live region IS the ping for anyone not
- * looking at the board — and it has to name the same square the cell's own
- * label does, one-based, or the two halves of the app disagree about which
- * cell is which. jsdom has no layout engine, so where the ring sits is the
- * smoke suite's job.
+ * The ping rings and what a screen reader is told. The ring is `aria-hidden`,
+ * so the live region IS the ping, and it must name the same one-based square
+ * the cell's own label does. Where the ring sits is the smoke suite's job.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, render, screen } from "@testing-library/react";
@@ -63,10 +59,7 @@ describe("the ring", () => {
 });
 
 describe("the announcement", () => {
-    /*
-     * One-based, matching cellAriaLabel. A ping exists so two people can mean
-     * the same square; an off-by-one here means they do not.
-     */
+    /* One-based, matching cellAriaLabel: an off-by-one means two people do not mean the same square. */
     it("names the cell the way the cell names itself", () => {
         const { container } = render(<PingLayer boardRef={boardRef} />);
         push({ row: 3, col: 6 });
@@ -81,8 +74,7 @@ describe("the announcement", () => {
         expect(container.querySelector('[aria-live="polite"]')).not.toBeNull();
     });
 
-    // Mounted before anything pings, so the first announcement is not lost to a
-    // region that appeared carrying its own text.
+    // Mounted before anything pings, so the first announcement is not lost.
     it("exists before the first ping", () => {
         const { container } = render(<PingLayer boardRef={boardRef} />);
         expect(container.querySelector('[aria-live="polite"]')).not.toBeNull();
@@ -102,10 +94,8 @@ describe("expiry", () => {
     });
 
     /*
-     * The EmoteBar bug, guarded here too: a timer that fires before the wall
-     * clock agrees expires nothing, which leaves the store's array identity
-     * alone — so the loop has to re-arm from its own callback rather than from
-     * that array, or the ring sits on the board forever.
+     * The EmoteBar bug: a timer firing before the wall clock agrees expires
+     * nothing, so the loop must re-arm from its own callback, not the array.
      */
     it("keeps expiring after a timer fires before its deadline", () => {
         vi.useFakeTimers();

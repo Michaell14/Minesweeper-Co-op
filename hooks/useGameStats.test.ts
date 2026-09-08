@@ -1,17 +1,10 @@
 // @vitest-environment jsdom
 
 /**
- * One progress percentage, correct in every mode.
- *
- * `pvpTotalSafeCells` is set by the server and only in PVP, so dividing by it
- * gave 0% everywhere else — and a bar pinned at 0% looks like a player who has
- * not started rather than a broken denominator. Each caller worked around it by
- * computing the percentage again from the board, and three of them had:
- * GameSummary inline, PracticeProgress via a second field on this hook, and the
- * hook itself.
- *
- * So the denominator falls back to the board's own count, and the workarounds
- * are gone. These pin both halves of that: the fallback works, and it does NOT
+ * One progress percentage, correct in every mode. `pvpTotalSafeCells` is set
+ * only in PVP, so dividing by it gave 0% everywhere else and three callers
+ * recomputed the percentage from the board. The denominator now falls back to
+ * the board's own count; these pin that the fallback works and does NOT
  * override the server's number in a real race.
  */
 
@@ -89,8 +82,7 @@ describe('progress in a race', () => {
     });
 
     test('before the race starts there is no server total to divide by', () => {
-        // pvpTotalSafeCells is 0 until startPvpGame sets it. Falling back to the
-        // board here is harmless: nothing is open yet either way.
+        // pvpTotalSafeCells is 0 until startPvpGame sets it; falling back to the board is harmless here.
         act(() => useMinesweeperStore.getState().setBoard(board(10, 0)));
 
         expect(stats().ownProgressPercent).toBe(0);

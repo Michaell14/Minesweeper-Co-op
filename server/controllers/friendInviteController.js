@@ -1,15 +1,9 @@
 /**
- * "Come play with me" — the one message this protocol lets an account send to
- * another account rather than to a room.
- *
- * Every guard here exists because of that. An invite arrives unbidden on
- * somebody else's screen, so it has to be provably wanted: only from an
- * ACCEPTED friend (a mutual graph is the whole anti-spam design), only into a
- * room the sender is actually in, only into one with space, and not again for
- * a minute.
- *
- * Best-effort like every other social path: a Postgres outage means invites
- * quietly do not send, never that a game stalls.
+ * "Come play with me": the one message an account sends to another account
+ * rather than to a room. It arrives unbidden, so every guard here makes it
+ * provably wanted: only from an ACCEPTED friend, only into a room the sender
+ * is in, only into one with space, and not again for a minute. Best-effort:
+ * a Postgres outage means invites quietly do not send.
  */
 
 const { io } = require('../utils/initializeClient');
@@ -21,20 +15,14 @@ const { isValidRoomCode, isValidUserId, isPlayerInRoom } = require('../validatio
 const { SERVER_EVENTS } = require('../../shared/events');
 
 /**
- * One invite per pair per minute.
- *
- * Per PAIR rather than per sender: the thing being protected is one person's
- * attention, and a sender with twenty friends should still be able to invite
- * all of them. Long enough that a second invite reads as a follow-up rather
- * than as a repeat of the first.
+ * One invite per pair per minute. Per PAIR, not per sender: the thing
+ * protected is one person's attention.
  */
 const INVITE_COOLDOWN_MS = 60_000;
 
 /**
- * In memory, not Redis: a cooldown that resets when the server restarts costs
- * one extra invite, which is not worth a round trip on a path that already
- * makes two. Pruned lazily on write — an unbounded Map of pairs is a leak that
- * only shows up under the traffic this is meant to survive.
+ * In memory, not Redis: a cooldown lost on restart costs one extra invite.
+ * Pruned lazily on write so the Map of pairs cannot leak.
  */
 const lastInviteAt = new Map();
 const MAX_TRACKED_PAIRS = 10_000;
@@ -60,12 +48,9 @@ const markInvited = (from, to, now) => {
 };
 
 /**
- * Takes the pair's one slot for this minute, or returns null if it is taken.
- *
- * Taken BEFORE the awaited lookups rather than after them: two invites for one
- * pair arriving together would otherwise both read an empty cooldown, yield at
- * the first await, and both land. Returns the undo, called on every refusal so
- * a rejected invite does not spend the minute a real one is owed.
+ * Takes the pair's slot for this minute, or returns null. Claimed BEFORE the
+ * awaited lookups, or two invites arriving together would both land. Returns
+ * the undo, called on every refusal so a rejected invite does not spend the minute.
  */
 const claimInvite = (from, to, now) => {
     if (onCooldown(from, to, now)) return null;
@@ -75,9 +60,7 @@ const claimInvite = (from, to, now) => {
     markInvited(from, to, now);
 
     return () => {
-        // Only if it is still ours: a later invite that beat us to the send
-        // owns the slot now, and handing back a stale timestamp would reopen
-        // the window it is holding.
+        // Only if still ours: a later invite that beat us to the send owns the slot now.
         if (lastInviteAt.get(key) !== now) return;
         if (previous === undefined) lastInviteAt.delete(key);
         else lastInviteAt.set(key, previous);
@@ -87,12 +70,7 @@ const claimInvite = (from, to, now) => {
 /** Test seam: the Map would otherwise leak state across cases. */
 const clearInviteCooldowns = () => lastInviteAt.clear();
 
-/**
- * Whether one more player fits.
- *
- * PVP is a duel, so its room is full at two. Co-op has no size limit by design
- * — the only thing an invite must not do is push a race to three.
- */
+/** Whether one more player fits. PVP is full at two; co-op has no limit. */
 const hasSpace = (roomState) => {
     if (!roomState) return false;
     let players = [];
@@ -110,10 +88,8 @@ const buildInvite = async (socket, me, friendId, room) => {
     if (!isOnline(friendId)) return null;
     if (!(await friendsRepo.areFriends(me.id, friendId))) return null;
 
-    // The room has to be one the SENDER is in. Without this, an account could
-    // send a friend into any room code it can name — including one it has
-    // never been in, which is a way to make somebody else's game somebody
-    // else's problem.
+    // The room has to be one the SENDER is in, or an account could send a
+    // friend into any room code it can name.
     const roomState = await roomRepo.getState(room);
     if (!roomState || !isPlayerInRoom(roomState, socket.id)) return null;
     if (!hasSpace(roomState)) return null;
@@ -128,12 +104,9 @@ const buildInvite = async (socket, me, friendId, room) => {
 };
 
 /**
- * Sends the invite, or silently does not.
- *
- * SILENT on every refusal, the same stance as the emote and ping handlers: the
- * failures here are "you are not their friend", "they blocked you" and "they
- * are not online", and answering any of them tells the sender something about
- * somebody who did not choose to tell them.
+ * Sends the invite, or silently does not. SILENT on every refusal, like the
+ * emote and ping handlers: "not their friend", "blocked" and "not online" all
+ * tell the sender something about somebody who did not choose to tell them.
  */
 const inviteFriend = async (socket, { friendId, room }) => {
     const me = socket.data?.user;

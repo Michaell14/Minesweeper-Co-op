@@ -20,25 +20,19 @@ export interface GameSlice {
     gameWon: boolean;       // every non-mine cell is revealed
 
     /*
-     * Server timestamps, not an elapsed count: the client ticks locally from
-     * startedAt, so co-op players read the same time without a per-second event
-     * and someone arriving mid-run joins the clock already running. null means
-     * not started / not stopped.
+     * Server timestamps, not an elapsed count: clients tick locally from
+     * startedAt, so co-op reads one clock without a per-second event. null
+     * means not started / not stopped.
      */
     startedAt: number | null;
     endedAt: number | null;
 
-    /*
-     * Set only when a board is CLEARED — not on a loss, and not on a win by an
-     * opponent's disconnect. null means the summary has no record to show.
-     */
+    /* Set only when a board is CLEARED, never on a loss or an opponent's disconnect. */
     bestTimeResult: BestTimeResult | null;
 
     /*
-     * The cell the last batch of reveals started from — read only by the cascade
-     * animation, which measures each cell's delay from it. Board-level rather
-     * than per-cell because a `Cell` is `{ isMine, isOpen, isFlagged,
-     * nearbyMines }` and nothing cosmetic belongs in that shape.
+     * Where the last batch of reveals started; read only by the cascade
+     * animation. Board-level because nothing cosmetic belongs in a `Cell`.
      */
     cascadeOrigin: CascadeOrigin;
 
@@ -64,31 +58,19 @@ export const createGameSlice: StateCreator<MinesweeperState, [], [], GameSlice> 
     setBoard: (newBoard) => set({ board: newBoard }),
 
     /*
-     * Deliberately NOT cleared by setBoard. The first click of a game arrives as
-     * a whole board rather than a cell list — the server has only just generated
-     * it — and that is the largest cascade anyone sees. Clearing here dropped it
-     * back to the board diagonal for exactly that reveal.
-     *
-     * Left standing, the value means "the last cell anyone acted on", which is a
-     * reasonable anchor for every other whole-board arrival too: the game-over
-     * reveal sweeps from the cell that ended it. Only a board restored on a fresh
-     * load has none, and the diagonal is the right ramp there.
+     * NOT cleared by setBoard: the first click arrives as a whole board and is
+     * the largest cascade anyone sees. Left standing it means "the last cell
+     * anyone acted on", a fair anchor for the game-over reveal too; only a
+     * board restored on a fresh load has none.
      */
     setCascadeOrigin: (cascadeOrigin) => set({ cascadeOrigin }),
 
     /**
-     * Applies a batch of changed cells, so a reveal need not resend the board.
-     *
-     * ONE `set` for the whole batch, and only the rows it touches are copied.
-     * Per-cell it was one `set` and one full board rebuild each: a 90-cell
-     * cascade on a 16x30 board rebuilt 480 cells ninety times and notified every
-     * subscriber ninety times, which is roughly 5,000 selectors per notification
-     * across the mounted cells. That is the cascade stutter, and it grew with the
-     * square of the board.
-     *
-     * The four fields are picked out rather than spread: `CellPlacement` carries
-     * row and col, and a board cell is only ever
-     * `{ isMine, isOpen, isFlagged, nearbyMines }`.
+     * Applies a batch of changed cells. ONE `set` and only the touched rows
+     * copied: per-cell it was a full board rebuild and a notification each,
+     * which was the cascade stutter, growing with the square of the board.
+     * Fields are picked rather than spread because `CellPlacement` carries row
+     * and col, and a board cell is only ever `{ isMine, isOpen, isFlagged, nearbyMines }`.
      */
     setCells: (updates) =>
         set((state) => {
@@ -103,24 +85,16 @@ export const createGameSlice: StateCreator<MinesweeperState, [], [], GameSlice> 
                 }
                 board[row][col] = { isMine, isOpen, isFlagged, nearbyMines };
             }
-            // Nothing landed — every coordinate was off-board. Returning the new
-            // array anyway would be a fresh reference over identical content,
-            // which notifies every `board` subscriber for no change at all.
+            // Every coordinate was off-board; a fresh reference over identical content would notify for nothing.
             if (copied.size === 0) return {};
             return { board };
         }),
 
     /**
-     * Flips a flag locally, without waiting for the server to say so.
-     *
-     * The predicate the server refuses on is re-checked HERE rather than trusted
-     * from the caller's earlier read: `useGameActions` looks at the board before
-     * emitting, and a teammate's reveal can land in between.
-     *
-     * Safe to guess at because every refusal the caller cannot see comes WITH the
-     * event that causes it — a teammate opening this cell, or the game ending —
-     * and that event rewrites the cell absolutely. There is no refusal that
-     * leaves a flag standing with nothing behind it to correct it.
+     * Flips a flag locally without waiting for the server. The refusal
+     * predicate is re-checked HERE, since a teammate's reveal can land after
+     * the caller's read. Safe to guess because every refusal the caller cannot
+     * see arrives WITH the event that causes it, which rewrites the cell.
      */
     toggleCellFlag: (row, col) =>
         set((state) => {

@@ -1,11 +1,8 @@
 // @vitest-environment jsdom
 
 /**
- * The connection slice's one feeder. The status drives the only UI that can
- * report the server being gone, and the deliberate-disconnect branch also
- * guards `joinPending`: a route change discards the socket's send buffer, so a
- * join emit waiting in it is dead and the flag must not outlive it — left set,
- * Landing showed "Joining room…" forever for a request nothing carried.
+ * The connection slice's one feeder. A deliberate disconnect also clears
+ * `joinPending`: a route change discards the send buffer, so a buffered join is dead.
  */
 
 import { beforeEach, describe, expect, test, vi } from 'vitest';

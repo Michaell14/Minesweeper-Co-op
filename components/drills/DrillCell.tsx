@@ -22,8 +22,7 @@ export interface DrillCellProps {
 }
 
 export default function DrillCell({ state, row, col, nearby, hinted, onOpen, onFlag }: DrillCellProps) {
-    // getState, never a subscription: drills own their board, the store only
-    // holds the input preferences the muscle memory has to match.
+    // getState, not a subscription: drills own their board; the store only holds input preferences.
     const settings = () => useMinesweeperStore.getState().settings;
 
     const fromTouch = React.useRef(false);
@@ -71,8 +70,7 @@ export default function DrillCell({ state, row, col, nearby, hinted, onOpen, onF
     };
 
     const handleKeyDown = (event: React.KeyboardEvent) => {
-        // Enter opens and F flags whatever the MOUSE swap says — that setting
-        // is about which button, and a keyboard has neither.
+        // The keyboard ignores the mouse-button swap: it has no buttons to swap.
         if (event.key === 'Enter') {
             event.preventDefault();
             open();
@@ -98,8 +96,7 @@ export default function DrillCell({ state, row, col, nearby, hinted, onOpen, onF
             aria-label={drillCellLabel(state, row, col, nearby)}
             className={className}
             onMouseUp={(event) => {
-                // A tap raises a compatibility mouseup too; the touch path
-                // has already acted on it.
+                // A tap also raises a compatibility mouseup; the touch path already acted.
                 if (event.button === 0 && !fromTouch.current) primary();
             }}
             onContextMenu={(event) => {

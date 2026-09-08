@@ -27,33 +27,25 @@ const MOVES: Record<string, [number, number]> = {
 const EDITABLE = 'input, textarea, select, [contenteditable="true"]';
 
 /**
- * Controls that only own Enter/Space (activation). Arrows, F and Escape mean
- * nothing to them, so those keys stay with the board — and a movement key
- * BLURS them, because closing a dialog (or clicking Reset) parks focus on a
- * button, and with no focusable cell to Tab to, a wholesale guard would strand
- * a keyboard-only player there with every board key dead.
+ * Controls that only own Enter/Space. Arrows, F and Escape stay with the
+ * board, and a movement key BLURS them: closing a dialog parks focus on a
+ * button, and a wholesale guard would strand a keyboard player there.
  */
 const ACTIVATABLE = 'button, a[href], [tabindex]';
 
 /**
- * A checkbox is an input, but keystroke-wise it is a button: Space toggles it
- * and nothing types into it, and unlike a radio it has no arrow-key group to
- * navigate. The HUD's flag-mode switch is one, and it is focusable mid-game —
- * treating it as EDITABLE stranded keyboard play on it just like the buttons.
+ * A checkbox is an input but keystroke-wise a button: Space toggles it, nothing
+ * types into it. The HUD's flag-mode switch is one, focusable mid-game.
  */
 const isCheckbox = (el: Element | null | undefined): boolean =>
     el instanceof HTMLInputElement && el.type === "checkbox";
 
 /**
- * Keyboard play: arrows/WASD move a selection cursor, Space/Enter reveals (or
- * chords an open number), F flags, Escape hides the cursor. Mounted next to
- * useChording by Grid and DailyChallenge, so passing each mode's own callbacks
- * covers every mode — sound, optimistic flags and the server-side gates all
- * live behind those callbacks already.
- *
- * State is read through getState() at event time, not subscribed: the listeners
- * stay stable and a keystroke costs no component a render (the useGameActions
- * pattern). The cursor itself lives in inputSlice; KeyboardCursor renders it.
+ * Keyboard play: arrows/WASD move a cursor, Space/Enter reveals (or chords an
+ * open number), F flags, Escape hides the cursor. Mounted beside useChording
+ * by Grid and DailyChallenge with each mode's own callbacks. State is read via
+ * getState() at event time so a keystroke costs no render; the cursor lives in
+ * inputSlice and KeyboardCursor renders it.
  */
 export function useKeyboardControls({ openCell, toggleFlag, chordCell, emitCellHover, pingCell }: KeyboardActions): void {
     useEffect(() => {
@@ -61,7 +53,7 @@ export function useKeyboardControls({ openCell, toggleFlag, chordCell, emitCellH
             const state = useMinesweeperStore.getState();
             if (!state.settings.keyboardControls) return;
             if (event.defaultPrevented) return;
-            // Shift is deliberately ignored — it changes no binding here.
+            // Shift changes no binding here.
             if (event.ctrlKey || event.metaKey || event.altKey) return;
             if (document.querySelector("dialog[open]")) return;
             const editableFocus = document.activeElement?.closest(EDITABLE);
@@ -76,8 +68,7 @@ export function useKeyboardControls({ openCell, toggleFlag, chordCell, emitCellH
                 const rows = board.length;
                 const cols = board[0]?.length || 0;
                 if (rows === 0 || cols === 0) return;
-                // Take the keyboard back from a focused button, so the NEXT
-                // Space/Enter reveals instead of re-clicking it.
+                // Take the keyboard back from a focused button for the NEXT Space/Enter.
                 if (activatableFocus instanceof HTMLElement) activatableFocus.blur();
                 event.preventDefault();
                 let next: { r: number; c: number };
@@ -85,8 +76,7 @@ export function useKeyboardControls({ openCell, toggleFlag, chordCell, emitCellH
                     // First press shows the cursor at the centre without moving.
                     next = { r: Math.floor(rows / 2), c: Math.floor(cols / 2) };
                 } else {
-                    // The clamp also walks a cursor left out of bounds by a
-                    // board change back onto the board.
+                    // The clamp also walks a cursor left out of bounds by a board change back on.
                     next = {
                         r: Math.max(0, Math.min(rows - 1, kbCursor.r + move[0])),
                         c: Math.max(0, Math.min(cols - 1, kbCursor.c + move[1])),
@@ -106,12 +96,9 @@ export function useKeyboardControls({ openCell, toggleFlag, chordCell, emitCellH
             }
 
             /*
-             * P points at the cell under the cursor. A plain key, not a
-             * modifier: the guard above drops every keystroke carrying Ctrl,
-             * Meta or Alt, so a modifier binding here would be dead on arrival
-             * — and Shift, the one modifier that does get through, is the
-             * MOUSE shortcut. There is no arming step because there is nothing
-             * to disambiguate: the cursor already says which cell.
+             * P points at the cell under the cursor. A plain key: the guard
+             * above drops Ctrl/Meta/Alt, and Shift is the MOUSE shortcut. No
+             * arming step, since the cursor already says which cell.
              */
             if (key === "p") {
                 if (!pingCell || kbCursor === null) return;
@@ -131,8 +118,7 @@ export function useKeyboardControls({ openCell, toggleFlag, chordCell, emitCellH
                 if (kbCursor === null) return;
                 const cell = board[kbCursor.r]?.[kbCursor.c];
                 if (!cell) return;
-                // preventDefault before the PVP gate: a dead key must still
-                // not scroll the page mid-game.
+                // preventDefault before the PVP gate: a dead key must not scroll mid-game.
                 event.preventDefault();
                 if (state.mode === "pvp" && !state.pvpStarted) return;
 
@@ -145,10 +131,8 @@ export function useKeyboardControls({ openCell, toggleFlag, chordCell, emitCellH
                     return;
                 }
                 /*
-                 * Reveal on an open number chords, mirroring middle-click and
-                 * its setting — but only on a NUMBER. The mouse path chords any
-                 * open cell and eats a refusal for blanks; keyboard need not
-                 * copy that. Flagged cells are protected: no-op.
+                 * Reveal on an open NUMBER chords, mirroring middle-click and
+                 * its setting. Blanks and flagged cells are no-ops.
                  */
                 if (cell.isOpen && cell.nearbyMines > 0 && state.settings.chording) {
                     chordCell(kbCursor.r, kbCursor.c);
@@ -156,8 +140,7 @@ export function useKeyboardControls({ openCell, toggleFlag, chordCell, emitCellH
             }
         };
 
-        // The mouse taking over on the board dismisses the keyboard cursor;
-        // clicking HUD controls leaves it alone.
+        // The mouse on the board dismisses the cursor; HUD clicks leave it alone.
         const onMouseDown = (event: MouseEvent) => {
             const state = useMinesweeperStore.getState();
             if (state.kbCursor === null) return;

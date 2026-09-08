@@ -1,19 +1,10 @@
 /**
- * A session id is the only credential a returning player presents.
- *
- * Whoever sends one is offered that session's room code and display name, and
- * on the join that follows inherits its seat — the previous socket's player
- * record is deleted and the room slot repointed. Nothing bound it to a socket,
- * an account or an address, so a leaked id was the whole identity. Demonstrated
- * in a bug bash: a client that knew only the id, and had never seen the room
- * code, was handed both.
- *
- * What separates a genuine return from someone else arriving with the same id is
- * the state of the socket the session is bound to. Reload, dropped network and
- * closed tab all leave it DISCONNECTED — that is every case the resume exists
- * for. A socket that is still connected is a player sitting in the room right
- * now, and handing their seat to a second client is not a reconnect however the
- * id got there.
+ * A session id is the only credential a returning player presents: whoever
+ * sends one is offered the room and inherits its seat. What separates a real
+ * return from someone else arriving with the same id is the socket the
+ * session is bound to. Reload, dropped network and closed tab all leave it
+ * DISCONNECTED; a socket still connected is a player sitting in the room now,
+ * and handing their seat to a second client is not a reconnect.
  */
 
 const mockEmit = jest.fn();
@@ -103,9 +94,7 @@ describe('someone else arriving with a live session id', () => {
     });
 
     test('still joins — as themselves', async () => {
-        // Refusing the takeover must not refuse the person: the room is public
-        // to anyone with the code, and they may simply have the same id by
-        // accident. They just do not get to be the owner.
+        // Refusing the takeover must not refuse the person: the room is public to anyone with the code.
         await addPlayerToRoom(ROOM, OTHER, 'Thief', SESSION);
 
         expect(Object.keys(mockRedis.read(`player:${OTHER}`)).length).toBeGreaterThan(0);
@@ -124,8 +113,7 @@ describe('the same browser coming back', () => {
     });
 
     test('a socket this process never knew about is not treated as live', async () => {
-        // After a restart io knows nobody, and every reconnect would otherwise
-        // be refused as a takeover.
+        // After a restart io knows nobody; every reconnect would otherwise be refused as a takeover.
         await addPlayerToRoom(ROOM, OTHER, 'Owner', SESSION);
 
         expect(sessionSocketId()).toBe(OTHER);

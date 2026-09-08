@@ -1,21 +1,12 @@
 /**
- * Sound effects, synthesised — square/triangle blips built with the Web Audio
- * API at play time. Deliberately NO audio files: the 8-bit aesthetic is a few
- * oscillators with fast envelopes, which keeps the repo asset-free (nothing to
- * license, load, preload or cache-bust) and every sound editable in place as
- * numbers, the same spirit as the character-grid icon sprites.
- *
- * OFF BY DEFAULT (`settings.sound`) — nobody gets surprise audio; the player
- * turns it on in /settings. Every play re-reads the store, so the gate lives
- * here and call sites stay one-liners, mirroring lib/confetti.ts.
- *
- * Autoplay policy: browsers only allow an AudioContext after a user gesture.
- * Most plays trace back to a click anyway, but the ones that don't (a
- * teammate's cascade, a win landing from the server) rely on the page having
- * been interacted with — `installSoundUnlock` resumes the context on the
- * first gesture so those are audible too. A play that finds the context still
- * suspended is silently dropped, never queued: stale blips arriving late are
- * worse than none.
+ * Sound effects synthesised with the Web Audio API at play time. NO audio
+ * files: a few oscillators with fast envelopes keep the repo asset-free and
+ * every sound editable as numbers. OFF BY DEFAULT (`settings.sound`); every
+ * play re-reads the store, so the gate lives here and call sites stay
+ * one-liners, as in lib/confetti.ts. Browsers allow an AudioContext only after
+ * a user gesture, so `installSoundUnlock` resumes it on the first one for
+ * plays that are not clicks (a teammate's cascade, a server-decided win). A
+ * play that finds the context suspended is dropped, never queued.
  */
 
 import { useMinesweeperStore } from '@/app/store';
@@ -40,7 +31,7 @@ const getContext = (): AudioContext | null => {
 interface Blip {
     /** Start frequency, Hz. */
     freq: number;
-    /** Glide target — the up-chirp of a flag, the down-buzz of a loss. */
+    /** Glide target: the up-chirp of a flag, the down-buzz of a loss. */
     slideTo?: number;
     /** Offset into the sound, seconds. */
     at: number;
@@ -48,10 +39,7 @@ interface Blip {
     type?: OscillatorType;
 }
 
-/**
- * The sounds, as data. Frequencies lean on the C-major arpeggio (C5 E5 G5 C6
- * E6) because random pitches read as error beeps, not celebration.
- */
+/** The sounds, as data. Pitches lean on the C-major arpeggio; random ones read as error beeps. */
 const SOUNDS: Record<SoundName, Blip[]> = {
     reveal: [{ freq: 660, at: 0, duration: 0.045 }],
     flag: [{ freq: 880, slideTo: 1320, at: 0, duration: 0.07 }],
@@ -72,8 +60,7 @@ const SOUNDS: Record<SoundName, Blip[]> = {
         duration: i === 4 ? 0.28 : 0.09,
     })),
     lose: [{ freq: 220, slideTo: 55, at: 0, duration: 0.45, type: 'sawtooth' }],
-    /* Two notes up, quiet and quick: it fires for other people's messages, so
-       it has to be noticeable without competing with the click you just made. */
+    /* Quiet and quick: fires for other people's messages, so it must not compete with your click. */
     emote: [
         { freq: 784, at: 0, duration: 0.05, type: 'triangle' },
         { freq: 1047, at: 0.05, duration: 0.07, type: 'triangle' },
@@ -89,7 +76,7 @@ const scheduleBlip = (audio: AudioContext, out: GainNode, blip: Blip) => {
         osc.frequency.exponentialRampToValueAtTime(blip.slideTo, start + blip.duration);
     }
 
-    // Fast attack, exponential decay — the whole "8-bit" envelope.
+    // Fast attack, exponential decay: the "8-bit" envelope.
     const envelope = audio.createGain();
     envelope.gain.setValueAtTime(0.0001, start);
     envelope.gain.exponentialRampToValueAtTime(1, start + 0.008);
@@ -112,8 +99,7 @@ export function playSound(name: SoundName): void {
     const audio = getContext();
     if (!audio) return;
     if (audio.state === 'suspended') {
-        // Try, but never wait: if the browser refuses (no gesture yet), this
-        // play is dropped rather than queued to fire stale later.
+        // Try, but never wait: a refused play is dropped, not queued to fire stale.
         void audio.resume();
         if ((audio.state as string) === 'suspended') return;
     }
@@ -129,9 +115,8 @@ export function playSound(name: SoundName): void {
 }
 
 /**
- * Resumes the context on the first user gesture, so sounds NOT inside a click
- * (a teammate's move, a server-decided win) are audible. Listeners remove
- * themselves once the context is running. Idempotent; call from app mount.
+ * Resumes the context on the first user gesture so sounds NOT inside a click
+ * are audible. Listeners remove themselves once running. Idempotent.
  */
 export function installSoundUnlock(): void {
     if (typeof window === 'undefined') return;

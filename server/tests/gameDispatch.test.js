@@ -1,15 +1,9 @@
 /**
- * Tests for server/game/index.js — mode dispatch.
- *
- * Routing used to be three `if (mode === 'pvp')` checks buried inside the co-op
- * implementations in boardUtils.js. Now that it is one module, it can be tested
- * directly: these assert that each action reaches the right mode module with the
- * arguments that module expects, including the legacy no-mode case.
- *
- * This is also where co-op takes the room's action lock, so these cover that it
- * is held around the call and released afterwards. Whether the lock actually
- * stops one move erasing another is tested against a stateful Redis in
- * coopConcurrency.test.js; there is nothing here for it to race with.
+ * Mode dispatch in server/game/index.js: each action reaches the right mode
+ * module with the arguments it expects, including the legacy no-mode case.
+ * Co-op takes the room's action lock here, so these cover that it is held
+ * around the call and released after; whether it stops one move erasing
+ * another is coopConcurrency.test.js's job.
  */
 
 jest.mock('../game/coop', () => ({
@@ -163,9 +157,7 @@ describe('the co-op action lock', () => {
     });
 
     test('hands the mode module the snapshot read UNDER the lock, not the one before it', async () => {
-        // The pre-lock read only decides the mode. It predates the lock, so by
-        // the time the move runs another player may have written over it —
-        // acting on it is the whole bug.
+        // The pre-lock read only decides the mode; acting on it is the whole bug.
         const forMode = { mode: 'co-op', tag: 'pre-lock' };
         const forTheMove = { mode: 'co-op', tag: 'under-lock' };
         client.hGetAll.mockResolvedValueOnce(forMode).mockResolvedValueOnce(forTheMove);
@@ -184,10 +176,7 @@ describe('the co-op action lock', () => {
     });
 });
 
-/**
- * PVP players own separate board fields, so serialising them against each other
- * would break the race. Each is serialised against ONLY themselves.
- */
+/** PVP players own separate boards, so each is serialised against ONLY themselves. */
 describe('the pvp per-player action lock', () => {
     test.each([
         ['openCell', () => openCell(3, 4, 'r1', 'sock-1')],
@@ -212,8 +201,7 @@ describe('the pvp per-player action lock', () => {
     });
 
     test('index 0 is locked, not skipped — pvpPlayerIndex is the string "0"', async () => {
-        // '0' is truthy as a Redis string but 0 is falsy as a number; getting
-        // this wrong leaves player one the only unserialised player.
+        // '0' is truthy as a Redis string but 0 is falsy as a number.
         withPvpPlayer('0');
 
         await openCell(3, 4, 'r1', 'sock-1');

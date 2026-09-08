@@ -10,19 +10,11 @@ import { msUntilLocalMidnight } from '@/lib/holidays';
 
 /**
  * Renders nothing; owns the settings lifecycle. Mounted once in the layout.
- *
- * 1. Hydrates the store from localStorage after mount (reading storage during
- *    render is a hydration mismatch).
- * 2. On sign-in, pulls the server copy — SERVER WINS at sign-in, because the
- *    account's settings are what the player curated across devices; a fresh
- *    browser's defaults must not overwrite them. If the server has nothing
- *    yet, the local copy is pushed instead (first sign-in seeds the mirror).
- * 3. While signed in, every local change is pushed after a short debounce —
- *    LAST WRITE WINS from then on. Two devices editing simultaneously settle
- *    on whoever saved last, which for a settings page is the right amount of
- *    conflict resolution.
- *
- * Signed out, only step 1 runs and localStorage is the whole story.
+ * Hydrates the store from localStorage after mount (reading it during render
+ * is a hydration mismatch). On sign-in SERVER WINS — the account's settings
+ * were curated across devices — unless the server has nothing, in which case
+ * the local copy seeds it. While signed in, every local change is pushed
+ * after a debounce: LAST WRITE WINS. Signed out, localStorage is the whole story.
  */
 
 const PUSH_DEBOUNCE_MS = 800;
@@ -32,29 +24,21 @@ export default function SettingsSync() {
     const hydrateSettings = useMinesweeperStore((s) => s.hydrateSettings);
     const replaceSettings = useMinesweeperStore((s) => s.replaceSettings);
 
-    // What the server last agreed with, as JSON — so the pull in step 2 does
-    // not immediately echo itself back up through the subscription in step 3.
+    // What the server last agreed with, so a pull does not echo itself back up.
     const lastSynced = React.useRef<string | null>(null);
 
     React.useEffect(() => {
         hydrateSettings();
-        // Piggybacks on the one always-mounted lifecycle component: the audio
-        // context must be unlocked by the FIRST user gesture, wherever it
-        // lands, or server-initiated sounds (a win, a teammate's cascade)
-        // stay silent until the player happens to click after enabling sound.
+        // The audio context must be unlocked by the FIRST user gesture, wherever
+        // it lands, or server-initiated sounds stay silent.
         installSoundUnlock();
     }, [hydrateSettings]);
 
     /*
-     * Keeps a long-lived tab in step with the calendar. A holiday window can
-     * only open or close at local midnight, so this arms ONE timer at a time
-     * rather than polling.
-     *
-     * The visibility listener is not redundant with it: background timers are
-     * throttled to minutes and do not run at all across a sleep, which is
-     * exactly the tab that sits open overnight. Re-resolving on the way back
-     * catches the boundary the timer slept through, and `refreshSeasonal` is a
-     * no-op when the answer has not moved.
+     * Keeps a long-lived tab in step with the calendar: a holiday window can
+     * only turn over at local midnight, so ONE timer is armed at a time. The
+     * visibility listener catches the boundary a throttled or sleeping
+     * background timer missed; `refreshSeasonal` is a no-op when nothing moved.
      */
     React.useEffect(() => {
         let timer: ReturnType<typeof setTimeout>;
@@ -99,13 +83,10 @@ export default function SettingsSync() {
             }
         });
 
-        // Custom themes: merge rather than server-wins — themes are a
-        // COLLECTION, and a fresh browser having none must not erase the
-        // account's shelf, nor sign-in discard what was drafted here. On an
-        // id collision the server copy wins (it is the multi-device truth);
-        // local-only ones are pushed up. Deletions replay FIRST: a theme
-        // deleted while offline holds a tombstone (lib/customThemes.ts), and
-        // without replaying it here the server copy would resurrect it.
+        // Custom themes merge rather than server-wins: they are a COLLECTION,
+        // so neither side may erase the other's. On an id collision the server
+        // wins; local-only ones are pushed up. Deletions replay FIRST, or the
+        // server copy would resurrect a theme tombstoned offline (lib/customThemes.ts).
         fetchThemes().then(async (serverThemes) => {
             if (cancelled || serverThemes === null) return;
 
@@ -113,8 +94,7 @@ export default function SettingsSync() {
                 const ok = await deleteThemeRemote(id);
                 if (ok) clearPendingThemeDeletion(id);
             }
-            // Still-pending ids (the replay itself failed) stay out of the
-            // merge, so they cannot resurrect locally either.
+            // Ids whose replay failed stay out of the merge, so they cannot resurrect locally.
             const tombstoned = new Set(readPendingThemeDeletions());
             const survivors = serverThemes.filter((t) => !tombstoned.has(t.id));
 

@@ -1,12 +1,9 @@
 /**
- * Accounts at the edge: turning a bridge token into a user, on both transports.
- *
- * The socket path (`resolveSocketUser`) is best-effort by contract — an
- * unverifiable token, a missing database, or a Postgres outage all resolve to
- * null, an anonymous player, because sign-in being down must never keep anyone
- * out of a game. The REST path (`registerProfileRoutes`) is the opposite: it
- * exists only to serve account data, so there it answers honestly with 401/503
- * instead of degrading.
+ * Bridge token -> user, on both transports. The socket path
+ * (`resolveSocketUser`) is best-effort: an unverifiable token, a missing
+ * database or a Postgres outage all resolve to an anonymous player, because
+ * sign-in being down must never keep anyone out of a game. The REST path
+ * (`registerProfileRoutes`) serves only account data, so it answers 401/503.
  */
 
 const { verifyBridgeToken } = require('../utils/authToken');
@@ -20,12 +17,9 @@ const { canUseAvatar, requirementFor } = require('../../shared/avatars');
 const DEFAULT_DISPLAY_NAME = 'Player';
 
 /**
- * Identity → user, cached briefly. Without this every authenticated request —
- * including each debounced settings save — runs the get-or-create UPSERT, a
- * row write per request for data that changes essentially never. The TTL
- * bounds how stale a cached user can be (a token-refreshed email waits one
- * minute); rename and delete update the cache themselves below, so the
- * operations a player actually watches are never stale at all.
+ * Identity → user, cached briefly, or every authenticated request (each
+ * debounced settings save included) runs the get-or-create UPSERT. The TTL
+ * bounds staleness; rename and delete update the cache themselves.
  */
 const IDENTITY_CACHE_TTL_MS = 60_000;
 const identityCache = new Map();
@@ -53,9 +47,7 @@ const userForIdentity = async (identity) => {
         provider: identity.provider,
         providerAccountId: identity.providerAccountId,
         email: identity.email,
-        // The stored-name rules apply to OAuth names too: trimmed, non-empty,
-        // within length — an OAuth display name is arbitrary user input from
-        // another site, not something pre-sanitised.
+        // An OAuth display name is arbitrary input from another site: same stored-name rules.
         displayName: (() => {
             const name = normalizePlayerName(identity.name || '');
             return isValidPlayerName(name) ? name : DEFAULT_DISPLAY_NAME;
@@ -66,11 +58,8 @@ const userForIdentity = async (identity) => {
 };
 
 /**
- * The user a connecting socket belongs to, or null for an anonymous player.
- *
- * Called from the io middleware in server.js with `socket.handshake.auth`.
- * Never throws and never blocks a connection: anonymous is a fully supported
- * state, not an error.
+ * The user a connecting socket belongs to, or null for anonymous. Called from
+ * the io middleware in server.js; never throws and never blocks a connection.
  */
 const resolveSocketUser = async (handshakeAuth) => {
     const identity = verifyBridgeToken(handshakeAuth && handshakeAuth.authToken);
@@ -84,11 +73,8 @@ const resolveSocketUser = async (handshakeAuth) => {
 };
 
 /**
- * REST auth: Authorization: Bearer <bridge token> → req.user.
- *
- * 503 before 401 when there is no database: with Postgres unprovisioned the
- * token may well be fine, and "service not available" is the truthful answer
- * rather than blaming the caller's credentials.
+ * REST auth: Authorization: Bearer <bridge token> → req.user. 503 before 401
+ * when there is no database: the token may well be fine.
  */
 const requireUser = async (req, res, next) => {
     if (!isDbEnabled()) {
@@ -123,19 +109,14 @@ const publicUser = (user) => ({
     createdAt: user.createdAt,
 });
 
-/**
- * Mounts the account routes. The server's first HTTP surface beyond health
- * checks — everything else speaks the socket protocol. The /api JSON body
- * parser is mounted by server.js, ahead of every route registration.
- */
+/** Mounts the account routes. The /api JSON body parser is mounted by server.js ahead of them. */
 const registerProfileRoutes = (app) => {
     app.get('/api/me', requireUser, (req, res) => {
         res.json({ user: publicUser(req.user) });
     });
 
     app.put('/api/me', requireUser, async (req, res) => {
-        // Field-by-field: each is validated only when present, so the rename
-        // form and the avatar picker can each send just their own field.
+        // Field-by-field, so the rename form and the avatar picker can each send only their own.
         const body = req.body || {};
         const fields = {};
 
@@ -150,8 +131,7 @@ const registerProfileRoutes = (app) => {
         }
 
         if (body.avatar !== undefined) {
-            // Catalog ids only — including no null-to-clear: there is no unset
-            // state, so "reset" is sending 'classic', not sending null.
+            // Catalog ids only; there is no unset state, so "reset" sends 'classic', not null.
             if (!isValidAvatarId(body.avatar)) {
                 res.status(400).json({ error: 'Invalid avatar' });
                 return;
@@ -165,18 +145,14 @@ const registerProfileRoutes = (app) => {
         }
 
         /*
-         * Everything that TOUCHES Postgres lives in here, entitlement included.
-         * Express 4 does not catch a rejected async handler: a throw outside
-         * this block is not a wrong status code, it is no response at all —
-         * the request hangs until the client gives up, and the picker sits on
-         * its optimistic state with nothing to roll back to.
+         * Everything that TOUCHES Postgres lives in here. Express 4 does not
+         * catch a rejected async handler: a throw outside this block is no
+         * response at all, and the picker sits on its optimistic state.
          */
         try {
             /*
-             * Earned avatars are checked HERE, the only write path, because the
-             * picker's lock is a courtesy: it draws from a payload the client
-             * could simply not have fetched. The read is skipped entirely for
-             * the ungated majority — most saves stay one round trip.
+             * Earned avatars are checked HERE, the only write path; the picker's
+             * lock is a courtesy. Skipped for the ungated majority.
              */
             if (fields.avatar && requirementFor(fields.avatar)) {
                 const earned = await statsRepo.earnedAchievementIds(req.user.id);
@@ -205,11 +181,9 @@ const registerProfileRoutes = (app) => {
     app.delete('/api/me', requireUser, async (req, res) => {
         try {
             await userRepo.deleteUser(req.user.id);
-            // A cached identity for a deleted account would quietly recreate
-            // it on the next request within the TTL.
+            // A cached identity would quietly recreate the account within the TTL.
             identityCache.delete(cacheKey(req.user));
-            // Idempotent on purpose: deleting an already-deleted account is
-            // the outcome the caller wanted, not an error worth surfacing.
+            // Idempotent: deleting an already-deleted account is the outcome the caller wanted.
             res.status(204).end();
         } catch (error) {
             console.error('Postgres error deleting user:', error.message);

@@ -4,12 +4,9 @@ import { render, screen } from "@testing-library/react";
 import FlagCounter from "./FlagCounter";
 
 /**
- * Mines remaining, in the three places it appears.
- *
- * The number is wrapped in an emoji and a <strong>, so its text content alone
- * reads as "🚩 12" — no use to anyone listening rather than looking. The
- * accessible name is what carries the meaning, and like the timer's it is the
- * kind of thing that can stop resolving while the component still looks right.
+ * Mines remaining, in its three places. The text content reads as "🚩 12", so
+ * the accessible name carries the meaning, and it can stop resolving while the
+ * component still looks right.
  */
 
 describe.each(["bar", "dialog", "hud"] as const)("the %s counter", (variant) => {
@@ -25,11 +22,7 @@ describe.each(["bar", "dialog", "hud"] as const)("the %s counter", (variant) => 
         expect(screen.getByRole("status").textContent).toContain("12");
     });
 
-    /*
-     * Over-flagging goes negative rather than clamping at zero — that is the
-     * long-standing behaviour, and it is informative: it tells you you have
-     * placed more flags than there are mines.
-     */
+    /* Over-flagging goes negative rather than clamping: it says you placed more flags than mines. */
     test("reports over-flagging rather than clamping at zero", () => {
         render(<FlagCounter remainingFlags={-3} variant={variant} />);
 

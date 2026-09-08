@@ -10,14 +10,11 @@ import { MAX_ROOM_CODE_LENGTH } from "@/lib/roomCode";
 
 export interface JoinRoomFormProps {
     /**
-     * Fired instead of opening the name dialog, for a player whose name is
-     * already known.
-     *
-     * Three states, not two: a function means go straight in, `null` means ask
-     * (a guest), and `undefined` means the account has not resolved yet. The
-     * join-link path below decides on MOUNT, when not-yet is the normal state,
-     * so collapsing null and undefined would send every signed-in player
-     * arriving by link to a name dialog they should never see.
+     * Fired instead of opening the name dialog when the name is already known.
+     * Three states: a function means go straight in, `null` means ask (a
+     * guest), `undefined` means the account has not resolved yet. The join-link
+     * path decides on MOUNT, so collapsing null and undefined would send every
+     * signed-in player arriving by link to a name dialog.
      */
     joinRoom?: (() => void) | null;
 }
@@ -27,18 +24,11 @@ interface JoinFormValues {
 }
 
 /**
- * Joining an existing room: one field and a button on one row.
- *
- * Deliberately FIRST on the page — under the create form's three option rows,
- * the Join button fell below the fold on a laptop viewport, and creating is the
- * longer task people will scroll for.
- *
- * The join-link effect lives here because all it does is pre-fill this form's
- * input, which needs this form's `setValue`.
- *
- * Submitting records the room and opens the name dialog, and that dialog fires
- * the `joinRoom` emit — unless the player's name is already known, in which
- * case the action arrives here as a prop and the dialog is skipped entirely.
+ * Joining an existing room: one field and a button on one row. FIRST on the
+ * page, since under the create form's option rows the Join button fell below
+ * the fold on a laptop. The join-link effect lives here because it pre-fills
+ * this form's input. Submitting records the room and opens the name dialog,
+ * which fires the `joinRoom` emit; a known name skips the dialog.
  */
 export default function JoinRoomForm({ joinRoom }: JoinRoomFormProps) {
     const setRoom = useMinesweeperStore((state) => state.setRoom);
@@ -51,14 +41,12 @@ export default function JoinRoomForm({ joinRoom }: JoinRoomFormProps) {
     } = useForm<JoinFormValues>();
 
     /**
-     * A join link (?room=...) pre-fills the code and jumps straight to the name
-     * dialog. The param is stripped right after, so a refresh or a return to the
-     * landing page does not reopen it.
+     * A join link (?room=...) pre-fills the code and jumps to the name dialog.
+     * The param is stripped right after, so a refresh does not reopen it.
      */
     React.useEffect(() => {
-        // Wait for the account before deciding: acting now would ask a
-        // signed-in player for a name that arrives a moment later. The param
-        // survives until then, and is stripped by the run that acts.
+        // Wait for the account before deciding, or a signed-in player is asked
+        // for a name that arrives a moment later. The param survives until then.
         if (joinRoom === undefined) return;
 
         const roomParam = new URLSearchParams(window.location.search).get(ROOM_QUERY_PARAM)?.trim().slice(0, 200);
@@ -75,8 +63,7 @@ export default function JoinRoomForm({ joinRoom }: JoinRoomFormProps) {
     }, [joinRoom, setRoom, setValue]);
 
     const onSubmit = handleSubmit((data) => {
-        // Both read the store, and zustand sets synchronously, so the room
-        // recorded a line above is the one `joinRoom` emits.
+        // zustand sets synchronously, so the room recorded here is the one `joinRoom` emits.
         setRoom(data.roomCode);
         if (joinRoom) joinRoom();
         else openDialog(DIALOGS.nameJoin);

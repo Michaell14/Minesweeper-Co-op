@@ -1,9 +1,7 @@
 // @vitest-environment jsdom
 /**
- * The settings page by accessible name: the heading, both section panels, the
- * palette radio group (shared ThemeCards against the real store), and the
- * account button's two states. What fails silently here is a section whose
- * heading stops labelling it, or theme cards that stop reflecting the store.
+ * The settings page by accessible name. What fails silently here is a section
+ * whose heading stops labelling it, or theme cards that stop reflecting the store.
  */
 import React from 'react';
 import { render, screen, fireEvent, cleanup, act, within } from '@testing-library/react';
@@ -20,15 +18,10 @@ import { THEMES, isSeasonal } from '@/lib/theme';
 import { DEFAULT_SETTINGS, writeStoredSettings, type Settings } from '@/lib/settings';
 import { activeHoliday, localDay } from '@/lib/holidays';
 
-/**
- * A day the schedule leaves alone — found, not hardcoded. Every holiday added
- * shrinks the set of ordinary days, and twice now a pin here has quietly become
- * a holiday and changed what these cases were testing.
- */
-/** Scoped to the palette group, so a second radio group on the page can never
- * make these queries ambiguous. */
+/** Scoped to the palette group, so a second radio group can never make these queries ambiguous. */
 const paletteGroup = () => within(screen.getByRole('radiogroup', { name: 'Colour palette' }));
 
+/** A day the schedule leaves alone, found rather than hardcoded: a pin here has twice become a holiday. */
 const ORDINARY_DAY = (() => {
     for (let i = 0; i < 365; i++) {
         const day = new Date(2026, 0, 1 + i);
@@ -54,10 +47,8 @@ afterEach(() => {
 });
 
 /**
- * Puts settings in place through the real path — storage, then hydration —
- * rather than by setting store state directly. `seasonalOverride` is resolved
- * during hydration, so a test that assigns `settings` straight to the store
- * gets a stale override and a picker that disagrees with the clock.
+ * Seeds through the real path (storage, then hydration): `seasonalOverride` is
+ * resolved during hydration, so writing the store directly leaves it stale.
  */
 const seed = (overrides: Partial<Settings> = {}) => {
     writeStoredSettings({ ...DEFAULT_SETTINGS, ...overrides });
@@ -65,12 +56,8 @@ const seed = (overrides: Partial<Settings> = {}) => {
 };
 
 /**
- * Pins the clock for a describe that reads the calendar. Only the palette
- * picker does — the sound, HUD and account cases have no business running
- * under fake timers, which are a standing source of async flake.
- *
- * Hydration is repeated here because the file-level beforeEach ran before the
- * clock was pinned, and the override resolved then would be today's.
+ * Pins the clock for a describe that reads the calendar; the rest stay off fake
+ * timers. Re-hydrates, since the file-level beforeEach ran before the pin.
  */
 const pinTo = (day: string) => {
     beforeEach(() => {
@@ -111,9 +98,7 @@ describe('the palette picker out of season', () => {
 });
 
 describe('choosing a palette', () => {
-    // Pinned even though the assertions happen to hold either way: in season
-    // this click takes the switch-away branch instead, and a case that changes
-    // which path it exercises depending on the date is not one case.
+    // Pinned: in season this click takes the switch-away branch, and a case must exercise one path.
     pinTo(ORDINARY_DAY);
 
     it('writes the store, the document and storage', () => {
@@ -127,9 +112,8 @@ describe('choosing a palette', () => {
 });
 
 /*
- * The seasonal override, from the picker's side. The rule these all circle is
- * that the holiday is PAINT and the saved palette is DATA: they must be able to
- * disagree, and the saved one has to survive the window intact.
+ * The seasonal override from the picker's side: the holiday is PAINT and the
+ * saved palette is DATA, and the saved one must survive the window intact.
  */
 describe('a holiday in season', () => {
     pinTo('2026-10-31');
@@ -190,11 +174,9 @@ describe('a holiday in season', () => {
 });
 
 /*
- * The tab that stays open. Windows are whole-day granular, so the schedule can
- * only move at local midnight — but nothing repaints on its own, and before
- * `refreshSeasonal` existed a browser left open overnight kept yesterday's
- * answer until it reloaded. Both edges, because a palette that arrives and
- * never leaves is the same bug wearing the other hat.
+ * The tab that stays open. The schedule can only move at local midnight, and
+ * before `refreshSeasonal` a browser left open overnight kept yesterday's
+ * answer. Both edges: a palette that never leaves is the same bug.
  */
 describe('crossing a window boundary with the tab open', () => {
     pinTo('2026-10-23'); // the evening before Halloween opens

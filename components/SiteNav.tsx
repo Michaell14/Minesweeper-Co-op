@@ -20,12 +20,9 @@ const LINKS: [href: string, label: string][] = [
 const ICON_SIZE = 24;
 
 /**
- * The site header — the only navigation, on every route.
- *
- * It replaced a cluster of unlabelled icons floated over the bottom-right of
- * `/` and `/daily`, which is why this is STATIC rather than sticky: the game's
- * mobile HUD is already `sticky top-0`, and a second sticky layer would either
- * cover it or owe it a coordinated offset forever.
+ * The site header, the only navigation. STATIC rather than sticky: the game's
+ * mobile HUD is already `sticky top-0`, and a second layer would cover it or
+ * owe it an offset forever.
  */
 export default function SiteNav() {
     const pathname = usePathname();
@@ -34,9 +31,8 @@ export default function SiteNav() {
     const avatarId = profile?.avatar ?? null;
 
     /*
-     * Starts false so the first client render matches SSR — the dot pops in
-     * after mount. Mounted once in the layout, so this re-runs on every
-     * client-side navigation: landing on /changelog is what marks it seen.
+     * Starts false so the first client render matches SSR. Mounted once in the
+     * layout, so this re-runs per navigation: landing on /changelog marks it seen.
      */
     const [hasUnseen, setHasUnseen] = React.useState(false);
 
@@ -51,8 +47,7 @@ export default function SiteNav() {
         };
 
         refresh();
-        // Seen-state is shared across tabs; the event fires only in OTHER tabs
-        // and only on real changes, so this cannot loop.
+        // Seen-state is shared across tabs; the event fires only in OTHER tabs.
         window.addEventListener('storage', refresh);
         return () => window.removeEventListener('storage', refresh);
     }, [pathname]);
@@ -63,9 +58,7 @@ export default function SiteNav() {
                 aria-label="Main"
                 className="mx-auto flex w-full max-w-[1350px] flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 sm:gap-x-6">
 
-                {/* Short form below sm: a phone leaves this row 328px and the
-                    icons take 144, so the full wordmark (204px, 241 in the
-                    fallback face) wrapped to a third row. */}
+                {/* Short form below sm: the full wordmark wrapped to a third row on a phone. */}
                 <Link
                     href="/"
                     aria-label="Minesweeper Co-op"
@@ -74,16 +67,14 @@ export default function SiteNav() {
                     <span className="hidden sm:inline">Minesweeper Co-op</span>
                 </Link>
 
-                {/* Right on both layouts; on mobile that is row one, beside the
-                    brand, with the links wrapping underneath. */}
+                {/* Right on both layouts; on mobile, row one beside the brand. */}
                 <div className="order-2 ml-auto flex items-center gap-4 sm:order-3">
                     <Link
                         href="/changelog"
                         aria-label="What's new"
                         className={`relative inline-block ${pointerClass}`}>
                         <StarIcon size={ICON_SIZE} />
-                        {/* Square and unrounded — a round dot reads as
-                            anti-aliasing next to pixel icons. */}
+                        {/* Square: a round dot reads as anti-aliasing beside pixel icons. */}
                         {hasUnseen && (
                             <span
                                 aria-hidden="true"
@@ -98,9 +89,8 @@ export default function SiteNav() {
                     </Link>
 
                     {/*
-                      * Only KNOWN-signed-out gets the dialog button. Treating a
-                      * still-resolving session as signed out flashes a sign-in
-                      * control at every signed-in player on every load.
+                      * Only KNOWN-signed-out gets the dialog button, or every
+                      * signed-in player sees a sign-in control flash on load.
                       */}
                     {status === 'unauthenticated' ? (
                         <button
@@ -134,17 +124,14 @@ export default function SiteNav() {
                 </div>
 
                 {/* Full width on mobile so it wraps to its own line, scrolling
-                    rather than stacking. Four items do not earn a drawer.
-                    Scrollbar hidden, not the overflow: the row wants 334px in
-                    328, so classic-scrollbar platforms charged the board 15px
-                    for a gutter macOS never draws. It still drags and wheels. */}
+                    rather than stacking. Scrollbar hidden, not the overflow:
+                    classic-scrollbar platforms charged the board 15px. */}
                 <ul className="order-3 flex w-full items-center gap-4 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:order-2 sm:w-auto sm:gap-5">
                     {LINKS.map(([target, label]) => (
                         <li key={target}>
                             <Link
                                 href={target}
-                                // Exact match: '/' is a prefix of every route,
-                                // so prefix-matching lights Play up forever.
+                                // Exact match: '/' is a prefix of every route.
                                 aria-current={pathname === target ? 'page' : undefined}
                                 className={`text-pixel-xs whitespace-nowrap ${pathname === target ? '' : 'text-ink-muted'} hover:text-ink-muted-hover`}>
                                 {label}

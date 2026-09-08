@@ -119,8 +119,7 @@ describe('validateDrill', () => {
     });
 
     test('rejects a board hiding a mine nobody could deduce', () => {
-        // Ground truth would accept a lucky flag on (1,1), but it is not in the
-        // solution — so the drill could never be finished.
+        // A lucky flag on (1,1) would be accepted but is not in the solution, so the drill could never finish.
         const problems = validateDrill(drill({
             layout: ['1#', '#*'],
             solution: { flag: [], open: [] },
@@ -198,8 +197,7 @@ describe('explain', () => {
         const why = explain(['121', '*#*'], 1, 2);
         expect(why?.verdict).toBe('mine');
         expect(why?.rule).toBe('subset');
-        // Both opened cells that produced the step have to appear, or the
-        // explanation is not reproducible by the player.
+        // Both opened cells must appear, or the player cannot reproduce the step.
         expect(why?.text).toMatch(/row 1, column 1/);
         expect(why?.text).toMatch(/row 1, column 2/);
     });
@@ -220,8 +218,7 @@ describe('explain', () => {
 });
 
 describe('nextHint', () => {
-    // On this board the subset rule fires before counting can do anything, so
-    // deduction order — not row-major order — is what a hint should follow.
+    // The subset rule fires before counting here, so hints follow deduction order, not row-major.
     const LAYOUT = ['121', '*#*'];
 
     test('points at the first cell the rules can prove', () => {
@@ -253,8 +250,7 @@ describe('the pattern gate', () => {
     });
 
     test('rejects a 1-2 drill whose first subset step proves a cell safe, not a mine', () => {
-        // '1121' does contain '12', so only the DIRECTION of the first step
-        // separates this from a genuine 1-2 board.
+        // '1121' contains '12', so only the DIRECTION of the first step separates it from a real 1-2.
         const problems = validateDrill(drill({
             lesson: 'one-two',
             layout: ['1121', '#*#*'],
@@ -274,8 +270,7 @@ describe('the pattern gate', () => {
 
 describe('cells the player could never resolve', () => {
     test('rejects a board holding a covered cell no number can reach', () => {
-        // (0,0) touches only covered cells, so nothing will ever prove it and
-        // the board can never be cleared.
+        // (0,0) touches only covered cells, so nothing will ever prove it.
         const problems = validateDrill(drill({
             layout: ['##.', '##.', '...'],
             solution: { flag: [], open: [[0, 1], [1, 0], [1, 1]] },
@@ -286,8 +281,7 @@ describe('cells the player could never resolve', () => {
 });
 
 describe('a pattern read backwards', () => {
-    // A 1-2 mirrored is a 2-1, and reflection is a symmetry of the board — the
-    // gate must not care which way round the wall the player meets it.
+    // Reflection is a symmetry of the board; a mirrored 1-2 is a 2-1.
     test('accepts a 1-2 board whose only occurrence reads right-to-left', () => {
         expect(validateDrill(drill({
             lesson: 'one-two',
@@ -316,8 +310,7 @@ describe('a lesson that accepts any of several patterns', () => {
     });
 
     test('rejects a board holding none of them', () => {
-        // Needs subset reduction, but shows no named pattern in any row or
-        // column read EITHER way — its only digit neighbours are 1-3 and 3-1.
+        // Needs subset reduction, but no named pattern reads EITHER way; only 1-3 and 3-1.
         const problems = validateDrill(drill({
             lesson: 'in-the-wild',
             layout: ['#*2', '*3*', '13#', '#1*'],
@@ -331,8 +324,7 @@ describe('a lesson that accepts any of several patterns', () => {
 });
 
 describe('an explanation names the cells that prove it', () => {
-    /* counting-a is ['*1.', '11.', '...'] — the scan reaches the 1 at (0,1)
-       first, and it is the only cell touching the mine at (0,0). */
+    /* The scan reaches the 1 at (0,1) first, the only cell touching the mine at (0,0). */
     test('a counting deduction cites the one number that proves it', () => {
         const why = explain(['*1.', '11.', '...'], 0, 0);
 
@@ -351,8 +343,7 @@ describe('an explanation names the cells that prove it', () => {
         }
     });
 
-    /* A clue is something the player can read off the board, so it must be an
-       opened cell — never one of the covered cells the deduction is about. */
+    /* A clue must be an opened cell the player can read, never a covered one. */
     test('every clue points at an opened cell', () => {
         for (const drill of DRILLS) {
             const { mines, safe } = deduce(drill.layout);

@@ -7,15 +7,10 @@ import { DIALOGS, closeDialog, openDialog } from '@/lib/dialogs';
 import { providerLabel } from '@/lib/profileApi';
 
 /**
- * The sign-in and privacy dialogs, mounted on every route by the layout.
- *
- * This used to be the whole account surface — rename, sign out, delete. All
- * of that now lives on /profile (app/profile/AccountPanel.tsx): signed in,
- * the footer icon links straight there and this dialog is never the way in.
- * What remains is the one thing a signed-OUT player needs: the provider
- * buttons. Sign-in is a full-page OAuth redirect, so there is no state to
- * reconcile afterwards — the app reloads and the socket reconnects with the
- * bridge token.
+ * The sign-in and privacy dialogs, mounted on every route. The account
+ * surface itself lives on /profile (AccountPanel.tsx); this is only what a
+ * signed-OUT player needs. Sign-in is a full-page OAuth redirect, so there is
+ * no state to reconcile afterwards.
  */
 
 type ProviderInfo = { id: string; name: string };
@@ -24,8 +19,7 @@ export default function AccountMenu() {
     const { status } = useSession();
     const router = useRouter();
 
-    // Which providers this deploy actually has, from NextAuth's own endpoint —
-    // env vars are server-side, so the client asks rather than assumes.
+    // Which providers this deploy has, from NextAuth's endpoint: env vars are server-side.
     const [providers, setProviders] = React.useState<ProviderInfo[] | null>(null);
     React.useEffect(() => {
         if (status !== 'unauthenticated') return;
@@ -85,9 +79,7 @@ export default function AccountMenu() {
                     </>
                 )}
 
-                {/* Reachable only when the session flips while the dialog is
-                    open — a sign-in finishing in another tab. A safety net
-                    rather than a dead end, for exactly that case. */}
+                {/* Reachable only when the session flips while open (a sign-in in another tab). */}
                 {status === 'authenticated' && (
                     <>
                         <p className="text-pixel-sm">You are already signed in.</p>
@@ -95,8 +87,7 @@ export default function AccountMenu() {
                             size="sm"
                             className="mt-2"
                             onClick={() => {
-                                // The dialog outlives route changes (it lives in
-                                // the layout), so close it before navigating.
+                                // The dialog lives in the layout and outlives route changes.
                                 closeDialog(DIALOGS.account);
                                 router.push('/profile');
                             }}>

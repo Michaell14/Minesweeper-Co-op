@@ -7,7 +7,7 @@ import { subscribeAppliedTheme, getAppliedTheme } from "@/lib/theme";
 import styles from "./sprites.module.css";
 import { SPRITE_SETS, DEFAULT_SET, spriteSetById, type SpriteKind } from "./spriteArt";
 
-// The art lives in spriteArt.ts, re-exported here so callers need one path.
+// Re-exported so callers need one path.
 export * from "./spriteArt";
 
 /** The art as <rect> runs. Callers wrap it in their own <svg> or <symbol>. */
@@ -25,30 +25,22 @@ const SYMBOL_ID: Record<SpriteKind, string> = {
 };
 
 /**
- * The applied palette, read off `<html data-theme>` rather than from the store.
- *
- * The attribute is the only thing that knows the whole truth: the no-flash
- * script sets it before any bundle runs, the settings slice sets it when a
- * holiday is in season, and /ds sets it directly to preview a palette. A store
- * subscription would miss the last of those and duplicate the first two.
+ * The applied palette, read off `<html data-theme>` rather than the store: the
+ * no-flash script, the settings slice and /ds all set it, and only the
+ * attribute knows all three.
  */
 function useAppliedTheme(): string | null {
     return React.useSyncExternalStore(subscribeAppliedTheme, getAppliedTheme, () => null);
 }
 
 /**
- * The two symbols every <Sprite> points at, mounted once in the layout.
+ * The two symbols every <Sprite> points at, mounted once in the layout. A mine
+ * is ~40 rects, so inlining per cell would put thousands of nodes on a lost
+ * board; <use> is live, so a palette swap redraws every flag without React.
  *
- * The indirection is what keeps the board cheap: a 16x16 mine is ~40 rects, and
- * inlining that in every cell would put thousands of nodes on a lost board.
- * <use> is a live reference, so swapping the palette redraws every flag on the
- * board without React re-rendering a single cell.
- *
- * `pinned` is a GENERAL set id the player chose (settings.spriteSet, wired up
- * by components/SpriteDefsHost.tsx). Precedence mirrors the palette's own
- * rule: while a holiday window paints, its pair wins — it is paint, and it
- * leaves on its own — and the pin resumes afterwards. Seasonal ids are not
- * pinnable, and an unknown id falls back to following, never to blank art.
+ * `pinned` is a general set id (settings.spriteSet, via SpriteDefsHost.tsx).
+ * A seasonal pair wins while its window paints and the pin resumes after;
+ * an unknown id falls back to following, never to blank art.
  */
 export function SpriteDefs({ pinned }: { pinned?: string | null } = {}) {
     const applied = useAppliedTheme();
@@ -68,11 +60,11 @@ export function SpriteDefs({ pinned }: { pinned?: string | null } = {}) {
 
 export interface SpriteProps {
     kind: SpriteKind;
-    /** Sizes it. Without one it takes the inline size, for use beside text. */
+    /** Without one it takes the inline size, for use beside text. */
     className?: string;
 }
 
-/** A mine or a flag. Decorative — callers carry the accessible name. */
+/** A mine or a flag. Decorative; callers carry the accessible name. */
 export default function Sprite({ kind, className }: SpriteProps) {
     return (
         <svg

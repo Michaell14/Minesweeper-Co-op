@@ -1,15 +1,8 @@
 /**
- * Minimal Chrome DevTools Protocol driver.
- *
- * Uses the Chrome already installed on the machine plus Node's global WebSocket,
- * so the UI smoke test needs no extra dependencies. Set CHROME_PATH to override
- * the binary.
- *
- * On CI (anywhere `CI` is set) two extra flags go on. Chrome's sandbox needs
- * user namespaces, which a CI container may not grant, and /dev/shm is often
- * small enough there that the renderer dies partway through a run — a failure
- * that reads like a flaky test rather than a missing flag. Neither flag is
- * wanted locally, where the sandbox works and should stay on.
+ * Minimal Chrome DevTools Protocol driver over the installed Chrome and Node's
+ * global WebSocket, so the smoke test needs no dependencies (CHROME_PATH
+ * overrides). Under `CI` the sandbox and /dev/shm flags go on: a container may
+ * not grant user namespaces, and a small /dev/shm kills the renderer mid-run.
  */
 const { spawn } = require('child_process');
 
@@ -178,11 +171,7 @@ async function attach(target) {
         await sleep(1200);
     };
 
-    /**
-     * Presses one key the way a keyboard would. Named keys pass their code and
-     * virtual key code explicitly: key('ArrowRight', { code: 'ArrowRight', keyCode: 39 }).
-     * `keyDown` rather than `rawKeyDown` so single characters carry text.
-     */
+    /** Presses one key. `keyDown` rather than `rawKeyDown` so single characters carry text. */
     const key = async (k, { code, keyCode = 0 } = {}) => {
         const base = {
             key: k,

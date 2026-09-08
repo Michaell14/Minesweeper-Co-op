@@ -1,15 +1,7 @@
 /**
- * Tests for chording — opening a satisfied number's remaining neighbours.
- *
- * Chording had no coverage at all despite being the fiddliest interaction in the
- * game: it spans Cell (which records the button state), Grid (which spots both
- * buttons down) and the server (which decides what actually opens). This covers
- * the server half, which is the part that can be tested deterministically — the
- * browser smoke test cannot drive it, because making a chord do something
- * visible requires knowing where the mines are and clients are not told.
- *
- * Boards here are hand-built with explicit nearbyMines so nothing cascades and
- * each assertion is about chording alone.
+ * Chording, server half: the smoke test cannot drive it, since a visible chord
+ * needs mine positions the client is never told. Boards are hand-built with
+ * explicit nearbyMines so nothing cascades.
  */
 
 const mockEmit = jest.fn();
@@ -29,9 +21,8 @@ const SOCKET = 'sock-1';
 let client;
 
 /**
- * 4x4 grid, one mine at (0,0). Every cell claims nearbyMines: 1 so that
- * revealing never cascades; the far column and bottom row stay closed so the
- * board is never fully cleared, which would trigger the win path instead.
+ * 4x4, one mine at (0,0). nearbyMines: 1 everywhere so nothing cascades; the
+ * far column and bottom row stay closed so the win path never fires.
  */
 const buildBoard = ({ flagMine = true } = {}) => {
     const board = Array.from({ length: 4 }, () =>
@@ -53,7 +44,7 @@ const roomStateWith = (board, extra = {}) => ({
     ...extra,
 });
 
-/** The cells sent to clients by the last updateCells emit. */
+/** The cells in the last updateCells emit. */
 const lastUpdateCells = () => {
     const call = [...mockEmit.mock.calls].reverse().find((c) => c[0] === 'updateCells');
     return call ? call[1] : null;
@@ -80,7 +71,7 @@ describe('chordCell when the flag count matches the number', () => {
         await coop.chordCell(1, 1, ROOM, SOCKET, roomStateWith(board));
 
         const updates = lastUpdateCells();
-        // 8 neighbours, minus the flagged mine at (0,0) = 7 opened
+        // 8 neighbours minus the flagged mine
         expect(updates).toHaveLength(7);
         expect(updates.every((cell) => cell.isOpen)).toBe(true);
         expect(updates.some((cell) => cell.row === 0 && cell.col === 0)).toBe(false);
@@ -105,11 +96,8 @@ describe('chordCell when the flag count matches the number', () => {
     });
 
     test('does not award points for a flagged safe cell it never opened', async () => {
-        // Flag a safe neighbour as well as the mine, and raise the number to
-        // match. Chording must skip BOTH flags — the score has to count cells
-        // actually opened, not cells merely considered. Dropping the isFlagged
-        // guard still opens the right cells (revealFrom refuses flagged ones)
-        // but silently inflates the score, which is what this pins down.
+        // Flag a safe neighbour too. Dropping the isFlagged guard still opens
+        // the right cells (revealFrom refuses flagged ones) but inflates the score.
         const board = buildBoard();
         board[2][2].isFlagged = true;
         board[1][1].nearbyMines = 2;
@@ -133,7 +121,7 @@ describe('chordCell when the flag count matches the number', () => {
     });
 
     test('ends the game when an unflagged neighbour is a mine', async () => {
-        // Flag nothing, and claim the number is 0 so the flag count still matches.
+        // No flags, and a 0 so the count still matches.
         const board = buildBoard({ flagMine: false });
         board[1][1].nearbyMines = 0;
 
@@ -144,10 +132,8 @@ describe('chordCell when the flag count matches the number', () => {
 });
 
 /*
- * A chord reveals up to eight cells in a loop, so it can meet more than one mine.
- * `reveal` ends the ROOM's game on the first, and the loop used to carry on
- * anyway — the room's game was over while the server kept opening cells on its
- * behalf. Every symptom below was live, and all of them silent.
+ * A chord can meet more than one mine. `reveal` ends the game on the first;
+ * the loop must stop there rather than keep opening cells.
  */
 describe('chordCell that detonates more than one mine', () => {
     /** Two unflagged mines around a 0, so one chord reaches both. */
@@ -161,8 +147,7 @@ describe('chordCell that detonates more than one mine', () => {
     test('announces the loss once, not once per mine', async () => {
         await coop.chordCell(1, 1, ROOM, SOCKET, roomStateWith(twoMineBoard()));
 
-        // A second gameOver re-opens the summary dialog on every client, and
-        // showModal() on an already-open dialog throws.
+        // A second gameOver re-opens the summary dialog; showModal() on an open dialog throws.
         const gameOvers = mockEmit.mock.calls.filter(([event]) => event === 'gameOver');
         expect(gameOvers).toHaveLength(1);
     });
@@ -196,9 +181,7 @@ describe('chordCell when it should do nothing', () => {
     });
 
     test('does not open anything when MORE flags are placed than the number', async () => {
-        // Over-flagging must refuse to chord, not treat it as satisfied. If the
-        // comparison were >= rather than ===, flagging three cells around a 2
-        // would open the rest and could detonate a mine the player mis-flagged.
+        // Over-flagging must refuse, not count as satisfied: a >= would detonate a mis-flagged mine.
         const board = buildBoard();
         board[2][2].isFlagged = true;   // two flags around...
         board[1][1].nearbyMines = 1;    // ...a cell that only wants one
@@ -249,8 +232,7 @@ describe('chordCell projection', () => {
 
         await coop.chordCell(1, 1, ROOM, SOCKET, roomStateWith(board));
 
-        // Everything emitted here is an opened safe cell, so isMine must be false
-        // throughout; the flagged mine is never included at all.
+        // Every emitted cell is an opened safe cell; the flagged mine is never included.
         expect(lastUpdateCells().every((cell) => cell.isMine === false)).toBe(true);
     });
 });

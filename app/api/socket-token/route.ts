@@ -1,14 +1,9 @@
 /**
  * Mints the auth bridge token: a short-lived HS256 JWT carrying the OAuth
- * identity from the NextAuth session cookie, signed with AUTH_BRIDGE_SECRET —
- * the secret the game server shares (server/utils/authToken.js verifies the
- * exact shape minted here; change one side only in step with the other).
- *
- * Why a second token exists at all: NextAuth's own cookie is an encrypted JWE
- * bound to this deploy, deliberately unreadable elsewhere. The game server
- * needs a verifiable identity, not the session — so this route re-signs the
- * minimum claims for it, readable by anything holding the shared secret and
- * nothing else.
+ * identity from the NextAuth session cookie, signed with AUTH_BRIDGE_SECRET
+ * (server/utils/authToken.js verifies this exact shape). NextAuth's own
+ * cookie is a JWE bound to this deploy, so the game server needs the minimum
+ * claims re-signed with the shared secret.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -19,11 +14,7 @@ import { SignJWT } from "jose";
 const BRIDGE_ISSUER = "minesweeper-web";
 const BRIDGE_AUDIENCE = "minesweeper-server";
 
-/**
- * Long enough that a playing session rarely refreshes, short enough that a
- * leaked token goes stale the same afternoon. The client refreshes ahead of
- * expiry (lib/authBridge.ts).
- */
+/** Short enough that a leaked token goes stale the same afternoon; lib/authBridge.ts refreshes early. */
 const TOKEN_TTL_SECONDS = 60 * 60;
 
 export async function GET(req: NextRequest) {
@@ -38,8 +29,7 @@ export async function GET(req: NextRequest) {
 
     const secret = process.env.AUTH_BRIDGE_SECRET;
     if (!secret) {
-        // Signed in, but the bridge to the game server is not configured on
-        // this deploy — the session works, the game just stays anonymous.
+        // Signed in, but the bridge is not configured on this deploy: the game stays anonymous.
         return NextResponse.json({ error: "Auth bridge not configured" }, { status: 503 });
     }
 

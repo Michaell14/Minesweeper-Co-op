@@ -1,20 +1,11 @@
 /**
- * What a racer who detonates is allowed to see.
- *
- * Hitting a mine used to send that player their whole board with every mine in
- * it, on the reasoning that their game was over and a terminal state may reveal
- * everything (ARCHITECTURE.md §3.1). In PVP that reasoning does not hold: a
- * loss is NOT terminal, because `resetMyBoard` puts them back on the SAME
- * shared layout to carry on racing.
- *
- * So the reveal was an answer key. Demonstrated against a running server: die
- * on the second click, read all ten mines off the revealed board, reset, clear
- * it with perfect knowledge, and take the win off an opponent playing straight.
- *
- * The rule now is that only a DECIDED race reveals a PVP board — `revealToLoser`
- * when someone wins, and the resume path in playerUtils, which pvpResume.test.js
- * covers. What a dead player keeps is the one thing they need: the mine they
- * actually hit, which is open, and which projection shows because it is open.
+ * What a racer who detonates is allowed to see. Hitting a mine used to send
+ * that player their whole board with every mine, as a terminal state may
+ * (ARCHITECTURE.md §3.1) — but a PVP loss is NOT terminal: `resetMyBoard`
+ * puts them back on the SAME shared layout, so the reveal was an answer key.
+ * Now only a DECIDED race reveals a PVP board (`revealToLoser`, and the resume
+ * path covered by pvpResume.test.js). A dead player keeps the mine they hit,
+ * which is open and therefore projected.
  */
 
 const mockEmit = jest.fn();
@@ -102,8 +93,7 @@ describe('a racer who hits a mine mid-race', () => {
         await openCell(3, 3, ROOM, ALICE);
 
         const sent = lastBoardSent();
-        // `revealFrom` opens the mine it hits, and projection tells the truth
-        // about open cells — so "where did I die" survives without the leak.
+        // `revealFrom` opens the mine it hits, and projection tells the truth about open cells.
         expect(sent[3][3].isOpen).toBe(true);
         expect(sent[3][3].isMine).toBe(true);
     });

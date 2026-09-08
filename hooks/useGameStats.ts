@@ -20,12 +20,8 @@ export function useGameStats() {
     }, [board, numMines]);
 
     /**
-     * Safe cells this player has revealed, and how many there are to reveal.
-     * Returned raw as well as as percentages, because the end-of-game summary
-     * needs the counts.
-     *
-     * `safeCells` is derived from the board rather than from pvpTotalSafeCells,
-     * which the server only sets in PVP — co-op needs the same number.
+     * Safe cells revealed and total to reveal, raw (the summary needs counts).
+     * Derived from the board, not pvpTotalSafeCells, which is PVP-only.
      */
     const { ownProgress, safeCells } = useMemo(() => {
         let revealed = 0;
@@ -38,14 +34,9 @@ export function useGameStats() {
     }, [board, numMines]);
 
     /**
-     * Progress as a percentage of the safe cells there are to open.
-     *
-     * `pvpTotalSafeCells` is server-set and PVP-only, so it falls back to the
-     * count derived from the board — which is the same number, and the only one
-     * available in co-op, in the daily and in a practice race. Without the
-     * fallback this divided by zero everywhere except a started PVP race, and
-     * every caller outside one had to compute the percentage again by hand.
-     * Three of them did.
+     * Percent of the safe cells there are to open. `pvpTotalSafeCells` is
+     * PVP-only, so this falls back to the board-derived count everywhere else
+     * rather than dividing by zero.
      */
     const toPercent = (value: number) => {
         const total = pvpTotalSafeCells > 0 ? pvpTotalSafeCells : safeCells;

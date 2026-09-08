@@ -1,21 +1,13 @@
 /*
- * Status badge — the GAME WON / HIT A MINE strip above the board.
- *
- * The notched outline here is a FILL, not an outline: four offset shadows in
- * the badge's own colour, so the block reads as a chunky pixel sprite with cut
- * corners. This is the one place NES.css already used box-shadow rather than
- * border-image, and it is why it is the only one of its borders that never
- * broke in Chrome.
+ * Status badge: the GAME WON / HIT A MINE strip above the board. The notched
+ * outline is a FILL of four offset shadows in the badge's own colour, the one
+ * NES.css border that never broke in Chrome because it was never border-image.
  */
 .badge {
     position: relative;
     display: inline-block;
     padding: 2px 0;
-    /*
-     * The outline is a box-shadow, which takes no space in layout — without a
-     * margin at least as large as the 0.5em offset, adjacent badges overlap
-     * each other's borders.
-     */
+    /* The shadow outline takes no layout space; the margin stops adjacent badges overlapping. */
     margin: 0.5em;
     min-width: 10.5em;
     font-size: 0.9em;
@@ -33,11 +25,8 @@
 }
 
 /*
- * The small variant: an inline marker inside a tile, not the strip above the
- * board. Both of the defaults above are sized for the strip and neither
- * survives a narrow container — `min-width: 10.5em` forces the badge wider
- * than its cell, and the 0.5em shadow takes no layout space, so the fill
- * bleeds straight through the tile's border. Opt-in, so the strip is untouched.
+ * The small variant, an inline marker inside a tile. Opt-in: `min-width` and
+ * the 0.5em shadow are sized for the strip and bleed through a tile's border.
  */
 .sm {
     min-width: 0;

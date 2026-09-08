@@ -4,25 +4,16 @@ import { useEffect, useRef } from "react";
 import type { AppSocket } from "@/lib/initSocket";
 import type { ServerToClientEvents } from "@/shared/socketPayloads";
 
-/**
- * A table of listeners, keyed by event name and typed by the protocol, so an
- * unknown key or a mistyped payload is a compile error.
- */
+/** Listeners keyed by event name and typed by the protocol: a bad key or payload fails to compile. */
 export type SocketHandlers = { [E in keyof ServerToClientEvents]?: ServerToClientEvents[E] };
 
 /**
- * Registers a table of socket listeners and tears down exactly what it added.
- *
- * Teardown is derived from what was registered rather than hand-maintained, and
- * unregisters the specific handler — `socket.off(event)` with no handler would
- * remove other components' listeners too.
- *
- * Each event is registered ONCE with a stable wrapper that forwards to the
- * latest handler through a ref, so handlers are always current, nothing
- * re-subscribes on re-render, and a stale closure is impossible.
- *
- * The set of event NAMES is assumed stable for a given socket; only the function
- * bodies may change between renders.
+ * Registers a table of socket listeners and tears down exactly what it added
+ * (`socket.off(event)` with no handler would remove other components'
+ * listeners). Each event is registered ONCE with a stable wrapper forwarding
+ * to the latest handler through a ref, so nothing re-subscribes on re-render
+ * and a stale closure is impossible. The set of event NAMES is assumed stable
+ * for a given socket.
  */
 export function useSocketEvents(socket: AppSocket | null, handlers: SocketHandlers): void {
     const handlersRef = useRef(handlers);
@@ -34,8 +25,7 @@ export function useSocketEvents(socket: AppSocket | null, handlers: SocketHandle
     useEffect(() => {
         if (!socket) return;
 
-        // Registration is by name at runtime, so types are erased here and
-        // restored at the boundary. Every caller-facing surface stays typed.
+        // Registration is by name at runtime, so types are erased here and restored at the boundary.
         const registered = (eventNames.split("|") as (keyof ServerToClientEvents)[]).map((event) => {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const listener = (...args: any[]) => (handlersRef.current[event] as any)?.(...args);
@@ -44,8 +34,7 @@ export function useSocketEvents(socket: AppSocket | null, handlers: SocketHandle
             return { event, listener };
         });
 
-        // Connect only after listeners are attached, so nothing can arrive
-        // before there is something to receive it.
+        // Connect only after listeners are attached, so nothing arrives unheard.
         socket.connect();
 
         return () => {

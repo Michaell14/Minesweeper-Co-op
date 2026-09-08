@@ -14,9 +14,8 @@ interface CustomFormValues {
 }
 
 /**
- * Hand-rolled board dimensions. Takes no props — it reads the dimensions and the
- * difficulty off the store and writes back through `setBoardConfig`, and it is
- * opened imperatively, so the card that opens it needs no handle on it.
+ * Hand-rolled board dimensions. Reads the store and writes back through
+ * `setBoardConfig`; opened imperatively, so it takes no props.
  */
 export default function CustomBoardDialog() {
     const numRows = useMinesweeperStore((state) => state.numRows);
@@ -31,8 +30,7 @@ export default function CustomBoardDialog() {
         formState: { errors },
     } = useForm<CustomFormValues>();
 
-    // Watched rather than read on submit so the count updates as you type, which
-    // is the only feedback that the mine count is derived at all.
+    // Watched so the count updates as you type, the only feedback that mines are derived.
     const previewRows = Number(watch("rows"));
     const previewCols = Number(watch("cols"));
     const previewMines = mineCountFor(previewRows, previewCols, difficulty);
@@ -42,9 +40,7 @@ export default function CustomBoardDialog() {
         const rows = parseInt(data.rows.toString());
         const cols = parseInt(data.cols.toString());
 
-        // The same check the server runs, so a board it would reject cannot be
-        // accepted here and fail later. Only the dimensions can be wrong — the
-        // derived mine count is valid by construction for any in-range board.
+        // The same check the server runs, so a board it would reject cannot be accepted here.
         if (!isValidBoardConfig(rows, cols, mineCountFor(rows, cols, difficulty))) {
             openDialog(DIALOGS.customError);
             return;
@@ -55,9 +51,7 @@ export default function CustomBoardDialog() {
     });
 
     const cancel = () => {
-        // Back to the default SIZE, keeping the difficulty: the two are
-        // independent, so backing out of dimensions is no reason to discard a
-        // difficulty the player picked separately.
+        // Back to the default SIZE, keeping the difficulty: the two are independent.
         setBoardConfig(DEFAULT_SIZE, difficulty);
         closeDialog(DIALOGS.custom);
     };
@@ -104,9 +98,7 @@ export default function CustomBoardDialog() {
                     aria-required="true"
                     {...register("cols", { required: "Number of Columns is Required." })} />
             </Field>
-            {/* No mine field: difficulty owns the density. Showing the count live
-                is what makes that legible -- otherwise you would not learn how
-                many mines you got until the board rendered. */}
+            {/* No mine field: difficulty owns the density, and the live count is what makes that legible. */}
             <p className="mt-4 mb-0 text-pixel-sm" aria-live="polite">
                 {previewValid
                     ? `${difficulty}: ${previewMines} mines`

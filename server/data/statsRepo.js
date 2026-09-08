@@ -1,18 +1,10 @@
 /**
  * Game results and their aggregates — the one repo that uses a real
- * transaction. A result is four writes (the result row, the prune, the
- * aggregates, maybe a board best) that must land together or not at all: an
- * aggregate counted without its result row, or vice versa, is a lie the
- * profile page would then faithfully report.
- *
- * Concurrency: the user_stats row is taken FOR UPDATE inside the transaction,
- * so two results for the same player (a co-op win landing while their daily
- * loss records) serialise instead of losing an increment. Different players
- * never wait on each other.
- *
- * Same failure contract as the other Postgres repos: throws when the database
- * is missing or down. The CALLER decides policy — and for game paths that is
- * always best-effort (utils/statsRecorder catches and drops).
+ * transaction: the result row, the prune, the aggregates and a possible board
+ * best land together or not at all. The user_stats row is taken FOR UPDATE, so
+ * two results for one player serialise instead of losing an increment. Throws
+ * when Postgres is missing or down; the caller decides policy (game paths are
+ * best-effort via utils/statsRecorder).
  */
 
 const { pgPool } = require('../utils/initializePgClient');
@@ -20,17 +12,15 @@ const { advanceStreak, streaksFromDays, utcDayOf } = require('../domain/streak')
 const { earnedFrom } = require('../domain/achievements');
 const { boardPartOf, playersFromKey, withPlayers } = require('../../shared/boardKeys');
 
-/** How many recent games each player keeps, per the PRD (aggregates + window). */
+/** Recent games kept per player, per the PRD. */
 const RECENT_WINDOW = 50;
 
 /** Mode → user_stats column prefix. Modes come from our own call sites. */
 const MODE_COLUMNS = { 'co-op': 'coop', pvp: 'pvp', daily: 'daily' };
 
 /**
- * A user_stats row in the shape everything above the database speaks — the
- * profile payload, and the snapshot achievements are evaluated against. One
- * mapping, because two would let the thresholds a player is awarded on and the
- * progress they are shown disagree.
+ * A user_stats row in the shape the profile payload and the achievement
+ * evaluator speak. One mapping, so awarded thresholds and shown progress agree.
  */
 const snapshotOf = (row) => ({
     coopGames: row?.coop_games ?? 0,
@@ -50,21 +40,18 @@ const snapshotOf = (row) => ({
 /**
  * Records one finished game and everything downstream of it, atomically.
  *
- * @param userId  the account (callers have already resolved and null-checked)
+ * @param userId  the account (already resolved and null-checked)
  * @param result  { mode, boardKey, won, durationMs|null, players, finishedAt,
- *                  dailyDate? } — dailyDate is the daily's PUZZLE date
- *                  ('YYYY-MM-DD' UTC), the calendar key; see the migration.
- * @returns the achievement ids newly earned by this result (often empty).
+ *                  dailyDate? } — dailyDate is the PUZZLE date ('YYYY-MM-DD' UTC)
+ * @returns the achievement ids newly earned by this result
  */
 const recordResult = async (userId, { mode, boardKey, won, durationMs, players, finishedAt, dailyDate }) => {
     if (!pgPool) throw new Error('Postgres is not configured (DATABASE_URL is unset)');
     const prefix = MODE_COLUMNS[mode];
     if (!prefix) throw new Error(`Unknown mode for stats: ${mode}`);
 
-    // Re-validated here even though the producer already regex-checks it: a
-    // daily result without a usable date still records everything else and
-    // just skips the daily-specific writes, so a drifted producer can never
-    // block the base stats.
+    // Re-validated so a drifted producer only skips the daily-specific
+    // writes, never the base stats.
     const isDaily = mode === 'daily' && typeof dailyDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dailyDate);
 
     const client = await pgPool.connect();
@@ -90,22 +77,18 @@ const recordResult = async (userId, { mode, boardKey, won, durationMs, players, 
         );
 
         // Seed the row first: FOR UPDATE on an ABSENT row locks nothing, so a
-        // player's first-ever two results landing simultaneously could both
-        // compute from zeros and lose an increment. With the row guaranteed,
-        // the lock below serialises them like every later pair.
+        // player's first two results could both compute from zeros.
         await client.query(
             'INSERT INTO user_stats (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING',
             [userId],
         );
 
-        // Aggregates: read the row under lock, compute in JS (the streak is
-        // domain logic, not SQL), write back whole.
+        // Aggregates: read under lock, compute in JS, write back whole.
         const existing = await client.query(
             'SELECT * FROM user_stats WHERE user_id = $1 FOR UPDATE',
             [userId],
         );
-        // The seed insert above guarantees a row; the fallback only protects
-        // against a fake client in tests that answers the SELECT with nothing.
+        // The seed insert guarantees a row; the fallback only covers a fake test client.
         const row = existing.rows[0] ?? {
             coop_games: 0, coop_wins: 0,
             pvp_games: 0, pvp_wins: 0,
@@ -125,10 +108,7 @@ const recordResult = async (userId, { mode, boardKey, won, durationMs, players, 
         );
         // The calendar row: one per (user, puzzle day), never pruned. A loss
         // only lands on an empty day; a win upgrades a loss or a slower win.
-        // Written BEFORE the stats row because the streak below is derived
-        // from this table. Safe concurrency-wise: the FOR UPDATE above already
-        // serialises same-user transactions, so the ON CONFLICT cannot
-        // deadlock.
+        // Written before the stats row because the streak is derived from it.
         if (isDaily) {
             await client.query(
                 `INSERT INTO user_daily_results (user_id, day, won, duration_ms, finished_at)
@@ -144,13 +124,9 @@ const recordResult = async (userId, { mode, boardKey, won, durationMs, players, 
             );
         }
 
-        // The daily-clear streak: WINS only (losing the daily breaks nothing —
-        // it just doesn't extend), and recomputed from the calendar rather
-        // than accumulated. Accumulating assumes wins arrive in day order,
-        // and they don't have to: a leftover attempt (48h TTL) can win after
-        // a later day already recorded, and an accumulator can refuse to go
-        // backwards but never repair the gap. Deriving from the table makes
-        // arrival order unable to matter.
+        // The daily-clear streak counts WINS only, recomputed from the calendar
+        // rather than accumulated: a leftover attempt (48h TTL) can win after a
+        // later day already recorded, and an accumulator cannot repair the gap.
         let dailyStreak = {
             currentStreak: row.daily_current_streak,
             bestStreak: row.daily_best_streak,
@@ -185,13 +161,10 @@ const recordResult = async (userId, { mode, boardKey, won, durationMs, players, 
                 dailyStreak.currentStreak, dailyStreak.bestStreak, dailyStreak.lastPlayedDay],
         );
 
-        // Achievements, from the aggregates just written plus this game. The
-        // evaluator returns everything CURRENTLY satisfied rather than a diff,
-        // so ON CONFLICT decides what is actually new and RETURNING hands back
-        // exactly that — one statement, no SELECT, and re-running a result
-        // awards nothing twice. In the transaction because an achievement
-        // without the result that earned it is the same lie as a stray
-        // aggregate.
+        // Achievements: the evaluator returns everything currently satisfied,
+        // ON CONFLICT decides what is new and RETURNING hands back that, so
+        // re-running a result awards nothing twice. In the transaction so an
+        // achievement never outlives the result that earned it.
         const earned = earnedFrom(
             {
                 ...snapshotOf(row),
@@ -205,21 +178,12 @@ const recordResult = async (userId, { mode, boardKey, won, durationMs, players, 
         const unlocked = await awardAchievements(client, userId, earned);
 
         /*
-         * A board best is a WIN on a REPLAYABLE board with a measured time;
-         * keep only if faster.
-         *
-         * The daily is excluded on purpose. It is a different board every day,
-         * so a daily clear would land on the same key as a co-op or practice
-         * run of the same dimensions and quietly become the record the in-game
-         * banner shows — a time set on a board nobody can play again. The daily
-         * keeps its own history, in user_daily_results.
-         *
-         * `players` is the CLEAR count, not the room, and it is read back OUT
-         * of the key rather than recomputed beside it: a race is solo work and
-         * the key already says so. Deriving it twice is how a row ends up
-         * keyed '16x16/40' and captioned "with 2 players" — which is what a
-         * race used to do. The row's `players` is therefore a display copy of
-         * something the key already holds; the key is the identity.
+         * A board best is a WIN on a REPLAYABLE board with a measured time,
+         * keep-if-faster. The daily is excluded: a different board every day
+         * would become the record for a board nobody can replay (it keeps its
+         * own history in user_daily_results). `players` is the CLEAR count,
+         * read back out of the key rather than derived twice — the key is the
+         * identity, the column mirrors it (CLAUDE.md trap 10).
          */
         if (mode !== 'daily' && won && typeof durationMs === 'number' && durationMs >= 0) {
             await upsertBest(client, userId, {
@@ -241,11 +205,10 @@ const recordResult = async (userId, { mode, boardKey, won, durationMs, players, 
 };
 
 /**
- * Awards a set of achievement ids, returning only the ones that were actually
- * new. ON CONFLICT decides that, and RETURNING reports it — so no read comes
- * first, re-awarding is a no-op, and two concurrent results cannot both claim
- * to have unlocked the same badge. `client` may be a pool or a transaction
- * client.
+ * Awards a set of achievement ids, returning only the ones that were new.
+ * ON CONFLICT + RETURNING: no read first, re-awarding is a no-op, and two
+ * concurrent results cannot both claim the same badge. `client` may be a pool
+ * or a transaction client.
  */
 const awardAchievements = async (client, userId, ids) => {
     if (ids.length === 0) return [];
@@ -260,24 +223,11 @@ const awardAchievements = async (client, userId, ids) => {
 };
 
 /**
- * One-shot: award every counter each existing player already qualifies for.
- *
- * Not needed for correctness — the evaluator reads a snapshot, so anyone who
- * qualified collects on their next finished game anyway. This exists so the
- * shelf is not blank on the day it ships, for players who have not come back
- * yet. Idempotent, and safe to re-run.
- *
- * Moments are deliberately unreachable here: it evaluates with NO result, and
- * every moment predicate requires a win, so none can fire. They describe a
- * single game and `game_results` keeps only the recent window — there is
- * nothing to reconstruct them from, and inventing one would be a lie about
- * something a player never did.
- *
- * **Shaped for a one-off, and only that.** It reads every user_stats row into
- * memory and then makes one round-trip per player, sequentially. That is fine
- * for a hand-run script against this table and would not be fine for anything
- * scheduled or request-driven — batch the ids and page the scan before reusing
- * this shape.
+ * One-shot: award every counter each existing player already qualifies for,
+ * so the shelf is not blank on the day it ships. Idempotent. Moments cannot
+ * fire here (no result, and every moment predicate requires a win); there is
+ * nothing to reconstruct them from. Shaped for a one-off only: reads every
+ * user_stats row into memory and makes one round-trip per player.
  */
 const backfillAchievements = async () => {
     if (!pgPool) throw new Error('Postgres is not configured (DATABASE_URL is unset)');
@@ -305,12 +255,8 @@ const upsertBest = (client, userId, { boardKey, seconds, players, achievedAt }) 
     );
 
 /**
- * Just the achievement ids this account has earned.
- *
- * Narrow on purpose: `getProfile` below runs five queries to build a page, and
- * the avatar gate needs one column to answer one question on every save. Read
- * LIVE rather than from any cached user — an achievement unlocked seconds ago
- * has to count, or the picker offers a face the save then refuses.
+ * Just the achievement ids this account has earned. Narrow because the avatar
+ * gate asks on every save, and read LIVE so an unlock seconds ago counts.
  */
 const earnedAchievementIds = async (userId) => {
     if (!pgPool) throw new Error('Postgres is not configured (DATABASE_URL is unset)');
@@ -331,11 +277,8 @@ const bestOf = (row) => ({
 });
 
 /**
- * Just this account's board records.
- *
- * Narrow on purpose, the same trade `earnedAchievementIds` makes: the in-game
- * best-time banner needs one table, and `getProfile` runs five queries to build
- * a page. This is what the GAME loads, on the landing page and on every board.
+ * Just this account's board records — what the GAME loads, on the landing
+ * page and on every board. Narrow, the same trade `earnedAchievementIds` makes.
  */
 const getBoardBests = async (userId) => {
     if (!pgPool) throw new Error('Postgres is not configured (DATABASE_URL is unset)');
@@ -363,14 +306,12 @@ const getProfile = async (userId) => {
              ORDER BY finished_at DESC, id DESC LIMIT $2`,
             [userId, RECENT_WINDOW],
         ),
-        // Unbounded on purpose: unlike game_results this table is never
-        // pruned, and a whole year is 365 tiny rows.
+        // Unbounded: never pruned, and a whole year is 365 tiny rows.
         pgPool.query(
             'SELECT day, won, duration_ms FROM user_daily_results WHERE user_id = $1 ORDER BY day ASC',
             [userId],
         ),
-        // Newest first: the shelf's "new since you last looked" watermark is
-        // the first row's earned_at, so the order is part of the contract.
+        // Newest first: the shelf's watermark is the first row's earned_at.
         pgPool.query(
             'SELECT achievement_id, earned_at FROM user_achievements WHERE user_id = $1 ORDER BY earned_at DESC',
             [userId],
@@ -401,10 +342,9 @@ const getProfile = async (userId) => {
 };
 
 /**
- * The one-time guest import: this browser's localStorage bests folded in,
- * keep-if-faster — so importing can only improve a profile, never damage it,
+ * The one-time guest import, keep-if-faster so it can only improve a profile
  * and re-importing is harmless. Client-reported numbers, accepted knowingly
- * (recorded in the PRD): they seed a private profile, not a leaderboard.
+ * (PRD): they seed a private profile, not a leaderboard.
  */
 const importBests = async (userId, bests) => {
     if (!pgPool) throw new Error('Postgres is not configured (DATABASE_URL is unset)');
@@ -413,13 +353,9 @@ const importBests = async (userId, bests) => {
         await client.query('BEGIN');
         for (const best of bests) {
             /*
-             * Client-reported, so the two halves of an entry can disagree. The
-             * COUNT is the trustworthy half here (the browser files by it), so
-             * the key is rebuilt from it rather than trusted as sent: a payload
-             * naming '16x16/40@2' with players 1 would otherwise sit on a key
-             * nothing derives and nothing reads. The column then comes back out
-             * of the rebuilt key, so this lands on the same rule every other
-             * write follows — the key is the identity, the column mirrors it.
+             * Client-reported, so the two halves can disagree. The COUNT is the
+             * trustworthy half (the browser files by it), so the key is rebuilt
+             * from it and the column read back out of the rebuilt key.
              */
             const boardKey = withPlayers(boardPartOf(best.boardKey), best.players);
             await upsertBest(client, userId, { ...best, boardKey, players: playersFromKey(boardKey) });

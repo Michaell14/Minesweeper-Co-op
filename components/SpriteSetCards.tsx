@@ -1,8 +1,7 @@
 'use client'
 import React from 'react';
 import { RadioCard, RadioCardGroup } from '@/components/ds';
-// Past the barrel on purpose, like the /ds catalog: the art table and rect
-// renderer are design-system internals, and this picker's job is showing them.
+// Past the barrel like the /ds catalog: this picker's job is showing design-system internals.
 import {
     DEFAULT_SET,
     GENERAL_SPRITE_SETS,
@@ -12,9 +11,8 @@ import {
 import { useMinesweeperStore } from '@/app/store';
 
 /**
- * The pair, drawn on the cell fills it actually sits on — via CSS vars, so the
- * preview repaints with the palette for free. aria-hidden: the card's label
- * already names the set.
+ * The pair on the cell fills it sits on, via CSS vars so the preview repaints
+ * with the palette. aria-hidden: the card's label names the set.
  */
 function PairPreview({ set }: { set: SpriteSet }) {
     return (
@@ -37,12 +35,10 @@ function PairPreview({ set }: { set: SpriteSet }) {
 }
 
 /**
- * The mine/flag art picker on /settings. Only the GENERAL sets are offered —
- * the seasonal pairs are paint, arriving with their holiday window and
- * leaving with it, and while one paints it wins over the pin too.
- *
- * A stored null means no pin, which resolves to the default pair — the same
- * art "classic" names — so it shows as Classic rather than as its own card.
+ * The mine/flag art picker on /settings. Only GENERAL sets are offered: the
+ * seasonal pairs are paint, arriving and leaving with their window, and win
+ * over the pin while they paint. A stored null means no pin, which resolves
+ * to the default pair, so it shows as Classic.
  */
 export default function SpriteSetCards({ name }: { name: string }) {
     const spriteSet = useMinesweeperStore((s) => s.settings.spriteSet);

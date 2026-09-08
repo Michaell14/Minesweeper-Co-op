@@ -2,10 +2,8 @@ import { StateCreator } from 'zustand';
 import type { MinesweeperState } from './store';
 
 /**
- * Transient pointer state, shared between Cell (which writes it) and Grid (which
- * watches for a chord). Input state, not game state — it lives in the store only
- * because many Cells and one Grid must see the same values. `bothPressed` is
- * what stops the release of a chord from also firing open/flag.
+ * Transient pointer state shared between Cell (writes) and Grid (watches for a
+ * chord). `bothPressed` stops a chord's release from also firing open/flag.
  */
 export interface InputSlice {
     isChecked: boolean;     // mobile: true = tap opens, false = tap flags
@@ -17,13 +15,8 @@ export interface InputSlice {
     /** Keyboard selection on the board; null = hidden. */
     kbCursor: { r: number; c: number } | null;
     /**
-     * The next click on a cell points at it instead of playing it.
-     *
-     * ONE-SHOT, and it clears itself on the ping. A persistent mode would be
-     * a second set of rules for every click on the board, and the way out of
-     * it would be a thing to discover mid-game; armed for exactly one click,
-     * the worst case is one wasted tap. It is also the only ping path a
-     * touch screen has — there is no modifier to hold.
+     * The next click on a cell points at it instead of playing it. ONE-SHOT and
+     * self-clearing, so the worst case is one wasted tap; also touch's only ping path.
      */
     pingArmed: boolean;
 

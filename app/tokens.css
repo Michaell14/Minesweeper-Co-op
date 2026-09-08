@@ -1,23 +1,12 @@
 /* ============================================================================
  * DESIGN TOKENS — the single source of truth for colour, size and step.
  *
- * Two layers, deliberately:
- *
- *   1. PALETTE (--ms-palette-*) — raw values with no meaning attached. This is
- *      the only layer a theme overrides. Never reference these from a
- *      component.
- *   2. SEMANTIC (everything else) — names that say what a value is FOR, each
- *      pointing at a palette entry. This is the layer components and
- *      tailwind.config.ts consume.
- *
- * The indirection is what makes alternate palettes possible: a theme redefines
- * ~15 palette entries and every surface, border, button and cell follows,
- * because nothing downstream hardcodes a hex.
- *
- * Values here are a faithful extraction of what the app already renders — this
- * file is intended to change NOTHING visually. Where the extraction surfaced a
- * genuine inconsistency it is marked INCONSISTENT rather than quietly
- * unified; unifying is a visual decision, not a refactor.
+ * Two layers: PALETTE (--ms-palette-*) holds raw values and is the only layer
+ * a theme overrides; never reference it from a component. SEMANTIC (everything
+ * else) names what a value is FOR and points at a palette entry; components
+ * and tailwind.config.ts consume it. Values were extracted from what the app
+ * already rendered; a genuine inconsistency is marked INCONSISTENT rather
+ * than unified, since unifying is a visual decision.
  * ========================================================================== */
 
 :root {
@@ -38,20 +27,10 @@
     --ms-palette-mist-deep: #e4e4e7;/* was Chakra zinc-200 (selected card)   */
 
     /*
-     * Intents. Fills are NES.css's, unchanged — the identity lives in those
-     * hues. What changed is the ink and the hover direction:
-     *
-     * White ink on these fills failed WCAG AA badly (success was 1.92:1), so
-     * ink is dark. That in turn inverts the hover: NES darkens on hover, which
-     * with dark ink *reduces* contrast, so hover lightens instead. The shift is
-     * the same perceptual magnitude NES used, mirrored.
-     *
-     * Each intent has four values:
-     *   base   — the fill
-     *   -deep  — the hover fill, LIGHTER than base
-     *   -shade — the bevel down the right and bottom edge, which is what makes
-     *            a flat rectangle read as a raised 8-bit button
-     *   -ink   — text on the fill; see the note below
+     * Intents. Fills are NES.css's. Ink is dark because white ink failed WCAG
+     * AA (success was 1.92:1), so hover LIGHTENS rather than darkens to keep
+     * contrast rising. Per intent: base fill, -deep hover fill, -shade the
+     * right/bottom bevel, -ink text on the fill.
      */
     --ms-palette-blue: #209cee;
     --ms-palette-blue-deep: #3faaf0;
@@ -65,13 +44,9 @@
     --ms-palette-yellow-deep: #fae46c;
     --ms-palette-yellow-shade: #e59400;
     /*
-     * Ink for text sitting ON each intent fill — one per intent, and NOT
-     * --ms-palette-ink or --ms-palette-paper.
-     *
-     * Body ink and page background both follow the theme; ink-on-a-fill has to
-     * follow the FILL. Sourcing it from either put white on a yellow button at
-     * 1.16:1. One shared token cannot work either: Game Boy needs light ink on
-     * primary and dark ink on success, and C64 needs the reverse split.
+     * Ink on each intent fill is its own token, not --ms-palette-ink/-paper:
+     * body ink follows the theme, ink-on-a-fill must follow the FILL, and one
+     * shared token cannot serve Game Boy and C64 (opposite splits).
      */
     --ms-palette-yellow-ink: #212529;
     --ms-palette-red: #e76e55;
@@ -81,12 +56,9 @@
     --ms-palette-chrome: #e7e7e7;   /* neutral button hover fill */
 
     /*
-     * INCONSISTENT: the progress bars and status text were written against
-     * Tailwind's default palette while every button came from NES.css, so the
-     * app currently ships two different blues meaning "primary" and two
-     * different greens meaning "success". Both are recorded so the extraction
-     * stays pixel-faithful. Collapsing them into the intents above is a
-     * one-line change here once you've decided which pair wins.
+     * INCONSISTENT: progress bars and status text used Tailwind's palette while
+     * buttons used NES.css, so two blues mean "primary" and two greens mean
+     * "success". Recorded as-is; collapsing them is a one-line change here.
      */
     --ms-palette-blue-alt: #3b82f6;   /* Tailwind blue-500  */
     --ms-palette-blue-text: #2563eb;  /* Tailwind blue-600  */
@@ -99,17 +71,10 @@
     --ms-palette-amber-ink: #000000;  /* ink on the banner fill        */
 
     /*
-     * Board.
-     *
-     * Unopened cells are raised the way the buttons are — a light edge on the
-     * top-left, a dark one on the bottom-right — because they ARE buttons, and
-     * the board previously read as Windows 95 grey sitting inside 8-bit chrome.
-     * The gutter is the same ink as every border in the app, so the board
-     * frames like a region rather than a foreign object.
-     *
-     * cell-open stays at #eeeeee deliberately: the eight number colours were
-     * tuned to clear WCAG AA against exactly this value, and moving it would
-     * silently invalidate all of them.
+     * Board. Unopened cells are raised like the buttons (light top-left, dark
+     * bottom-right) and the gutter is the app's border ink, so the board frames
+     * like a region. cell-open stays #eeeeee: the eight number colours were
+     * tuned to clear WCAG AA against that value.
      */
     --ms-palette-cell-closed: #adafbc;
     --ms-palette-cell-light: #cdced6;
@@ -120,14 +85,10 @@
     --ms-palette-cursor-ink: #1a1a1a; /* label ink on a player's cursor colour */
 
     /*
-     * Co-op cursor ramp. Six entries, picked by hashing a player's socket id,
-     * so the same player keeps the same colour for a session.
-     *
-     * These are tokens rather than generated HSL because a cursor sits ON the
-     * board: a hash free to pick any hue will eventually pick one that vanishes
-     * into the cell fill, and under an alternate palette it would clash with
-     * everything. Six is enough — co-op rooms are small, and a repeat is far
-     * less confusing than an unreadable colour.
+     * Co-op cursor ramp, picked by hashing the socket id so a player keeps one
+     * colour per session. Tokens rather than generated HSL: a free hue can
+     * vanish into the cell fill or clash with an alternate palette. Six is
+     * enough for a co-op room.
      */
     --ms-palette-cursor-1: #ffb3ba;
     --ms-palette-cursor-2: #ffdfba;
@@ -137,18 +98,10 @@
     --ms-palette-cursor-6: #e0baff;
 
     /*
-     * The eight classic Minesweeper number colours. Iconic — the one group a
-     * theme should think hard before overriding.
-     *
-     * Four are darkened from the originals, by the smallest hue-preserving
-     * amount that clears WCAG AA on the open-cell fill: 2 by 2%, 6 by 7%, 3 by
-     * 16% and 8 by 17%. Green and teal barely move. Red and grey move enough to
-     * notice side by side, but they were the two worst (3.45:1 and 3.40:1) and
-     * the alternative was numbers a player cannot reliably read.
-     *
-     * Hue is preserved by scaling the channels together, so the palette still
-     * reads as blue/green/red/navy/maroon/teal/black/grey. Red and maroon stay
-     * the closest pair, as they always were.
+     * The eight classic Minesweeper number colours. Four are darkened by the
+     * smallest hue-preserving amount that clears WCAG AA on the open-cell fill
+     * (2 by 2%, 6 by 7%, 3 by 16%, 8 by 17%); red and grey were 3.45:1 and
+     * 3.40:1 before.
      */
     --ms-palette-num-1: #0000ff;
     --ms-palette-num-2: #007d00;
@@ -180,12 +133,9 @@
     --ms-ink-on-banner: var(--ms-palette-amber-ink);
 
     /* ---------------------------------------------------------------------
-     * 3. SEMANTIC — borders
-     *
-     * One border width for the whole app. The pixel look is drawn with layered
-     * box-shadows rather than border-image: shadows never tile, never scale a
-     * slice, and need no per-browser fallback, which is what NES.css's
-     * border-image needs (and gets wrong in Chrome — see globals.css).
+     * 3. SEMANTIC — borders. One width for the whole app. The pixel look is
+     * layered box-shadows, not border-image: shadows never tile or scale a
+     * slice, and need no per-browser fallback (see globals.css).
      * ------------------------------------------------------------------- */
     --ms-border-width: 4px;
     --ms-border-color: var(--ms-palette-ink);
@@ -220,23 +170,18 @@
     --ms-intent-error-bevel: var(--ms-palette-red-shade);
 
     /* ---------------------------------------------------------------------
-     * 5. SEMANTIC — board
-     *
-     * --ms-cell-size and --ms-cell-gap are read at runtime by CursorLayer.tsx
-     * to position remote cursors, so they must stay real lengths on the board
-     * element rather than becoming Tailwind classes.
+     * 5. SEMANTIC — board. --ms-cell-size and --ms-cell-gap are read at
+     * runtime by CursorLayer.tsx, so they must stay real lengths on the board
+     * element rather than Tailwind classes.
      * ------------------------------------------------------------------- */
     /*
-     * Cell size is a MAXIMUM, not a fixed value — board.module.css shrinks
-     * cells to fit the viewport. At 40px a 16-wide board is 700px, which
-     * overflowed every phone: the default board was 571px on a 375px screen,
-     * so players scrolled sideways to see the game they came for.
+     * A MAXIMUM, not a fixed value: board.module.css shrinks cells to fit the
+     * viewport, since a 16-wide board at 40px overflowed every phone.
      */
     --ms-cell-size: 40px;
     /*
-     * The cell-size setting picks a different CEILING; the viewport-fit clamp
-     * in board.module.css still applies, so "large" never overflows a phone —
-     * it just stops shrinking later. Selected via data-cell-size on the board.
+     * The cell-size setting picks a different CEILING (data-cell-size on the
+     * board); the viewport-fit clamp still applies, so "large" never overflows.
      */
     --ms-cell-size-compact: 30px;
     --ms-cell-size-large: 52px;
@@ -244,38 +189,23 @@
     --ms-cell-gap: 3px;
     /*
      * Space the board needs beyond its cells, subtracted before the fit maths.
-     * Derived from the border rather than hardcoded: a literal would silently
-     * under-reserve the moment --ms-border-width changed, and the board would
-     * start overflowing phones again with nothing to show for it.
-     *
-     * Only the border and a little slack live here. Page padding and scrollbars
-     * used to need reserving too, back when the maths measured the window —
-     * board.module.css measures the board's own container now, so both are
-     * already excluded before this is subtracted.
+     * Derived from the border so it cannot silently under-reserve when
+     * --ms-border-width changes. Page padding and scrollbars are not in here:
+     * board.module.css measures the board's own container.
      */
     --ms-board-inset: calc(2 * var(--ms-border-width) + 8px);
     /*
-     * Vertical space the PAGE takes ABOVE the board, subtracted before the
-     * height half of the fit maths. The width half measures the board's own
-     * container, which already excludes its padding; the height half cannot —
-     * Grid.tsx's container is `container-type: inline-size`, so cqh does not
-     * resolve there and the maths has to fall back to the viewport.
+     * Vertical space the PAGE takes ABOVE the board, for the height half of
+     * the fit maths: the width half measures the board's container, but that
+     * is `container-type: inline-size` (Grid.tsx), so cqh does not resolve and
+     * height falls back to the viewport. Above, not around: the last row must
+     * stay on screen; the emote tray below it may not.
      *
-     * Above, not around: what has to stay on screen is the BOARD, and the only
-     * thing between it and the top of the viewport is Grid.tsx's chrome. The
-     * emote tray below it may sit under the fold; the last row may not.
-     *
-     * This is the value up to the FIRST LAYOUT only. Board.tsx then measures
-     * its own top offset and overrides it inline, because the chrome is not a
-     * constant: the status banner is 0px in play, 88px at game over and 119px
-     * in a PVP lobby, so any single number here is wrong in some state. 228 is
-     * the in-play desktop figure — xl:pt-20 (80) + the heading's 40px line box
-     * + xl:mt-16 (64) + the 28px mines/clock strip, plus slack — which is the
-     * right guess to render before the measurement lands.
-     *
-     * The board's own frame is NOT in here: --ms-board-inset covers it on both
-     * axes. `the whole board is on screen without scrolling` in
-     * scripts/ui-smoke/run.js is what keeps the pair of them honest.
+     * First-layout value only. Board.tsx measures its own top offset and
+     * overrides it inline, since the banner is 0px in play, 88px at game over
+     * and 119px in a PVP lobby; 228 is the in-play desktop figure. The frame
+     * is in --ms-board-inset. `the whole board is on screen without scrolling`
+     * in scripts/ui-smoke/run.js keeps the pair honest.
      */
     --ms-board-reserve: 228px;
     --ms-cell-closed: var(--ms-palette-cell-closed);
@@ -296,12 +226,8 @@
     --ms-num-7: var(--ms-palette-num-7);
     --ms-num-8: var(--ms-palette-num-8);
 
-    /*
-     * Remote co-op cursors. The cursor COLOUR is per-player and comes from the
-     * server, so it is not a token — but the label ink sitting on top of that
-     * arbitrary bright colour is, and it is near-black rather than --ms-ink-
-     * strong because it has to hold up against every hue the server can send.
-     */
+    /* Label ink on a remote cursor: near-black rather than --ms-ink-strong so
+     * it holds up against every hue the server can send. */
     --ms-cursor-label-ink: var(--ms-palette-cursor-ink);
 
     /* ---------------------------------------------------------------------
@@ -318,8 +244,7 @@
     --ms-status-idle: var(--ms-palette-gray);
 
     /* ---------------------------------------------------------------------
-     * 7. SPACE — pixel-snapped to the 4px border so nothing lands on a half
-     * pixel and softens an edge.
+     * 7. SPACE — snapped to the 4px border so nothing lands on a half pixel.
      * ------------------------------------------------------------------- */
     --ms-space-1: 4px;
     --ms-space-2: 8px;
@@ -330,37 +255,29 @@
     --ms-space-12: 48px;
 
     /* ---------------------------------------------------------------------
-     * 8. MOTION
-     *
-     * Durations are tokens so that one media query can neutralise all of them.
-     * The easings are stepped rather than smooth on purpose: a pixel interface
-     * that eases is a pixel interface pretending to be something else.
+     * 8. MOTION. Durations are tokens so one media query can zero them all.
+     * Easings are stepped: a pixel interface that eases reads as something else.
      * ------------------------------------------------------------------- */
     --ms-duration-instant: 80ms;
     --ms-duration-quick: 120ms;
     --ms-duration-slow: 300ms;
     /*
-     * One turn of a looping animation, as opposed to the three above, which are
-     * one-way transitions. Long because a loop is ambient: the avatar hover
-     * cycles (components/ds/Avatar.module.css) multiply it, and anything under
-     * about a second there reads as a twitch rather than a gesture.
+     * One turn of a looping animation (the three above are one-way). Long
+     * because a loop is ambient: under about a second it reads as a twitch.
      */
     --ms-duration-loop: 700ms;
     /*
-     * Delay per band of the cascade reveal, so a cascade sweeps rather than
-     * appearing all at once. Which band a cell falls in is `cascadeBand()` in
-     * lib/motion.ts; the feel is the product of the two, so change them
-     * together. Small on purpose — at 14ms the whole sweep settles inside a
-     * quarter second, which is the difference between responsive and sluggish.
+     * Delay per band of the cascade reveal; `cascadeBand()` in lib/motion.ts
+     * picks the band, so change them together. At 14ms a whole sweep settles
+     * inside a quarter second.
      */
     --ms-cascade-step: 14ms;
     --ms-ease-step: steps(2, end);
     --ms-ease-out: ease-out;
 
     /* ---------------------------------------------------------------------
-     * 9. TYPE — Press Start 2P is a fixed-width pixel face with no optical
-     * sizing, so the scale is small integers rather than a modular ratio.
-     * Anything below 10px stops being legible in this face.
+     * 9. TYPE — Press Start 2P has no optical sizing, so the scale is small
+     * integers. Below 10px it stops being legible.
      * ------------------------------------------------------------------- */
     --ms-text-2xs: 10px;
     --ms-text-xs: 11px;
@@ -372,11 +289,8 @@
     --ms-text-4xl: 36px;
 
     /*
-     * Line height is part of the type scale, not an afterthought. Tailwind's
-     * built-in sizes each pair a font-size with a line-height, so a size token
-     * that ships only the font-size silently drops the leading everywhere it
-     * replaces one. These match the leading of the Tailwind size each token
-     * stands in for, so the two scales stay interchangeable.
+     * Leading is part of the scale: Tailwind's sizes pair font-size with
+     * line-height, so these match the leading of the size each token replaces.
      */
     --ms-leading-2xs: 16px;
     --ms-leading-xs: 16px;
@@ -388,14 +302,9 @@
     --ms-leading-4xl: 40px;
 
     /*
-     * The prose scale, for the content pages only.
-     *
-     * Separate from the scale above because it is set in a different face:
-     * everything else here is Press Start 2P, which is why those sizes are
-     * small integers with tight leading. Body copy is Inter (see `.ms-prose` in
-     * globals.css) and wants ordinary reading sizes and generous leading —
-     * feeding it the pixel scale gives 12px text at 16px leading, which is a
-     * caption, not a paragraph.
+     * The prose scale, for content pages only. Body copy is Inter (`.ms-prose`
+     * in globals.css) and wants reading sizes and generous leading; the pixel
+     * scale gives it caption-sized text.
      */
     --ms-text-body: 16px;
     --ms-text-body-sm: 14px;
@@ -406,28 +315,17 @@
 /* The board shrinks on small screens; the token moves, nothing else does. */
 @media (max-width: 48em) {
     :root {
-        /*
-         * No cell-size cap here — fitting the board to the viewport replaced
-         * it. Keeping 32px only bound on tablets, where it left up to 214px of
-         * width unused for no reason.
-         */
+        /* No cell-size cap here; fitting to the viewport replaced it. */
         /* 3px between sixteen columns is 51px of pure gap on a 375px screen. */
         --ms-cell-gap: 2px;
     }
 }
 
 /*
- * Reduced motion.
- *
- * Zeroing the duration tokens covers every transition that reads them, which is
- * all of them. Animations need their own handling because a zero-duration
- * infinite animation is still an animation — see the hover pulse in
- * components/game/board.module.css, which drops to the static box-shadow it
- * animates around. The point is to remove the movement, not the information:
- * a hovered cell still shows who is on it.
- *
- * Anything new that animates should read these tokens rather than hardcode a
- * duration, so it is covered here by default rather than by remembering.
+ * Reduced motion. Zeroing the duration tokens covers every transition that
+ * reads them. Animations need their own handling, since a zero-duration
+ * infinite animation is still an animation (see the hover pulse in
+ * components/game/board.module.css). Remove the movement, not the information.
  */
 @media (prefers-reduced-motion: reduce) {
     :root {
@@ -440,28 +338,16 @@
 }
 
 /* ============================================================================
- * THEMES
- *
- * A theme overrides PALETTE entries and nothing else. If one ever needs to
- * reach a semantic token, a surface, or a component, the two-layer split has
- * failed and the fix belongs upstream — not here.
- *
- * Set with `data-theme` on <html>.
+ * THEMES. A theme overrides PALETTE entries and nothing else; if one needs a
+ * semantic token or a component, fix it upstream. Set with `data-theme` on <html>.
  * ========================================================================== */
 
 /* ---------------------------------------------------------------------------
- * Game Boy (DMG). Four shades, total.
- *
- * Hover fills follow the same rule as the default palette but stated generally:
- * hover moves the fill AWAY from that intent's ink, so contrast rises rather
- * than falls. With dark ink that means lighter; with light ink, darker. Every
- * value below is one of the four DMG shades — interpolating would pass the
- * audit but destroy the point of including this palette.
- *
- * This palette is here because it is the hardest case, not the prettiest: with
- * four colours you cannot give eight Minesweeper numbers eight distinguishable
- * hues, and you cannot give five button intents five. Both constraints are
- * real and visible at /ds, which is the point.
+ * Game Boy (DMG). Four shades, total. Hover moves the fill AWAY from that
+ * intent's ink so contrast rises: lighter under dark ink, darker under light.
+ * Every value is one of the four shades; interpolating would pass the audit
+ * and lose the point. The hardest case, not the prettiest: four colours
+ * cannot give eight numbers or five intents distinct hues, visible at /ds.
  * ------------------------------------------------------------------------- */
 :root[data-theme="gameboy"] {
     --ms-palette-ink: #0f380f;
@@ -519,12 +405,7 @@
     --ms-palette-cursor-5: #8bac0f;
     --ms-palette-cursor-6: #306230;
 
-    /*
-     * Only two shades are legible on the open-cell fill, so hue-coding is gone.
-     * Encoding danger as darkness keeps *some* signal: 1-3 mid, 4-8 darkest.
-     * The digit itself still carries the number, which is why this degrades
-     * rather than breaks.
-     */
+    /* Two legible shades on the open cell, so danger is darkness: 1-3 mid, 4-8 darkest. */
     --ms-palette-num-1: #306230;
     --ms-palette-num-2: #306230;
     --ms-palette-num-3: #306230;
@@ -536,9 +417,8 @@
 }
 
 /* ---------------------------------------------------------------------------
- * Commodore 64. Sixteen colours, so everything the default palette encodes
- * survives — including eight distinct numbers. The useful contrast with
- * Game Boy: the number problem is a property of palette SIZE, not of theming.
+ * Commodore 64. Sixteen colours, so eight distinct numbers survive: the number
+ * problem is a property of palette SIZE, not of theming.
  * ------------------------------------------------------------------------- */
 :root[data-theme="c64"] {
     --ms-palette-ink: #ffffff;
@@ -605,9 +485,7 @@
 }
 
 /* ---------------------------------------------------------------------------
- * Dark. Not a retro machine — the one people will actually ask for. Keeps the
- * NES intent hues, which read fine on a dark surface, and brightens the eight
- * classic number colours enough to survive the darker cell fill.
+ * Dark. Keeps the NES intent hues; brightens the eight numbers for the darker cell.
  * ------------------------------------------------------------------------- */
 :root[data-theme="dark"] {
     --ms-palette-ink: #e6e6e6;
@@ -622,8 +500,7 @@
     --ms-palette-mist-deep: #31353d;
     --ms-palette-chrome: #2b2f36;
 
-    /* The NES intent fills are inherited, and they are light — so ink on them
-     * stays dark even though body ink has inverted. */
+    /* The inherited NES fills are light, so ink on them stays dark. */
     --ms-palette-blue-ink: #16181d;
     --ms-palette-green-ink: #16181d;
     --ms-palette-red-ink: #16181d;
@@ -1200,22 +1077,14 @@
 }
 
 /* ============================================================================
- * SEASONAL PALETTES
- *
- * Ordinary themes in every respect — palette layer only, one data-theme block
- * each. What differs is who picks them: lib/holidays.ts paints one by DATE, on
- * top of whatever the player saved, for the length of its window. They stay in
- * VALID_THEME_IDS year-round so a stored id never silently reverts; the picker
- * hides the out-of-season ones (components/ThemeCards.tsx).
+ * SEASONAL PALETTES. Ordinary themes, but lib/holidays.ts paints one by DATE
+ * over whatever the player saved. They stay in VALID_THEME_IDS year-round so a
+ * stored id never reverts; the picker hides out-of-season ones (ThemeCards.tsx).
  * ========================================================================== */
 
 /* ---------------------------------------------------------------------------
- * Halloween. Midnight purple, pumpkin, toxic green, bone.
- *
- * Dark, which decides everything downstream: fills are bright and take DARK
- * ink, the inverse of the light themes, and the eight numbers sit on a
- * near-black open cell so each one has to be a bright hue rather than a deep
- * one.
+ * Halloween. Midnight purple, pumpkin, toxic green, bone. Dark, so fills are
+ * bright with DARK ink and the numbers are bright hues on a near-black cell.
  * ------------------------------------------------------------------------- */
 :root[data-theme="halloween"] {
     --ms-palette-ink: #f6ead6;
@@ -1283,12 +1152,8 @@
 }
 
 /* ---------------------------------------------------------------------------
- * Christmas. Snow, fir, cranberry, gold.
- *
- * Two reds, deliberately: primary is cranberry and danger is a deeper crimson,
- * separated by VALUE rather than hue. Giving danger a non-red would have been
- * the alternative and it would not read as danger — the same trade Game Boy
- * makes across its four shades, made once here.
+ * Christmas. Snow, fir, cranberry, gold. Two reds: primary is cranberry and
+ * danger a deeper crimson, split by VALUE, since a non-red would not read as danger.
  * ------------------------------------------------------------------------- */
 :root[data-theme="christmas"] {
     --ms-palette-ink: #16261e;
@@ -1355,12 +1220,8 @@
 }
 
 /* ---------------------------------------------------------------------------
- * Lunar New Year. Black lacquer, vermilion, gold.
- *
- * Gold takes the primary slot rather than red. Vermilion sits mid-luminance,
- * so it clears 4.5:1 against neither cream nor near-black ink — the honest
- * options were to brighten it past recognition or to give the loudest slot to
- * the gold, which the palette has plenty of.
+ * Lunar New Year. Black lacquer, vermilion, gold. Gold takes primary: vermilion
+ * is mid-luminance and clears 4.5:1 against neither cream nor near-black ink.
  * ------------------------------------------------------------------------- */
 :root[data-theme="lunar-new-year"] {
     --ms-palette-ink: #ffe9c4;
@@ -1561,11 +1422,8 @@
 }
 
 /* ---------------------------------------------------------------------------
- * St Patrick's Day. Shamrock, moss, harp gold, cream.
- *
- * An almost-monochrome palette, so primary and success are two greens split by
- * VALUE — the Game Boy trade again, made once. Gold takes warning rather than
- * primary, which keeps the loudest control green where this palette expects it.
+ * St Patrick's Day. Shamrock, moss, harp gold, cream. Primary and success are
+ * two greens split by VALUE; gold takes warning so the loudest control stays green.
  * ------------------------------------------------------------------------- */
 :root[data-theme="stpatricks"] {
     --ms-palette-ink: #10240a;
@@ -1632,11 +1490,8 @@
 }
 
 /* ---------------------------------------------------------------------------
- * Pride. The six flag stripes, on a neutral ground.
- *
- * The one palette where the cursor ramp is not decorative: six players, six
- * stripes, in flag order. Numbers are the same six darkened to clear AA on the
- * open cell, which is why they read as a rainbow rather than matching it.
+ * Pride. The six flag stripes on a neutral ground. The cursor ramp is the six
+ * stripes in flag order; the numbers are the same six darkened to clear AA.
  * ------------------------------------------------------------------------- */
 :root[data-theme="pride"] {
     --ms-palette-ink: #1a1523;
@@ -1704,10 +1559,8 @@
 }
 
 /* ---------------------------------------------------------------------------
- * Día de Muertos. Marigold, papel picado magenta, purple, candle bone.
- *
- * Dark, like Halloween, and deliberately unlike it: where Halloween is one
- * orange in the dark, this is four saturated colours at once.
+ * Día de Muertos. Marigold, papel picado magenta, purple, candle bone. Dark
+ * like Halloween, but four saturated colours at once rather than one orange.
  * ------------------------------------------------------------------------- */
 :root[data-theme="day-of-the-dead"] {
     --ms-palette-ink: #fdf0d5;

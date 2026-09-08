@@ -1,13 +1,8 @@
 /**
- * Regression: chording into a mine must not also report a win.
- *
- * co-op openCell re-reads room state before checkWin; chordCell and toggleFlag
- * passed the snapshot they were handed at entry. That snapshot predates the
- * reveal, so if the chord detonates a mine — which sets gameOver in Redis —
- * checkWin still sees gameOver 'false' and carries on. If that same chord also
- * happened to open the last safe cells, every cell then satisfies
- * `isMine || isOpen` and it emits gameWon on top of gameOver: the player both
- * loses and wins.
+ * Regression: chording into a mine must not also report a win. chordCell and
+ * toggleFlag used to pass checkWin the snapshot from entry, which predates
+ * the reveal that set gameOver, so a chord that detonated a mine AND opened
+ * the last safe cells emitted gameWon on top of gameOver.
  */
 
 const mockEmit = jest.fn();
@@ -26,10 +21,8 @@ const SOCKET = 'sock-1';
 let client;
 
 /**
- * 3x3 with the centre already open and claiming 0 adjacent mines, so chording it
- * with no flags placed opens all eight neighbours — one of which is a mine.
- * Afterwards every cell is either open or a mine, which is what makes the stale
- * snapshot dangerous.
+ * 3x3 with the centre open at 0, so an unflagged chord opens all eight
+ * neighbours, one a mine. Every cell is then open or a mine.
  */
 const chordIntoMineBoard = () => {
     const board = Array.from({ length: 3 }, () =>

@@ -1,13 +1,8 @@
 /**
- * Tests for shared/boardConfig.js — specifically the size/difficulty split.
- *
- * Size and difficulty used to be one list of three presets. They are now two
- * axes combined by `mineCountFor`, and nothing about that combination crosses
- * the wire: the server only ever receives the resulting numbers. So this suite
- * is where the split is actually pinned down.
- *
- * The property that matters most is the first one — the three old presets are
- * still reachable on the diagonal, so the split changed no existing board.
+ * shared/boardConfig.js: the size/difficulty split. Two axes combined by
+ * `mineCountFor`, and only the resulting numbers cross the wire, so this suite
+ * is where the split is pinned down. The three old presets must still be
+ * reachable on the diagonal.
  */
 
 const {
@@ -28,9 +23,8 @@ const {
 } = require('../../shared/boardConfig');
 
 describe('mineCountFor: the pre-split presets survive on the diagonal', () => {
-    // Before the split these were the only three boards you could pick. If any
-    // of them moves, existing players' muscle memory (and the ui-smoke flag
-    // counter assertion) breaks.
+    // The only three boards before the split. Moving one breaks muscle memory
+    // and the ui-smoke flag counter assertion.
     test.each([
         ['Small / Easy was the old Easy', 9, 9, 'Easy', 10],
         ['Medium / Medium was the old Medium', 16, 16, 'Medium', 40],
@@ -54,13 +48,9 @@ describe('DAILY_PRESET', () => {
     });
 
     test('sits at the no-guess density ceiling -- the hardest density the generator can reliably deliver', () => {
-        // mineCountFor rounds to the nearest whole mine, so the actual density
-        // (53/256 = 0.2070) lands a hair above the nominal MAX_SAFE_DENSITY
-        // constant (0.206) -- the same rounding every "Extreme" board at this
-        // size already ships with today (ALL_PRESETS covers it), not something
-        // new to the daily challenge. What matters is it is Extreme, the
-        // densest difficulty offered, not a literal <= comparison against the
-        // unrounded constant.
+        // mineCountFor rounds to a whole mine, so 53/256 = 0.2070 lands a hair
+        // above the nominal 0.206; every Extreme board at this size already
+        // ships with that rounding. What matters is that it IS Extreme.
         const density = DAILY_PRESET.mines / (DAILY_PRESET.rows * DAILY_PRESET.cols);
         expect(density).toBeCloseTo(MAX_SAFE_DENSITY, 2);
         expect(DAILY_PRESET.mines).toBe(ALL_PRESETS.find((p) => p.title === 'Medium / Extreme').mines);
@@ -73,12 +63,9 @@ describe('DAILY_PRESET', () => {
 
 describe('the no-guess density ceiling', () => {
     /*
-     * This is the invariant most likely to be broken by accident and least
-     * likely to be noticed. generateBoard falls back to a guessy board when it
-     * cannot find a solvable layout, and the fallback is SILENT -- nothing
-     * throws, nothing logs, the player just gets 50/50s in a game that promises
-     * none. Raising a density is a one-character change; without this test
-     * nothing anywhere would fail.
+     * generateBoard falls back to a guessy board SILENTLY when it cannot find
+     * a solvable layout. Raising a density is a one-character change; without
+     * this test nothing would fail.
      */
     test('no difficulty exceeds the measured ceiling', () => {
         for (const level of DIFFICULTY_LEVELS) {
@@ -87,8 +74,7 @@ describe('the no-guess density ceiling', () => {
     });
 
     test('the ceiling itself has not been raised without re-measuring', () => {
-        // If you are changing this number, you are changing what "no-guess"
-        // means. Re-run the solvable-rate measurement first -- ARCHITECTURE.md §5.
+        // Changing this changes what "no-guess" means; re-measure first (ARCHITECTURE.md §5).
         expect(MAX_SAFE_DENSITY).toBe(0.206);
     });
 
@@ -101,9 +87,7 @@ describe('the no-guess density ceiling', () => {
 
 describe('mineCountFor: the full grid', () => {
     test('every size/difficulty pair produces a board the server accepts', () => {
-        // ALL_PRESETS is what the UI can produce. If a size or difficulty is
-        // added that the server would reject, this fails here rather than when
-        // a player picks it.
+        // ALL_PRESETS is what the UI can produce; a size the server would reject fails here, not on pick.
         expect(ALL_PRESETS).toHaveLength(BOARD_SIZES.length * DIFFICULTY_LEVELS.length);
         for (const preset of ALL_PRESETS) {
             expect(isValidBoardConfig(preset.rows, preset.cols, preset.mines)).toBe(true);
@@ -115,8 +99,7 @@ describe('mineCountFor: the full grid', () => {
             const counts = DIFFICULTY_LEVELS.map((l) => mineCountFor(size.rows, size.cols, l.title));
             const ascending = [...counts].sort((a, b) => a - b);
             expect(counts).toEqual(ascending);
-            // And strictly so — two difficulties that round to the same count
-            // would be indistinguishable to the player.
+            // Strictly: two difficulties rounding to the same count would be indistinguishable.
             expect(new Set(counts).size).toBe(counts.length);
         }
     });
@@ -133,9 +116,7 @@ describe('mineCountFor: custom dimensions', () => {
     const { MIN_ROWS, MAX_ROWS, MIN_COLS, MAX_COLS, MIN_MINES } = BOARD_LIMITS;
 
     test('stays valid across the whole custom range', () => {
-        // Custom boards no longer carry a hand-typed mine count -- the density
-        // supplies it -- so every in-range size must derive a playable board
-        // for every difficulty without the caller checking anything.
+        // The density supplies the mine count, so every in-range size must derive a playable board.
         for (let rows = MIN_ROWS; rows <= MAX_ROWS; rows++) {
             for (let cols = MIN_COLS; cols <= MAX_COLS; cols++) {
                 for (const level of DIFFICULTY_LEVELS) {
@@ -147,9 +128,7 @@ describe('mineCountFor: custom dimensions', () => {
     });
 
     test('leaves room for the 3x3 safe zone around the first click', () => {
-        // generateSingleCandidateBoard caps mines at area - 9. Deriving more
-        // than that would quietly produce a board with fewer mines than the
-        // flag counter claims.
+        // generateSingleCandidateBoard caps mines at area - 9; more would undercut the flag counter.
         for (const level of DIFFICULTY_LEVELS) {
             const mines = mineCountFor(MIN_ROWS, MIN_COLS, level.title);
             expect(mines).toBeLessThanOrEqual(MIN_ROWS * MIN_COLS - 9);
@@ -183,8 +162,7 @@ describe('mineCountFor: bad input', () => {
         ['fractional rows', 16.5, 16],
         ['zero rows', 0, 16],
         ['zero cols', 16, 0],
-        // Two negatives multiply to a positive area. A guard that only checked
-        // for finite numbers answered "4 mines" for this.
+        // Two negatives multiply to a positive area; a finite-number guard answered "4 mines".
         ['both negative', -5, -5],
         ['one negative', -5, 16],
     ])('%s returns 0, which isValidBoardConfig then rejects', (_label, rows, cols) => {
@@ -194,15 +172,13 @@ describe('mineCountFor: bad input', () => {
     });
 
     test('a board too small to hold a legal mine returns 0, not the floor', () => {
-        // maxMinesFor(1) is 0, so MIN_MINES must NOT win here -- returning 1
-        // would be a count above the board's own legal maximum.
+        // maxMinesFor(1) is 0, so MIN_MINES must NOT win: 1 would exceed the board's legal maximum.
         expect(mineCountFor(1, 1, 'Medium')).toBe(0);
         expect(mineCountFor(1, 2, 'Extreme')).toBe(0);
     });
 
     test('never returns more mines than the board can legally hold', () => {
-        // Swept across every shape the limits allow, plus the degenerate sizes
-        // below them, since mineCountFor is callable before validation runs.
+        // Every shape the limits allow plus the degenerate sizes below, since this runs before validation.
         for (let rows = 1; rows <= BOARD_LIMITS.MAX_ROWS; rows++) {
             for (let cols = 1; cols <= BOARD_LIMITS.MAX_COLS; cols++) {
                 for (const level of DIFFICULTY_LEVELS) {
@@ -224,8 +200,7 @@ describe('sizePreset', () => {
     });
 
     test('returns null for Custom and for anything unknown', () => {
-        // Landing relies on this: a null preset is what "the dialog supplies
-        // the dimensions" looks like.
+        // Landing relies on this: a null preset means the dialog supplies the dimensions.
         expect(sizePreset(CUSTOM_SIZE)).toBeNull();
         expect(sizePreset('Enormous')).toBeNull();
     });

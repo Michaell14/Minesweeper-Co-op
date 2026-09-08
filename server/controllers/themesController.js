@@ -1,8 +1,7 @@
 /**
- * The custom-theme sync routes — profileController's requireUser and the
- * settings routes' policies, applied to a per-player collection. The blob is
- * opaque beyond validation.js's shape/size caps; the client re-derives the
- * palette on read, so nothing stored here reaches a style attribute unvetted.
+ * The custom-theme sync routes, behind profileController's requireUser. The
+ * blob is opaque beyond validation.js's caps; the client re-derives the palette
+ * on read, so nothing stored here reaches a style attribute unvetted.
  */
 
 const { requireUser } = require('./profileController');
@@ -31,10 +30,8 @@ const registerThemesRoutes = (app) => {
         }
 
         try {
-            // The cap gates NEW themes only — editing at the cap must work.
-            // Two tabs racing it can land at cap+1: a cosmetic overshoot on a
-            // per-player shelf, not worth a lock; unbounded growth is still
-            // stopped, which is all the cap is for.
+            // The cap gates NEW themes only. Two tabs racing it can land at
+            // cap+1, a cosmetic overshoot not worth a lock.
             const isUpdate = await themesRepo.hasTheme(req.user.id, theme.id);
             if (!isUpdate && (await themesRepo.countThemes(req.user.id)) >= MAX_THEMES_PER_USER) {
                 res.status(409).json({ error: `Theme limit reached (${MAX_THEMES_PER_USER})` });

@@ -1,10 +1,7 @@
 /**
- * Quick match and the practice race.
- *
- * Pre-room actions, so none of them takes a room code and none can use a room
- * guard. Each controller validates the name itself and answers a refusal with
- * `matchError`, which is why no row here declares a `validate` — a silent drop
- * would leave the landing page spinning.
+ * Quick match and the practice race: pre-room actions, so no room code and no
+ * room guard. Each controller validates the name itself and answers a refusal
+ * with `matchError`, so no row declares a `validate`.
  */
 
 const { findMatch, cancelMatch, startPracticeRace } = require('../controllers/matchmakingController');

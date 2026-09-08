@@ -3,13 +3,10 @@ import { useMinesweeperStore } from "@/state/store";
 import type { Cell } from "@/state/types";
 
 /**
- * `setCells` — the write behind every reveal.
- *
- * It replaced a per-cell setter that rebuilt the whole board each time, so what
- * matters here is not only that the right cells change but that the ones around
- * them keep their IDENTITY: `Cell` is memoized on cell state, and a row rebuilt
- * for no reason re-renders every cell in it. A 16x30 board holds 480 of them and
- * a cascade can touch ninety, which is where this stopped being free.
+ * `setCells` — the write behind every reveal. It replaced a per-cell setter
+ * that rebuilt the whole board, so untouched cells must keep their IDENTITY:
+ * `Cell` is memoized on cell state, and a cascade on a 480-cell board can
+ * touch ninety.
  */
 
 const closed = (): Cell => ({ isMine: false, isOpen: false, isFlagged: false, nearbyMines: 0 });
@@ -66,8 +63,7 @@ describe("setCells", () => {
     });
 
     test("keeps a cell to its four fields, whatever the payload carries", () => {
-        // The server's CellUpdate carries row and col as well, and a board cell
-        // is only ever { isMine, isOpen, isFlagged, nearbyMines }.
+        // The payload carries row and col too; a board cell is only ever the four fields.
         state().setCells([{ ...closed(), isOpen: true, row: 0, col: 0 }]);
 
         expect(Object.keys(state().board[0][0]).sort()).toEqual([
@@ -84,8 +80,7 @@ describe("setCells", () => {
 
     /*
      * A new array over identical content still notifies every `board`
-     * subscriber, which reconciles all 480 cells for a batch that changed
-     * nothing. Same reason the empty batch returns early.
+     * subscriber, reconciling all 480 cells for nothing.
      */
     test("a batch that lands nowhere leaves the board identical", () => {
         const before = state().board;
@@ -126,8 +121,8 @@ describe("toggleCellFlag", () => {
     });
 
     /*
-     * Re-checked here rather than trusted from the caller: useGameActions reads
-     * the board before emitting, and a teammate's reveal can land in between.
+     * Re-checked rather than trusted: useGameActions reads the board before
+     * emitting, and a teammate's reveal can land in between.
      */
     test("refuses an open cell, as the server does", () => {
         state().setCells([{ ...closed(), isOpen: true, row: 1, col: 1 }]);

@@ -1,10 +1,6 @@
 /**
- * Board generation — pure, and deliberately kept apart from room state. Nothing
- * here touches Redis, the socket server or the clock.
- *
- * `rng` is injectable, which is what lets the daily challenge draw every
- * candidate from a seeded sequence and makes generation a pure function of its
- * seed.
+ * Board generation, pure: nothing here touches Redis, the socket server or the
+ * clock. `rng` is injectable so the daily challenge can seed every candidate.
  */
 
 const { isBoardSolvable } = require('./solverUtils');
@@ -65,23 +61,16 @@ const generateSingleCandidateBoard = (numRows, numCols, numMines, excludeRow, ex
 };
 
 /**
- * How many candidate layouts to try before giving up on the no-guess guarantee.
- *
- * Only ~7% of random layouts at Extreme's 20.6% density are logic-solvable, so
- * the old value of 50 fell back to a guessy board 3% of the time on Large and
- * 13% on a 32x16 custom — silently, since the fallback is indistinguishable from
- * a real result. 300 removed the fallback entirely across 200 games on every
- * shipped size, and costs nothing in the common case because the loop stops at
- * the first success (median 5-15 attempts).
+ * Candidates to try before giving up the no-guess guarantee. Only ~7% of
+ * layouts at Extreme's density are solvable, so 50 fell back to a guessy board
+ * silently (3% on Large, 13% on 32x16). 300 removed the fallback across 200
+ * games per size, and the loop stops at the first success (median 5-15).
  */
 const DEFAULT_MAX_ATTEMPTS = 300;
 
 /**
- * Generates a board. With `options.noGuess` (the default), retries candidates
- * until one is 100% solvable by logic alone — no 50:50 guessing.
- *
- * `options.rng` defaults to Math.random; the daily challenge passes a seeded
- * generator so every candidate comes from the same deterministic sequence.
+ * Generates a board. With `options.noGuess` (the default), retries until a
+ * candidate is solvable by logic alone. `options.rng` defaults to Math.random.
  */
 const generateBoard = (numRows, numCols, numMines, excludeRow, excludeCol, options = { noGuess: true, maxAttempts: DEFAULT_MAX_ATTEMPTS }) => {
     const shouldEnsureNoGuess = options && options.noGuess !== false;

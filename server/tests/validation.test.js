@@ -1,10 +1,6 @@
 /**
- * Tests for server/validation.js
- *
- * These rules were previously inlined in five server.js handlers with no test
- * coverage at all. They are ported verbatim, so this suite doubles as a record
- * of exactly what the socket layer accepts -- including one deliberately
- * preserved quirk in the hover bounds check.
+ * Tests for server/validation.js. The rules were ported verbatim from inline
+ * handler checks, so this suite is a record of what the socket layer accepts.
  */
 
 const { ALL_PRESETS, BOARD_LIMITS } = require('../../shared/boardConfig');
@@ -68,10 +64,8 @@ describe('isValidBoardConfig', () => {
     test.each(ALL_PRESETS.map((p) => [p.title, p]))(
         'accepts the shipped %s preset',
         (_title, preset) => {
-            // Driven off shared/boardConfig, so adding a preset the server would
-            // reject fails here instead of when a player picks it. Since size
-            // and difficulty split into two axes this is every combination of
-            // the two, not just the three that used to ship.
+            // Driven off shared/boardConfig, so a preset the server would reject
+            // fails here instead of when a player picks it.
             expect(isValidBoardConfig(preset.rows, preset.cols, preset.mines)).toBe(true);
         }
     );
@@ -104,9 +98,8 @@ describe('isValidBoardConfig', () => {
     );
 
     test('rejects NaN dimensions (the inline version accepted them)', () => {
-        // The old check was `numMines >= (numRows * numCols) / 2` -- a rejection
-        // test. Every comparison with NaN is false, so NaN was never rejected and
-        // produced a room whose board had zero rows. See validation.js.
+        // Every comparison with NaN is false, so a rejection-style check never
+        // rejected it and produced a room whose board had zero rows.
         expect(isValidBoardConfig(NaN, 16, 40)).toBe(false);
         expect(isValidBoardConfig(16, NaN, 40)).toBe(false);
         expect(isValidBoardConfig(16, 16, NaN)).toBe(false);
@@ -144,11 +137,8 @@ describe('isValidHoverCoordinate', () => {
     });
 
     test('rejects a HALF sentinel, which is neither a cell nor a clear', () => {
-        // This used to be accepted, on the reasoning that the client reads any
-        // -1 as "clear the hover". It does not — it clears on the (-1, -1) pair
-        // alone — so (-1, 5000) was broadcast, drawn as a cursor off the board,
-        // and left there, since nothing that follows can clear a hover the
-        // client never filed as one.
+        // The client clears only on the (-1, -1) pair, so a half sentinel was
+        // drawn as a cursor off the board and nothing could ever clear it.
         expect(isValidHoverCoordinate(-1, 5000)).toBe(false);
         expect(isValidHoverCoordinate(5000, -1)).toBe(false);
         expect(isValidHoverCoordinate(-1, 5)).toBe(false);
@@ -175,10 +165,7 @@ describe('isCoordinateOnBoard', () => {
         ['somewhere inside', 4, 7],
     ])('accepts %s', (_label, row, col) => expect(isCoordinateOnBoard(room, row, col)).toBe(true));
 
-    /*
-     * The bound is EXCLUSIVE: a 9x9 board's rows are 0..8, so row 9 is the
-     * first one past the end rather than the last one on it.
-     */
+    /* The bound is EXCLUSIVE: a 9x9 board's rows are 0..8. */
     test.each([
         ['one row past the end', 9, 0],
         ['one column past the end', 0, 9],
@@ -186,8 +173,7 @@ describe('isCoordinateOnBoard', () => {
         ['the hover clear sentinel', -1, -1],
     ])('rejects %s', (_label, row, col) => expect(isCoordinateOnBoard(room, row, col)).toBe(false));
 
-    // No dimensions means nothing to bound against, which must refuse rather
-    // than fall through to the global cap.
+    // No dimensions must refuse rather than fall through to the global cap.
     test.each([
         ['a room with no dimensions', {}],
         ['a missing room', undefined],
@@ -201,10 +187,8 @@ describe('isValidEmoteId', () => {
     );
 
     /*
-     * The check that keeps the vocabulary CLOSED. Anything that passed here
-     * and was not in the catalog would be relayed verbatim from one player to
-     * another, which is chat — and chat needs a filter, a report flow and
-     * somebody to read the reports.
+     * Keeps the vocabulary CLOSED: anything outside the catalog would be
+     * relayed verbatim between players, which is chat, and chat needs moderation.
      */
     test.each([
         ['a plain sentence', 'meet me at 3pm'],
@@ -241,8 +225,7 @@ describe('isPlayerInRoom', () => {
     );
 
     test('returns false rather than throwing on malformed JSON', () => {
-        // hGetAll can hand back anything; the old inline JSON.parse would throw
-        // and get swallowed by the handler's try/catch.
+        // hGetAll can hand back anything; a throw here would be swallowed by the handler.
         expect(() => isPlayerInRoom({ players: 'not json' }, 'a')).not.toThrow();
         expect(isPlayerInRoom({ players: 'not json' }, 'a')).toBe(false);
     });
@@ -250,14 +233,10 @@ describe('isPlayerInRoom', () => {
 
 
 /**
- * The guest best-times import — client-reported records, so this is the whole
- * gate in front of them (statsRepo's keep-if-faster upsert is what makes the
- * numbers themselves harmless).
- *
- * The GROUP SUFFIX is the case that had no test and did not work: keys carry
- * '@3' for a board cleared by three people, the rule ran under `every`, and one
- * such record 400'd the entire payload — so any browser that had ever cleared a
- * board with a friend could not import at all.
+ * The guest best-times import: client-reported records, so this is the whole
+ * gate (statsRepo's keep-if-faster upsert makes the numbers harmless). The
+ * GROUP SUFFIX ('@3') once 400'd the entire payload under `every`, so a
+ * browser that had ever cleared a board with a friend could not import at all.
  */
 describe('isValidBestImport', () => {
     const record = (over = {}) => ({ boardKey: '16x16/40', seconds: 90, players: 1, achievedAt: 1, ...over });

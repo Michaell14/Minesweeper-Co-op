@@ -4,23 +4,13 @@ import { useEffect } from "react";
 import { useMinesweeperStore } from "@/app/store";
 
 /**
- * Chording: both mouse buttons down together on an opened number opens its
- * unflagged neighbours.
- *
- * `Cell` records which buttons are down and which cell they went down on; this
- * spots the pair and fires the move. `bothPressed` is the latch that stops the
- * releases from ALSO firing the ordinary open and flag those buttons mean on
- * their own — so it has to stay set across both releases, and clear after them.
- *
- * Which is why the release side is here rather than in `Cell`: a mouse-up only
- * reaches a cell when it happens over one. Let go anywhere else — off the board,
- * outside the window, or by alt-tabbing away — and the button state stayed
- * pressed forever, leaving `bothPressed` latched so the next plain left-click on
- * a number chorded instead of opening it.
- *
- * The store is watched with `subscribe`, not hook selectors: nothing here
- * renders, and a selector would re-render the host — Grid, the whole layout —
- * on every press and release of an open cell (the useKeyboardControls pattern).
+ * Chording: both mouse buttons down on an opened number opens its unflagged
+ * neighbours. `Cell` records which buttons are down; this spots the pair and
+ * fires the move. `bothPressed` is the latch that stops the releases ALSO
+ * firing the plain open and flag, so it stays set across both releases. The
+ * release side is here, not in `Cell`, because a mouse-up off the board or
+ * outside the window never reaches a cell and left the latch stuck. Watched
+ * with `subscribe`, not hook selectors, so the host never re-renders.
  */
 export function useChording(chordCell: (row: number, col: number) => void): void {
     useEffect(() => {
@@ -30,10 +20,8 @@ export function useChording(chordCell: (row: number, col: number) => void): void
 
             if (both && !prevBoth) {
                 /*
-                 * The latch is set even with chording OFF: without it, releasing
-                 * a both-buttons press would fire the open AND the flag the two
-                 * buttons mean alone. Disabled chording means the pair does
-                 * nothing — not two accidents.
+                 * Latched even with chording OFF, or releasing the pair would
+                 * fire the open AND the flag. Disabled means it does nothing.
                  */
                 state.setBothPressed(true);
                 if (state.settings.chording && state.r >= 0 && state.c >= 0) {
@@ -42,8 +30,7 @@ export function useChording(chordCell: (row: number, col: number) => void): void
                 return;
             }
 
-            // The bothPressed check skips a store write on the release of every
-            // PLAIN click — only a pair that actually latched needs unlatching.
+            // Skips a store write on the release of every PLAIN click.
             if (state.bothPressed && !state.leftClick && !state.rightClick) {
                 state.setBothPressed(false);
             }
@@ -56,10 +43,8 @@ export function useChording(chordCell: (row: number, col: number) => void): void
         };
 
         /*
-         * `buttons` is what makes a global listener safe here: it reports the
-         * buttons still held AFTER this release. Clearing on every mouse-up
-         * would drop `bothPressed` between a chord's two releases, and the
-         * second would then fire the open or flag the chord exists to suppress.
+         * `buttons` reports what is still held AFTER this release. Clearing on
+         * every mouse-up would drop `bothPressed` between a chord's two releases.
          */
         const onMouseUp = (event: MouseEvent) => {
             if (event.buttons === 0) clear();

@@ -1,15 +1,9 @@
-/*
- * Wins over `.cell.closed` in board.module.css, which is (0,2,0) — the same
- * doubling trick that file already uses for `.cell.hovered.hovered`.
- */
+/* Wins over `.cell.closed` (0,2,0), the doubling trick board.module.css uses for `.hovered`. */
 .wrong.wrong.wrong {
     background-color: var(--ms-intent-error);
 }
 
-/*
- * The cell a hint is pointing at. An outline rather than a box-shadow, which
- * would fight the bevel `.cell.closed` draws with two inset shadows.
- */
+/* The hinted cell. An outline, since a box-shadow would fight the bevel's inset shadows. */
 .hinted {
     outline: var(--ms-border-width) solid var(--ms-intent-primary);
     outline-offset: calc(-2 * var(--ms-border-width));

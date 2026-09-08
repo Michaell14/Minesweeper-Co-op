@@ -1,23 +1,13 @@
 /**
- * The friend graph: what the repo does with a pair of accounts, and what the
- * routes are willing to say about it.
+ * The friend graph: the repo's semantics for a pair of accounts, and what the
+ * routes say about it. Pins the invisible-when-wrong cases: a reciprocal
+ * request becoming a friendship, caps surviving a pending backlog, and a block
+ * answering exactly like an unknown code.
  *
- * The semantics worth pinning down are the ones that are invisible when wrong:
- * a reciprocal request that should become a friendship rather than a duplicate
- * row, a cap that must survive a backlog of pending requests, and a block that
- * must answer exactly like a code nobody holds — because a refusal that names
- * a block tells the blocked party they were blocked, and by whom.
- *
- * Postgres is mocked, as it is for every other repo here (themes.test.js sets
- * the pattern): the SQL shape and the branch each outcome takes are what these
- * assert. The migrations themselves are not exercised — see the PRD.
- *
- * Reads run on the pool (`mockQuery`); every MUTATION runs on a transaction
- * client (`mockClientQuery`) behind BEGIN, two advisory-lock statements and
- * COMMIT, because the caps and the block boundary are check-then-write. The
- * plumbing answers itself here and `statements()` filters it back out, so the
- * tests below stay about the statement that matters rather than about its
- * position in the transaction.
+ * Postgres is mocked (themes.test.js sets the pattern). Reads run on the pool
+ * (`mockQuery`); mutations run on a transaction client (`mockClientQuery`)
+ * behind BEGIN, two advisory locks and COMMIT. That plumbing answers itself and
+ * `statements()` filters it out.
  */
 
 const mockQuery = jest.fn();
@@ -98,10 +88,8 @@ describe('requestFriend', () => {
     });
 
     /*
-     * The race Greptile reproduced against a real Postgres: two requests from
-     * one account read the same outgoing count and both insert, ending past
-     * the cap. Every check has to sit in the same transaction as the insert,
-     * behind the lock — a read on the pool would be a read outside it.
+     * Two requests from one account reading the same outgoing count both
+     * insert, ending past the cap. Every check must sit behind the lock.
      */
     test('reads its caps and writes its row in ONE locked transaction', async () => {
         answers(
@@ -121,23 +109,14 @@ describe('requestFriend', () => {
         expect(mockRelease).toHaveBeenCalled();
     });
 
-    /*
-     * Sorted, not call order. Two overlapping pairs that took their locks in
-     * the order the CALLER named them would each hold what the other waits
-     * for; a total order over the ids is what makes them queue instead.
-     */
+    /* Sorted, not call order: a total order over the ids is what prevents deadlock. */
     test('locks both accounts, in sorted id order', async () => {
         answers({ rows: [] }, { rows: [{ count: 0 }] }, { rows: [{ count: 0 }] }, { rows: [{ count: 0 }] }, { rows: [] });
         await friendsRepo.requestFriend(THEM, ME);   // named the other way round
         expect(lockOrder()).toEqual([ME, THEM].sort());
     });
 
-    /*
-     * The case that would otherwise be a unique-violation on the pair key:
-     * they asked first, and this call is the second half of an agreement. A
-     * server error for two people doing exactly what the feature asks would be
-     * an ugly way to learn the graph is directional.
-     */
+    /* They asked first; a mirror insert would violate the pair key. */
     test('accepts their standing request instead of inserting a mirror row', async () => {
         answers(
             { rows: [edgeRow(THEM, ME, 'pending')] },   // findEdge
@@ -147,17 +126,14 @@ describe('requestFriend', () => {
         expect(await friendsRepo.requestFriend(ME, THEM)).toBe('accepted');
         expect(statements()[1][0]).toMatch(/UPDATE friendships/);
         expect(statements().some(([sql]) => /INSERT INTO friendships/.test(sql))).toBe(false);
-        // On the lock it already holds. Calling the public acceptRequest here
-        // would open a second connection and wait on this transaction forever.
+        // On the lock it already holds; the public acceptRequest would deadlock.
         expect(mockConnect).toHaveBeenCalledTimes(1);
     });
 
     test.each([
         ['already-friends', 'accepted', ME, THEM],
         ['already-requested', 'pending', ME, THEM],
-        // Told apart deliberately: a block placed ON me must look like nothing
-        // at all, while one I placed is my own doing and worth naming — it is
-        // the only way I would work out why a friend's code stopped working.
+        // A block placed ON me must look like nothing; one I placed is worth naming.
         ['blocked-by-me', 'blocked', ME, THEM],
         ['blocked', 'blocked', THEM, ME],
     ])('answers %s for an existing %s row', async (expected, status, requester, addressee) => {
@@ -176,11 +152,7 @@ describe('requestFriend', () => {
             expect(await friendsRepo.requestFriend(ME, THEM)).toBe('cap-reached');
         });
 
-        /*
-         * Checked on THEIR side too: a request that could never be accepted is
-         * better refused now than left pending forever, and their inbox is not
-         * the place to store my overflow.
-         */
+        /* A request that could never be accepted is refused now, not left pending. */
         test('refuses when their list is full', async () => {
             answers({ rows: [] }, { rows: [{ count: 1 }] }, { rows: [{ count: friendsRepo.MAX_FRIENDS }] });
             expect(await friendsRepo.requestFriend(ME, THEM)).toBe('their-cap-reached');
@@ -212,11 +184,7 @@ describe('acceptRequest', () => {
         expect(sql).toMatch(/status = \$4/);
     });
 
-    /*
-     * The cap rides INSIDE the update rather than in front of it: an account
-     * that filled up while requests sat pending must not be able to exceed the
-     * cap by accepting the backlog.
-     */
+    /* The cap rides inside the update: accepting a backlog must not exceed it. */
     test('carries the cap in the same statement', async () => {
         answers({ rows: [{ id: 7 }] });
         await friendsRepo.acceptRequest(ME, THEM);
@@ -226,10 +194,8 @@ describe('acceptRequest', () => {
     });
 
     /*
-     * That subselect reads the transaction's own snapshot, so on its own it
-     * only bounds the accepts it can SEE: Greptile ran two at 99 friends
-     * against a real Postgres and landed on 101. Both accepts take MY lock —
-     * whoever is at the other end — so the second one reads the first.
+     * The subselect reads its own snapshot, so two concurrent accepts at 99
+     * landed on 101. Both take MY lock, so the second reads the first.
      */
     test('runs under a lock on the accepting account', async () => {
         answers({ rows: [{ id: 7 }] });
@@ -250,12 +216,7 @@ describe('acceptRequest', () => {
         expect(await friendsRepo.acceptRequest(ME, THEM)).toBe('no-request');
     });
 
-    /*
-     * requestFriend checks both lists, but only as they stood when the request
-     * was SENT. The requester can fill up while their ask sits in my inbox,
-     * and accepting then puts THEM at 101 — a breach neither of us asked for
-     * and only they can see. So both ends are counted here too.
-     */
+    /* requestFriend's cap check is as of SEND time; the requester can fill up since. */
     test('refuses when the REQUESTER filled up while their ask sat pending', async () => {
         answers(
             { rows: [] },                                       // no update
@@ -288,11 +249,7 @@ describe('removeEdge', () => {
 });
 
 describe('blockUser', () => {
-    /*
-     * DELETE then INSERT, in one transaction. Leaving an accepted row behind
-     * would keep two people listed as friends while one had blocked the other,
-     * and the pair key means the block cannot be inserted alongside it.
-     */
+    /* DELETE then INSERT in one transaction: the pair key forbids a block beside an accepted row. */
     test('clears whatever the pair held, then stores the block on my row', async () => {
         expect(await friendsRepo.blockUser(ME, THEM)).toBe(true);
 
@@ -308,10 +265,8 @@ describe('blockUser', () => {
     });
 
     /*
-     * The block must WIN a race with a request that already read "no edge".
-     * It can only do that by queueing behind the same pair lock the request
-     * holds — otherwise its delete runs before an insert it never saw, and the
-     * pair ends up blocked one way and pending the other.
+     * A block must win a race with a request that already read "no edge",
+     * which it can only do by queueing behind the same pair lock.
      */
     test('takes the same pair lock a request does', async () => {
         await friendsRepo.blockUser(THEM, ME);
@@ -319,9 +274,7 @@ describe('blockUser', () => {
     });
 
     test('rolls back and releases the client when a statement throws', async () => {
-        // A default so ROLLBACK itself resolves — a real pg client always
-        // hands back a promise, and the rollback must not be the thing that
-        // throws while handling a throw.
+        // ROLLBACK must resolve, not be the thing that throws while handling a throw.
         mockClientQuery.mockImplementation(async (sql) => {
             if (/DELETE FROM friendships/.test(sql)) throw new Error('boom');
             return { rows: [] };
@@ -353,12 +306,7 @@ describe('listGraph', () => {
         expect(graph.outgoing.map((f) => f.displayName)).toEqual(['Kim']);   // I asked them
     });
 
-    /*
-     * Blocks come back one way only. A block I placed is listed so I can lift
-     * it — without that, blocking is a one-way door and the other person's
-     * code simply stops working with nothing on screen to explain it. A block
-     * placed ON me is never listed, which is what a block is for.
-     */
+    /* A block I placed is listed so I can lift it; one placed on me never is. */
     test('returns my own blocks and never one placed on me', async () => {
         mockQuery.mockResolvedValueOnce({
             rows: [
@@ -395,10 +343,7 @@ describe('getOrCreateFriendCode', () => {
         expect(mockQuery.mock.calls[1][0]).toMatch(/friend_code IS NULL/);
     });
 
-    /*
-     * Two tabs asking at once: the loser's conditional update matches no row,
-     * and the next loop reads what the winner wrote rather than overwriting it.
-     */
+    /* Two tabs at once: the loser's conditional update matches nothing and re-reads. */
     test('re-reads rather than overwriting when another request won the race', async () => {
         mockQuery
             .mockResolvedValueOnce({ rows: [{ friend_code: null }] })
@@ -477,11 +422,7 @@ describe('the routes', () => {
         expect(mockQuery).not.toHaveBeenCalled();
     });
 
-    /*
-     * THE privacy rule of this feature. A block and a code nobody holds must
-     * be indistinguishable from outside — otherwise the refusal itself tells
-     * the blocked party they were blocked, and by whom.
-     */
+    /* The privacy rule: a refusal that names a block tells the blocked party who blocked them. */
     test('POST answers a block exactly as it answers an unknown code', async () => {
         mockQuery.mockResolvedValueOnce({ rows: [] });          // no such code
         const unknown = makeRes();
@@ -511,11 +452,7 @@ describe('the routes', () => {
         expect(res.statusCode).toBe(404);
     });
 
-    /*
-     * Either cap is a 409, and the wording is the request path's — one table,
-     * so "their list is full" cannot drift into two different sentences
-     * depending on which end of the request you are standing at.
-     */
+    /* Either cap is a 409, worded from the same table as the request path. */
     test.each([
         ['my own list', [{ rows: [] }, { rows: [{ count: friendsRepo.MAX_FRIENDS }] }]],
         ['theirs', [{ rows: [] }, { rows: [{ count: 1 }] }, { rows: [{ count: friendsRepo.MAX_FRIENDS }] }]],

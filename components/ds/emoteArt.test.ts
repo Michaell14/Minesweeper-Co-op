@@ -1,13 +1,8 @@
 /**
- * The emote art's invariants — the kind that fail silently: a catalog id with
- * no drawing sends a reaction nobody sees, a literal hex survives a palette
- * change while everything around it moves, and a short row just draws nothing
- * where pixels should be.
- *
- * The catalog-and-art check is the load-bearing one: the SERVER validates
- * against shared/emotes.js and the CLIENT draws from this file, so an id in one
- * and not the other is a message that passes every guard on the wire and
- * arrives as nothing at all.
+ * The emote art's silent failures. The catalog-and-art check is load-bearing:
+ * the SERVER validates against shared/emotes.js and the CLIENT draws from this
+ * file, so an id in one and not the other passes every guard and arrives as
+ * nothing.
  */
 import { describe, expect, it } from "vitest";
 import { EMOTES } from "@/shared/emotes";
@@ -45,9 +40,7 @@ describe("every grid is well-formed", () => {
 });
 
 describe("emotes paint in tokens", () => {
-    // Unlike the seasonal sprite pairs there is no emote with a licence to use
-    // literal colour: a reaction is drawn on whichever palette the RECEIVER
-    // runs, which the sender has no say in.
+    // No emote may use literal colour: it is drawn on whichever palette the RECEIVER runs.
     it.each(everyGlyph)("%s uses no literal colours", (_id, art) => {
         for (const fill of Object.values(art.palette)) {
             expect(fill).toMatch(/^var\(--ms-/);
@@ -61,10 +54,8 @@ describe("emoteArtById", () => {
     });
 
     /*
-     * Null, not a fallback glyph — the opposite of avatarArtById, and the
-     * difference matters: an avatar must always draw because a leaderboard row
-     * needs a face, but substituting a different emote would put words in
-     * somebody's mouth. The feed drops what it cannot draw.
+     * Null, not a fallback glyph (unlike avatarArtById): substituting another
+     * emote would put words in somebody's mouth. The feed drops it instead.
      */
     it.each([
         ["an unknown id", "no-such-emote"],

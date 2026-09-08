@@ -1,10 +1,6 @@
 /** Shared value types for the client store. */
 
-/**
- * Cell and PlayerStats arrive over the socket, so the protocol owns them and
- * the store re-exports them. Declaring them again here would let the store and
- * the wire drift apart silently. See shared/socketPayloads.ts.
- */
+/** Cell and PlayerStats arrive over the socket, so the protocol owns them; see shared/socketPayloads.ts. */
 export type { Cell, PlayerStats } from '@/shared/socketPayloads';
 
 /** Which cell another player is hovering, and the colour derived from their id. */
@@ -16,13 +12,10 @@ export interface PlayerHover {
 }
 
 /**
- * A reaction somebody in the room just sent, as the feed holds it.
- *
- * `key` rather than the sender's socket id, because the same player emoting
- * twice in a row is two entries in the feed rather than one that jumps — and
- * React needs to tell them apart. `expiresAt` is a wall-clock deadline, not a
- * duration: the feed is trimmed by comparing against now, so a backgrounded tab
- * that misses its timer catches up on the next tick instead of piling up.
+ * A reaction somebody just sent, as the feed holds it. `key` rather than the
+ * sender's id, because the same player emoting twice is two entries React
+ * must tell apart. `expiresAt` is a wall-clock deadline, so a backgrounded tab
+ * that misses its timer catches up on the next tick.
  */
 export interface PlayerEmote {
     key: string;
@@ -35,9 +28,8 @@ export interface PlayerEmote {
 }
 
 /**
- * A cell somebody pointed at. Shaped like PlayerEmote and expiring the same
- * way, but it is not a reaction: it names a PLACE, which is why it is drawn on
- * the board rather than in the feed and why the server refuses it in PVP.
+ * A cell somebody pointed at. Shaped like PlayerEmote but it names a PLACE,
+ * so it is drawn on the board, and the server refuses it in PVP.
  */
 export interface PlayerPing {
     key: string;

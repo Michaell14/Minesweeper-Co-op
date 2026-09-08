@@ -1,12 +1,9 @@
 /**
- * The two transports' failure policies, which are deliberately opposite:
- * the socket path degrades to anonymous on every failure (auth being down must
- * never block a game), while the REST path answers honestly (401/503) because
- * account data is all it serves.
- *
- * The REST handlers are exercised through fake req/res objects rather than a
- * live Express app — what's under test is status-code policy and validation,
- * not Express routing.
+ * The two transports' failure policies are opposite: the socket path degrades
+ * to anonymous on every failure (auth being down must never block a game),
+ * the REST path answers honestly (401/503) because account data is all it
+ * serves. REST handlers run through fake req/res objects; what's under test is
+ * status-code policy and validation, not Express routing.
  */
 
 const mockVerify = jest.fn();
@@ -202,9 +199,8 @@ describe('the /api/me routes', () => {
     });
 
     /*
-     * The earned avatars. The picker draws its own lock from the same rule, but
-     * it draws from a payload a client could simply never fetch — so the only
-     * check that counts is this one.
+     * The earned avatars. The picker's lock draws from a payload a client
+     * could simply never fetch, so this check is the only one that counts.
      */
     describe('PUT and an earned avatar', () => {
         test('refuses one the account has not earned', async () => {
@@ -225,8 +221,7 @@ describe('the /api/me routes', () => {
             expect(res.body.user.avatar).toBe('shark');
         });
 
-        // The clause that matters if a face is ever gated after the fact:
-        // whatever you are already wearing stays re-pickable.
+        // If a face is ever gated after the fact, what you already wear stays re-pickable.
         test('lets an account keep the one it is already wearing', async () => {
             const wearer = { ...USER, avatar: 'shark' };
             mockUpdateUser.mockResolvedValue(wearer);
@@ -239,9 +234,8 @@ describe('the /api/me routes', () => {
         });
 
         /*
-         * The entitlement read is Postgres too, and Express 4 does not catch a
-         * rejected async handler — outside the try/catch this was no response
-         * at all rather than a wrong one, so the request hung.
+         * Express 4 does not catch a rejected async handler: outside the
+         * try/catch this was no response at all, and the request hung.
          */
         test('answers 503 when the achievement read fails', async () => {
             mockEarned.mockRejectedValue(new Error('connection terminated'));

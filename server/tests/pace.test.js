@@ -1,10 +1,7 @@
 /**
- * shared/pace.js (the maths, used by both halves) and domain/pace.js (the
- * stored-field parse). Pure functions, no infra.
- *
- * The invariant that matters: milestones record WHEN progress happened, never
- * WHERE — and once stamped, an entry is immutable ("first reached"), so a
- * cascade that re-crosses nothing must change nothing.
+ * shared/pace.js (the maths) and domain/pace.js (the stored-field parse).
+ * Milestones record WHEN progress happened, never WHERE, and once stamped an
+ * entry is immutable ("first reached").
  */
 
 const { PACE_DECILES, safeProgress, withCrossedMilestones } = require('../../shared/pace');
@@ -42,8 +39,7 @@ describe('safeProgress', () => {
 });
 
 describe('withCrossedMilestones', () => {
-    // 20 safe cells: each decile is exactly 2 cells, so crossings are easy to
-    // stage without rounding surprises.
+    // 20 safe cells: each decile is exactly 2 cells, so crossings stage without rounding.
     const at = (open) => boardWith(4, 5, open);
 
     test('crossing one decile appends one stamp', () => {

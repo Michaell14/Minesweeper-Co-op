@@ -1,26 +1,18 @@
 /**
- * The room code a player is offered before they type one.
- *
- * An empty field asked people to invent a code, and two of them inventing at
- * once collided — which surfaced as an error dialog with nothing to do next.
- * A suggestion costs nothing to accept and is still fully editable.
- *
- * Two words rather than five random characters: a room code's job is to survive
- * being read aloud over voice chat and retyped by someone else.
+ * The room code a player is offered before they type one. An empty field made
+ * people invent codes, and two inventing at once collided. Two words rather
+ * than random characters: a code has to survive being read aloud and retyped.
  */
 
 /**
- * The longest code the field accepts. Tighter than the server's own limit
- * (MAX_ROOM_CODE_LENGTH in server/validation.js, 100) on purpose — this is the
- * bound the two forms hand to `maxLength`, and every generated code fits it.
+ * The longest code the field accepts, tighter than the server's 100
+ * (MAX_ROOM_CODE_LENGTH in server/validation.js). Every generated code fits.
  */
 export const MAX_ROOM_CODE_LENGTH = 28;
 
 /*
- * 48 x 48 is 2304 pairs. The size is the feature: the generator exists to make
- * two simultaneous Creates land on different codes, so a small list would be no
- * better than the empty field. Kept to plain, unambiguous words that survive
- * being spelled out.
+ * 48 x 48 is 2304 pairs; a small list would collide like the empty field did.
+ * Plain, unambiguous words that survive being spelled out.
  */
 const ADJECTIVES = [
     'amber', 'brave', 'brisk', 'calm', 'clever', 'cosmic', 'crisp', 'daring',
@@ -43,10 +35,7 @@ const NOUNS = [
 /** A random element. Extracted only so the two picks read the same. */
 const pick = <T,>(items: readonly T[]): T => items[Math.floor(Math.random() * items.length)];
 
-/**
- * A suggested room code, e.g. `brave-otter`. Never longer than
- * MAX_ROOM_CODE_LENGTH — the longest pair in the lists above is well inside it.
- */
+/** A suggested room code, e.g. `brave-otter`. Never longer than MAX_ROOM_CODE_LENGTH. */
 export function generateRoomCode(): string {
     return `${pick(ADJECTIVES)}-${pick(NOUNS)}`;
 }

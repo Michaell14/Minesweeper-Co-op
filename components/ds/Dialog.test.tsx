@@ -6,31 +6,16 @@ import Button from "./Button";
 import Dialog, { DialogClose } from "./Dialog";
 
 /**
- * The dialog shell, and the one thing about it that fails silently.
- *
- * These are native <dialog> elements closed by SUBMITTING their
- * `method="dialog"` form. So a close button is only a close button if its type
- * is "submit" — and <Button> deliberately defaults to "button" so an ordinary
- * button inside the landing form does not submit it by accident. Put a plain
- * <Button> in an actions row and the dialog stops closing, with nothing wrong
- * in the markup, nothing in the console, and a rendering test that still passes
- * if it only checks the button is on screen.
- *
- * That is what these assert against: not that the buttons exist, but that the
- * one meant to dismiss carries the type that actually dismisses.
+ * The dialog shell's silent failure: dialogs close by SUBMITTING their
+ * `method="dialog"` form, and <Button> defaults to type "button", so a plain
+ * button in an actions row stops the dialog closing with nothing wrong in the
+ * markup. These assert the dismissing button carries the type that dismisses.
  */
 
 /**
- * Renders a dialog and opens it.
- *
- * Opening matters for more than realism: a closed <dialog> is inert, so nothing
- * inside it is in the accessibility tree and every `getByRole` finds nothing.
- * Querying a closed dialog would mean reaching past that with `hidden: true`,
- * which is exactly the check worth keeping — a control users cannot reach is
- * not a control.
- *
- * jsdom implements <dialog> but not showModal's focus trapping; `open` is what
- * submitting actually flips, and it is all these need.
+ * Renders a dialog and opens it: a closed <dialog> is inert and invisible to
+ * getByRole, and reaching past that with `hidden: true` would skip the check
+ * worth keeping. jsdom lacks showModal's focus trap; `open` is all these need.
  */
 const renderOpen = (ui: React.ReactElement, id: string) => {
     const result = render(ui);
@@ -50,11 +35,8 @@ describe("a button that dismisses the dialog", () => {
     });
 
     /*
-     * Both halves of the mechanism, because jsdom implements <dialog> but NOT
-     * the bit where submitting a `method="dialog"` form closes it. Asserting
-     * `dialog.open === false` here would fail against a perfectly good
-     * component, so this checks the two conditions a browser needs and leaves
-     * the closing itself to the smoke suite, which drives a real one.
+     * jsdom does not close a `method="dialog"` form on submit, so this checks
+     * the two conditions a browser needs and leaves the closing to the smoke suite.
      */
     test("sits in a form the browser closes on submit", () => {
         renderOpen(
@@ -68,10 +50,8 @@ describe("a button that dismisses the dialog", () => {
     });
 
     /*
-     * The trap, stated as a test. If <Button> ever starts defaulting to submit,
-     * DialogClose stops being necessary and every plain button in the landing
-     * form starts submitting it — so this failing is a signal in both
-     * directions, not a style preference.
+     * The trap as a test: if <Button> ever defaults to submit, every plain
+     * button in the landing form starts submitting it.
      */
     test("a plain Button does NOT, which is why DialogClose exists", () => {
         render(<Button>Ordinary</Button>);

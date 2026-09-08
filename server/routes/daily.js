@@ -1,17 +1,13 @@
 /**
- * The daily challenge.
- *
- * Every route here is `GUARDS.NONE`, and that is the design rather than an
- * omission: the daily is NOT a room. It is addressed by UTC date plus an opaque
- * browser token, has no membership list and nothing to broadcast, so the room
- * guard has nothing to check. Its own serialisation is per attempt, inside
- * `dailyRepo.withAttemptLock`. See ARCHITECTURE.md §5.
+ * The daily challenge. Every route is `GUARDS.NONE` by design: the daily is
+ * not a room, so the room guard has nothing to check. Serialisation is per
+ * attempt in `dailyRepo.withAttemptLock`. See ARCHITECTURE.md §5.
  */
 
 const dailyGame = require('../game/daily');
 const { startDaily, submitDailyScore, getDailyLeaderboard } = require('../controllers/dailyController');
 
-/** The token is checked inside the controller, which owns the attempt's lock. */
+/** The token is checked in the controller, which owns the attempt's lock. */
 const start = async ({ socket, payload }) =>
     await startDaily({ socket, dailyAttemptToken: payload.dailyAttemptToken });
 

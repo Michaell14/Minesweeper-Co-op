@@ -1,23 +1,11 @@
-/* The art itself, in a PURE module: no React, no CSS import — importable from
- * lib/ without dragging either into its graph. The React side (PixelRects,
- * SpriteDefs, Sprite) is sprites.tsx.
- */
+/* The art in a PURE module (no React, no CSS) so lib/ can import it; the React side is sprites.tsx. */
 import { type PixelArt } from "./pixelArt";
 
 /**
- * The mine and the flag, drawn the same way as the icons: a 16x16 grid of
- * characters and a palette (see pixelArt.ts). Every seasonal palette brings its
- * own pair.
- *
- * The DEFAULT pair paints in token colours, because it has to read on twelve
- * palettes at once — the bomb takes `--ms-cell-open`, the one colour the token
- * suite guarantees against the mine fill it sits on, and the flagpole takes the
- * page ink. A literal black bomb disappears on Game Boy, whose mine cell is the
- * darkest green it has.
- *
- * A SEASONAL pair paints in literal hex, because it only ever appears on its
- * own palette and those colours are the point — pumpkin orange is not derivable
- * from anything.
+ * The mine and the flag, a 16x16 grid and a palette like the icons (pixelArt.ts).
+ * The DEFAULT pair paints in tokens because it must read on twelve palettes: a
+ * literal black bomb vanishes on Game Boy, whose mine cell is its darkest green.
+ * A SEASONAL pair paints in literal hex because it only appears on its own palette.
  */
 
 export interface SpriteSet {
@@ -27,10 +15,8 @@ export interface SpriteSet {
 
 const DEFAULT_MINE: PixelArt = {
     /*
-     * Two tokens, and both are load-bearing. The body is the page ink and the
-     * outline is the opened-cell fill, so on Game Boy — where the ink and the
-     * mine cell are the same darkest green — the bomb still reads as a bright
-     * ring, and on every other palette it is a dark bomb with a light edge.
+     * Both tokens load-bearing: body is the page ink, outline the opened-cell
+     * fill, so on Game Boy (ink and mine cell the same green) it reads as a ring.
      */
     palette: {
         "#": "var(--ms-ink-strong)",
@@ -58,10 +44,8 @@ const DEFAULT_MINE: PixelArt = {
 
 const DEFAULT_FLAG: PixelArt = {
     /*
-     * Outlined for the same reason the bomb is: the cloth is the mine colour and
-     * the closed cell it sits on is a mid neutral, which on the default palette
-     * is 1.3:1 — a shape you can see only because you know it is there. The ink
-     * edge carries the silhouette; the fill just says which flag it is.
+     * Outlined like the bomb: the cloth on the closed cell is 1.3:1 on the
+     * default palette, so the ink edge carries the silhouette.
      */
     palette: {
         R: "var(--ms-cell-mine)",
@@ -508,12 +492,7 @@ const NEWYEAR_FLAG: PixelArt = {
     ],
 };
 
-/*
- * GENERAL sets — pinnable from Settings any day of the year, so unlike the
- * seasonal pairs they paint in TOKENS: a pinned pair sits on whichever palette
- * the player runs, and a literal colour would vanish on one of them the same
- * way a black bomb does on Game Boy.
- */
+/* GENERAL sets are pinnable any day, so unlike the seasonal pairs they paint in TOKENS. */
 
 /* Naval — a contact mine with horns, an anchor as the marker. */
 const NAVAL_MINE: PixelArt = {
@@ -871,9 +850,8 @@ const ROBOT_FLAG: PixelArt = {
     ],
 };
 
-/* Garden — a bumblebee on patrol, a tulip as the marker. Antennae, a small
- * head, wings out to the sides, and the bands run ACROSS the body — drawn
- * down the body they read as a face, not a bee. */
+/* Garden — a bumblebee on patrol, a tulip as the marker. The bands run ACROSS
+ * the body; drawn down it they read as a face. */
 const GARDEN_MINE: PixelArt = {
     palette: {
         "#": "var(--ms-ink-strong)",
@@ -997,12 +975,7 @@ export type SpriteKind = "mine" | "flag";
 export const spriteSetFor = (theme: string | null): SpriteSet =>
     (theme && SPRITE_SETS[theme]) || DEFAULT_SET;
 
-/**
- * The general sets, with their picker labels. Deliberately separate from
- * SPRITE_SETS: only these are pinnable — the seasonal pairs arrive with their
- * holiday and are not offered, which is why spriteSetById below never looks
- * in the seasonal table.
- */
+/** The general sets with picker labels. Separate from SPRITE_SETS: only these are pinnable. */
 export const GENERAL_SPRITE_SETS: ReadonlyArray<{ id: string; label: string; set: SpriteSet }> = [
     { id: "naval", label: "Naval", set: { mine: NAVAL_MINE, flag: NAVAL_FLAG } },
     { id: "space", label: "Space", set: { mine: SPACE_MINE, flag: SPACE_FLAG } },

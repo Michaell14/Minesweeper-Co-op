@@ -1,18 +1,13 @@
-/* The avatar art, in a PURE module like spriteArt.ts: no React, no CSS import.
- * The id catalog (ids + labels) lives in shared/avatars.js because the server
- * validates against it; only the drawing lives here.
- */
+/* The avatar art, PURE like spriteArt.ts: no React, no CSS. The id catalog
+ * lives in shared/avatars.js because the server validates against it. */
 import { type PixelArt } from "./pixelArt";
 import { DEFAULT_AVATAR } from "@/shared/avatars";
 
 /**
- * Every avatar paints in TOKENS, the same rule as the pinnable sprite sets: a
- * profile picture sits on whichever palette the player runs, so a literal
- * colour would vanish on one of them the way a black bomb does on Game Boy.
- * Three colours total — outline and features in the page ink, faces in the
- * opened-cell fill, and the mine colour as the single accent (tongue, beak,
- * bandana, cap). On Game Boy the accent and the ink are the same colour by
- * design; the art still reads because no shape relies on the accent alone.
+ * Every avatar paints in TOKENS, like the pinnable sprite sets, since it sits
+ * on whichever palette the player runs. Three colours: page ink, opened-cell
+ * fill, and the mine colour as the single accent. On Game Boy accent and ink
+ * coincide; no shape relies on the accent alone.
  */
 const INK = "var(--ms-ink-strong)";
 const OPEN = "var(--ms-cell-open)";
@@ -89,9 +84,8 @@ const KITTY: PixelArt = {
     ],
 };
 
-/* Accent head, light inner ears and muzzle. The inner ears are the light fill
- * on purpose: on Game Boy the accent merges into ink, and the light tips are
- * what keep the ear shape readable there. */
+/* Accent head, light inner ears and muzzle. Light inner ears keep the ear
+ * shape readable on Game Boy, where accent merges into ink. */
 const FOX: PixelArt = {
     palette: PALETTE,
     rows: [
@@ -299,20 +293,11 @@ const MUSHROOM: PixelArt = {
 };
 
 /* ---------------------------------------------------------------------------
- * HOVER FRAMES
- *
- * Pixel art animates by SWAPPING FRAMES, not by transforming: at 16x16 a
- * rotation or a fractional scale is mush, and `crispEdges` is what makes these
- * read at all. So each animated avatar carries whole extra grids, played in
- * order after its base art.
- *
- * A frame differs from the base by a handful of pixels and is otherwise a copy
- * — deliberately, since a diff format would make the art unreadable in the one
- * form it is actually edited in.
- *
- * The TIMING lives in Avatar.module.css, one @keyframes per frame, because
- * how long each pose holds is a feel question rather than a drawing one.
- * Adding a frame here without a matching rule there draws nothing.
+ * HOVER FRAMES. Pixel art animates by SWAPPING FRAMES: at 16x16 a rotation or
+ * fractional scale is mush. Each frame is a whole grid differing from the base
+ * by a few pixels, since a diff format would be unreadable to edit. Timing is
+ * in Avatar.module.css, one @keyframes per frame; a frame without a matching
+ * rule there draws nothing.
  * ------------------------------------------------------------------------- */
 
 /* Frog, 1: the mouth opens onto the tongue. */
@@ -338,9 +323,8 @@ const FROG_OPEN: PixelArt = {
     ],
 };
 
-/* Frog, 2: the tongue lashes out past the edge and the eyes pull down into the
- * head — the retraction is what stops the flick reading as a stuck-out tongue.
- * Breaking the outline is how KITTY's whiskers already work. */
+/* Frog, 2: tongue out past the edge, eyes pulled down so the flick does not
+ * read as a stuck-out tongue. */
 const FROG_TONGUE: PixelArt = {
     palette: PALETTE,
     rows: [
@@ -386,8 +370,7 @@ const PIRATE_PEEK: PixelArt = {
     ],
 };
 
-/* Pirate, 2: that eye winks. Only the top row of it goes — a 2px eye has one
- * row to spare, and taking both would read as a face with one eye. */
+/* Pirate, 2: that eye winks. Only the top row goes; taking both reads as one eye. */
 const PIRATE_WINK: PixelArt = {
     palette: PALETTE,
     rows: [
@@ -410,8 +393,7 @@ const PIRATE_WINK: PixelArt = {
     ],
 };
 
-/* Robot, 1: the sockets widen and light, pupils right, antenna beacon on. The
- * solid ink eyes have no room for a pupil, so waking up IS the eyes opening. */
+/* Robot, 1: sockets widen and light, pupils right, beacon on. Waking IS the eyes opening. */
 const ROBOT_SCAN_RIGHT: PixelArt = {
     palette: PALETTE,
     rows: [
@@ -434,8 +416,7 @@ const ROBOT_SCAN_RIGHT: PixelArt = {
     ],
 };
 
-/* Robot, 2: pupils left, beacon off — the beacon runs opposite the sweep so
- * something is always moving. */
+/* Robot, 2: pupils left, beacon off, opposite the sweep so something always moves. */
 const ROBOT_SCAN_LEFT: PixelArt = {
     palette: PALETTE,
     rows: [
@@ -481,8 +462,7 @@ const CLASSIC_FLAT: PixelArt = {
     ],
 };
 
-/* Classic, 2: the mousedown face. The one animation here that is a
- * Minesweeper reference rather than an idea about a face. */
+/* Classic, 2: the mousedown face, a Minesweeper reference. */
 const CLASSIC_GASP: PixelArt = {
     palette: PALETTE,
     rows: [
@@ -528,8 +508,7 @@ const PUPPY_PANT_OUT: PixelArt = {
     ],
 };
 
-/* Puppy, 2: ears drop, tongue back in. Fastest cycle of the set — panting
- * reads as fast or not at all. */
+/* Puppy, 2: ears drop, tongue back in. */
 const PUPPY_PANT_IN: PixelArt = {
     palette: PALETTE,
     rows: [
@@ -575,8 +554,8 @@ const KITTY_HALF: PixelArt = {
     ],
 };
 
-/* Kitty, 2: shut, ears swivelled back. The closed lid is WIDER than the open
- * eye — a lid that matched it would read as the eye simply vanishing. */
+/* Kitty, 2: shut, ears back. The closed lid is WIDER than the open eye, or
+ * the eye just vanishes. */
 const KITTY_SHUT: PixelArt = {
     palette: PALETTE,
     rows: [
@@ -622,9 +601,8 @@ const FOX_HALF: PixelArt = {
     ],
 };
 
-/* Fox, 2: slits and a smirk on one side of the muzzle. A fox reads as knowing
- * rather than friendly, so it squints where the others blink — and it HOLDS
- * the squint, which is the difference between sly and startled. */
+/* Fox, 2: slits and a one-sided smirk. A fox squints where the others blink,
+ * and HOLDS it. */
 const FOX_SLY: PixelArt = {
     palette: PALETTE,
     rows: [
@@ -670,9 +648,8 @@ const PENGUIN_FLAP_UP: PixelArt = {
     ],
 };
 
-/* Penguin, 2: flippers swung low. They stay part of the OUTLINE at every
- * position — a flipper drawn as a free-floating block detaches from the body
- * at this size. */
+/* Penguin, 2: flippers low. They stay part of the OUTLINE, or they detach at
+ * this size. */
 const PENGUIN_FLAP_DOWN: PixelArt = {
     palette: PALETTE,
     rows: [
@@ -695,8 +672,7 @@ const PENGUIN_FLAP_DOWN: PixelArt = {
     ],
 };
 
-/* Ghost, 1: a pixel up, hem wave out of phase so the tentacles trail the
- * body rather than moving with it. */
+/* Ghost, 1: a pixel up, hem out of phase so the tentacles trail the body. */
 const GHOST_UP: PixelArt = {
     palette: PALETTE,
     rows: [
@@ -765,8 +741,7 @@ const ALIEN_GLOW_HALF: PixelArt = {
     ],
 };
 
-/* Alien, 2: fully lit. The only avatar that animates by COLOUR alone — no
- * shape moves, which is worth having once in a set of flipbooks. */
+/* Alien, 2: fully lit. The only avatar that animates by COLOUR alone. */
 const ALIEN_GLOW_FULL: PixelArt = {
     palette: PALETTE,
     rows: [
@@ -812,8 +787,7 @@ const SHINOBI_WHIP_UP: PixelArt = {
     ],
 };
 
-/* Shinobi, 2: and down. The tail is the only thing that moves — a masked head
- * has nothing else to animate, which is the point of the mask. */
+/* Shinobi, 2: and down. The tail is the only thing a masked head can move. */
 const SHINOBI_WHIP_DOWN: PixelArt = {
     palette: PALETTE,
     rows: [
@@ -836,8 +810,7 @@ const SHINOBI_WHIP_DOWN: PixelArt = {
     ],
 };
 
-/* Mushroom, 1: the cap squashes onto the stem and spreads wider than the
- * sprite ever is at rest. */
+/* Mushroom, 1: the cap squashes onto the stem, wider than it is at rest. */
 const MUSHROOM_SQUASH: PixelArt = {
     palette: PALETTE,
     rows: [
@@ -860,8 +833,7 @@ const MUSHROOM_SQUASH: PixelArt = {
     ],
 };
 
-/* Mushroom, 2: and springs a pixel clear of the ground. The only avatar soft
- * enough in silhouette to take squash-and-stretch. */
+/* Mushroom, 2: and springs a pixel clear of the ground. */
 const MUSHROOM_STRETCH: PixelArt = {
     palette: PALETTE,
     rows: [
@@ -885,12 +857,8 @@ const MUSHROOM_STRETCH: PixelArt = {
 };
 
 /* ---------------------------------------------------------------------------
- * THE EARNED FOUR
- *
- * Unlocked by an achievement rather than picked freely — the mapping lives in
- * shared/avatars.js, since the server enforces it. Nothing about the DRAWING
- * differs: same three tokens, same twelve palettes, same two hover frames, so
- * an earned face is only special in the picker.
+ * THE EARNED FOUR: unlocked by an achievement (mapping in shared/avatars.js,
+ * server-enforced). The DRAWING is no different; only the picker is.
  * ------------------------------------------------------------------------- */
 
 /* Apex predator: a toothy grin with the maw as the accent. */
@@ -985,8 +953,7 @@ const BEE: PixelArt = {
     ],
 };
 
-/* Bee, 1: antennae snap upright and the bands shift a row — the body reads as
- * vibrating without moving, which is what a wingbeat looks like at this size. */
+/* Bee, 1: antennae snap upright and the bands shift a row, a wingbeat at this size. */
 const BEE_BUZZ: PixelArt = {
     palette: PALETTE,
     rows: [
@@ -1032,9 +999,8 @@ const BEE_LIFT: PixelArt = {
     ],
 };
 
-/* Thirty days running. The face is the LIGHT fill with ink features, not an
- * accent disc: on Game Boy an accent face merges into its own eyes. The rays
- * carry the accent instead, where nothing depends on them. */
+/* Thirty days running. The face is LIGHT fill with ink features, not an accent
+ * disc: on Game Boy an accent face merges into its eyes. The rays carry the accent. */
 const SUN: PixelArt = {
     palette: PALETTE,
     rows: [
@@ -1126,8 +1092,8 @@ const KNIGHT: PixelArt = {
     ],
 };
 
-/* Knight, 1: the visor drops shut. Only the breath holes are left, which is
- * what keeps a solid block of ink reading as a helmet. */
+/* Knight, 1: visor shut. Only the breath holes remain, which keeps a block of
+ * ink reading as a helmet. */
 const KNIGHT_SHUT: PixelArt = {
     palette: PALETTE,
     rows: [
@@ -1173,8 +1139,7 @@ const KNIGHT_WIDE: PixelArt = {
     ],
 };
 
-/** Art keyed by catalog id — avatarArt.test.ts fails if this drifts from
- * shared/avatars.js in either direction. */
+/** Art keyed by catalog id; avatarArt.test.ts fails if this drifts from shared/avatars.js. */
 export const AVATAR_ART: Readonly<Record<string, PixelArt>> = {
     classic: CLASSIC,
     puppy: PUPPY,
@@ -1194,10 +1159,7 @@ export const AVATAR_ART: Readonly<Record<string, PixelArt>> = {
     knight: KNIGHT,
 };
 
-/**
- * The hover frames per id, in the order they play after the base art. Only
- * some avatars have any — an id absent here simply never animates.
- */
+/** Hover frames per id, in play order after the base art. An id absent here never animates. */
 export const AVATAR_HOVER_FRAMES: Readonly<Record<string, readonly PixelArt[]>> = {
     classic: [CLASSIC_FLAT, CLASSIC_GASP],
     puppy: [PUPPY_PANT_OUT, PUPPY_PANT_IN],
@@ -1217,11 +1179,7 @@ export const AVATAR_HOVER_FRAMES: Readonly<Record<string, readonly PixelArt[]>> 
     knight: [KNIGHT_SHUT, KNIGHT_WIDE],
 };
 
-/**
- * The id whose art actually draws: unknown ids — an avatar removed from the
- * catalog, a hand-edited value — resolve to the default rather than blank,
- * the same defensive shape as spriteSetById.
- */
+/** The id whose art draws: unknown ids resolve to the default, like spriteSetById. */
 export const resolvedAvatarId = (id: string | null | undefined): string =>
     id && AVATAR_ART[id] ? id : DEFAULT_AVATAR;
 
@@ -1229,10 +1187,7 @@ export const resolvedAvatarId = (id: string | null | undefined): string =>
 export const avatarArtById = (id: string | null | undefined): PixelArt =>
     AVATAR_ART[resolvedAvatarId(id)];
 
-/**
- * Every frame for a stored id, base first. One entry for an avatar with no
- * hover frames, so the caller draws the same way either way.
- */
+/** Every frame for a stored id, base first; one entry when there are no hover frames. */
 export const avatarFramesById = (id: string | null | undefined): readonly PixelArt[] => {
     const resolved = resolvedAvatarId(id);
     return [AVATAR_ART[resolved], ...(AVATAR_HOVER_FRAMES[resolved] ?? [])];

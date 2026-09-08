@@ -1,19 +1,9 @@
 /**
- * Board sizes, difficulties, limits and the validity rule — the one copy.
- *
- * Imported by BOTH halves: the client via `@/shared/boardConfig`, the server via
- * `require('../shared/boardConfig')`. CommonJS so it works untouched from the CJS
- * server and from the bundler. Viable only because the whole repo deploys — see
- * ARCHITECTURE.md §6.
- *
- * ## Size and difficulty are separate axes
- *
- * Size picks the dimensions, difficulty picks the MINE DENSITY, and
- * `mineCountFor` combines them, so a small hard board is possible. Only the
- * resulting numbers cross the wire — the server never sees either label.
- *
- * The densities keep the old three presets reachable on the diagonal:
- * Small+Easy is 10 mines, Medium+Medium is 40, Large+Hard is 60.
+ * Board sizes, difficulties, limits and the validity rule. Imported by BOTH
+ * halves, hence CommonJS (see ARCHITECTURE.md §6). Size picks the dimensions,
+ * difficulty picks the MINE DENSITY, `mineCountFor` combines them, and only
+ * the resulting numbers cross the wire. The densities keep the old presets on
+ * the diagonal: Small+Easy is 10 mines, Medium+Medium 40, Large+Hard 60.
  */
 
 /** The named board dimensions. Custom boards are bounded by BOARD_LIMITS instead. */
@@ -27,26 +17,18 @@ const BOARD_SIZES = [
 const CUSTOM_SIZE = 'Custom';
 
 /**
- * The densest board the no-guess generator can actually deliver.
- *
- * The no-guess fallback is SILENT — a guessy board is indistinguishable from a
- * real one — so the ceiling is wherever the solver stops finding layouts, not a
- * matter of taste. Measured per-candidate solvable rates on a 20x16: 18.8% ->
- * 17%, 20.6% -> 7%, 22% -> 3%, 24% -> 0.3%. At `DEFAULT_MAX_ATTEMPTS` (300, in
- * server/domain/boardGen.js) 20.6% never fell back across 200 games on every
- * shipped size; 22% still did.
- *
- * `boardConfig.test.js` holds every density to this, so raising one without
- * re-measuring fails the suite rather than quietly turning no-guess off.
+ * The densest board the no-guess generator can deliver. The fallback to a
+ * guessy board is SILENT, so this is measured, not taste: solvable rate per
+ * candidate on 20x16 was 18.8% -> 17%, 20.6% -> 7%, 22% -> 3%, 24% -> 0.3%,
+ * and at `DEFAULT_MAX_ATTEMPTS` (300, server/domain/boardGen.js) 20.6% never
+ * fell back across 200 games per shipped size while 22% did.
+ * `boardConfig.test.js` holds every density to it.
  */
 const MAX_SAFE_DENSITY = 0.206;
 
 /**
- * Difficulty is a mine density, applied to whichever size is selected.
- *
- * Easy through Hard sit below classic Minesweeper's Expert (20.6%) to reduce
- * unavoidable 50/50 guesses. Extreme matches Expert exactly, which is also
- * MAX_SAFE_DENSITY — see above for why that is the ceiling.
+ * Difficulty is a mine density. Easy through Hard sit below classic Expert
+ * (20.6%) to reduce forced guesses; Extreme is Expert, which is MAX_SAFE_DENSITY.
  */
 const DIFFICULTY_LEVELS = [
     { title: 'Easy', density: 0.123 },
@@ -68,22 +50,14 @@ const BOARD_LIMITS = {
     MIN_MINES: 1,
 };
 
-/**
- * The most mines a board of this area can hold and still be valid.
- * Mirrors `isValidBoardConfig`'s "strictly under half" rule.
- */
+/** Most mines a board of this area can hold; mirrors `isValidBoardConfig`'s "under half" rule. */
 const maxMinesFor = (area) => Math.ceil(area / 2) - 1;
 
 /**
- * How many mines a size/difficulty pair works out to — pure, and the single
- * place the two axes are combined.
- *
- * An unrecognised difficulty falls back to the default density rather than
- * throwing, so a stale label can never produce a zero-mine board.
- *
- * Anything that is not a whole board — a fraction, a negative, NaN, a string —
- * returns 0, which `isValidBoardConfig` rejects. A laxer guard would answer
- * "4 mines" for a -5x-5 grid, since two negatives multiply to a positive area.
+ * Mines for a size/difficulty pair; the one place the axes combine. An unknown
+ * difficulty falls back to the default density so a stale label cannot give a
+ * zero-mine board. Anything not a whole board returns 0, which
+ * `isValidBoardConfig` rejects; two negatives would otherwise multiply to a positive area.
  */
 const mineCountFor = (numRows, numCols, difficultyTitle) => {
     if (!Number.isInteger(numRows) || !Number.isInteger(numCols)) return 0;
@@ -96,12 +70,10 @@ const mineCountFor = (numRows, numCols, difficultyTitle) => {
     const area = numRows * numCols;
     const cap = maxMinesFor(area);
 
-    // A board too small to hold even one mine legally has no valid answer, and
-    // the floor below would otherwise win and return a count above the cap.
+    // Too small for one legal mine: the floor below would otherwise return a count above the cap.
     if (cap < BOARD_LIMITS.MIN_MINES) return 0;
 
-    // Unreachable for the shipped densities -- 20.6% is nowhere near half --
-    // but keeps the function total for any density added later.
+    // Unreachable at shipped densities, but keeps the function total.
     const raw = Math.round(area * level.density);
     return Math.max(BOARD_LIMITS.MIN_MINES, Math.min(raw, cap));
 };
@@ -118,21 +90,14 @@ const DEFAULT_PRESET = {
     mines: mineCountFor(DEFAULT_SIZE_PRESET.rows, DEFAULT_SIZE_PRESET.cols, DEFAULT_DIFFICULTY),
 };
 
-/**
- * The one board every player gets each day: Medium size at Extreme difficulty,
- * which is MAX_SAFE_DENSITY itself. Generation runs once per day rather than per
- * click, so it can afford the extra search that density costs.
- */
+/** The daily board: Medium at Extreme (MAX_SAFE_DENSITY). Generated once a day, so it can afford the search. */
 const DAILY_PRESET = {
     rows: 16,
     cols: 16,
     mines: mineCountFor(16, 16, 'Extreme'),
 };
 
-/**
- * Every size/difficulty combination the UI can produce. Exists so
- * `server/tests/validation.test.js` can prove the server accepts all of them.
- */
+/** Every size/difficulty combination the UI can produce; `server/tests/validation.test.js` checks each. */
 const ALL_PRESETS = BOARD_SIZES.flatMap((size) =>
     DIFFICULTY_LEVELS.map((level) => ({
         title: `${size.title} / ${level.title}`,
@@ -142,12 +107,7 @@ const ALL_PRESETS = BOARD_SIZES.flatMap((size) =>
     }))
 );
 
-/**
- * Whether a board configuration is playable.
- *
- * Mines must stay under half the board so the generator can always place them
- * outside the 3x3 safe zone around the first click.
- */
+/** Playable? Mines stay under half the board so the 3x3 first-click safe zone always fits. */
 const isValidBoardConfig = (numRows, numCols, numMines) => {
     const { MIN_ROWS, MAX_ROWS, MIN_COLS, MAX_COLS, MIN_MINES } = BOARD_LIMITS;
     if (typeof numRows !== 'number' || numRows < MIN_ROWS || numRows > MAX_ROWS) return false;

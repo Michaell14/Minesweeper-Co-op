@@ -1,20 +1,13 @@
 /**
  * Quick match: pairing two waiting sockets into a PVP room.
  *
- * Driven against `tests/setup/fakeRedis.js` rather than the shared mock, for
- * the same reason `coopConcurrency.test.js` is: the whole point of the match
- * lock is what happens when two searches OVERLAP, and the shared mock has no
- * store behind it and settles in call order, so it cannot express two players
- * both reading an empty queue. Here every command yields to the event loop, so
- * they interleave the way they do against a real server.
- *
- * The failure this guards is quiet and symmetrical: unlocked, two players
- * arriving together each read an empty queue, each sit down in it, and both
- * wait — for each other — until a third player turns up.
+ * Driven against `tests/setup/fakeRedis.js`, as `coopConcurrency.test.js` is:
+ * the match lock only matters when two searches OVERLAP, and the shared mock
+ * settles in call order. Unlocked, two players arriving together each read an
+ * empty queue, each sit down in it, and both wait for a third.
  */
 
-// `mock`-prefixed because jest hoists the factories above these declarations
-// and only permits that prefix to be referenced from inside one.
+// `mock`-prefixed: jest hoists the factories and only allows that prefix inside one.
 const { createFakeRedis } = require('./setup/fakeRedis');
 const mockRedis = createFakeRedis();
 
@@ -33,9 +26,7 @@ jest.mock('../utils/initializeClient', () => ({
     app: { use: jest.fn(), get: jest.fn(), post: jest.fn(), put: jest.fn(), delete: jest.fn() },
     io: {
         use: jest.fn(),
-        // socket.io's live connection map. Both "is this socket still here" and
-        // "how many are here at all" read it, which is the point — there is no
-        // second tally that can lag behind it.
+        // socket.io's live map; both "still here" and "how many" read it, so no second tally can lag.
         sockets: { sockets: mockConnected },
         to: (target) => ({ emit: (event, payload) => record(target, event, payload) }),
     },
@@ -153,16 +144,14 @@ describe('two searchers', () => {
 
         expect(aliceJoin.room).toBe(bobJoin.room);
         expect(aliceJoin.mode).toBe('pvp');
-        // A match is never a practice room. If this ever went true, a racer
-        // would get a target bar drawn over a live opponent.
+        // Never a practice room: a racer would get a target bar over a live opponent.
         expect(aliceJoin.practice).toBeUndefined();
         expect(bobJoin.practice).toBeUndefined();
         // Alice waited, so Alice presses Start.
         expect(aliceJoin.isHost).toBe(true);
         expect(bobJoin.isHost).toBe(false);
 
-        // The dimensions travel, or the joiner's flag counter has nothing to
-        // size itself from — the same reason a manual join carries them.
+        // The dimensions travel, or the joiner's flag counter has nothing to size from.
         expect(aliceJoin.numRows).toBe(DEFAULT_PRESET.rows);
         expect(bobJoin.numMines).toBe(DEFAULT_PRESET.mines);
 
@@ -175,8 +164,7 @@ describe('two searchers', () => {
         expect(alice.rooms.has(aliceJoin.room)).toBe(true);
         expect(bob.rooms.has(aliceJoin.room)).toBe(true);
 
-        // The lobby, announced exactly as a hand-made PVP room announces it.
-        // Anonymous searchers, so opponentAvatar is null on both sides.
+        // The lobby, announced as a hand-made PVP room announces it; anonymous, so no avatar.
         expect(payloadOf('alice', SERVER_EVENTS.PVP_ROOM_READY)).toEqual({ opponentName: 'Bob', opponentAvatar: null, isHost: true });
         expect(payloadOf('bob', SERVER_EVENTS.PVP_ROOM_READY)).toEqual({ opponentName: 'Alice', opponentAvatar: null, isHost: false });
 
@@ -188,8 +176,7 @@ describe('two searchers', () => {
         const alice = makeSocket('alice');
         const bob = makeSocket('bob');
 
-        // The bug this guards: both read an empty queue, both enqueue, and each
-        // waits for the other.
+        // The bug this guards: both read an empty queue, both enqueue, each waits.
         await Promise.all([
             findMatch({ socket: alice, name: 'Alice' }),
             findMatch({ socket: bob, name: 'Bob' }),
@@ -227,15 +214,8 @@ describe('two searchers', () => {
         makeSocket('bob');
         const carol = makeSocket('carol');
 
-        /*
-         * Seeded rather than searched into place: a second searcher would pair
-         * with the first instead of queueing behind them, so two waiters can
-         * only be arranged directly.
-         *
-         * Bob is written FIRST but queued LATER, so hash order and wait time
-         * disagree — which is the only arrangement that can tell a real sort
-         * from "whatever Redis returned".
-         */
+        // Seeded, since a second searcher would pair rather than queue. Bob is
+        // written FIRST but queued LATER, so hash order and wait time disagree.
         const now = Date.now();
         await matchRepo.enqueue('bob', { name: 'Bob', sessionId: '', queuedAt: now - 1000 });
         await matchRepo.enqueue('alice', { name: 'Alice', sessionId: '', queuedAt: now - 5000 });
@@ -302,11 +282,8 @@ describe('entries that have gone bad', () => {
 
 describe('what a waiting player is told', () => {
     test('the count is who is ONLINE, not who is queued', async () => {
-        // A queue depth would be useless here and always zero: reaching
-        // matchSearching means nobody pairable was found, and anyone arriving
-        // later pairs instantly rather than queueing alongside. Two other
-        // sockets are connected and neither is searching -- exactly the state
-        // the number exists to describe.
+        // Queue depth would always be zero here: reaching matchSearching means
+        // nobody was pairable. Two idle sockets are what the number describes.
         makeSocket('idle-one');
         makeSocket('idle-two');
         const alice = makeSocket('alice');
@@ -325,11 +302,7 @@ describe('what a waiting player is told', () => {
     });
 });
 
-/**
- * The count is a snapshot of a number that moves, shown beside a waiting timer
- * that does not stop. Sent once, it is wrong for as long as the player waits —
- * and the longer they wait, the more wrong it gets.
- */
+/** Sent once, the count is wrong for as long as the player waits. */
 describe('the online count while the search runs', () => {
     test('follows people arriving', async () => {
         const alice = makeSocket('alice');
@@ -366,9 +339,8 @@ describe('the online count while the search runs', () => {
     });
 
     test('does not re-assert the search itself', async () => {
-        // A cancel and a broadcast can cross. If this arrived as a second
-        // `matchSearching`, it would put the client back into a search it had
-        // just left, with the dialog already closed and nothing to reopen it.
+        // A cancel and a broadcast can cross; a second `matchSearching` would
+        // put the client back into a search it had just left.
         const alice = makeSocket('alice');
         await findMatch({ socket: alice, name: 'Alice' });
         await cancelMatch({ socket: alice });
@@ -390,9 +362,7 @@ describe('the online count while the search runs', () => {
     });
 
     test('skips a queue entry whose socket is already gone', async () => {
-        // A dyno restart leaves entries behind. `isPairable` prunes them on the
-        // way past a search; this path has no reason to write, so it just
-        // declines to talk to a socket it cannot see.
+        // A dyno restart leaves entries behind; this path never writes, so it just skips them.
         const alice = makeSocket('alice');
         await findMatch({ socket: alice, name: 'Alice' });
         disconnectSocket('alice');
@@ -413,21 +383,16 @@ describe('the practice race', () => {
         expect(joined.mode).toBe('co-op');
         expect(joined.numRows).toBe(DEFAULT_PRESET.rows);
         expect(joined.numMines).toBe(DEFAULT_PRESET.mines);
-        // The label the client reads to decide whether to draw a target. It is
-        // on the ANSWER, not the room -- see the state assertion below.
+        // The label the client reads to decide whether to draw a target; on the ANSWER, not the room.
         expect(joined.practice).toBe(true);
 
-        // A co-op room of one, which the app has always supported -- that is
-        // what makes board generation, the clock and the win check work here
-        // with no practice-specific server code at all.
+        // A co-op room of one: generation, clock and win check need no practice-specific code.
         expect(await roomRepo.getPlayers(joined.room)).toEqual(['alice']);
         expect(await roomRepo.getField(joined.room, 'mode')).toBe('co-op');
         expect(alice.rooms.has(joined.room)).toBe(true);
 
-        // The room records only HOW it was opened, the same way it records
-        // `mode`. The target itself never reaches the server -- if a time ever
-        // starts being stored, the client has stopped being the only thing that
-        // knows, and something server-side has started simulating an opponent.
+        // The room records only HOW it was opened. The target never reaches the
+        // server; if it did, something server-side would be simulating an opponent.
         const state = await roomRepo.getState(joined.room);
         expect(state.practice).toBe('true');
         expect(Object.keys(state).some((k) => /target|opponent/i.test(k))).toBe(false);

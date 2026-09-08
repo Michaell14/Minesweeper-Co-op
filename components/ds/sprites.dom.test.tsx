@@ -4,14 +4,10 @@ import { render, waitFor } from "@testing-library/react";
 import Sprite, { SpriteDefs } from "./sprites";
 
 /**
- * The two halves of the sprite mechanism: art mounted once as <symbol>, and a
- * <use> per cell pointing at it.
- *
- * Both failures here are silent. Rename a symbol id on one side and every mine
- * on the board renders an empty box — no error, no warning, and the cell still
- * resolves by role and name. And the defs follow `data-theme` through a
- * MutationObserver, so a broken subscription just leaves last month's palette
- * painted.
+ * The sprite mechanism: art mounted once as <symbol>, a <use> per cell. Both
+ * failures are silent: a renamed symbol id renders every mine as an empty box
+ * with the cell still resolving by role, and a broken `data-theme` observer
+ * leaves last month's palette painted.
  */
 
 const drawn = (container: HTMLElement, kind: "mine" | "flag") =>
@@ -78,11 +74,7 @@ describe("the art follows the painted palette", () => {
         expect(drawn(container, "mine")).toEqual(before);
     });
 
-    /*
-     * The palette is already on <html> when React mounts — the no-flash script
-     * put it there — so the first render has to read it rather than wait for a
-     * change that has already happened.
-     */
+    /* The no-flash script sets the palette before React mounts, so the first render must read it. */
     test("a palette applied before mount is picked up on the first render", () => {
         document.documentElement.dataset.theme = "christmas";
         const seasonal = render(<SpriteDefs />).container;
@@ -95,9 +87,8 @@ describe("the art follows the painted palette", () => {
 });
 
 /*
- * A pinned GENERAL set beats following the palette — but a holiday window
- * beats the pin: seasonal art is paint, same rule as the palette itself, and
- * the pin resumes when the window closes.
+ * A pinned GENERAL set beats following the palette, but a holiday window
+ * beats the pin: seasonal art is paint, and the pin resumes afterwards.
  */
 describe("a pinned general set", () => {
     test("draws its own art on an ordinary palette", () => {

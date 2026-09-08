@@ -1,9 +1,7 @@
 /**
- * The avatar's trip into a room: socket.data.user (the connect-time snapshot)
- * → the player record → the score-table broadcast. Follows the
- * joinRoomHost.test.js pattern of driving server.js's own handlers, because
- * the interesting failure is silent: a dropped avatar just renders every row
- * name-only and nothing errors.
+ * The avatar's trip into a room: socket.data.user → the player record → the
+ * score-table broadcast. Drives server.js's own handlers (joinRoomHost.test.js
+ * pattern) because a dropped avatar fails silently, rendering rows name-only.
  */
 
 const emitsByTarget = {};
@@ -16,10 +14,8 @@ const mockOn = jest.fn();
 
 jest.mock('../utils/initializeClient', () => ({
     app: { use: jest.fn(), get: jest.fn(), post: jest.fn(), put: jest.fn(), delete: jest.fn() },
-    // `sockets.sockets` is socket.io's live connection map, empty here for the
-    // same reason as in setup/mockInfra.js. Presence walks it on every connect
-    // (utils/presence.js); without it these suites boot the server against an
-    // `io` that socket.io could not produce, and log a caught failure per test.
+    // `sockets.sockets` is socket.io's live connection map, which presence
+    // walks on every connect (utils/presence.js); see setup/mockInfra.js.
     io: { on: mockOn, to: mockTo, use: jest.fn() , sockets: { sockets: new Map() } },
     server: { listen: jest.fn() },
 }));
@@ -110,8 +106,7 @@ test('an id the catalog does not know is dropped at the door', async () => {
 
 test('a rejoin overwrites the stored avatar — signing out between joins clears it', async () => {
     await join('sock-1', { id: 'uuid-1', displayName: 'Miguel', avatar: 'fox' }, 'Miguel');
-    // Same socket joins again signed OUT: the record exists, so this exercises
-    // the setFields branch, and a stale 'fox' must not survive it.
+    // Same socket joins again signed OUT: the setFields branch, and a stale 'fox' must not survive.
     await join('sock-1', null, 'Miguel');
 
     expect(mockRedis.read('player:sock-1').avatar).toBe('');

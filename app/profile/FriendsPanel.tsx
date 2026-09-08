@@ -13,15 +13,9 @@ import {
 
 /**
  * The friend list, the two request queues, and this account's own code.
- *
- * Fetches its own graph rather than taking it from the page: the profile
- * payload is one request the page already makes, and folding a second,
- * independently-failing surface into it would mean a friends outage showed as
- * a broken profile. Here, the panel says so and the rest of the page is fine.
- *
- * Adding is by CODE, never by name search — see `server/domain/friendCode.js`
- * for why. Names are not unique here and there are no public profiles; a
- * search box would quietly reintroduce both.
+ * Fetches its own graph so a friends outage shows here, not as a broken
+ * profile. Adding is by CODE, never name search (server/domain/friendCode.js):
+ * names are not unique and there are no public profiles.
  */
 
 /** Long enough to read, short enough that a stale answer never confuses. */
@@ -58,9 +52,8 @@ export default function FriendsPanel() {
         setBusy(true);
         const result = await addFriendByCode(code);
         say(result.message);
-        // Only reload when something actually moved: a refused code leaves the
-        // graph exactly as it was, and re-fetching it would make a typo look
-        // like it did something.
+        // Only reload when something moved; re-fetching after a refused code
+        // would make a typo look like it did something.
         if (result.ok) {
             setCode('');
             await load();
@@ -117,8 +110,7 @@ export default function FriendsPanel() {
         <Panel title={<span id="profile-friends">Friends</span>}>
             {!loaded && <p className="text-pixel-sm text-ink-muted m-0">Loading…</p>}
 
-            {/* An outage says so rather than rendering an empty graph: "you
-                have no friends" and "we cannot tell" are different sentences. */}
+            {/* An outage says so: "no friends" and "we cannot tell" are different sentences. */}
             {loaded && !graph && (
                 <p className="text-pixel-sm text-ink-muted m-0">
                     Friends are unavailable right now.
@@ -142,8 +134,7 @@ export default function FriendsPanel() {
                             {copied ? 'Copied!' : 'Copy code'}
                         </Button>
                     </div>
-                    {/* Same reason as RoomPanel: a screen reader does not
-                        reliably treat a button as a live region. */}
+                    {/* Same reason as RoomPanel: a button is not reliably a live region. */}
                     <span className="sr-only" aria-live="polite">
                         {copied ? 'Friend code copied to clipboard' : ''}
                     </span>
@@ -152,9 +143,8 @@ export default function FriendsPanel() {
                         className="flex items-end gap-2 mt-4 flex-wrap"
                         aria-label="Add a friend by code"
                         onSubmit={submitCode}>
-                        {/* The name comes from aria-label, not from Field:
-                            Field's caption is a <p> on purpose (it captions
-                            radio groups), so it labels nothing. */}
+                        {/* Named by aria-label, not Field: Field's caption is a
+                            <p> (it captions radio groups), so it labels nothing. */}
                         <Field label="Add by code" className="flex-1">
                             <Input
                                 type="text"
@@ -171,8 +161,7 @@ export default function FriendsPanel() {
                         </Button>
                     </form>
 
-                    {/* The answer to an add is the one thing here a person is
-                        waiting on, so it is announced rather than just drawn. */}
+                    {/* The answer to an add is what a person is waiting on, so it is announced. */}
                     <p className="text-pixel-2xs text-ink-muted mt-2 mb-0" role="status" aria-live="polite">
                         {notice}
                     </p>
@@ -198,9 +187,8 @@ export default function FriendsPanel() {
                             aria-label={`Remove ${person.displayName}`}>Remove</Button>
                     ))}
 
-                    {/* Mine only — a block placed on me is never listed. It is
-                        here so it can be lifted; without the row, blocking is
-                        a door with no handle on the inside. */}
+                    {/* Mine only; a block placed on me is never listed. Here so
+                        it can be lifted. */}
                     {list('Blocked', graph.blocked, (person) => (
                         <Button size="sm" onClick={() => act(person, 'remove')}
                             aria-label={`Unblock ${person.displayName}`}>Unblock</Button>

@@ -1,13 +1,7 @@
 /**
- * Handler-level tests for the daily challenge lifecycle: server/controllers/
- * dailyController.js (start/submit/leaderboard) and server/game/daily.js
- * (open/chord/flag, timing).
- *
- * Uses a small in-memory Redis fake rather than bare jest.fn() mocks: these
- * flows read back state they just wrote (create an attempt, then open a cell
- * against it, then start again to check resume behavior), which is awkward to
- * assert on on top of unconditioned mock functions but straightforward
- * against a real-shaped fake.
+ * Handler-level tests for the daily lifecycle: dailyController.js
+ * (start/submit/leaderboard) and game/daily.js (open/chord/flag, timing).
+ * Uses an in-memory Redis fake because these flows read back what they wrote.
  */
 
 const mockEmit = jest.fn();
@@ -20,9 +14,8 @@ jest.mock('../utils/initializeClient', () => ({
 }));
 
 /**
- * A stable object (not reassigned between tests): dailyRepo.js destructures
- * `redisClient` once at require time, so a mock that swaps in a NEW object
- * per test would never reach it. Instead this resets its own Maps in place.
+ * One stable object, reset in place: dailyRepo.js destructures `redisClient`
+ * once at require time, so a fresh mock per test would never reach it.
  */
 const createFakeRedis = () => {
     const hashes = new Map();
@@ -61,7 +54,7 @@ const createFakeRedis = () => {
             strings.set(key, value);
             return 'OK';
         }),
-        // The one script the server runs: withLock's ownership-checked release.
+        // withLock's ownership-checked release, the one script the server runs.
         eval: jest.fn(async (_script, { keys, arguments: args }) => {
             if (strings.get(keys[0]) !== args[0]) return 0;
             strings.delete(keys[0]);
@@ -96,9 +89,8 @@ jest.mock('../utils/initializeRedisClient', () => ({
     redisClient: Promise.resolve(mockRedisSingleton),
 }));
 
-// Only recordForSockets is faked (it would no-op anyway without a DB, which
-// hides what finishAttempt actually sent); boardKeyOf stays real because
-// daily.js uses it to build the payload under test.
+// Only recordForSockets is faked (without a DB it no-ops, hiding what
+// finishAttempt sent); boardKeyOf stays real since daily.js builds the payload with it.
 const mockRecordForSockets = jest.fn();
 jest.mock('../utils/statsRecorder', () => ({
     ...jest.requireActual('../utils/statsRecorder'),
@@ -112,14 +104,10 @@ const { startDaily, submitDailyScore, getDailyLeaderboard } = require('../contro
 const DATE = '2026-07-30';
 
 /**
- * 3x2, one mine at [0][1]; [0][0] and [1][0] pre-opened, like a real daily
- * board's fixed-center opening -- but hand-crafted so tests know the layout.
- * Three closed safe cells ([1][1], [2][0], [2][1]) so opening just one of
- * them starts the clock without immediately winning -- a 2x2 board with only
- * one closed safe cell left would win on the very first move, which is too
- * degenerate to test "hit the mine after starting" as a separate path.
- * nearbyMines is 1 (never 0) everywhere on purpose, so revealFrom's
- * zero-cascade never fires and every open touches exactly one cell.
+ * 3x2, one mine at [0][1]; [0][0] and [1][0] pre-opened like a real daily's
+ * fixed-center opening. Three closed safe cells, so one open starts the clock
+ * without winning. nearbyMines is never 0, so no cascade fires and every open
+ * touches exactly one cell.
  */
 const tinyBoard = () => [
     [
@@ -155,11 +143,9 @@ const lastEmitted = (event) => emittedFor(event).at(-1);
 const socketFor = (id) => ({ id, emit: jest.fn(), join: jest.fn() });
 
 /**
- * A fixed noon UTC on DATE. Individual tests advance the clock by adding a
- * small offset (BASE_TIME + N) rather than jumping to an unrelated epoch --
- * dailyController.todayUtc() reads the same Date.now(), so an absolute jump
- * to e.g. epoch 1000 would silently compute a DIFFERENT calendar day than
- * the one this suite seeded the board and attempts under.
+ * Noon UTC on DATE. Tests advance by small offsets (BASE_TIME + N), never an
+ * unrelated epoch: todayUtc() reads the same Date.now() and would land on a
+ * different calendar day than the one seeded here.
  */
 const BASE_TIME = Date.parse('2026-07-30T12:00:00.000Z');
 let nowSpy;
@@ -210,12 +196,8 @@ describe('startDaily', () => {
     });
 
     test('two near-simultaneous starts for the SAME fresh token create only one attempt', async () => {
-        // Simulates two tabs of the same browser: the token is shared via
-        // localStorage (see lib/dailyIdentity.ts), so both could plausibly
-        // fire startDaily around the same time. The start lock in
-        // dailyController.js exists precisely to serialize this -- without
-        // it, both would race past the "no attempt yet" check and each call
-        // createAttempt.
+        // Two tabs of one browser share the token (lib/dailyIdentity.ts); the
+        // start lock in dailyController.js serialises them.
         const createAttemptSpy = jest.spyOn(dailyRepo, 'createAttempt');
         const socketA = socketFor('sock-a');
         const socketB = socketFor('sock-b');
@@ -227,8 +209,7 @@ describe('startDaily', () => {
 
         expect(createAttemptSpy).toHaveBeenCalledTimes(1);
 
-        // Both callers should still see a consistent, valid result -- the
-        // loser reads back what the winner wrote rather than getting nothing.
+        // The loser reads back what the winner wrote rather than getting nothing.
         expect(socketA.emit).toHaveBeenCalledWith('dailyStarted', expect.objectContaining({ date: DATE }));
         expect(socketB.emit).toHaveBeenCalledWith('dailyStarted', expect.objectContaining({ date: DATE }));
 
@@ -298,8 +279,7 @@ describe('startDaily', () => {
         expect(Array.isArray(payload.board)).toBe(true);
         expect(payload.board).toHaveLength(payload.numRows);
         expect(payload.board[0]).toHaveLength(payload.numCols);
-        // Terminal state: the mines are allowed to show, and must (a replay
-        // of a loss with invisible mines explains nothing).
+        // Terminal state: mines must show, or the replay explains nothing.
         const minesShown = payload.board.flat().filter((cell) => cell.isMine).length;
         expect(minesShown).toBe(payload.numMines);
     });
@@ -348,10 +328,8 @@ describe('timing: startedAt is stamped only on the first open/chord, never at st
     });
 
     /*
-     * A flag the client draws but the server never stored is worse than one
-     * that never appeared: every later action re-reads the stored board, so
-     * the next move silently drops it and nothing reports a problem. Saving
-     * first makes a failed write a flag that simply did not land.
+     * A flag drawn but never stored is silently dropped by the next move's
+     * re-read. Saving first makes a failed write a flag that did not land.
      */
     test('a flag that fails to persist is never drawn on the client', async () => {
         const socket = socketFor('sock-1');
@@ -412,14 +390,12 @@ describe('elapsedMs is always finishedAt - startedAt, both server timestamps', (
         const attempt = await dailyRepo.getAttempt(DATE, 'tok-1');
         expect(attempt.status).toBe('failed');
         expect(attempt.elapsedMs).toBe('3500');
-        // The first open put 3 of 5 safe cells up (60% -> six deciles), all at
-        // elapsed 0 since the clock started on that same move.
+        // The first open put 3 of 5 safe cells up (six deciles), all at elapsed 0.
         expect(lastEmitted('dailyGameOver')).toEqual({ elapsedMs: 3500, milestones: [0, 0, 0, 0, 0, 0] });
     });
 
     test('dailyOpenCell and dailyChordCell accept no elapsed-time argument -- the', () => {
-        // arity check: (date, token, socketId, row, col) only. Adding a client-
-        // supplied elapsed value would be a signature change caught here.
+        // arity check: (date, token, socketId, row, col) only.
         expect(dailyGame.openCell.length).toBe(5);
         expect(dailyGame.chordCell.length).toBe(5);
     });
@@ -467,10 +443,8 @@ describe('submitDailyScore and the leaderboard', () => {
     });
 
     /*
-     * The browser trims before it emits, so these two only reach the server
-     * from something speaking the protocol directly -- which a socket makes
-     * easy. Today's leaderboard entry is durable and public and cannot be
-     * rewritten, so the name is normalised before it is stored, not after.
+     * The browser trims before emitting, so these only arrive from a raw
+     * socket. A leaderboard entry cannot be rewritten, so normalise before storing.
      */
     const winWith = async (token, socketId) => {
         const socket = socketFor(socketId);
@@ -498,7 +472,7 @@ describe('submitDailyScore and the leaderboard', () => {
         await submitDailyScore({ socket, io: { to: mockTo }, dailyAttemptToken: 'tok-1', date: DATE, name: '   ' });
 
         expect(await dailyRepo.getLeaderboardTop(DATE)).toEqual([]);
-        // Still submittable with a real name -- refusing must not burn the run.
+        // Refusing must not burn the run.
         const attempt = await dailyRepo.getAttempt(DATE, 'tok-1');
         expect(attempt.status).toBe('won_pending_submit');
     });
@@ -515,10 +489,9 @@ describe('submitDailyScore and the leaderboard', () => {
 
 describe('pace milestones ride the terminal payloads', () => {
     /*
-     * tinyBoard has 5 safe cells with 2 pre-opened (40%), so decile crossings
-     * are chunky and exact: the free opening's four deciles stamp at elapsed 0
-     * on the first real move, the same rule as the real board's fixed-center
-     * opening. Timing only, never positions -- the client's bar depends on it.
+     * 5 safe cells with 2 pre-opened (40%): the free opening's four deciles
+     * stamp at elapsed 0 on the first real move, like the real fixed-center
+     * opening. Timing only, never positions.
      */
     test('a win emits all 10, stamped from server time', async () => {
         const socket = socketFor('sock-1');
@@ -586,9 +559,8 @@ describe('pace milestones ride the terminal payloads', () => {
 });
 
 describe('stats recording carries the puzzle date', () => {
-    // The calendar on /profile keys on the PUZZLE date, and an attempt can
-    // legally finish after UTC midnight — so what finishAttempt sends must be
-    // the attempt's date, not something derived from the finish time.
+    // The /profile calendar keys on the PUZZLE date, and an attempt can
+    // finish after UTC midnight, so finishAttempt must send the attempt's date.
     test('a win records mode daily with dailyDate = the attempt date', async () => {
         const socket = socketFor('sock-1');
         await startDaily({ socket, dailyAttemptToken: 'tok-1' });

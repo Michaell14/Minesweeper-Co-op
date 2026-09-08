@@ -1,30 +1,16 @@
 /**
- * The server's half of the socket protocol, as data.
+ * The server's half of the socket protocol, as data: one row per client event.
  *
- * One row per client event. Reading down the table answers "what does this
- * server listen for, what shape must it be in, and who is allowed to send it?"
- * without reading a handler — which is what `server.js` used to require, across
- * 564 lines and twenty-two hand-written copies of the same four steps.
- *
- * A row is:
- *
- *   event      the name, always from shared/events.js — never a literal
+ *   event      the name, always from shared/events.js
  *   rateLimit  optional; a bucket key and its refill, applied FIRST
  *   validate   optional; a pure payload predicate. Refusal is SILENT
  *   guard      required; see routes/guards.js
  *   handler    ({ socket, io, payload, roomState }) => Promise
  *
- * The registrar applies them in that order, for every row (routes/register.js).
- *
- * Two rows deliberately declare no `validate`, and it is worth knowing why
- * rather than reading it as an oversight: `createRoom`, `joinRoom` and the
- * matchmaking routes owe a REFUSED client a specific error — `createRoomError`,
- * `joinRoomError`, `matchError` — and the registrar's refusal is silent. Those
- * checks stay in the handler, beside the emit that answers them.
- *
- * `disconnect` is not here: it is socket.io's own event rather than part of
- * this protocol, and stays wired in server.js with the rest of the connection
- * lifecycle.
+ * routes/register.js applies them in that order. `createRoom`, `joinRoom` and
+ * the matchmaking routes declare no `validate` because they owe a refused
+ * client a specific error, so their checks stay beside the emit. `disconnect`
+ * is socket.io's own event and stays in server.js.
  */
 
 const { CLIENT_EVENTS } = require('../../shared/events');
@@ -102,15 +88,10 @@ const ROUTES = [
 
     /*
      * --- Expression: rate-limited, and refused in silence ---
-     *
-     * The three routes a client sends unprompted and that fan out to the room.
-     * All take the SILENT guard: answering a refused hover with an error would
-     * hand a flooding client an amplifier, and evicting the sender would end a
-     * live game over a cosmetic message.
-     *
-     * Two of them share ONE bucket. The bucket is keyed by CATEGORY rather than
-     * by event precisely so that adding a third expressive message cannot widen
-     * the limit — see domain/rateLimit.js.
+     * All three fan out to the room and take the SILENT guard: an error would
+     * hand a flooder an amplifier, and eviction would end a game over a
+     * cosmetic message. Emote and ping share ONE bucket, keyed by category so
+     * a third expressive message cannot widen the limit (domain/rateLimit.js).
      */
     {
         event: CLIENT_EVENTS.SEND_EMOTE,
@@ -121,12 +102,9 @@ const ROUTES = [
     },
     {
         event: CLIENT_EVENTS.PING_CELL,
-        // The SAME bucket as sendEmote, deliberately. Expression is rate
-        // limited as a category: a client handed one bucket per event could
-        // alternate the two and send at double the rate either allows.
+        // Same bucket as sendEmote, or alternating the two doubles the rate.
         rateLimit: { key: 'expressionBucket', burst: EXPRESSION_BURST, perSecond: EXPRESSION_PER_SECOND },
-        // A real cell, unlike hover: there is no (-1,-1) clear to accept. The
-        // handler then bounds it against this room's own board.
+        // A real cell, unlike hover; the handler bounds it against the room's board.
         validate: roomAndCell,
         guard: GUARDS.ROOM_MEMBER_SILENT,
         handler: social.ping,
@@ -142,14 +120,9 @@ const ROUTES = [
 
     /*
      * --- Friends, in a room: silent, and never rate-limited here ---
-     *
-     * The graph's own surface is REST (`/api/friends`). These three are the
-     * room-scoped half, and take the SILENT guard for a different reason than
-     * the expression routes above: not flood control, but that a refusal must
-     * not be distinguishable from "they blocked you". See routes/friends.js.
-     *
-     * No bucket: an invite is bounded by its own per-pair cooldown, and the two
-     * roster routes answer only the socket that asked.
+     * The graph's own surface is REST. These take the SILENT guard so a
+     * refusal is not distinguishable from "they blocked you" (routes/friends.js).
+     * No bucket: an invite is bounded by its own per-pair cooldown.
      */
     {
         event: CLIENT_EVENTS.INVITE_FRIEND,

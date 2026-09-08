@@ -1,10 +1,8 @@
 // @vitest-environment jsdom
 /**
- * The sign-in dialog by accessible name — what fails silently here is a
- * sign-in button whose provider stops resolving. Sign-in itself is a
- * full-page redirect, so the assertions stop at "the right control calls the
- * right function". Account management (rename, sign out, delete) lives on
- * /profile now — see app/profile/AccountPanel.test.tsx.
+ * The sign-in dialog by accessible name. Sign-in is a full-page redirect, so
+ * assertions stop at "the right control calls the right function". Account
+ * management lives on /profile (app/profile/AccountPanel.test.tsx).
  */
 import React from 'react';
 import { render, screen, waitFor, fireEvent, cleanup } from '@testing-library/react';
@@ -28,11 +26,7 @@ vi.mock('next/navigation', () => ({
 import AccountMenu from './AccountMenu';
 import { DIALOGS } from '@/lib/dialogs';
 
-/**
- * jsdom's closed <dialog> is display:none, so its contents are invisible to
- * getByRole. `open = true` matches the imperative openDialog() the app uses
- * (same pattern as DailyDialogs.test.tsx).
- */
+/** jsdom's closed <dialog> is display:none; `open = true` matches the app's imperative openDialog(). */
 const openById = (id: string) => {
     (document.getElementById(id) as HTMLDialogElement).open = true;
 };

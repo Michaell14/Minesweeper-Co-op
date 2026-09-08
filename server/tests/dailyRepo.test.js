@@ -1,8 +1,6 @@
 /**
- * Tests for server/data/dailyRepo.js and its keys.js builders.
- *
- * Same style as tests/repos.test.js: exact key-string assertions (a mistyped
- * key is a silent no-op, not an error) plus TTL and lock-shape checks.
+ * dailyRepo and its keys.js builders: exact key strings (a mistyped key is a
+ * silent no-op), TTLs and lock shapes, as tests/repos.test.js does.
  */
 
 const keys = require('../data/keys');
@@ -113,11 +111,7 @@ describe('attempts', () => {
         });
     });
 
-    /*
-     * ONE hSet, both fields: milestones stored in a separate write could land
-     * while the board write failed, leaving durable pace stamps from a move
-     * that never completed. The single call is the invariant, not a detail.
-     */
+    /* ONE hSet, both fields: milestones in a separate write could land while the board write failed. */
     test('setAttemptBoard writes crossed milestones atomically with the board', async () => {
         const board = [[{ isMine: false, isOpen: true, isFlagged: false, nearbyMines: 0 }]];
 
@@ -158,8 +152,7 @@ describe('attempts', () => {
         const elapsedMs = await dailyRepo.submitScore('2026-07-30', 'tok-1', 'Alex');
 
         expect(client.hGet).toHaveBeenCalledWith('daily:2026-07-30:attempt:tok-1', 'elapsedMs');
-        // No avatar argument → no avatar field: a Redis hash cannot hold null,
-        // so absence is how an anonymous entry stores it.
+        // No avatar argument, no avatar field: a Redis hash cannot hold null.
         expect(client.hSet).toHaveBeenCalledWith('daily:2026-07-30:attempt:tok-1', {
             name: 'Alex',
             status: 'completed',
@@ -187,8 +180,7 @@ describe('leaderboard reads', () => {
             { value: 'tok-fast', score: 3000 },
             { value: 'tok-slow', score: 9000 },
         ]);
-        // tok-fast is a signed-in entry with an avatar; tok-slow is anonymous —
-        // its avatar field is absent, which Redis reports as null.
+        // tok-slow is anonymous: its avatar field is absent, which Redis reports as null.
         client.hmGet.mockImplementation((key) =>
             Promise.resolve(key.includes('tok-fast') ? ['Speedy', 'fox'] : ['Slowpoke', null])
         );
@@ -246,8 +238,7 @@ describe('locks', () => {
     test('two attempts never share an action lock, so players do not wait on each other', () => {
         expect(keys.dailyActionLockKey('2026-07-30', 'tok-1'))
             .not.toBe(keys.dailyActionLockKey('2026-07-30', 'tok-2'));
-        // ...and a move lock is not the start lock: an in-flight move must not
-        // be mistaken for a start, or either could free the other's key.
+        // ...and a move lock is not the start lock, or either could free the other's key.
         expect(keys.dailyActionLockKey('2026-07-30', 'tok-1'))
             .not.toBe(keys.dailyStartLockKey('2026-07-30', 'tok-1'));
     });

@@ -14,14 +14,9 @@ import {
 } from "./bestTimes";
 
 /**
- * Personal best times.
- *
- * Two things make this worth testing rather than eyeballing. It reads
- * localStorage, which is shared with the user and with anything else on the
- * origin, so it has to treat what it finds there as untrusted — a corrupt blob
- * must lose the records, not throw on a page with a live game in it. And the
- * key has to survive a joiner whose size/difficulty labels describe a different
- * board entirely, which is why it is built from the numbers.
+ * Personal best times. localStorage is untrusted: a corrupt blob must lose the
+ * records, not throw mid-game. And the key is built from the numbers, because a
+ * joiner's size/difficulty labels can describe a different board entirely.
  */
 
 const KEY = boardKey(16, 16, 40);
@@ -36,30 +31,19 @@ describe("identifying a board", () => {
         expect(boardKey(9, 9, 10)).toBe("9x9/10");
     });
 
-    /*
-     * The reason the key is not the labels. `setDimensions` gives a joining
-     * player the room's numbers and leaves `boardSize`/`difficulty` at whatever
-     * they last picked, so a label-keyed record files their win under a board
-     * they never played.
-     */
+    /* Not the labels: `setDimensions` gives a joiner the room's numbers but leaves the labels untouched. */
     test("two different boards never collide", () => {
         expect(boardKey(16, 16, 40)).not.toBe(boardKey(16, 16, 60));
         expect(boardKey(20, 16, 40)).not.toBe(boardKey(16, 16, 40));
     });
 
-    /*
-     * Two people splitting a board finish it faster than one person can, more
-     * or less by construction. Sharing a slot, the group time took it and then
-     * held it: every solo run afterwards quietly failed to be a record, and the
-     * caption read "Best 1:23 with 2 players" — a bar you cannot reach alone.
-     */
+    /* A group finishes faster by construction; sharing a slot, no solo run was ever a record again. */
     test("a group's clear is a different result from a solo one", () => {
         expect(boardKey(16, 16, 40, 2)).not.toBe(boardKey(16, 16, 40, 1));
         expect(boardKey(16, 16, 40, 3)).not.toBe(boardKey(16, 16, 40, 2));
     });
 
-    /* Records set before the count was part of the key are all under this
-     * spelling, so solo has to keep it or every one of them is orphaned. */
+    /* Older records are all under this spelling; solo has to keep it or they are orphaned. */
     test("solo keeps the bare board string", () => {
         expect(boardKey(9, 9, 10, 1)).toBe("9x9/10");
         expect(boardKey(9, 9, 10)).toBe("9x9/10");
@@ -71,12 +55,7 @@ describe("how many players a clear counts as", () => {
         expect(playersForClear("co-op", 3)).toBe(3);
     });
 
-    /*
-     * A race is SOLO work — you clear the whole board yourself and your
-     * opponent never touches it — even though both of you are in the room.
-     * Counting the room filed a race next to co-op clears that split the board
-     * between two people, and captioned it "with 2 players".
-     */
+    /* A race is SOLO work: you clear the whole board yourself, however many are in the room. */
     test("a PVP race counts as one, however many are racing", () => {
         expect(playersForClear("pvp", 2)).toBe(1);
     });
@@ -151,10 +130,8 @@ describe("recording a run", () => {
 });
 
 /*
- * Everything already stored is filed under the bare board string, whatever
- * group set it — that WAS the bug. So reading re-files each record under the
- * key its own `players` implies, which is the same rule writing uses. Nothing
- * is invented: the count has been stored on every record all along.
+ * Older records sit under the bare board string whatever group set them, so
+ * reading re-files each under the key its own `players` implies.
  */
 describe("records written before the count was part of the key", () => {
     const storedAs = (entries: Record<string, unknown>) =>
@@ -180,12 +157,7 @@ describe("records written before the count was part of the key", () => {
         expect(readBestTime(boardKey(16, 16, 40))?.seconds).toBe(95);
     });
 
-    /*
-     * Re-filing happens in memory on every read; the next write is what commits
-     * it. Reading the raw storage back is the only way to see that, and it also
-     * pins the no-op-on-its-own-output property — the committed shape is the one
-     * the next read would produce anyway.
-     */
+    /* Re-filing is in memory on every read; the next write commits it, and the committed shape moves nothing. */
     test("the next write commits the re-filing, and reading it back moves nothing", () => {
         storedAs({ "16x16/40": { seconds: 40, players: 3, at: 1 } });
 
@@ -201,12 +173,7 @@ describe("records written before the count was part of the key", () => {
         expect(readBestTime(boardKey(16, 16, 40))).toBeNull();
     });
 
-    /*
-     * Two records can land on one key — a board cleared solo before the change
-     * and again after. Keeping the faster is the rule recordBestTime already
-     * applies, so the surviving record is the one that would have survived
-     * anyway.
-     */
+    /* Solo before and after the change can land on one key; keeping the faster is the existing rule. */
     test("two records landing on one key keep the faster", () => {
         storedAs({
             "16x16/40": { seconds: 95, players: 1, at: 1 },
@@ -261,8 +228,7 @@ describe("when localStorage is not to be trusted", () => {
         expect(readBestTimes()["9x9/10"]).toEqual({ seconds: 30, players: 1, at: 0 });
     });
 
-    /* The count is part of the key now, so a fractional one would file the
-     * record in a slot nothing ever looks up. */
+    /* The count is part of the key, so a fractional one would file the record where nothing looks. */
     test("a player count that is not a whole number reads as solo", () => {
         window.localStorage.setItem(
             "minesweeper_best_times",
@@ -303,9 +269,8 @@ describe("when localStorage is not to be trusted", () => {
 
 
 /**
- * The import payload. The cap is the part that matters: the endpoint refuses an
- * oversized payload WHOLE rather than truncating it, so a browser with enough
- * records would otherwise fail to import anything, every time, silently.
+ * The import payload. The cap matters: the endpoint refuses an oversized
+ * payload WHOLE, so a browser with enough records would silently never import.
  */
 describe("bestsForImport", () => {
     test("carries each record as the endpoint takes it", () => {

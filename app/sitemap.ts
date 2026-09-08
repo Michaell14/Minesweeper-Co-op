@@ -3,14 +3,9 @@ import { SITE_URL } from "@/lib/site";
 import { LESSONS } from "@/lib/drills";
 
 /**
- * Replaces the old static public/sitemap.xml, whose `lastmod` was hand-typed and
- * had been stale for over a year. This one stamps the build.
- *
- * Only indexable routes belong here — /ds, /settings and /profile are noindex, and
- * listing a page you have told Google to drop is a contradiction, not a hint.
- *
- * The old file carried an <image:image> entry; Next only types `images` from 15
- * on, and it pointed at the share card rather than page content anyway.
+ * Replaces the static public/sitemap.xml, whose hand-typed `lastmod` went
+ * stale; this stamps the build. Only indexable routes: /ds, /settings and
+ * /profile are noindex, and listing a noindex page is a contradiction.
  */
 const ROUTES: { path: string; priority: number; changeFrequency: "daily" | "weekly" | "monthly" }[] = [
     { path: "", priority: 1, changeFrequency: "weekly" },
@@ -25,9 +20,7 @@ const ROUTES: { path: string; priority: number; changeFrequency: "daily" | "week
         priority: 0.6,
         changeFrequency: "monthly" as const,
     })),
-    // Carried over from the static file this replaced — /changelog sets its own
-    // canonical and is indexable, so dropping it here would have quietly
-    // deindexed a page that was already listed.
+    // /changelog is indexable and was already listed; dropping it would deindex it.
     { path: "/changelog", priority: 0.5, changeFrequency: "weekly" },
 ];
 

@@ -1,8 +1,6 @@
 /**
- * Presence state. It mirrors something the SERVER derives from live sockets,
- * so the two rules worth pinning are that a snapshot replaces and a delta only
- * nudges — and that a delta which changes nothing changes nothing, since this
- * set is read on every render of the invite dialog.
+ * Presence state mirrors what the SERVER derives from live sockets: a
+ * snapshot replaces, a delta only nudges, and a no-op delta changes nothing.
  */
 import { beforeEach, describe, expect, it } from "vitest";
 import { useMinesweeperStore } from "@/app/store";
@@ -38,12 +36,7 @@ describe("a delta", () => {
         expect(state().onlineFriendIds).toEqual(["b"]);
     });
 
-    /*
-     * Identity is the assertion, not the contents: this set is read during
-     * render, and a no-op write that returned a new array would re-render the
-     * dialog every time any friend's tab count changed without their presence
-     * changing.
-     */
+    /* Identity is the assertion: a no-op write returning a new array would re-render the dialog. */
     it("that changes nothing leaves the array alone", () => {
         state().setOnlineFriends(["a"]);
         const before = state().onlineFriendIds;

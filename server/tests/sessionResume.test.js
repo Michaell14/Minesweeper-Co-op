@@ -1,10 +1,7 @@
 /**
- * Rejoining a room after a reload.
- *
- * Most of the rules here are a "don't": don't resume someone who left on
- * purpose, don't offer a room that has expired, don't offer one to a browser
- * that was never in a room. Getting any of them wrong is silent — the player is
- * simply dropped somewhere they did not ask to be, and no error is raised.
+ * Rejoining a room after a reload. Most rules are a "don't": don't resume
+ * someone who left on purpose, an expired room, or a browser never in a room.
+ * Getting one wrong is silent.
  */
 
 const roomRepo = require('../data/roomRepo');
@@ -53,9 +50,8 @@ describe('offering a resume', () => {
     });
 
     /*
-     * forgetRoom drops only the room, so the session still exists and still
-     * knows a name. Resuming on the name alone would put someone back into the
-     * game they just walked out of.
+     * forgetRoom drops only the room, so the session still knows a name.
+     * Resuming on the name alone would put someone back into the game they left.
      */
     test('a session that left on purpose keeps its name but is not resumed', async () => {
         arrange({ session: { name: 'Alice' } });
@@ -83,11 +79,9 @@ describe('offering a resume', () => {
     });
 
     /*
-     * The offer is mode-blind on purpose. What a PVP racer needs beyond a co-op
-     * player — their slot repointed at the new socket, their index carried over,
-     * their own board sent back — happens in `restorePvpRacer` during the join
-     * this triggers, not here. Gating the offer on mode would mean two places
-     * deciding whether a resume is possible.
+     * The offer is mode-blind: what a PVP racer needs beyond a co-op player
+     * happens in `restorePvpRacer` during the join this triggers. Gating on
+     * mode would mean two places deciding whether a resume is possible.
      */
     test('a race is offered too, and the join is what restores it', async () => {
         arrange();

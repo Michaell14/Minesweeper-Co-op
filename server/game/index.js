@@ -1,16 +1,9 @@
 /**
- * Mode dispatch for cell actions — the only place that decides whether an action
- * is co-op or PVP.
- *
- * Room state is read here and handed to the mode module, which is why the mode
- * implementations take `roomState` rather than fetching it themselves.
- *
- * Every action is serialised, because both modes rewrite a whole board field and
- * two writes that overlap erase each other — see roomRepo.withActionLock. What
- * differs is the scope: co-op shares one board so the lock is per ROOM, while
- * PVP players own separate board fields and are meant to race, so theirs is per
- * PLAYER. The state read before the mode is known is stale by the time the lock
- * is held, so both paths read again inside it and pass THAT snapshot down.
+ * Mode dispatch for cell actions: the only place that decides co-op vs PVP.
+ * Every action runs under a lock (overlapping board writes erase each other);
+ * co-op's is per ROOM, PVP's per PLAYER so the racers are not serialised. State
+ * read before the lock is stale, so both paths re-read inside it and pass THAT
+ * snapshot to the mode module.
  */
 
 const coop = require('./coop');
@@ -23,14 +16,9 @@ const { pvpIndexOf } = require('../domain/pvpPlayer');
 const modeOf = (roomState) => (roomState && roomState.mode) || 'co-op';
 
 /**
- * Runs a PVP move under that player's own lock, handing it room state read
- * inside. For the two actions that need nothing but room state; openCell reads
- * the score and player record as well and so spells it out itself.
- *
- * The index is safe to read BEFORE the lock, unlike everything else here:
- * startPvpGame writes it once and it never changes, which is what lets it pick
- * the lock key. A socket without one gets no lock and no board; pvp.js logs it
- * and refuses the move.
+ * Runs a PVP move under that player's lock with room state re-read inside.
+ * The index alone is safe to read before the lock: startPvpGame writes it once
+ * and it picks the lock key. No index means no lock and no board; pvp.js refuses.
  */
 const withPvpMove = async (room, socketId, roomState, run) => {
     const playerIndex = pvpIndexOf(await playerRepo.getState(socketId));
@@ -64,9 +52,7 @@ const openCell = async (row, col, room, socketId) => {
     }
 
     return await roomRepo.withActionLock(room, socketId, async () => {
-        // The score is re-read too, not just the board: two clicks from the same
-        // player would otherwise both read the score they started from, and the
-        // lost write would take a point with it.
+        // The score is re-read too: two clicks from one player would otherwise lose a point.
         const [freshState, freshScore] = await Promise.all([
             roomRepo.getState(room),
             playerRepo.getField(socketId, 'score'),

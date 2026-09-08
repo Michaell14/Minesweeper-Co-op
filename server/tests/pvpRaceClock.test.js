@@ -1,12 +1,8 @@
 /**
- * When a PVP race ends, whose clock stops.
- *
- * PVP splits the clock: both players start together (one board, one moment, room
- * state) but finish separately, so a stop is normally sent to one socket. A
- * WINNER is the exception — it ends the race for both, and the loser is the easy
- * one to miss because nothing on their side ends. They are still mid-board when
- * it happens, so a per-socket stop leaves their timer counting under a dialog
- * saying the game is over, and their summary with no finish time to show.
+ * When a PVP race ends, whose clock stops. Players start together but finish
+ * separately, so a stop is normally per socket. A WINNER ends the race for
+ * both, and the loser is still mid-board: a per-socket stop leaves their timer
+ * counting under a game-over dialog.
  */
 
 const mockEmit = jest.fn();
@@ -25,9 +21,8 @@ const WINNER = 'sock-winner';
 let client;
 
 /**
- * One mine at (0,0) and one safe cell still closed at (2,2). Opening that last
- * cell completes the board, which is what makes this a win through the real
- * entry point rather than by calling the internal checkWin directly.
+ * One mine at (0,0), one safe cell closed at (2,2). Opening it completes the
+ * board, so the win goes through the real entry point rather than checkWin.
  */
 const oneCellFromWinning = () => {
     const b = Array.from({ length: 3 }, () =>
@@ -114,11 +109,9 @@ describe('a player completing their board', () => {
 
 describe('a player finishing at the same moment as the winner', () => {
     /*
-     * The only way to finish after someone else has won: this move was already
-     * in flight. A move that STARTS once the race is decided is refused outright
-     * — so the snapshot it carries still says the race is open, and only the
-     * re-read inside checkWin sees the winner. Arranging it the other way round
-     * would test a move the server no longer runs.
+     * The only way to finish after someone has won: the move was already in
+     * flight, so its snapshot says the race is open and only the re-read inside
+     * checkWin sees the winner. A move STARTED after the win is refused outright.
      */
     const arriveJustTooLate = async () => {
         client.hGetAll.mockImplementation(async (key) =>
@@ -131,9 +124,8 @@ describe('a player finishing at the same moment as the winner', () => {
     };
 
     /*
-     * Their clock stopped when the race actually ended. Stamping it again here
-     * would push their finish time out to whenever they happened to fill in the
-     * rest of a board that no longer counted for anything.
+     * Their clock stopped when the race ended. Restamping would push their
+     * finish out to whenever they filled in a board that no longer counted.
      */
     test('does not restamp a clock the race already stopped', async () => {
         await arriveJustTooLate();

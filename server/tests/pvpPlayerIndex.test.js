@@ -1,11 +1,7 @@
 /**
- * Regression: a PVP action from a player with no assigned index must do nothing.
- *
- * pvpPlayerIndex is written by startPvpGame. openCell bailed out when it was
- * missing, but chordCell and toggleFlag fell back to `|| '0'` — index 0, which
- * addresses player1Board. So an action arriving before the game started, or from
- * a socket whose player record had expired, would read and WRITE the first
- * player's board: their flags and reveals, changed by someone else.
+ * Regression: a PVP action from a player with no assigned index must do
+ * nothing. chordCell and toggleFlag fell back to `|| '0'`, so a stranger would
+ * read and WRITE player 1's board.
  */
 
 const mockEmit = jest.fn();
@@ -25,9 +21,8 @@ const STRANGER = 'sock-no-index';
 let client;
 
 /**
- * All closed except the centre, which is open and claims 0 adjacent mines — so
- * chording it genuinely proceeds and would write. A board where the chorded cell
- * was closed would make the chord test pass for the wrong reason.
+ * All closed except the open centre with 0 adjacent mines, so a chord would
+ * genuinely write; a closed chord target would pass for the wrong reason.
  */
 const board = () => {
     const b = Array.from({ length: 3 }, () =>
@@ -52,7 +47,6 @@ const startedRoom = () => ({
     players: JSON.stringify(['sock-1', 'sock-2']),
 });
 
-/** Any write that would touch player 1's board or progress. */
 const wroteToPlayerOne = () =>
     client.hSet.mock.calls.some(
         (c) => c[1] && Object.keys(c[1]).some((k) => k.startsWith('player1'))
@@ -75,9 +69,8 @@ beforeEach(async () => {
 });
 
 describe.each([
-    // chord the open centre; flag a closed corner. Each is a cell its action
-    // would actually act on, so a pass means the guard worked, not that the
-    // action bailed out for an unrelated reason.
+    // Each is a cell its action would actually act on, so a pass means the
+    // guard worked, not that the action bailed out for another reason.
     ['chordCell', () => pvp.chordCell(1, 1, ROOM, STRANGER, startedRoom())],
     ['toggleFlag', () => pvp.toggleFlag(0, 0, ROOM, STRANGER, startedRoom())],
 ])('%s from a player with no assigned index', (_name, act) => {
@@ -95,8 +88,7 @@ describe.each([
 });
 
 describe('the same actions DO write when the index is present', () => {
-    // Proves the tests above fail for the missing index, not because the board
-    // made the action a no-op.
+    // Proves the tests above fail for the missing index, not a no-op board.
     beforeEach(() => {
         client.hGetAll.mockImplementation(async (key) =>
             key.startsWith('room:') ? startedRoom() : { name: 'P1', score: '0', pvpPlayerIndex: '0' }
@@ -139,10 +131,8 @@ describe('a player WITH an index still works', () => {
 });
 
 /**
- * The rule itself, now that the socket handlers, the dispatch layer's choice of
- * lock key and the reset controller all derive the index from one place. It was
- * written out separately in each, and the copies disagreed: pvpController's
- * defaulted a missing index to 0.
+ * The rule itself, derived in one place now; the hand-written copies used to
+ * disagree, and pvpController's defaulted a missing index to 0.
  */
 describe('pvpIndexOf', () => {
     test('reads the index a started game assigned', () => {
@@ -161,8 +151,7 @@ describe('pvpIndexOf', () => {
     });
 
     test('never returns 0 for anything but a real index 0', () => {
-        // The whole point: 0 addresses player1Board, so a default hands a
-        // stranger the first player's board to read, write and lock.
+        // 0 addresses player1Board, so a default hands a stranger the first player's board.
         const zeros = [undefined, {}, { pvpPlayerIndex: '' }, { pvpPlayerIndex: 'first' }]
             .map(pvpIndexOf)
             .filter((index) => index === 0);

@@ -11,13 +11,9 @@ export interface EmoteProps {
 
 /**
  * One emote glyph. Inline rects like <Avatar>, not the sprite <symbol>/<use>
- * indirection: a handful are on screen at once, never 512, so the cheapness
- * machinery would buy nothing. Colours are tokens, so it repaints with the
- * palette.
- *
- * Decorative — callers carry the accessible name, same contract as <Sprite>
- * and <Avatar>. Renders nothing at all for an id this build cannot draw, which
- * is what `emoteArtById` returning null is for.
+ * indirection: a handful are on screen at once, never 512. Colours are
+ * tokens. Decorative: callers carry the accessible name, as with <Sprite> and
+ * <Avatar>. Renders nothing for an id this build cannot draw.
  */
 export default function Emote({ id, size = 28, className }: EmoteProps) {
     const art = emoteArtById(id);
@@ -32,8 +28,7 @@ export default function Emote({ id, size = 28, className }: EmoteProps) {
             aria-hidden="true"
             focusable="false"
             className={className}
-            // Which glyph actually drew — the board cells' data-sprite pattern.
-            // The art is otherwise indistinguishable to tests and tooling.
+            // Which glyph drew, for tests and tooling (the cells' data-sprite pattern).
             data-emote={id}
         >
             {rectsOf(art).map(({ x, y, w, fill }, i) => (

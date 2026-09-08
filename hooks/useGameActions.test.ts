@@ -7,15 +7,9 @@ import { cellActionSound, useGameActions } from "./useGameActions";
 import type { AppSocket } from "@/lib/initSocket";
 
 /**
- * What LEAVING has to put back, and what a refused action must not assume.
- *
- * The run clock is the record of the run this browser played, and `recordClear`
- * in useGameEvents treats a set one as proof there was a run to record. Left
- * standing across a leave, joining a room whose game was already WON filed the
- * previous game's time as a personal best for a board this browser never played
- * — the server catches an arriving player up with `gameWon`, and the handler had
- * a stale clock to read. Nothing about that is visible: the record simply
- * appears, attached to the wrong board.
+ * What leaving has to put back, and what a refused action must not assume.
+ * `recordClear` in useGameEvents treats a set clock as proof of a run, so a
+ * stale one filed the previous game's time as a best for a board never played.
  */
 
 const fakeSocket = () => ({ id: "sock-1", emit: vi.fn() }) as unknown as AppSocket;
@@ -43,12 +37,7 @@ describe("leaveRoom", () => {
         expect(state().endedAt).toBeNull();
     });
 
-    /*
-     * The roster belongs to the room being left, and it also sizes the group a
-     * best time is filed under. Left standing, the landing page would offer the
-     * record three friends set as the target for a board about to be played
-     * alone — a time that cannot be matched and says nothing about the game.
-     */
+    /* The roster sizes the group a best time is filed under; stale, Landing shows a group record for a solo board. */
     test("forgets the roster, so the landing page reads as solo", () => {
         act(() => {
             state().setPlayerStatsInRoom([
@@ -63,12 +52,7 @@ describe("leaveRoom", () => {
         expect(state().playerStatsInRoom).toEqual([]);
     });
 
-    /*
-     * The ARM is room state too, not just the pings it draws. A one-shot left
-     * standing across a leave is spent on the first cell of the NEXT room,
-     * which is pinged instead of opened — and the arm has no visible trace on
-     * a board that has not been clicked yet.
-     */
+    /* A one-shot arm left standing is spent on the next room's first click, invisibly. */
     test("disarms the ping, so the next room's first click plays its cell", () => {
         act(() => {
             state().setMode("co-op");
@@ -111,12 +95,7 @@ describe("leaveDaily", () => {
 });
 
 describe("resetMyBoard", () => {
-    /*
-     * Nothing confirms a reset, so `gameOver` is cleared optimistically — which
-     * has to follow the same rule the SERVER refuses on. It rejects a reset once
-     * the race has a winner, and clearing anyway left a board that looked
-     * playable and ignored every click.
-     */
+    /* `gameOver` clears optimistically, so it must follow the server's refusal rule. */
     test("does nothing once the race has been won", () => {
         const socket = fakeSocket();
         act(() => {
@@ -146,11 +125,7 @@ describe("resetMyBoard", () => {
     });
 });
 
-/**
- * The sound gate: a blip must accompany only actions the SERVER will accept.
- * A reveal chirp on an already-open cell, or a flag tick on one, is false
- * feedback — the emit fires either way, but the server refuses it.
- */
+/** A blip must accompany only actions the server will accept; anything else is false feedback. */
 describe("cellActionSound", () => {
     const closed = { isMine: false, isOpen: false, isFlagged: false, nearbyMines: 0 };
     const open = { ...closed, isOpen: true };
@@ -184,13 +159,9 @@ describe("cellActionSound", () => {
 });
 
 /**
- * The optimistic flag. It is the ONLY action the client can resolve itself —
- * opening needs `isMine` and `nearbyMines`, which a closed cell is never told —
- * so it is also the only one that can appear without a round trip.
- *
- * What these pin down is the refusal side. A flag drawn on a cell the server
- * rejects is a flag nothing takes back: the server answers a refused action with
- * silence, and only the cells it CHANGED are ever broadcast.
+ * The optimistic flag, the only action the client can resolve itself. These
+ * pin the refusal side: the server answers a refused action with silence, so
+ * a flag drawn on a rejected cell is never taken back.
  */
 describe("flagging before the server answers", () => {
     const closed = { isMine: false, isOpen: false, isFlagged: false, nearbyMines: 0 };
@@ -233,11 +204,7 @@ describe("flagging before the server answers", () => {
         expect(flagged(0, 1)).toBe(false);
     });
 
-    /*
-     * The one refusal with nothing behind it to correct it. A finished board
-     * still has closed cells, and the server will not touch them again, so a
-     * flag placed here would sit there for the rest of the summary.
-     */
+    /* A finished board still has closed cells the server will never touch again. */
     test("a finished game takes no more flags", () => {
         act(() => state().setGameOver(true));
 
@@ -292,11 +259,7 @@ describe("flagging before the server answers", () => {
         );
     });
 
-    /*
-     * The server's own broadcast lands on the same cell moments later and must
-     * be able to overrule the guess — including back to unflagged, which is what
-     * a rejected toggle from a teammate's simultaneous flag looks like.
-     */
+    /* The server's broadcast must overrule the guess, including back to unflagged. */
     test("the server's answer overrules the guess", () => {
         const { toggleFlag } = actions();
         act(() => toggleFlag(0, 0));
@@ -307,11 +270,7 @@ describe("flagging before the server answers", () => {
     });
 });
 
-/**
- * The view-only gate: a settled daily attempt refuses moves CLIENT-side —
- * the server would refuse them anyway (terminal check), so an emit here is
- * wasted traffic and, with sound on, false feedback.
- */
+/** A settled daily attempt refuses moves client-side: the server would anyway, and a blip would be false feedback. */
 describe("daily actions on a terminal attempt", () => {
     beforeEach(() => {
         act(() => {
@@ -372,11 +331,7 @@ describe("pingCell", () => {
         expect(state().pingArmed).toBe(false);
     });
 
-    /*
-     * Disarming has to happen even on a click that goes nowhere. Left armed by
-     * a refusal, the board sits in a mode where the next click does not play
-     * the cell — invisible, and with nothing to undo it but another click.
-     */
+    /* Left armed by a refusal, the next click would not play its cell. */
     test("disarms even when there is no socket to send on", () => {
         const { pingCell } = actions(null);
 

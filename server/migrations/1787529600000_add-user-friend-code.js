@@ -1,11 +1,8 @@
 /**
- * users.friend_code — the handle somebody else types to add you.
- *
- * NULLABLE and generated on first read rather than backfilled: most accounts
- * will never use friends, a backfill would mint a code for every one of them,
- * and a nullable column lets `getOrCreateFriendCode` be the single place a code
- * comes into existence. UNIQUE is what makes the lookup a lookup — see
- * server/domain/friendCode.js for the alphabet and why it omits O/0/I/1.
+ * users.friend_code, the handle somebody else types to add you. NULLABLE and
+ * generated on first read (`getOrCreateFriendCode`) rather than backfilled,
+ * since most accounts never use friends. UNIQUE makes the lookup a lookup;
+ * see server/domain/friendCode.js for the alphabet.
  */
 
 exports.up = (pgm) => {

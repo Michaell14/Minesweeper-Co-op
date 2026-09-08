@@ -3,41 +3,25 @@
 import { useEffect, useRef } from "react";
 import { useMinesweeperStore } from "@/app/store";
 
-/**
- * Marks the history entry a joined room owns. Exported for the tests and for
- * `leaveRoomViaBack`.
- */
+/** Marks the history entry a joined room owns. Exported for the tests and `leaveRoomViaBack`. */
 export const ROOM_HISTORY_MARKER = "msRoom";
 
 /**
- * The id carried by the entry THIS join pushed.
- *
- * A bare boolean was not enough. Entries accumulate — every join pushes one and
- * nothing prunes the ones below — so backing out of a room frequently lands on
- * an OLDER room entry, which a boolean cannot tell from the current one. The
- * room stayed joined and Back did nothing, which is the bug this file exists to
- * fix, resurfacing after a second join.
- *
- * Module scope, not a ref: Next's route changes are same-document, so this
- * survives visiting /profile and coming back — which has to be distinguishable
- * from leaving, since that lands on the very entry this id names. A full reload
- * clears it, and the resume that follows pushes a fresh one.
+ * The id carried by the entry THIS join pushed. Entries accumulate (nothing
+ * prunes older room entries), so a bare boolean could not tell backing out
+ * onto an OLDER room entry from the current one, and Back did nothing. Module
+ * scope, not a ref: Next's route changes are same-document, and coming back
+ * from /profile lands on this very entry, which must be distinguishable from
+ * leaving. A full reload clears it and the resume pushes a fresh one.
  */
 let currentEntryId: string | null = null;
 
 /**
- * A fresh id, unique across DOCUMENTS and not merely within one.
- *
- * A counter was not enough, for the reason the whole file exists: a reload
- * lands back ON the entry the previous document pushed, resume pushes another
- * above it, and a counter that restarted at 1 gives the new entry the id the
- * old one already carries. Back then reaches the old entry, `isCurrentRoomEntry`
- * reads it as the one we just pushed, and the room is never left — the same
- * silent nothing the bare boolean caused, restored by a refresh.
- *
- * `randomUUID` needs a secure context, which `/` always is in production and on
- * localhost; the fallback is for a dev server reached over a plain-http LAN
- * address, where an unguarded call would throw on join.
+ * A fresh id, unique across DOCUMENTS: a reload lands back on the previous
+ * document's entry and resume pushes another, so a counter restarting at 1
+ * would hand the new entry the old one's id and Back would never leave.
+ * `randomUUID` needs a secure context; the fallback is for a dev server
+ * reached over plain-http LAN.
  */
 const mintEntryId = (): string =>
     globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -54,28 +38,18 @@ const isCurrentRoomEntry = (state: unknown): boolean =>
     currentEntryId !== null && roomEntryId(state) === currentEntryId;
 
 /**
- * Makes the browser Back button leave the ROOM rather than the site.
- *
- * The game is store state on `/` — `playerJoined` swaps Landing for Grid and no
- * URL changes, so the history stack still held whatever came before the site.
- * Back from the middle of a game left entirely, which nothing on screen
- * suggested and no amount of care could undo.
- *
- * A marked entry is pushed at the SAME url on the way in. Same url matters:
- * the room is not a route, and giving Next's router a different path would make
- * it try to navigate one. All the entry has to do is exist, so that Back has
- * something of ours to pop.
- *
- * Mounted by useGameSession, which `/daily` also calls — it reads `playerJoined`
- * and so does nothing there, the same way useMatchReconnect reads its own flag.
+ * Makes the browser Back button leave the ROOM rather than the site. The game
+ * is store state on `/`, so the stack otherwise holds only what came before
+ * the site. A marked entry is pushed at the SAME url on the way in: the room
+ * is not a route, and a different path would make Next navigate. Mounted by
+ * useGameSession; `/daily` never sets `playerJoined`, so it does nothing there.
  */
 export function useRoomHistory(leaveRoom: () => void): void {
     const playerJoined = useMinesweeperStore((state) => state.playerJoined);
 
     /*
-     * Which side of the join we were on last render. A ref rather than state:
-     * this exists only to spot the false -> true edge, and pushing on the edge
-     * rather than on the value is what keeps a re-render from stacking entries.
+     * A ref, not state: only the false -> true edge matters, and pushing on the
+     * edge is what keeps a re-render from stacking entries.
      */
     const wasJoined = useRef(false);
 
@@ -86,18 +60,11 @@ export function useRoomHistory(leaveRoom: () => void): void {
         }
 
         /*
-         * Left by some other route — the Return to Home button, a room error,
-         * a forfeit. The entry we pushed is still the current one, so strip the
-         * marker off it rather than trying to pop it.
-         *
-         * Popping was the first attempt and was wrong: `history.back()` goes to
-         * whatever preceded the room, which is only the landing page if that is
-         * where the player came from. Arrive from /daily or /profile — both link
-         * into a game — and Return to Home walked them back THERE.
-         *
-         * Disarming leaves the stack length alone, so the next Back does
-         * whatever it would have done anyway, and no stale entry is left to be
-         * mistaken for a room.
+         * Left by some other route (Return to Home, a room error, a forfeit).
+         * Strip the marker off our entry rather than popping it: `history.back()`
+         * goes to whatever preceded the room, which from /daily or /profile is
+         * not the landing page. The stack length is untouched, so the next Back
+         * does what it would have anyway.
          */
         if (!playerJoined && wasJoined.current && isCurrentRoomEntry(window.history.state)) {
             const { [ROOM_HISTORY_MARKER]: _dropped, ...rest } = window.history.state as Record<string, unknown>;
@@ -109,34 +76,24 @@ export function useRoomHistory(leaveRoom: () => void): void {
     }, [playerJoined]);
 
     /*
-     * `leaveRoom` is read through a ref so this listener is attached once and
-     * never re-attached: useGameActions rebuilds its callbacks whenever the
-     * socket changes, and a listener that came and went with them could miss a
-     * pop that lands in the gap.
+     * `leaveRoom` through a ref so the listener attaches once: useGameActions
+     * rebuilds its callbacks on socket change, and a re-attached listener could
+     * miss a pop in the gap.
      */
     const leaveRef = useRef(leaveRoom);
     leaveRef.current = leaveRoom;
 
     useEffect(() => {
         const onPop = (event: PopStateEvent) => {
-            /*
-             * Only from inside a room — acting on any other pop would swallow
-             * the landing page's Back and strand someone on a page they were
-             * trying to leave.
-             */
+            /* Only from inside a room, or the landing page's own Back would be swallowed. */
             if (!useMinesweeperStore.getState().playerJoined) return;
 
             /*
-             * The state belongs to the entry being ARRIVED AT, not the one
-             * being left. Landing anywhere that is not THIS room's own entry is
-             * what a departure looks like; arriving back on it is a return —
-             * coming back from /profile, or a Forward — and is not one.
-             *
-             * Two ways to get this wrong, both found the hard way. Leaving when
-             * the marker is PRESENT is self-consistent and does nothing at all
-             * in a real browser, because Back never delivers the entry it just
-             * left. Leaving whenever the marker is ABSENT then breaks the
-             * return from /profile, which lands right back on it.
+             * The state belongs to the entry being ARRIVED AT. Landing anywhere
+             * but this room's own entry is a departure; arriving back on it
+             * (from /profile, or a Forward) is not. Back never delivers the
+             * entry it just left, so leaving on marker-present does nothing,
+             * and leaving on marker-absent breaks the return from /profile.
              */
             if (!isCurrentRoomEntry(event.state)) {
                 currentEntryId = null;

@@ -4,6 +4,7 @@ import { Button, ButtonLink, DialogClose, Dialog, Field, Input, NameWithAvatar, 
 import { DIALOGS, openDialog, closeDialog } from '@/lib/dialogs';
 import { buildDailyShareText, percentCleared, shareDailyResult } from '@/lib/dailyShare';
 import { dailyWinStreak, readDailyHistory } from '@/lib/dailyHistory';
+import { markDailyExplainerSeen } from '@/lib/dailyExplainerSeen';
 import { formatElapsed } from '@/lib/gameClock';
 import { shortLessonName } from '@/lib/lossDiagnosis';
 
@@ -13,9 +14,8 @@ interface DailyDialogsParams {
 }
 
 /**
- * The daily challenge's dialogs, opened imperatively by hooks/useGameEvents.ts
- * and components/DailyChallenge.tsx via openDialog(DIALOGS.x) -- this only
- * renders the markup, following components/dialogs/GameDialogs.tsx's precedent.
+ * The daily challenge's dialogs, opened imperatively via openDialog(DIALOGS.x)
+ * by hooks/useGameEvents.ts and components/DailyChallenge.tsx; this only renders markup.
  */
 export default function DailyDialogs({ submitDailyScore, getDailyLeaderboard }: DailyDialogsParams) {
     const dailyDate = useMinesweeperStore((state) => state.dailyDate);
@@ -31,23 +31,16 @@ export default function DailyDialogs({ submitDailyScore, getDailyLeaderboard }: 
     const nameInputRef = React.useRef<HTMLInputElement>(null);
 
     /*
-     * `required` alone does not cover this: a name of spaces satisfies it, and
-     * this button does not submit its form, so native validation never runs.
-     * Rendered by Field rather than alert()'d -- a browser modal over a <dialog>
-     * blocks the thread and ignores the theme.
+     * `required` alone passes a name of spaces, and this button does not submit
+     * its form, so native validation never runs. Rendered by Field, not alert()'d.
      */
     const [nameError, setNameError] = React.useState('');
 
     /*
-     * Nothing about an emit is visible, so between the click and the server's
-     * answer the button would sit there looking untouched — the same "dead
-     * button" the empty-name error above exists to avoid. It says so instead,
-     * and refuses a second click while the first is out.
-     *
-     * The timer is what keeps that from becoming a trap: a submission that
-     * never lands (socket down) would otherwise disable the only way to retry
-     * it, which is the dead end this dialog was just fixed for. On success
-     * `dailyScoreSubmitted` closes the dialog long before it fires.
+     * An emit shows nothing, so the button says "Submitting..." and refuses a
+     * second click. The timer keeps that from becoming a trap: a submission that
+     * never lands (socket down) would otherwise disable the only way to retry.
+     * On success `dailyScoreSubmitted` closes the dialog long before it fires.
      */
     const [isSubmitting, setIsSubmitting] = React.useState(false);
     const submitTimeout = React.useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -80,9 +73,8 @@ export default function DailyDialogs({ submitDailyScore, getDailyLeaderboard }: 
     };
 
     /**
-     * Closes the open dialog and opens the leaderboard. A plain Button with a
-     * manual close/open, not a DialogClose: its native submit-close and this
-     * showModal() would race within the same click.
+     * Closes the open dialog and opens the leaderboard. A plain Button, not a
+     * DialogClose: its native submit-close and this showModal() would race.
      */
     const viewLeaderboard = (fromDialog: typeof DIALOGS[keyof typeof DIALOGS]) => () => {
         closeDialog(fromDialog);
@@ -90,16 +82,14 @@ export default function DailyDialogs({ submitDailyScore, getDailyLeaderboard }: 
         openDialog(DIALOGS.dailyLeaderboard);
     };
 
-    // One label serves every "Share Result" button: only one daily dialog is
-    // ever open at a time.
+    // One label serves every "Share Result" button: only one daily dialog is open at a time.
     const [shareFeedback, setShareFeedback] = React.useState('');
     const shareFeedbackTimeout = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const handleShare = React.useCallback(async () => {
         const won = dailyStatus === 'completed';
-        // Read at click time via getState(), not subscribed: the board changes
-        // on every opened cell, and these dialogs must not re-render with it.
-        // Same reason the streak reads localStorage here rather than in state.
+        // Read at click time, not subscribed: the board changes on every opened
+        // cell and these dialogs must not re-render with it. Same for the streak.
         const { board, dailyMilestones } = useMinesweeperStore.getState();
         const text = buildDailyShareText({
             date: dailyDate,
@@ -120,8 +110,7 @@ export default function DailyDialogs({ submitDailyScore, getDailyLeaderboard }: 
         shareFeedbackTimeout.current = setTimeout(() => setShareFeedback(''), 2000);
     }, [dailyDate, dailyStatus, dailyElapsedMs, dailyRank, dailyTotalEntries]);
 
-    // Cancels the pending "reset to Share Result" timer if this unmounts first,
-    // as RoomPanel's Copy Link does.
+    // Cancels the pending feedback-reset timer if this unmounts first.
     React.useEffect(() => () => {
         if (shareFeedbackTimeout.current) clearTimeout(shareFeedbackTimeout.current);
     }, []);
@@ -134,10 +123,48 @@ export default function DailyDialogs({ submitDailyScore, getDailyLeaderboard }: 
 
     return (
         <>
-            {/* Announces the Share button's "Copied!"/"Shared!" feedback -- a
-                label change on the button itself is not reliably picked up, same
-                as RoomPanel's Copy Link. */}
+            {/* Announces the Share button's feedback; a label change on the button is not reliably read. */}
             <span className="sr-only" aria-live="polite">{shareFeedback}</span>
+
+            {/*
+                First visit only: /daily opens straight onto the board, so this
+                is the only thing that says what the rules are. Opened by
+                app/daily/DailyClient.tsx, which owns the once-ever flag; the
+                clock has not started while it is up, so reading it is free.
+            */}
+            <Dialog
+                id={DIALOGS.dailyIntro}
+                title="Today's Puzzle"
+                onClose={markDailyExplainerSeen}
+                actionsAlign="between"
+                actions={
+                    <>
+                        <ButtonLink href="/how-to-play" size="sm">
+                            How to play
+                        </ButtonLink>
+                        {/*
+                            Marks seen on the CLICK as well as on onClose. The
+                            two cover different dismissals and neither covers
+                            both: `close` does not fire in every engine (it does
+                            not in Claude Code's embedded Chrome at all), and a
+                            click handler never sees Escape. Idempotent, as
+                            Dialog's onClose contract requires.
+                        */}
+                        <DialogClose
+                            intent="primary"
+                            onClick={markDailyExplainerSeen}
+                            aria-label="Close the rules and play today's puzzle">
+                            Got it
+                        </DialogClose>
+                    </>
+                }>
+                <ul className="text-pixel-sm flex flex-col gap-2">
+                    <li>Everyone in the world plays the same board today.</li>
+                    <li>One attempt — hit a mine and the run is over.</li>
+                    <li>The clock starts on your first click, not now.</li>
+                    <li>Clear it and your time goes on today&apos;s leaderboard.</li>
+                </ul>
+            </Dialog>
 
             {/* Won: enter a name to add today's time to the leaderboard. */}
             <Dialog
@@ -146,14 +173,9 @@ export default function DailyDialogs({ submitDailyScore, getDailyLeaderboard }: 
                 actions={
                     /*
                      * A plain Button, NOT a DialogClose: the server has the last
-                     * word on whether a submission lands, and this used to close
-                     * on the click regardless. A refusal — the attempt already
-                     * submitted from another tab, or the socket down — then left
-                     * the player with no dialog, a status still stuck at
-                     * won_pending_submit, and no way back to it short of a
-                     * reload. `dailyScoreSubmitted` closes it instead, so a
-                     * submission that never lands leaves the button there to
-                     * press again.
+                     * word on whether a submission lands. Closing on click left a
+                     * refused player with no dialog and a status stuck at
+                     * won_pending_submit; `dailyScoreSubmitted` closes it instead.
                      */
                     <Button
                         intent="success"
@@ -165,10 +187,8 @@ export default function DailyDialogs({ submitDailyScore, getDailyLeaderboard }: 
                 }>
                 <p className="text-pixel-sm">Your time: <strong>{elapsedLabel}</strong></p>
                 {/*
-                 * The label is not optional here the way it is on the room's
-                 * name dialog: that one's TITLE is "Enter your Name:", so the
-                 * lone input is self-explanatory. This dialog's title is "You
-                 * solved it!", which leaves an empty box explaining nothing.
+                 * Not optional as on the room's name dialog, whose TITLE is
+                 * "Enter your Name:"; this title leaves an empty box explaining nothing.
                  */}
                 <Field
                     className="mt-3 mb-4"

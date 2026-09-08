@@ -11,12 +11,9 @@ interface DeductionLayerProps {
 }
 
 /**
- * The deduction a lost daily run missed, drawn over the finished board.
- *
- * An overlay rather than cell props: a board holds up to 512 memoized cells,
- * and marking three of them is not worth a prop on every one. Same measured
- * geometry as CursorLayer — the cell size token is a clamp() and cannot be
- * parsed.
+ * The deduction a lost daily run missed, drawn over the finished board. An
+ * overlay rather than cell props, since a board holds up to 512 memoized
+ * cells. Same measured geometry as CursorLayer (the cell size is a clamp()).
  */
 export default function DeductionLayer({ boardRef }: DeductionLayerProps) {
     const diagnosis = useMinesweeperStore((state) => state.dailyDiagnosis);

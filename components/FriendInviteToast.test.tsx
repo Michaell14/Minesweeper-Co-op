@@ -1,10 +1,8 @@
 // @vitest-environment jsdom
 /**
- * The invite toast. What fails silently here: an offer that never goes away
- * (a room fills up behind it and the Join is a lie), and a Join that stops
- * being a link — accepting is a NAVIGATION into the existing join flow, not a
- * socket call, because that flow already handles the name prompt, the room
- * that filled up, and leaving whatever room this player is in.
+ * The invite toast. What fails silently: an offer that never goes away (the
+ * room fills up behind it) and a Join that stops being a link — accepting is a
+ * NAVIGATION into the existing join flow, not a socket call.
  */
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -58,9 +56,7 @@ describe('an offer', () => {
 
     /*
      * A link, not a button. The `?room=` flow already fills the code, asks for
-     * a name if there is not one, and copes with a room that filled up in the
-     * meantime; a socket join from here would be a second, worse copy of all
-     * of it — and this player may be mid-game somewhere else.
+     * a name, and copes with a full room; this player may be mid-game elsewhere.
      */
     it('accepts by navigating into the existing join flow', () => {
         render(<FriendInviteToast />);
@@ -108,9 +104,7 @@ describe('an offer', () => {
 });
 
 describe('two invites', () => {
-    // One at a time, newest wins: an invite is a decision with a room
-    // attached, and a pile of them asks somebody to pick a game from a stack
-    // while the first fills up.
+    // One at a time, newest wins: a pile of invites asks somebody to pick while the first fills up.
     it('shows only the newer one', () => {
         render(<FriendInviteToast />);
         offer();

@@ -1,7 +1,4 @@
-/**
- * Catalog-only theme tooling: what exists to critique a palette rather than use
- * one. The list and applyTheme itself live in lib/theme.ts.
- */
+/** Catalog-only theme tooling for critiquing a palette; the list and applyTheme live in lib/theme.ts. */
 export { THEMES, applyTheme, type ThemeOption } from "@/lib/theme";
 
 const PALETTE_PREFIX = "--ms-palette-";
@@ -11,8 +8,7 @@ function declaredBy(selector: string): string[] {
     const found = new Set<string>();
     for (const sheet of Array.from(document.styleSheets)) {
         let rules: CSSRuleList;
-        // Cross-origin sheets throw on access; none of ours are, but a browser
-        // extension's might be.
+        // Cross-origin sheets throw on access; a browser extension's might be.
         try {
             rules = sheet.cssRules;
         } catch {
@@ -36,10 +32,8 @@ export interface ThemeCoverage {
 }
 
 /**
- * Which palette entries a theme actually redefines. Inheriting is legitimate —
- * Dark keeps the NES intent hues on purpose — but "deliberately inherited" and
- * "forgotten" are indistinguishable until someone lists them, and a forgotten
- * entry is how a palette ships half-applied.
+ * Which palette entries a theme redefines. Inheriting is legitimate (Dark
+ * keeps the NES hues), but a forgotten entry ships a palette half-applied.
  */
 export function coverageOf(id: string | null): ThemeCoverage | null {
     if (typeof document === "undefined") return null;

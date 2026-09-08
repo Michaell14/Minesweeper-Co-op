@@ -1,11 +1,7 @@
 // @vitest-environment jsdom
 /**
- * The shared profile copy.
- *
- * The hook's own behaviour is covered through its consumers (SiteNav, Landing);
- * what needs its own file is the MODULE-LEVEL cache those consumers share,
- * because its failure mode is showing one account's identity to another and it
- * only happens across a sign-out.
+ * The shared profile copy. The hook is covered through its consumers; this is
+ * the MODULE-LEVEL cache, whose failure is showing one account to another across a sign-out.
  */
 import React from 'react';
 import { renderHook, waitFor, cleanup, act } from '@testing-library/react';
@@ -60,11 +56,8 @@ describe('the shared copy', () => {
     });
 
     /*
-     * The one that matters. A fetch still in flight when the account signs out
-     * would otherwise land AFTER the sign-out cleared the copy, putting the
-     * departed account back in it — and the next sign-in reads the copy before
-     * fetching, so a different person would see the previous one's name and
-     * face until an update event or a reload.
+     * A fetch still in flight at sign-out would land AFTER the copy was cleared,
+     * and the next sign-in reads the copy first, showing the previous person.
      */
     it('does not let a fetch outrun the sign-out that cancelled it', async () => {
         signedIn();
@@ -88,10 +81,8 @@ describe('the shared copy', () => {
     });
 
     /*
-     * The smaller half of the same rule. A save's update event is strictly
-     * fresher than a read that began before it, so the read must not write its
-     * answer into the copy afterwards — the consumers on screen all heard the
-     * event, but the next one to MOUNT reads only the copy.
+     * A save's update event is strictly fresher than a read that began before
+     * it; the next consumer to MOUNT reads only the copy.
      */
     it('does not let a fetch overwrite a save that landed while it was open', async () => {
         signedIn();

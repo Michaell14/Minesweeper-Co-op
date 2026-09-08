@@ -1,17 +1,10 @@
 /**
  * Regression test for the gameUtils <-> playerUtils require cycle.
- *
  * !! THE REQUIRE ORDER BELOW IS THE TEST. DO NOT REORDER OR TIDY IT. !!
- *
- * server.js requires playerUtils (line 2) before gameUtils (line 3). While the
- * cycle existed, that order meant gameUtils destructured playerUtils' exports
- * before they were assigned, so `resetPlayerScores` and `updatePlayerStatsInRoom`
- * were captured as undefined. resetGame() then threw a TypeError *after* it had
- * already emitted the fresh board, so co-op "Reset Board" appeared to work while
- * silently never resetting anyone's score.
- *
- * Requiring gameUtils first hides the bug entirely, which is why it survived so
- * long — the load order is the whole story.
+ * server.js requires playerUtils before gameUtils; while the cycle existed,
+ * gameUtils captured playerUtils' exports as undefined, and resetGame() threw
+ * AFTER emitting the fresh board, so scores were silently never reset.
+ * Requiring gameUtils first hides the bug entirely.
  */
 
 require('../utils/playerUtils'); // must be first — see above

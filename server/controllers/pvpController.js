@@ -9,13 +9,10 @@ const { startedAtOf } = require('../domain/clock');
 const { SERVER_EVENTS } = require('../../shared/events');
 
 /**
- * Builds the single board both players race on.
- *
- * The SAME layout for both, so the race is like-for-like — which rules out
- * generating around each player's own first click, what used to make the two
- * boards differ. Instead one shared cell is chosen up front, the board is
- * generated (and no-guess verified) around it, and that cell is opened for both,
- * so progress starts level and nobody can lose on their first click.
+ * Builds the single board both players race on. One shared cell is chosen up
+ * front, the board is generated (no-guess verified) around it and opened for
+ * both, so progress starts level and nobody can lose on their first click.
+ * Generating around each player's own first click made the boards differ.
  */
 const buildSharedBoard = (numRows, numCols, numMines) => {
     const startRow = Math.floor(numRows / 2);
@@ -26,7 +23,6 @@ const buildSharedBoard = (numRows, numCols, numMines) => {
     return { board, openedCells: cellsRevealed };
 };
 
-// Room code and membership are the route's job now (routes/index.js).
 /** Handles 'startPvpGame'. */
 const startPvpGame = async ({ socket, room, io }) => {
     try {
@@ -50,8 +46,7 @@ const startPvpGame = async ({ socket, room, io }) => {
         const { board: sharedBoard, openedCells } = buildSharedBoard(numRows, numCols, numMines);
         const serializedBoard = JSON.stringify(sharedBoard);
 
-        // Both players race the same board from the same moment, so the start is
-        // room state. Their finishes are not — see pvp.js.
+        // The start is room state (both race from the same moment); finishes are not, see pvp.js.
         const startedAt = Date.now();
 
         await roomRepo.setFields(room, {
@@ -83,9 +78,7 @@ const startPvpGame = async ({ socket, room, io }) => {
         const player1Avatar = await playerRepo.getAvatar(player1Socket);
         const player2Avatar = await playerRepo.getAvatar(player2Socket);
 
-        // opponentAvatar rides beside opponentName on the player record for
-        // the same reason the name does: resetMyBoard re-emits identity from
-        // this record, long after the opponent's own record could be gone.
+        // opponentAvatar rides on the player record like the name: resetMyBoard re-emits identity from it.
         await playerRepo.setFields(player1Socket, {
             pvpPlayerIndex: '0',
             opponentName: player2Name,
@@ -134,26 +127,21 @@ const resetMyBoard = async ({ socket, room, io }) => {
         if (roomState.winnerSocket && roomState.winnerSocket !== '') return;
 
         const playerData = await playerRepo.getState(socket.id);
-        // No fallback to index 0: that reset — and, once resets took a lock,
-        // locked — PLAYER ONE's board on behalf of a socket that owns neither.
+        // No index-0 fallback: that once reset PLAYER ONE's board for a socket that owns neither.
         const playerIndex = pvpIndexOf(playerData);
         if (playerIndex === null) {
             console.error(`Player ${socket.id} asked to reset with no pvpPlayerIndex set!`);
             return;
         }
 
-        // Restore the shared starting position rather than a blank grid: both
-        // players race the same layout, so a retry has to put this player back
-        // where the game began, not on a board of their own.
+        // Restore the shared starting position, not a blank grid: a retry goes back to where the game began.
         const { sharedBoard, sharedOpenedCells } = roomState;
         if (!sharedBoard) return;
         const openedCells = parseInt(sharedOpenedCells || '0', 10);
 
         const { boardKey, initializedKey, gameOverKey, progressKey } = pvpPlayerFields(playerIndex);
 
-        // Locked: a move of theirs still in flight would otherwise write its
-        // board over the restored one, leaving them on neither the retry nor the
-        // game they lost.
+        // Locked: a move still in flight would otherwise write its board over the restored one.
         await roomRepo.withPvpActionLock(room, playerIndex, socket.id, async () => {
             await roomRepo.setFields(room, {
                 [boardKey]: sharedBoard,
@@ -165,8 +153,7 @@ const resetMyBoard = async ({ socket, room, io }) => {
             await playerRepo.resetScore(socket.id);
         });
 
-        // Their clock restarts from the room's shared start — pvp.js stopped it
-        // when they hit the mine, and without this it stays frozen there.
+        // Their clock restarts from the shared start; pvp.js stopped it when they hit the mine.
         io.to(socket.id).emit(SERVER_EVENTS.GAME_CLOCK, {
             startedAt: startedAtOf(roomState),
             endedAt: null
@@ -210,11 +197,8 @@ const pvpRematch = async ({ socket, room, io }) => {
         if (roomState.hostSocket !== socket.id) return;
 
         /*
-         * A rematch is what you do once the last race is settled. Ungated, the
-         * host could rebuild both boards mid-race — resetting the clock and the
-         * position they were losing from — and the UI never offers it, since the
-         * Rematch button only appears once a winner exists. So the server should
-         * refuse what the client would never send.
+         * Only once the last race is settled: ungated, the host could rebuild
+         * both boards mid-race, and the UI never offers it before a winner exists.
          */
         if (roomState.pvpStarted === 'true' && !roomState.winnerSocket) return;
 
@@ -229,18 +213,13 @@ const pvpRematch = async ({ socket, room, io }) => {
         const { board: sharedBoard, openedCells } = buildSharedBoard(numRows, numCols, numMines);
         const serializedBoard = JSON.stringify(sharedBoard);
 
-        // Both players race the same board from the same moment, so the start is
-        // room state. Their finishes are not — see pvp.js.
         const startedAt = Date.now();
 
         const player1Socket = roomState.player1Socket;
         const player2Socket = roomState.player2Socket;
 
-        // Both boards are rewritten, so both locks are held — in index order,
-        // the only ordering anything takes them in. A move from the last game
-        // still in flight would otherwise land on the rematch board.
-        // (startPvpGame needs none of this: it refuses to run once pvpStarted is
-        // 'true', and no move runs until it is.)
+        // Both boards are rewritten, so both locks are held, in index order.
+        // (startPvpGame needs none of this: no move runs until pvpStarted is 'true'.)
         await roomRepo.withPvpActionLock(room, 0, socket.id, async () => {
             await roomRepo.withPvpActionLock(room, 1, socket.id, async () => {
                 await roomRepo.setFields(room, {

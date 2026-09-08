@@ -1,10 +1,6 @@
 /**
- * PVP lifecycle — start, per-player reset, rematch.
- *
- * Thin by design: the flows live in `controllers/pvpController.js`. What these
- * add is the shape the registrar expects. The room code check and the
- * membership check that each controller used to run itself are now the row's
- * `validate` and `guard`, which is why the controllers no longer take `isValid`.
+ * PVP lifecycle: start, per-player reset, rematch. Thin: the flows live in
+ * `controllers/pvpController.js`; room code and membership are the row's `validate` and `guard`.
  */
 
 const { startPvpGame, resetMyBoard, pvpRematch } = require('../controllers/pvpController');

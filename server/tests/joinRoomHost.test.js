@@ -1,22 +1,12 @@
 /**
- * Rejoining a PVP lobby as the host that just reloaded.
+ * Rejoining a PVP lobby as the host that just reloaded. `addPlayerToRoom`
+ * moves the host role onto the new socket; the join handler then has to
+ * describe the room it just changed, not the one it read BEFORE. The stale
+ * read told the host `isHost: false` and paired them with themselves.
  *
- * `addPlayerToRoom` moves the host role onto the new socket, because a reload
- * should not cost you the Start button. The join handler then has to describe
- * the room it just changed — and it used to describe the one it read BEFORE the
- * change, which named a socket that had already gone.
- *
- * Two things broke at once, both silently. The returning host was told
- * `isHost: false`, so no Start button; and `players.find(p => p !== hostSocket)`
- * was comparing against an id no longer in the list, so it picked the FIRST
- * player — the host — as the guest, and sent the host's pvpRoomReady to a dead
- * socket. Neither player could start the game.
- *
- * One of two tests that drive server.js's own socket handlers (the other is
- * practiceResume.test.js). They are
- * registered inside `io.on('connection')`, so the connection callback is
- * captured from the mocked io and invoked with a fake socket; the Redis fake
- * gives it a real store, which is what makes a stale read observable at all.
+ * Drives server.js's own handlers (as practiceResume.test.js does): the
+ * connection callback is captured from the mocked io and invoked with a fake
+ * socket, and the Redis fake makes a stale read observable.
  */
 
 const emitsByTarget = {};
@@ -67,9 +57,8 @@ const makeSocket = (id, sessionId) => {
 };
 
 /**
- * The room as it stands the moment the reloaded host comes back: the disconnect
- * has already run `removePlayer`, so only the guest is listed, but `hostSocket`
- * still names the socket that left.
+ * The lobby as the reloaded host returns: `removePlayer` already ran, so only
+ * the guest is listed, but `hostSocket` still names the socket that left.
  */
 const seedLobby = () => {
     mockRedis.seed(`room:${ROOM}`, {
@@ -143,9 +132,8 @@ describe('a PVP host who reloads in the lobby', () => {
 });
 
 /*
- * A PVP room holds two. The check that enforces it cannot recognise a
- * reconnecting player by socket id — theirs is new — and cannot be made on a
- * snapshot either, since two people can read "there is space" at the same time.
+ * A PVP room holds two. The check cannot recognise a reconnecting player by
+ * socket id, and cannot run on a snapshot either.
  */
 describe('the two-player limit', () => {
     /** A full lobby: both slots taken, neither of them this browser. */
@@ -177,11 +165,9 @@ describe('the two-player limit', () => {
     });
 
     /*
-     * A reload races its own disconnect. If the new socket connects before the
-     * old one's removal is processed, the players list still holds two — and
-     * the returning player was shown "Room Full!" for their own room. The
-     * session is the one thing that spans both sockets, so it is what the check
-     * has to ask.
+     * A reload races its own disconnect: the players list may still hold two,
+     * and the returning player saw "Room Full!". The session is what spans
+     * both sockets, so it is what the check asks.
      */
     test('lets a reconnecting player back in while their old socket is still listed', async () => {
         seedFull();
@@ -193,9 +179,8 @@ describe('the two-player limit', () => {
     });
 
     /*
-     * Unlocked, both of these read a room with one free slot and both take it,
-     * leaving three players in a room `startPvpGame` refuses to start — a lobby
-     * that can never begin, with nothing on screen to say why.
+     * Unlocked, both read one free slot and both take it, leaving a lobby
+     * `startPvpGame` refuses to start.
      */
     test('two players arriving together cannot both take the last slot', async () => {
         mockRedis.seed(`room:${ROOM}`, {

@@ -1,23 +1,10 @@
 /**
  * Regression: two overlapping moves on one daily attempt must not lose one
- * another's work.
- *
- * The daily challenge has the read-modify-write shape co-op and PVP were fixed
- * for: openCell, chordCell and toggleFlag each parse `attempt.board`, mutate it,
- * and write the whole field back with setAttemptBoard. It landed in parallel
- * with that fix, so it was the one board writer still outside the rule.
- *
- * One attempt is one browser, which sounds safe until you notice the token lives
- * in localStorage and is therefore SHARED ACROSS TABS — `dailyStartLockKey`
- * already exists because of exactly that. Two rapid clicks are enough on their
- * own.
- *
- * It costs the player the day: a lost reveal leaves a closed safe cell that can
- * never be reopened, so the attempt never completes, never wins, and never
- * reaches the leaderboard. Nothing errors.
- *
- * Needs the event-loop Redis fake for the same reason as the other two suites —
- * the shared mock has no store behind it, so no write can land on another.
+ * another's work. The daily has the read-modify-write shape co-op and PVP were
+ * fixed for, and one attempt is one browser whose token lives in localStorage,
+ * SHARED ACROSS TABS. A lost reveal leaves a closed safe cell that can never
+ * reopen, so the attempt never completes, with no error. Needs the event-loop
+ * Redis fake: the shared mock has no store, so no write can land on another.
  */
 
 const mockEmit = jest.fn();
@@ -107,8 +94,7 @@ describe('a flag and a click at the same moment', () => {
 
 describe('a chord overlapping a click', () => {
     test('keeps every cell both moves opened', async () => {
-        // (0,0) already open claiming no adjacent mines, so chording it opens
-        // (0,1), (1,0) and (1,1).
+        // (0,0) is open with no adjacent mines, so chording it opens (0,1), (1,0) and (1,1).
         const board = quietBoard();
         board[0][0] = { isMine: false, isOpen: true, isFlagged: false, nearbyMines: 0 };
 

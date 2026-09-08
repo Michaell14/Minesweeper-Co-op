@@ -1,16 +1,10 @@
 /**
- * Game screen layout. The board, status banner, progress bars, score table and
- * flag counter live in components/game/ and are shared by both layouts.
+ * Game screen layout. Desktop puts controls in sticky side panels either side
+ * of the board; mobile puts the BOARD FIRST with a compact sticky HUD, since
+ * ~420px of chrome puts the game below the fold on a phone.
  *
- * The two arrangements genuinely differ, so they are separate markup: desktop
- * puts controls in sticky side panels either side of the board; mobile puts the
- * BOARD FIRST, with a compact sticky HUD above it and everything else below,
- * because ~420px of chrome ahead of the game puts it below the fold on a phone.
- *
- * The BOARD is mounted exactly ONCE — everything sits on one flex line with the
- * single board between the clusters, and CSS decides which cluster is visible.
- * Duplicating it would put 512 cells in the DOM for a 16x16 game and make every
- * DOM query ambiguous. DOM order alone does this; no `order` juggling.
+ * The BOARD is mounted exactly ONCE: one flex line, the single board between
+ * the clusters, CSS deciding which cluster shows (CLAUDE.md trap 3).
  */
 import React from 'react';
 import { useMinesweeperStore } from '@/app/store';
@@ -60,16 +54,13 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
     const pvpOpponentStatus = useMinesweeperStore((state) => state.pvpOpponentStatus);
     const setIsChecked = useMinesweeperStore((state) => state.setIsChecked);
     const showProgressBar = useMinesweeperStore((state) => state.settings.showProgressBar);
-    /* Gates the MOUNT, not just the render. PracticeProgress calls useGameStats,
-       which walks the whole board twice — hooks run before its own early return,
-       so mounting it unconditionally made every co-op and PVP render pay for a
-       component that draws nothing. */
+    /* Gates the MOUNT: PracticeProgress calls useGameStats, which walks the
+       whole board twice before its own early return. */
     const isPracticeRace = useMinesweeperStore((state) => state.practiceTargetMs !== null);
 
     const { remainingFlags, ownProgressPercent, opponentProgressPercent } = useGameStats();
 
-    // Both-buttons chording, and clearing the button state on a release that
-    // never reaches a cell. See hooks/useChording.ts.
+    // Both-buttons chording. See hooks/useChording.ts.
     useChording(chordCell);
 
     // Arrow-key cursor + reveal/flag keys. See hooks/useKeyboardControls.ts.
@@ -126,11 +117,9 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
 
     return (
         <>
-            {/* container-type makes this the box board.module.css measures cells
-                against (100cqw). It belongs here, not on the board's own scroll
-                container: inline-size containment stops contents contributing to
-                the inline size, so on a shrink-to-fit box inside `items-center`
-                that box collapsed to 0 and the board floored. */}
+            {/* container-type makes this the box board.module.css measures (100cqw).
+                Not on the board's own scroll container: inline-size containment on a
+                shrink-to-fit box inside `items-center` collapsed it to 0. */}
             <div className="w-full max-w-[1350px] mx-auto px-4 min-h-[94vh] pt-10 pb-6 xl:pt-20 xl:pb-16 [container-type:inline-size]">
 
                 <h1 className="text-center font-bold text-pixel-2xl md:text-pixel-4xl">Minesweeper Co-Op</h1>
@@ -140,17 +129,11 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
                     {gameOver && "Game over! A mine was triggered."}
                 </div>
 
-                {/*
-                  * One flex line: a row on desktop, a column below it.
-                  *
-                  * DOM order — mobile controls, desktop-left, board, desktop-right
-                  * — is what makes both arrangements work without any `order`
-                  * juggling: the cluster that does not belong to the current
-                  * breakpoint is display:none and leaves the flex line entirely.
-                  */}
-                {/* 24px, not more: `xl:` turns this row on from a 1280px WINDOW
-                    and a classic scrollbar leaves 1263px to lay out in, which
-                    the board needs to reach its ceiling. */}
+                {/* One flex line: a row on desktop, a column below it. DOM order
+                    (mobile controls, desktop-left, board, desktop-right) makes both
+                    work without `order`; the other cluster is display:none. */}
+                {/* 24px, not more: `xl:` starts at a 1280px WINDOW, and a classic
+                    scrollbar leaves 1263px, which the board needs for its ceiling. */}
                 <div className="flex flex-col items-center gap-0 mt-10 xl:flex-row xl:items-start xl:gap-6 xl:mt-16">
 
                     {/* MOBILE: a compact HUD, pinned above the board. */}
@@ -185,18 +168,11 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
                     </div>
 
                     {/*
-                      * The board, mounted ONCE. The banner above it does have a
-                      * variant per layout, so both render and one is hidden —
-                      * two small nodes rather than a second board.
-                      *
-                      * overflow-auto, not -scroll: `scroll` reserves a gutter even
-                      * when nothing overflows, costing the board 15px on
-                      * classic-scrollbar platforms.
-                      *
-                      * On desktop this column is what the fit clamp measures —
-                      * the outer container counts room the rails are using.
-                      * `flex-1 min-w-0` gives it a width the contents cannot
-                      * affect, which is what makes the containment safe.
+                      * The board, mounted ONCE; the banner has a variant per layout,
+                      * so both render and one is hidden. overflow-auto, not -scroll:
+                      * `scroll` reserves a gutter even when nothing overflows. On
+                      * desktop this column is what the fit clamp measures; `flex-1
+                      * min-w-0` gives it a width the contents cannot affect.
                       */}
                     <div
                         className="overflow-auto xl:overflow-visible max-w-full xl:flex-1 xl:min-w-0 xl:[container-type:inline-size]"
@@ -213,16 +189,13 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
                             {/* DESKTOP HUD: mines left, clock right. */}
                             <div className="hidden xl:flex items-center gap-6 pb-2">
                                 <FlagCounter remainingFlags={remainingFlags} variant="bar" />
-                                {/* ml-auto, not justify-between: either number
-                                    can be switched off in settings. */}
+                                {/* ml-auto, not justify-between: either number can be switched off. */}
                                 <div className="ml-auto">
                                     <Timer variant="bar" />
                                 </div>
                             </div>
                             <Board {...boardProps} />
-                            {/* Under the board, inside the one container that
-                                both layouts share — so the tray is mounted once,
-                                the same rule the board itself follows. */}
+                            {/* Under the board, in the one shared container, so the tray is mounted once. */}
                             <EmoteBar sendEmote={sendEmote} />
                         </div>
                     </div>
@@ -264,8 +237,7 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
                         }
                         {isPracticeRace && <PracticeProgress variant="panel" />}
 
-                        {/* The whole panel, not just the bars — a hidden bar must
-                            not leave an empty titled box behind. */}
+                        {/* The whole panel: a hidden bar must not leave an empty titled box. */}
                         {mode === 'pvp' && pvpStarted && showProgressBar &&
                             <Panel
                                 title={<span className="text-pixel-sm">Progress</span>}
@@ -310,9 +282,7 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
                             </Panel>
                         }
 
-                        {/* Gated, not just emptied: PVP has no score table, and
-                            the region announced "Player scores" around a box
-                            holding nothing once the HUD left it. */}
+                        {/* Gated: PVP has no score table, and the region announced "Player scores" around nothing. */}
                         {mode !== 'pvp' &&
                             <div className="overflow-x-auto mt-6" role="region" aria-label="Player scores">
                                 <ScoreTable />
@@ -322,9 +292,7 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
                 </div>
             </div>
 
-            {/* Mounted ONCE, like the players dialog: RoomPanel renders in
-                both layout clusters, so the button is duplicated and the
-                dialog must not be. */}
+            {/* Mounted ONCE: RoomPanel renders in both clusters, so the dialog must not. */}
             <InviteFriendDialog inviteFriend={inviteFriend} />
 
             <Dialog

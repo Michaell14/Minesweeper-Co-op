@@ -1,34 +1,22 @@
 /**
- * The pipeline every socket route runs inside.
+ * The pipeline every socket route runs inside, applied to every row of
+ * `routes/index.js`: rate limit -> validate -> guard -> handler.
  *
- * One implementation, applied to every row of the table in `routes/index.js`,
- * so the order below is the order for all of them:
- *
- *   rate limit -> validate -> guard -> handler
- *
- * That order is load-bearing, not tidiness. Rate limiting comes FIRST because
- * it exists to stop a flood before it costs anything: a hover that reaches the
- * membership check has already spent four Redis reads, and one socket ignoring
- * the client's throttle once pushed an uninvolved room from 6ms to 2785ms per
- * request. Validation comes before the guard for the same reason one step down
- * — a malformed room code should never reach Redis.
- *
- * Every refusal is SILENT. A route that owes the client an error emits it from
- * its guard or its handler, where the specific error is known; nothing generic
- * is invented here.
+ * Rate limiting is FIRST so a flood is stopped before it costs anything (a
+ * hover reaching the membership check has already spent four Redis reads);
+ * validation precedes the guard so a malformed room code never reaches Redis.
+ * Every refusal is SILENT; a route that owes the client an error emits it
+ * from its guard or handler, where the specific error is known.
  */
 
 const { createBucket, takeToken } = require('../domain/rateLimit');
 
 /**
- * Turns one route into a socket listener.
- *
- * The try/catch is the outer one every handler used to carry itself. It cannot
- * live inside the handler: handlers destructure their payload in the PARAMETER
- * LIST, which runs before any body, so an absent payload threw where nothing
- * could catch it — and in an async listener an unhandled rejection ends the
- * process. `?? {}` is what the handlers actually need, since each one already
- * refuses a wrong field the same way it refuses a missing one.
+ * Turns one route into a socket listener. The try/catch cannot live inside
+ * the handler: handlers destructure their payload in the PARAMETER LIST, so an
+ * absent payload threw before any body ran, and an unhandled rejection in an
+ * async listener ends the process. `?? {}` suffices since each handler already
+ * refuses a wrong field the way it refuses a missing one.
  */
 const wrapRoute = (route, { socket, io }) => async (rawPayload) => {
     try {
@@ -36,11 +24,9 @@ const wrapRoute = (route, { socket, io }) => async (rawPayload) => {
 
         if (route.rateLimit) {
             const { key, burst, perSecond } = route.rateLimit;
-            // On `socket.data`, so it is collected with the socket rather than
-            // accumulating in a Map something has to remember to prune.
+            // On `socket.data`, so it is collected with the socket rather than pruned from a Map.
             socket.data[key] ??= createBucket(burst, perSecond);
-            // Monotonic, not the wall clock: a limiter must not be steerable by
-            // NTP stepping the clock backwards. See domain/rateLimit.js.
+            // Monotonic, not the wall clock: NTP must not be able to steer a limiter (domain/rateLimit.js).
             if (!takeToken(socket.data[key], performance.now())) return;
         }
 
@@ -56,11 +42,8 @@ const wrapRoute = (route, { socket, io }) => async (rawPayload) => {
 };
 
 /**
- * Attaches a whole table to one socket.
- *
- * Takes the table as an argument rather than reaching for the real one, so the
- * pipeline can be tested without pulling in every controller behind it — and so
- * nothing here has an opinion about which routes exist.
+ * Attaches a whole table to one socket. Takes the table as an argument so the
+ * pipeline can be tested without every controller behind it.
  */
 const registerRoutes = (routes, { socket, io }) => {
     routes.forEach((route) => socket.on(route.event, wrapRoute(route, { socket, io })));

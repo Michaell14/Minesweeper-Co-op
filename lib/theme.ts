@@ -1,9 +1,6 @@
 /**
- * Palette selection.
- *
- * A theme is a `data-theme` attribute on <html>; everything else follows from
- * the palette overrides in app/tokens.css. There is no provider, no context and
- * no re-render: the attribute changes and CSS does the rest.
+ * Palette selection. A theme is a `data-theme` attribute on <html>; the
+ * palette overrides in app/tokens.css do the rest. No provider, no re-render.
  */
 
 import { HOLIDAY_THEME_IDS } from "@/lib/holidays";
@@ -12,7 +9,7 @@ export interface ThemeOption {
     /** The `data-theme` value. `null` is the default palette, which sets none. */
     id: string | null;
     label: string;
-    /** One or two words — has to fit on a single line inside a card. */
+    /** One or two words; must fit on one line inside a card. */
     short: string;
     note: string;
 }
@@ -148,18 +145,12 @@ export const THEMES: ThemeOption[] = [
     },
 ];
 
-/**
- * The pre-settings storage key. The theme now lives in the settings blob
- * (lib/settings.ts, which owns persistence and the no-flash script); this key
- * survives only as the migration source a pre-blob browser is read from.
- */
+/** Pre-settings storage key; survives only as the migration source for a pre-blob browser. */
 export const THEME_STORAGE_KEY = "ms-theme";
 
 /**
- * Every non-default theme id, for validating stored values: the storage is
- * user-writable, and a stale id from a removed palette would stamp an
- * attribute matching no rules — rendering the default while claiming
- * otherwise.
+ * Every non-default theme id, for validating stored values: a stale id from a
+ * removed palette would stamp an attribute matching no rules.
  */
 export const VALID_THEME_IDS = THEMES.map((t) => t.id).filter(
     (id): id is string => id !== null,
@@ -167,14 +158,9 @@ export const VALID_THEME_IDS = THEMES.map((t) => t.id).filter(
 
 /**
  * Whether a palette is offered only inside a date window. Derived from the
- * schedule rather than flagged on the entry: the schedule is what actually
- * decides, and a flag beside it would be a second copy of the same fact for
- * someone to forget.
- *
- * Seasonal palettes stay in THEMES year-round regardless — the list is what
- * `VALID_THEME_IDS` and the /ds contrast audit are built from, so dropping one
- * out of season would invalidate a stored id and hide the palette from the
- * audit. Only the picker filters (components/ThemeCards.tsx).
+ * schedule rather than flagged, so there is one copy of the fact. Seasonal
+ * palettes stay in THEMES year-round: `VALID_THEME_IDS` and the /ds contrast
+ * audit are built from it. Only the picker filters (components/ThemeCards.tsx).
  */
 export const isSeasonal = (id: string | null): boolean =>
     id !== null && HOLIDAY_THEME_IDS.includes(id);
@@ -182,10 +168,8 @@ export const isSeasonal = (id: string | null): boolean =>
 const PALETTE_PREFIX = "--ms-palette-";
 
 /**
- * The five entries a card previews, in order: the ground, the board, and the
- * three loudest intents. Chosen because they are what actually separates these
- * palettes at 14px — Game Boy and Minecraft are both green until you see the
- * closed cell, and the light/dark split reads entirely off `paper`.
+ * The five entries a card previews: ground, board, and the three loudest
+ * intents, which is what separates these palettes at 14px.
  */
 export const SWATCH_TOKENS = ["paper", "cell-closed", "blue", "green", "red"] as const;
 
@@ -194,8 +178,7 @@ function paletteBlocks(): Map<string, Record<string, string>> {
     const blocks = new Map<string, Record<string, string>>();
     for (const sheet of Array.from(document.styleSheets)) {
         let rules: CSSRuleList;
-        // Cross-origin sheets throw on access; none of ours are, but a browser
-        // extension's might be.
+        // Cross-origin sheets throw on access (a browser extension's might be).
         try {
             rules = sheet.cssRules;
         } catch {
@@ -218,20 +201,12 @@ function paletteBlocks(): Map<string, Record<string, string>> {
 }
 
 /**
- * Swatch colours for every built-in palette, keyed by theme id (null = default).
- *
- * Read out of the CSSOM rather than listed here, for the same reason the /ds
- * coverage report is: a second copy of sixty colours would drift from
- * tokens.css silently, and the card would then lie about the palette it
- * offers. Reading the RULES rather than computed style is what lets a Game Boy
- * card show Game Boy green while the page is painted in NES — the cascade only
- * ever holds the palette currently applied.
- *
- * A theme inheriting an entry (Dark keeps the NES intent hues) falls back to
- * `:root`, so its swatches show what it will actually paint.
- *
- * Empty when the stylesheet is not readable — jsdom, or before styles load —
- * which renders no swatches rather than five transparent boxes.
+ * Swatch colours for every built-in palette, keyed by theme id (null =
+ * default). Read from the CSSOM so a second copy of sixty colours cannot drift
+ * from tokens.css, and from the RULES rather than computed style so a Game Boy
+ * card shows Game Boy green while the page is painted NES. An inherited entry
+ * falls back to `:root`. Empty when the sheet is unreadable (jsdom, or before
+ * styles load), which renders no swatches rather than transparent boxes.
  */
 export function readSwatches(): Map<string | null, string[]> {
     const out = new Map<string | null, string[]>();
@@ -244,8 +219,7 @@ export function readSwatches(): Map<string | null, string[]> {
 
 /**
  * The requested palette entries for every built-in palette, keyed by theme id.
- * Same sheet walk as the swatches — a theme that inherits an entry gets the
- * `:root` one, so the values are what it will actually paint.
+ * Same sheet walk as the swatches; an inherited entry gets the `:root` one.
  */
 export function readPaletteEntries(
     tokens: readonly string[],
@@ -269,19 +243,15 @@ export function readPaletteEntries(
     return out;
 }
 
-/**
- * The same five, for a custom palette. Pure — a custom theme carries its
- * resolved palette on the object, so there is no sheet to read.
- */
+/** The same five for a custom palette. Pure: a custom theme carries its resolved palette. */
 export function swatchesFromPalette(palette: Record<string, string>): string[] {
     const swatches = SWATCH_TOKENS.map((token) => palette[`${PALETTE_PREFIX}${token}`]);
     return swatches.every(Boolean) ? swatches : [];
 }
 
 /**
- * Removes every inline `--ms-palette-*` override a custom theme stamped.
- * Walked off the style object itself rather than a hardcoded key list, so a
- * palette entry added later cannot be left behind as a stale override.
+ * Removes every inline `--ms-palette-*` override a custom theme stamped. Walked
+ * off the style object, so a palette entry added later cannot be left behind.
  */
 function clearCustomPaletteOverrides(): void {
     const style = document.documentElement.style;
@@ -292,12 +262,9 @@ function clearCustomPaletteOverrides(): void {
 }
 
 /**
- * Applies a theme to the document.
- *
- * Built-in themes are a `data-theme` attribute; custom ones are the palette
- * stamped as inline custom properties (they do not exist in tokens.css, so
- * there is no attribute to set). Either path first clears the other's
- * residue — switching custom → built-in used to be the leak to worry about.
+ * Applies a theme. Built-in themes are a `data-theme` attribute; custom ones
+ * are the palette stamped as inline custom properties. Either path first clears
+ * the other's residue.
  */
 export function applyTheme(id: string | null, customPalette?: Record<string, string>): void {
     clearCustomPaletteOverrides();
@@ -315,13 +282,10 @@ export function applyTheme(id: string | null, customPalette?: Record<string, str
 }
 
 /**
- * The palette currently painted, as the attribute holds it — null for the
- * default palette and for a custom one, which stamps properties instead.
- *
- * Read rather than derived because four different things set it: the no-flash
- * script before any bundle runs, the settings slice, a holiday in season, and
- * the /ds catalog previewing a palette. Anything wanting to follow the paint
- * (components/ds/sprites.tsx) follows this.
+ * The palette currently painted, as the attribute holds it (null for the
+ * default and for a custom one). Read rather than derived because the no-flash
+ * script, the settings slice, a holiday and /ds all set it; anything following
+ * the paint (components/ds/sprites.tsx) follows this.
  */
 export function getAppliedTheme(): string | null {
     if (typeof document === "undefined") return null;
@@ -342,9 +306,8 @@ export function subscribeAppliedTheme(onChange: () => void): () => void {
 export const CURSOR_RAMP_SIZE = 6;
 
 /**
- * A stable cursor colour for a player, as a token reference rather than a
- * literal: the value is written to a custom property and read by
- * board.module.css, so a theme switch moves live cursors with everything else.
+ * A stable cursor colour for a player, as a token reference so a theme switch
+ * moves live cursors too (read by board.module.css).
  */
 export function cursorColorForId(id: string): string {
     let hash = 0;

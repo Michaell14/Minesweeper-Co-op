@@ -1,10 +1,7 @@
 /**
- * Tests for reconnect handling and the room grace period.
- *
- * Players are keyed by socket id, so a reload produces a brand new player. The
- * session id the browser keeps in sessionStorage is what lets the server tell
- * "same person, new socket" from "someone else joined", which matters most in
- * PVP where a ghost record reads as a third player.
+ * Reconnect handling and the room grace period. Players are keyed by socket
+ * id, so a reload is a new player; the browser's session id is what tells
+ * "same person, new socket" from "someone else joined".
  */
 
 const mockEmit = jest.fn();
@@ -210,13 +207,9 @@ describe('the last player leaving', () => {
 });
 
 /**
- * Joining a room whose game has already ended.
- *
- * REGRESSION. These two catch the ARRIVAL up on an outcome they missed, but they
- * were sent to the whole room. Everyone already there watched it happen, so a
- * re-broadcast re-opens the end-of-game summary on their screen and fires the
- * confetti a second time. It was rare while it took a deliberate join of a
- * finished room — resume-on-reload turned it into "every time anyone refreshes".
+ * Joining a room whose game has already ended. REGRESSION: the catch-up
+ * events were sent to the whole room, re-opening everyone's summary and
+ * firing confetti again; resume-on-reload made that every refresh.
  */
 describe('catching up a player who joins a finished game', () => {
     const LATE = 'sock-late';

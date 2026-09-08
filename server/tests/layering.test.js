@@ -1,33 +1,17 @@
 /**
- * The server's module layering, enforced rather than described.
+ * The server's module layering, enforced rather than described. `gameUtils`
+ * and `playerUtils` once required each other, and `resetGame()` threw
+ * depending on which file node loaded first; `tests/resetGame.test.js` guards
+ * that function, this guards the shape. Two rules, derived from the import
+ * graph: no cycles, and no module imports a HIGHER layer than itself.
  *
- * `gameUtils` and `playerUtils` used to require each other. The cycle meant
- * `gameUtils` captured `undefined` for `resetPlayerScores`, and `resetGame()`
- * threw — but only depending on which file node loaded first, so it looked like
- * a heisenbug rather than a dependency problem. `tests/resetGame.test.js` guards
- * that one function; this guards the shape that produced it.
+ * Layers, lowest first (a module may import its own layer or below):
+ *   0  config, validation      1  initialize*Client      2  domain/ (pure)
+ *   3  data/                   4  utils/                 5  game/
+ *   6  controllers/            7  routes/                8  server.js
  *
- * Two rules, both derived from the import graph rather than a list anyone has to
- * keep up to date:
- *
- *   1. No cycles, anywhere.
- *   2. No module imports a HIGHER layer than itself.
- *
- * Layers, lowest first. A module may import its own layer or below:
- *
- *   0  config, validation      leaves — import nothing
- *   1  initialize*Client       the io and Redis singletons
- *   2  domain/                 pure logic, no I/O
- *   3  data/                   repositories over Redis
- *   4  utils/                  services over repos + io
- *   5  game/                   per-mode cell actions
- *   6  controllers/            lifecycle flows
- *   7  routes/                 the socket route table and its pipeline
- *   8  server.js               connection lifecycle
- *
- * Adding a layer means editing `layerOf` here, which is the point: moving a file
- * somewhere that breaks the ordering fails this suite instead of quietly
- * creating the next load-order bug.
+ * Adding a layer means editing `layerOf`, so a move that breaks the ordering
+ * fails here instead of becoming the next load-order bug.
  */
 
 const fs = require('fs');
@@ -36,14 +20,10 @@ const path = require('path');
 const SERVER_ROOT = path.join(__dirname, '..');
 
 /**
- * Where a file sits. See the table above.
- *
- * Returns null for anything the table does not name, rather than defaulting to
- * the top layer. A default is what makes forgetting to edit this look safe: a
- * new `server/services/` would land at 8 alongside server.js, and every file in
- * it could then import from anywhere without tripping the ordering rule — the
- * enforcement quietly switched off for exactly the directory nobody had
- * thought about yet. An unclassified file fails the suite instead.
+ * Where a file sits. Returns null for anything the table does not name rather
+ * than defaulting to the top layer: a default would let a new directory import
+ * from anywhere with the enforcement quietly off. An unclassified file fails
+ * the suite instead.
  */
 const layerOf = (file) => {
     const rel = path.relative(SERVER_ROOT, file);
@@ -61,11 +41,8 @@ const layerOf = (file) => {
 
 /**
  * Every .js file we ship, excluding tests and dependencies. `migrations/` is
- * excluded too, as a decision rather than an oversight: migration files are
- * executed by node-pg-migrate at release time (see /Procfile), are never
- * required by the server, and each one is frozen once it has run in
- * production — they are not part of the runtime module graph these rules
- * exist to protect.
+ * excluded too: node-pg-migrate runs them at release time (see /Procfile), the
+ * server never requires them, and each is frozen once run in production.
  */
 const sourceFiles = (dir = SERVER_ROOT) =>
     fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
@@ -92,9 +69,8 @@ const graph = new Map(sourceFiles().map((f) => [f, importsOf(f)]));
 const show = (f) => path.relative(SERVER_ROOT, f);
 
 /**
- * The layer, or a failure. Used by the comparison rules below so an
- * unclassified file cannot slip through them as a `null > 6` that quietly
- * evaluates false — the rule would report nothing and read as a pass.
+ * The layer, or a failure, so an unclassified file cannot slip through the
+ * comparison rules as a `null > 6` that quietly evaluates false.
  */
 const layerOrThrow = (file) => {
     const layer = layerOf(file);
@@ -126,10 +102,8 @@ describe('the module graph', () => {
     });
 
     /*
-     * Ahead of the rules, because it is what keeps them meaningful: a file the
-     * table does not name is not a file with no constraints, it is a hole in
-     * the constraint. Naming the whole tree is the price of the rules below
-     * meaning anything.
+     * Ahead of the rules because it keeps them meaningful: a file the table
+     * does not name is a hole in the constraint, not a file with none.
      */
     test('every file is in a named layer', () => {
         const homeless = [...graph.keys()].filter((f) => layerOf(f) === null).map(show);
@@ -149,10 +123,9 @@ describe('the module graph', () => {
     });
 
     /*
-     * The strictest rule, and the one board.js was created for. Anything in
-     * domain/ must be computable without Redis, without the socket server and
-     * without configuration — that is what makes it safe for both halves of a
-     * mode to share, and what stopped the original cycle recurring.
+     * The strictest rule, and the one board.js was created for: domain/ must be
+     * computable without Redis, the socket server or configuration, which is
+     * what lets both halves of a mode share it.
      */
     test('domain/ depends on nothing outside domain/', () => {
         const escapes = [];
@@ -166,8 +139,7 @@ describe('the module graph', () => {
     });
 
     test('covers the whole server, so a new directory cannot slip past it', () => {
-        // A floor, not an exact count — it only has to prove the walk found the
-        // real tree rather than an empty one.
+        // A floor, not an exact count: it only proves the walk found the real tree.
         expect(graph.size).toBeGreaterThan(15);
     });
 });

@@ -23,14 +23,9 @@ export const metadata: Metadata = {
 };
 
 /*
- * No `cta`. The lessons are the page's call to action, and a primary button
- * pointing off to a full game read as the main thing to do here — which is the
- * one thing this page is not for. Playing is still one tap away in the header
- * and in the footer links ProsePage draws.
- *
- * An ordered list, not a grid: the lessons are a ladder that ends on "the
- * general rule every pattern above is a special case of", so the order is
- * information and starting at the top is the advice.
+ * No `cta`: the lessons are the call to action, and a primary button to a
+ * full game read as the main thing to do. An ordered list, not a grid: the
+ * lessons are a ladder ending on the general rule, so order is information.
  */
 export default function DrillsPage() {
     return (

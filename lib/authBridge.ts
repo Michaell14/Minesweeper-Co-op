@@ -1,13 +1,9 @@
 /**
  * The client's cache of the auth bridge token (see app/api/socket-token).
- *
- * In-memory only, deliberately: the token is minted from the session cookie on
- * demand, so persisting it would only widen where a bearer credential lives.
- * Signed out (or bridge unconfigured), every fetch answers null and the game
- * simply runs anonymous — the pre-accounts state.
- *
- * One in-flight fetch at a time: a reconnecting socket and a profile call
- * arriving together should not race two mints of the same token.
+ * In-memory only: the token is minted from the session cookie on demand, and
+ * persisting it would only widen where a bearer credential lives. Signed out,
+ * every fetch answers null and the game runs anonymous. One in-flight fetch
+ * at a time, so a reconnect and a profile call do not race two mints.
  */
 
 interface CachedToken {

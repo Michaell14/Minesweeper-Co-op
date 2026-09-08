@@ -1,11 +1,8 @@
 // @vitest-environment jsdom
 /**
- * The invite list, and the one way it goes quietly wrong.
- *
- * A failed roster fetch used to latch: the dialog stored an empty list, never
- * asked again, and told the player none of their friends were online for the
- * rest of the session. Nothing about that looks broken on screen, which is
- * exactly why it is here rather than in the smoke suite.
+ * The invite list. A failed roster fetch used to latch: an empty list, never
+ * asked again, "no friends online" for the session. Nothing looks broken on
+ * screen, which is why it is here rather than the smoke suite.
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, render, screen } from "@testing-library/react";
@@ -54,12 +51,8 @@ describe("a roster fetch that fails", () => {
         expect(screen.getByRole("button", { name: `Invite ${ALEX.displayName} to this room` })).toBeTruthy();
     });
 
-    /*
-     * The reopen the latch used to swallow. Closing and opening again while the
-     * first request is still in the air cannot start a second one — but it is
-     * still a request for fresh data, and spending that open edge left the
-     * dialog on screen showing an error it would not retry.
-     */
+    /* A reopen while the first request is in the air cannot start a second one,
+     * but it is still a request for fresh data; the latch used to spend it. */
     it("is retried for an open that landed while it was still in the air", async () => {
         act(() => useMinesweeperStore.getState().setOnlineFriends([ALEX.id]));
         let failFirst: (value: null) => void = () => {};
@@ -70,8 +63,7 @@ describe("a roster fetch that fails", () => {
         await open(dialog);
         expect(fetchFriends).toHaveBeenCalledTimes(1);
 
-        // Closed and opened again before the first answer arrives: no second
-        // request yet, because the first has not come back.
+        // Reopened before the first answer: no second request yet.
         close(dialog);
         await open(dialog);
         expect(fetchFriends).toHaveBeenCalledTimes(1);

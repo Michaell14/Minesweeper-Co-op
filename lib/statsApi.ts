@@ -1,7 +1,7 @@
 /**
- * The profile-stats reads (and the one write: the guest best-times import).
- * Same bearer transport and failure shape as the other account APIs — null
- * or false means "not available right now" and the UI shows that state.
+ * The profile-stats reads and the one write (the guest best-times import).
+ * Same bearer transport as the other account APIs; null or false means "not
+ * available right now".
  */
 
 import { serverURL } from "@/lib/initSocket";
@@ -10,16 +10,14 @@ import { byPlayerCount, type BestTime, type ImportableBest } from "@/lib/bestTim
 
 /**
  * How many recent games a profile keeps. Kept in step BY HAND with
- * `RECENT_WINDOW` in server/data/statsRepo.js — the server is CommonJS and
- * cannot share the constant, the same trade the socket payloads make.
+ * `RECENT_WINDOW` in server/data/statsRepo.js (the server is CommonJS).
  */
 export const RECENT_WINDOW = 50;
 
 /**
  * How many records one import may carry. Kept in step BY HAND with
- * `MAX_BEST_IMPORT_ENTRIES` in server/validation.js, the same trade
- * RECENT_WINDOW makes — and it matters more here, because the server refuses
- * an oversized payload whole rather than truncating it.
+ * `MAX_BEST_IMPORT_ENTRIES` in server/validation.js; the server refuses an
+ * oversized payload whole rather than truncating it.
  */
 export const MAX_BEST_IMPORT = 100;
 
@@ -34,9 +32,8 @@ export interface ProfileStats {
     bestStreak: number;
     lastPlayedDay: string | null;
     /**
-     * The daily-clear streak (consecutive UTC days WON, keyed by puzzle date)
-     * — distinct from currentStreak's any-mode play streak. The backend may
-     * briefly predate these fields after a deploy, so consumers `??` them.
+     * Consecutive UTC puzzle days WON, distinct from currentStreak's any-mode
+     * play streak. The backend may briefly predate these fields, so consumers `??` them.
      */
     dailyCurrentStreak: number;
     dailyBestStreak: number;
@@ -67,9 +64,9 @@ export interface RecentGame {
 }
 
 /**
- * One earned achievement. `id` is a catalog id from shared/achievements.js —
- * an id the catalog no longer knows is simply not rendered, which is what lets
- * one be retired without deleting anyone's row.
+ * One earned achievement. `id` is a catalog id from shared/achievements.js; an
+ * id the catalog no longer knows is not rendered, so one can be retired without
+ * deleting rows.
  */
 export interface EarnedAchievement {
     id: string;
@@ -110,15 +107,10 @@ export async function fetchStats(): Promise<ProfilePayload | null> {
 }
 
 /**
- * Just the account's board records, keyed the way the game looks them up.
- *
- * Its own endpoint rather than a slice of `fetchStats`: this is fetched by
- * every tab with a board in it, and the profile read runs four more queries for
- * things a game page never shows.
- *
- * Null means "not available right now" — signed out, or the stats service is
- * down — and the caller falls back to this browser's records rather than
- * blanking a number that was right a second ago.
+ * Just the account's board records, keyed the way the game looks them up. Its
+ * own endpoint because every tab with a board fetches it, and the profile read
+ * runs four more queries. Null means "not available right now", and the caller
+ * falls back to this browser's records.
  */
 export async function fetchBoardBests(): Promise<Record<string, BestTime> | null> {
     const res = await request("/api/stats/bests", "GET");
@@ -135,9 +127,8 @@ export async function fetchBoardBests(): Promise<Record<string, BestTime> | null
             at: Number.isFinite(at) ? at : 0,
         };
     }
-    // Re-filed by the count on each record, exactly as the browser's own copy
-    // is: a server deployed ahead of the key migration would otherwise serve
-    // keys the client cannot look up, and the banner would read as blank.
+    // Re-filed by the count on each record, as the browser's copy is: a server
+    // ahead of the key migration would otherwise serve keys the client cannot look up.
     return byPlayerCount(bests);
 }
 

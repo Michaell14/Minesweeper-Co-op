@@ -24,9 +24,7 @@ import {
     UserSignedInIcon,
 } from "@/components/ds";
 import type { ButtonIntent } from "@/components/ds";
-// Past the barrel on purpose, the way this page already reaches for the board's
-// stylesheet: the art table is a design-system internal, and the catalog is the
-// one page whose job is to show internals.
+// Past the barrel: the art table is an internal, and the catalog's job is to show internals.
 import { DEFAULT_SET, GENERAL_SPRITE_SETS, PixelRects, SPRITE_SETS, type SpriteSet } from "@/components/ds/sprites";
 import { AVATARS } from "@/shared/avatars";
 import { EMOTES } from "@/shared/emotes";
@@ -65,18 +63,13 @@ function Section({
     );
 }
 
-/**
- * Rendered with the game's own board CSS rather than a lookalike, so the catalog
- * cannot drift from the board it depicts.
- */
+/** Rendered with the game's own board CSS, so the catalog cannot drift from the board it depicts. */
 function BoardPreview() {
     return (
         <div
             className={board.gameBoard}
-            /* The board sizes cells to fit, on BOTH axes; this preview is a
-               single row of 11. Rows matter as much as columns now — left to
-               the stylesheet's 16-row fallback, a one-row strip would be given
-               a sixteen-row height budget and shrink for no reason. */
+            /* Cells fit on BOTH axes; left to the 16-row fallback, this one-row
+               strip would get a sixteen-row height budget and shrink. */
             style={{ '--board-cols': 11, '--board-rows': 1 } as React.CSSProperties}
         >
             <div className={board.gameRow}>
@@ -101,18 +94,15 @@ function BoardPreview() {
 }
 
 /**
- * Every sprite set, each drawn on the two cell fills it will actually sit on —
- * a mine only ever appears on the mine cell, a flag on a closed one. Read from
- * the CSSOM for the same reason the palette cards are: the page can only be
- * painted in one palette at a time, and this has to show all ten.
+ * Every sprite set on the two cell fills it sits on. Read from the CSSOM, like
+ * the palette cards: the page paints one palette at a time.
  */
 function SpriteSheet() {
     const [fills, setFills] = React.useState<Map<string | null, Record<string, string>>>(new Map());
     React.useEffect(() => setFills(readPaletteEntries(["mine", "cell-closed"])), []);
 
-    // [label, fills key, data id, art]. The general sets are pinnable on ANY
-    // palette, so they preview on the default fills (null key) like the
-    // default pair; a seasonal pair previews on its own palette's fills.
+    // [label, fills key, data id, art]. General sets are pinnable on ANY
+    // palette, so they preview on the default fills (null key).
     const sets: [string, string | null, string, SpriteSet][] = [
         ["Default", null, "default", DEFAULT_SET],
         ...GENERAL_SPRITE_SETS.map(
@@ -164,16 +154,9 @@ function CoverageReport({ coverage }: { coverage: ThemeCoverage | null }) {
 }
 
 /*
- * `auditedTheme` is the palette these numbers were MEASURED under, not the one
- * currently selected — the two differ for the render between a palette change
- * and the effect that re-measures. It is published as a data attribute because
- * scripts/ui-smoke walks every palette here and reads the failures out: without
- * it the walk has nothing to wait on, and a read that lands early sees the
- * previous palette's rows. Rows that show no failures then look exactly like a
- * palette that passes.
- *
- * null until the first measurement lands, so the attribute is absent rather
- * than present-and-lying while there is nothing to report.
+ * `auditedTheme` is the palette these numbers were MEASURED under, not the
+ * selected one (they differ for one render). Published as a data attribute so
+ * scripts/ui-smoke can wait on it; null until the first measurement lands.
  */
 function ContrastReport({ results, auditedTheme }: { results: ContrastResult[]; auditedTheme: string | null }) {
     const failing = results.filter((r) => !r.passes);
@@ -206,19 +189,13 @@ export default function DsCatalogClient() {
     const [volume, setVolume] = React.useState(50);
     const [theme, setTheme] = React.useState<string | null>(null);
     const [contrast, setContrast] = React.useState<ContrastResult[]>([]);
-    /*
-     * Set in the same effect as `contrast`, so the two always commit together.
-     * Starts null rather than at DEFAULT_THEME: before the first measurement
-     * there are no results, and a value here would claim there were.
-     */
+    /* Commits with `contrast`; starts null so nothing claims results before the first measurement. */
     const [auditedTheme, setAuditedTheme] = React.useState<string | null>(null);
     const [coverage, setCoverage] = React.useState<ThemeCoverage | null>(null);
 
     /*
-     * The theme goes on <html> so every component below re-renders under it,
-     * and is cleared on unmount so the catalog never leaks its preview into the
-     * app. Measuring synchronously is safe: measure() calls getComputedStyle,
-     * which forces the pending style recalculation itself.
+     * On <html> so everything below re-renders under it; cleared on unmount so
+     * the preview never leaks. getComputedStyle forces the style recalc.
      */
     React.useEffect(() => {
         applyTheme(theme);
@@ -242,10 +219,8 @@ export default function DsCatalogClient() {
                 note="Each palette overrides only the raw palette tokens — no component or semantic token is touched. Switching here restyles everything below it."
             >
                 {/*
-                  * A radio group, not toggle buttons: the choice is exclusive,
-                  * and this dogfoods the primitive on the page whose job is
-                  * showing the primitives. RadioCard needs string values, so
-                  * the default palette round-trips through DEFAULT_THEME.
+                  * A radio group, not toggle buttons: the choice is exclusive and this
+                  * dogfoods the primitive. Default palette round-trips through DEFAULT_THEME.
                   */}
                 <RadioCardGroup
                     name="ds-theme"

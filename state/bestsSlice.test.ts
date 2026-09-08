@@ -2,12 +2,9 @@ import { afterEach, describe, expect, test } from "vitest";
 import { useMinesweeperStore } from "@/app/store";
 
 /**
- * The account's board records, as the game holds them.
- *
- * Everything here is about the difference between "no account records" and "no
- * record on this board", which look identical in a banner and are not the same
- * thing: the first has to fall back to the browser, the second is a board you
- * have never cleared.
+ * The account's board records, as the game holds them. Everything here is the
+ * difference between "no account records" (fall back to the browser) and "no
+ * record on this board" (never cleared), which look identical in a banner.
  */
 
 const state = () => useMinesweeperStore.getState();
@@ -47,9 +44,8 @@ describe("with the account's records loaded", () => {
     });
 
     /*
-     * The case the whole change exists for: signed in on a new device, the
-     * browser has no record and the account does. Comparing against
-     * localStorage would call this a new best and say so in a banner.
+     * Signed in on a new device: the browser has no record and the account
+     * does. Comparing against localStorage would call this a new best.
      */
     test("a slower clear leaves the record standing", () => {
         state().setAccountBests({ "16x16/40": { seconds: 75, players: 1, at: 1 } });
@@ -63,8 +59,7 @@ describe("with the account's records loaded", () => {
     test("a group clear cannot land on the solo slot, however the key is spelled", () => {
         state().setAccountBests({ "16x16/40": { seconds: 300, players: 1, at: 1 } });
 
-        // The key says solo, the run says three: the run decides, as it does in
-        // the browser's copy and in the import.
+        // The key says solo, the run says three: the run decides, as everywhere else.
         const result = state().recordAccountBest("16x16/40", { seconds: 120, players: 3, at: 5 });
 
         expect(result).toEqual({ improved: true, previous: null });
@@ -83,17 +78,15 @@ describe("with the account's records loaded", () => {
 });
 
 /*
- * The table that lands from the server is not always newer than what the store
- * holds: a clear finished while the fetch was in flight is only in the store.
- * Replacing wholesale would drop it and leave a stale banner until the next
- * page load.
+ * The table from the server is not always newer than the store: a clear
+ * finished while the fetch was in flight is only in the store, and replacing
+ * wholesale would drop it.
  */
 describe("hydrating from the server", () => {
     /*
-     * The window that actually happens: `accountBests` is still NULL, because
-     * sign-in resolving is what starts the fetch and a first sign-in sends an
-     * import ahead of it. A clear here has no table to file against — and the
-     * table that lands next was read before the run existed.
+     * `accountBests` is still NULL here because sign-in resolving starts the
+     * fetch, so the clear has no table to file against and the table that
+     * lands next predates the run.
      */
     test("keeps a clear finished before any table arrived", () => {
         expect(state().accountBests).toBeNull();
@@ -108,8 +101,7 @@ describe("hydrating from the server", () => {
         state().recordAccountBest("16x16/40", { seconds: 75, players: 1, at: 9 });
         state().setAccountBests({});
 
-        // A later fetch carrying a genuinely faster server record wins: the
-        // pending clear was consumed by the hydrate above, not held forever.
+        // A later, faster server record wins: the pending clear was consumed by the hydrate above.
         state().setAccountBests({ "16x16/40": { seconds: 60, players: 1, at: 2 } });
 
         expect(state().accountBests?.["16x16/40"].seconds).toBe(60);
@@ -134,11 +126,9 @@ describe("hydrating from the server", () => {
     });
 
     /*
-     * The cost of the merge, pinned deliberately: a held record the server does
-     * not have — because its write dropped, stats being best-effort — outlives
-     * the fetch instead of vanishing from under the player. Both numbers come
-     * off the same clock, so showing the faster is the lesser wrong. If this
-     * ever needs to flip, it flips here.
+     * The cost of the merge, pinned: a held record the server never got (stats
+     * are best-effort) outlives the fetch. Both numbers are off the same clock,
+     * so showing the faster is the lesser wrong. If this needs to flip, it flips here.
      */
     test("a held record the server never got survives the fetch", () => {
         state().setAccountBests({ "16x16/40": { seconds: 90, players: 1, at: 1 } });
@@ -148,10 +138,7 @@ describe("hydrating from the server", () => {
         expect(state().accountBests?.["16x16/40"].seconds).toBe(90);
     });
 
-    /*
-     * The merge must not reach across a sign-out: whoever signs in next gets
-     * the table their account holds and nothing of the previous one's.
-     */
+    /* The merge must not reach across a sign-out into the next account's table. */
     test("nothing survives a sign-out into the next account's table", () => {
         state().setAccountBests({ "16x16/40": { seconds: 60, players: 1, at: 1 } });
         state().setAccountBests(null);

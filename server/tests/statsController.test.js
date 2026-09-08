@@ -1,15 +1,9 @@
 /**
- * The stats routes' policy: what they answer, and what they refuse.
- *
- * Two of them matter beyond the usual shape checks. `/api/stats/bests` is what
- * the GAME reads now that a signed-in player's records live on the account, so
- * a 503 has to stay a 503 — the client falls back to the browser's copy on
- * anything that is not a table, and an empty 200 would read as "you have never
- * cleared a board". And the import route's 400 is the one that used to fire on
- * a perfectly ordinary payload: keys carry a group suffix, validation rejected
- * it, and one such record threw away the whole import.
- *
- * Auth is profileController's requireUser, mocked here — its own suite covers it.
+ * The stats routes' policy. `/api/stats/bests` is what the GAME reads, and the
+ * client falls back to the browser on anything that is not a table, so a 503
+ * must stay a 503: an empty 200 reads as "you have never cleared a board". The
+ * import route's 400 used to fire on group-suffixed keys and discard the whole
+ * import. Auth (requireUser) is mocked; its own suite covers it.
  */
 
 jest.mock('../controllers/profileController', () => ({
@@ -74,9 +68,8 @@ describe('GET /api/stats/bests', () => {
     });
 
     /*
-     * The client reads anything that is not a table as "fall back to this
-     * browser". Answering 200-with-nothing instead would tell a player with
-     * records that they have none.
+     * Anything that is not a table means "fall back to this browser"; an empty
+     * 200 would tell a player with records that they have none.
      */
     test('a database failure is a 503, never an empty table', async () => {
         mockGetBoardBests.mockRejectedValue(new Error('down'));
@@ -95,8 +88,7 @@ describe('GET /api/stats/bests', () => {
 });
 
 describe('POST /api/stats/import-bests', () => {
-    /* The bug: a browser that had ever cleared a board with a friend held a
-     * suffixed key, and every import it offered was refused in full. */
+    /* The bug: a group clear's suffixed key got the whole import refused. */
     test('accepts a payload holding a group clear', async () => {
         mockImportBests.mockResolvedValue(undefined);
         const bests = [

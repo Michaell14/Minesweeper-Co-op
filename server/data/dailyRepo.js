@@ -1,10 +1,7 @@
 /**
- * All daily-challenge reads and writes.
- *
- * Mirrors roomRepo/playerRepo's shape, but addresses state by UTC date + an
- * opaque client-generated token rather than a room code / socket id — this is
- * deliberately NOT a room (see keys.js). Nothing outside this file should build
- * a `daily:` key by hand.
+ * All daily-challenge reads and writes. Mirrors roomRepo/playerRepo, but keyed
+ * by UTC date + an opaque client token, since this is NOT a room (keys.js).
+ * Nothing outside this file builds a `daily:` key by hand.
  */
 
 const { redisClient } = require('../utils/initializeRedisClient');
@@ -20,10 +17,7 @@ const {
     LOCK_TTL_SECONDS,
 } = require('./keys');
 
-/**
- * Statuses meaning the attempt has reached today's one allowed outcome. Both
- * game/daily.js and dailyController.js gate on this, so it lives here once.
- */
+/** The attempt has reached today's one allowed outcome. Shared by game/daily.js and dailyController.js. */
 const TERMINAL_STATUSES = ['failed', 'won_pending_submit', 'completed'];
 
 // --- Board template -----------------------------------------------------
@@ -84,10 +78,9 @@ const markStarted = (date, token, startedAt) =>
     setAttemptFields(date, token, { status: 'in_progress', startedAt: startedAt.toString() });
 
 /**
- * Persists this player's mutating board copy, mirrors roomRepo.setPvpBoard.
- * Pace milestones ride the SAME hSet when a move crossed any (one atomic
- * write): stored separately, a board write failing after a milestone write
- * left durable pace stamps from a move that never completed.
+ * Persists this player's board copy (mirrors roomRepo.setPvpBoard). Pace
+ * milestones ride the SAME hSet, so a failed board write cannot leave
+ * milestone stamps from a move that never completed.
  */
 const setAttemptBoard = (date, token, board, milestones = null) =>
     setAttemptFields(date, token, {
@@ -112,14 +105,10 @@ const markWon = (date, token, finishedAt, elapsedMs) =>
     });
 
 /**
- * Records the player's chosen name and adds them to the leaderboard, keyed by
- * the elapsedMs markWon already stored — never a value from the caller, since
- * the score has to come from the server's own timestamps.
- *
- * `avatar` is the account's avatar id, denormalised here at submit exactly
- * like the name: the leaderboard is read for many days after the account
- * could rename, repick, or vanish. Anonymous entries have none — Redis
- * hashes hold strings only, so absence IS the null.
+ * Records the name and adds the token to the leaderboard, scored by the
+ * elapsedMs markWon stored — never a caller value. `avatar` is denormalised at
+ * submit like the name, since the account may rename or vanish later; absence
+ * IS the null, Redis hashes holding strings only.
  */
 const submitScore = async (date, token, name, avatar = null) => {
     const client = await redisClient;
@@ -137,9 +126,8 @@ const submitScore = async (date, token, name, avatar = null) => {
 // --- Leaderboard -----------------------------------------------------------
 
 /**
- * Top N entries, fastest first. The ZSET stores tokens (names aren't unique),
- * so this batch-reads each entry's display name and avatar off its attempt
- * hash. An entry with no avatar field (anonymous, or pre-avatar) emits null.
+ * Top N, fastest first. The ZSET stores tokens (names are not unique), so each
+ * entry's name and avatar are read off its attempt hash; a missing avatar is null.
  */
 const getLeaderboardTop = async (date, limit = 50) => {
     const client = await redisClient;
@@ -168,12 +156,9 @@ const getEntryCount = async (date) => {
 // --- Locks -------------------------------------------------------------
 
 /**
- * SET NX EX: returns truthy only for the caller that won the race.
- *
- * The gen lock is an optimization, not a correctness requirement — two racers on
- * the same seed compute the identical board, so a missed lock only wastes CPU.
- * The start lock is real: the attempt token comes from localStorage and is
- * shared across every tab, so two tabs racing `startDaily` does happen.
+ * SET NX EX: truthy only for the winner. The gen lock is an optimisation (two
+ * racers compute the identical board); the start lock is real, since the
+ * token is shared across every tab through localStorage.
  */
 const acquireLock = async (key, owner) => {
     const client = await redisClient;
@@ -192,12 +177,8 @@ const acquireStartLock = (date, token) => acquireLock(dailyStartLockKey(date, to
 const releaseStartLock = (date, token) => releaseLock(dailyStartLockKey(date, token));
 
 /**
- * Serialises one attempt's moves. Per attempt, so two players never wait on each
- * other — the contention is one player's own two tabs, which share the token
- * through localStorage.
- *
- * Callers must read the attempt INSIDE `fn`: anything read before the lock was
- * held is the stale snapshot the lock exists to guard against.
+ * Serialises one attempt's moves. Per attempt: the only contention is one
+ * player's own tabs. Callers must read the attempt INSIDE `fn`.
  */
 const withAttemptLock = (date, token, owner, fn) =>
     withLock(dailyActionLockKey(date, token), owner, fn);

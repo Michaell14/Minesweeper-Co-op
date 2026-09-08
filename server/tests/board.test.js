@@ -1,9 +1,7 @@
 /**
- * Tests for server/domain/board.js — the dependency-free board primitives.
- *
- * createEmptyBoard exists here (rather than in gameUtils) to keep gameUtils and
- * playerUtils from requiring each other; getAdjacentCells moved here when the
- * co-op and PVP cell logic were split, since both modes chord through it.
+ * Tests for server/domain/board.js, the dependency-free board primitives.
+ * createEmptyBoard lives there to keep gameUtils and playerUtils from
+ * requiring each other; both modes chord through getAdjacentCells.
  */
 
 const { createEmptyBoard, getAdjacentCells, revealFrom, projectBoard, projectCells } = require('../domain/board');
@@ -62,8 +60,7 @@ describe('createEmptyBoard', () => {
     });
 
     test('every cell is a distinct object (no shared references)', () => {
-        // Guards against a "clever" rewrite using Array.fill(), which would make
-        // opening one cell open several.
+        // Guards against an Array.fill() rewrite, which would make opening one cell open several.
         const board = createEmptyBoard(3, 3);
         board[0][0].isOpen = true;
 
@@ -120,8 +117,7 @@ describe('getAdjacentCells', () => {
     });
 
     test('returns copies, so mutating a neighbour does not touch the board', () => {
-        // Chording depends on this: it reads flags from these copies but writes
-        // through board[r][c], so a shared reference would corrupt the board.
+        // Chording reads flags from these copies but writes through board[r][c].
         const board = createEmptyBoard(3, 3);
 
         const neighbours = getAdjacentCells(1, 1, board);
@@ -248,8 +244,7 @@ describe('revealFrom', () => {
     });
 
     test('a cascade can never reach a mine, so only a direct click loses', () => {
-        // Cells that cascade have nearbyMines === 0, meaning no adjacent mines --
-        // so the flood fill can only ever push safe neighbours.
+        // Cascading cells have nearbyMines === 0, so the flood fill only pushes safe neighbours.
         const board = boardFrom([
             '*.*',
             '...',

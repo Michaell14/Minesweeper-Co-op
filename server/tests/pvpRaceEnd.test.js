@@ -1,11 +1,8 @@
 /**
- * What a decided race does to the player who did NOT win it.
- *
- * Everything about ending a PVP game is per player, and the loser is the one
- * with nothing of their own to end: they never detonated, so neither of their
- * flags is set and nothing on their side of the room says the game is over.
- * `stopRace` already stops their clock. These cover the two things that did not
- * follow it — their board stayed hidden, and their moves kept working.
+ * What a decided race does to the player who did NOT win. Ending PVP is per
+ * player, and the loser never detonated, so nothing on their side says over.
+ * `stopRace` stops their clock; these cover their board staying hidden and
+ * their moves still working.
  */
 
 const mockEmit = jest.fn();
@@ -25,10 +22,7 @@ const LOSER = 'sock-loser';
 
 let client;
 
-/*
- * 2x2 with one mine at (0,0). Every cell claims one adjacent mine so nothing
- * cascades and each move opens exactly the cell it names.
- */
+/* 2x2, one mine at (0,0), every cell claiming one neighbour so nothing cascades. */
 const boardWith = (closed) => {
     const board = Array.from({ length: 2 }, () =>
         Array.from({ length: 2 }, () => ({ isMine: false, isOpen: true, isFlagged: false, nearbyMines: 1 }))
@@ -126,10 +120,8 @@ describe('the board the loser was racing on', () => {
 });
 
 /*
- * The winner's own flags stop the WINNER. Nothing stopped the other player:
- * both of their flags are still false, so they could carry on opening cells in
- * a race that had already been decided — broadcasting progress into a game
- * nobody was watching, and now doing it with every mine on screen.
+ * The winner's own flags stop only the WINNER. The other player's flags are
+ * both false, so they could carry on in a decided race with every mine shown.
  */
 describe('moves after the race has been decided', () => {
     const decided = () => racingRoom({ winnerSocket: WINNER });
@@ -165,14 +157,12 @@ describe('moves after the race has been decided', () => {
     });
 
     /*
-     * Both finishing at once is the one case that must still get through: the
-     * winner lock decides who is first, and the second player's move is already
-     * past this gate by then. Their board still has to be marked won.
+     * Both finishing at once must still get through: the winner lock decides
+     * who is first, and the second move is past this gate by then.
      */
     test('a move already in flight can still record a simultaneous finish', async () => {
-        // The snapshot the move is holding still says the race is open — it was
-        // read under the lock, before the other player's win landed. Only the
-        // re-read inside checkWin sees the winner.
+        // The snapshot still says the race is open (read under the lock before
+        // the other win landed); only the re-read inside checkWin sees the winner.
         const stillOpen = racingRoom({ player2Board: JSON.stringify(oneMoveFromWinning()) });
         client.hGetAll.mockImplementation(async (key) =>
             key.startsWith('room:') ? decided() : asLoser

@@ -8,13 +8,8 @@ const DESCRIPTION =
     "One Minesweeper board a day, identical for every player, ranked by time. One attempt. No sign-up, no download — play today's puzzle in your browser.";
 
 /**
- * Its own canonical, title and description, not inherited.
- *
- * Next merges metadata per top-level key, so a route that omits `alternates`
- * silently keeps the root layout's — which points at the homepage. On the
- * noindex routes that costs nothing; here it would tell Google this page is a
- * duplicate of `/` and drop it from the index, which is the opposite of why the
- * route exists.
+ * Its own canonical, not inherited: Next merges metadata per top-level key,
+ * and the root layout's `alternates` would mark this page a duplicate of `/`.
  */
 export const metadata: Metadata = {
     title: TITLE,
@@ -30,11 +25,10 @@ export const metadata: Metadata = {
 };
 
 /**
- * The daily challenge's own page.
- *
- * The prose below is the whole reason this is a route rather than a flag: it is
- * what a crawler and a first-time visitor both read before anything interactive
- * mounts. `DailyClient` swaps it for the board once the player opts in.
+ * The daily challenge's own page. The prose below is why this is a route rather
+ * than a flag: crawlers read it, and it is server-rendered. `DailyClient` renders
+ * it BELOW the board, so the page opens on the puzzle and the rules are a dialog.
+ * Headings start at h2 because the board renders the h1 (components/DailyChallenge.tsx).
  */
 export default function DailyPage() {
     return (
@@ -58,10 +52,10 @@ export default function DailyPage() {
 
             <DailyClient
                 intro={
-                    <main className="ms-prose mx-auto w-full max-w-2xl px-4 pt-10">
-                        <h1 className="text-pixel-xl md:text-pixel-2xl font-bold">
+                    <main className="ms-prose mx-auto w-full max-w-2xl px-4 pt-10 pb-12">
+                        <h2 className="text-pixel-xl md:text-pixel-2xl font-bold">
                             Minesweeper Daily Challenge
-                        </h1>
+                        </h2>
 
                         <p className="mt-6 text-body text-ink-muted">
                             One board a day. Everybody who plays today gets the identical layout, and
@@ -70,7 +64,7 @@ export default function DailyPage() {
 
                         <div className="mt-8 space-y-6 text-body">
                             <section>
-                                <h2 className="text-pixel-md font-bold">How it works</h2>
+                                <h3 className="text-pixel-md font-bold">How it works</h3>
                                 <p className="mt-3">
                                     The day&apos;s board is generated from a seed derived from the
                                     date, so it is the same for every player in the world and cannot
@@ -87,7 +81,7 @@ export default function DailyPage() {
                             </section>
 
                             <section>
-                                <h2 className="text-pixel-md font-bold">The leaderboard</h2>
+                                <h3 className="text-pixel-md font-bold">The leaderboard</h3>
                                 <p className="mt-3">
                                     Finish and you can put a name to your time. The board resets at
                                     midnight UTC, and so does the leaderboard — today&apos;s ranking
@@ -96,7 +90,7 @@ export default function DailyPage() {
                             </section>
 
                             <section>
-                                <h2 className="text-pixel-md font-bold">No 50/50 guesses</h2>
+                                <h3 className="text-pixel-md font-bold">No 50/50 guesses</h3>
                                 <p className="mt-3">
                                     Every daily board is checked for logical solvability before it
                                     ships, so a loss is a mistake rather than a coin flip. That
@@ -111,7 +105,7 @@ export default function DailyPage() {
                             </section>
 
                             <section>
-                                <h2 className="text-pixel-md font-bold">New to Minesweeper?</h2>
+                                <h3 className="text-pixel-md font-bold">New to Minesweeper?</h3>
                                 <p className="mt-3">
                                     The <Link href="/how-to-play">rules and the chording shortcut</Link>{" "}
                                     take about two minutes to read and will save you more than that

@@ -1,15 +1,9 @@
 // @vitest-environment jsdom
 /**
- * Ping interception on the board.
- *
- * This is the risky half of the feature: a click that was meant to POINT at a
- * cell must not also play it. Cell has four render branches acting from four
- * different handlers, which is why the interception lives on the grid in the
- * capture phase rather than inside Cell — and why the assertion that matters
- * here is always the negative one, that `openCell` was not called.
- *
- * The failure this guards is not subtle when it happens: a ping that opens the
- * cell it points at, on a mine, ends the game.
+ * Ping interception on the board: a click meant to POINT at a cell must not
+ * also play it. Cell has four branches acting from four handlers, so the
+ * interception lives on the grid in the capture phase, and the assertion that
+ * matters is the negative one, that `openCell` was not called.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
@@ -18,10 +12,8 @@ import Board from "./Board";
 import type { Cell as CellType } from "@/app/store";
 
 /*
- * jsdom has no ResizeObserver, and the board mounts three overlay layers that
- * measure themselves with one. Stubbed rather than mocked away, so the layers
- * still render — a ping ring sitting over the cell being clicked is exactly the
- * arrangement these tests are about.
+ * jsdom has no ResizeObserver; the overlay layers measure with one. Stubbed
+ * rather than mocked away, so a ping ring still sits over the cell clicked.
  */
 class NoopResizeObserver {
     observe() {}
@@ -40,13 +32,9 @@ const board: CellType[][] = [
 ];
 
 /*
- * `pingCell` DISARMS, because the real action does — one-shot is the whole
- * design (useGameActions.ts). A plain `vi.fn()` here is a fake that quietly
- * diverges from the thing it stands in for, and it hid a real bug: the arm
- * cleared on mousedown, so the mouseup and click that followed re-asked "is a
- * ping armed?", got "no", and handed the cell back to its own handlers. The
- * ping fired AND the cell opened under it. Caught by the smoke suite; this is
- * the unit-level guard that should have caught it first.
+ * `pingCell` DISARMS, as the real one-shot action does (useGameActions.ts). A
+ * plain `vi.fn()` hid a real bug: the arm cleared on mousedown, so mouseup and
+ * click re-asked "armed?", got "no", and the cell opened under the ping.
  */
 const actions = () => ({
     toggleFlag: vi.fn(),
@@ -65,8 +53,7 @@ const renderBoard = (props = actions()) => {
 /** A full left-click, in the order a browser fires it. */
 const clickCell = (name: RegExp, init: MouseEventInit = {}) => {
     const cell = screen.getByRole("gridcell", { name });
-    // The inner hit areas are what carry Cell's own onClick, so the event has
-    // to start where a real pointer would land, not on the wrapper.
+    // The inner hit areas carry Cell's own onClick, so start where a pointer lands.
     const target = (cell.firstElementChild as HTMLElement) ?? cell;
     fireEvent.mouseDown(target, { button: 0, ...init });
     fireEvent.mouseUp(target, { button: 0, ...init });
@@ -97,8 +84,7 @@ describe("with a ping armed", () => {
         expect(props.openCell).not.toHaveBeenCalled();
     });
 
-    // The opened-cell branch acts on mouse UP, so an interception that waited
-    // for the click would fire after the chord it was replacing.
+    // The opened-cell branch acts on mouse UP, so waiting for the click would be too late.
     it("does not chord an opened number", () => {
         const props = renderBoard();
         useMinesweeperStore.getState().setPingArmed(true);
@@ -155,9 +141,8 @@ describe("an ordinary click", () => {
 
 describe("PVP", () => {
     /*
-     * The client half of the server's rule. Both racers share a board, so a
-     * ping is a move hint — the server refuses it, and not emitting keeps a
-     * pointless click off the wire and out of the player's rate-limit bucket.
+     * The client half of the server's rule: racers share a board, so a ping is
+     * a move hint. Not emitting keeps it off the wire and out of the bucket.
      */
     it("plays the cell rather than pinging, even with Shift held", () => {
         const props = renderBoard();

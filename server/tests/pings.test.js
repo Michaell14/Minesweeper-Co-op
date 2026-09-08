@@ -1,14 +1,8 @@
 /**
- * The ping handler.
- *
- * One guard here matters more than everything else in this file: **a ping must
- * never reach a PVP room.** Both racers play the SAME board (`startPvpGame`
- * builds it once), so a cell somebody points at is a move hint delivered
- * straight to their opponent's screen — "this one is safe", or "this one is a
- * mine", is the entire content of a ping. Hover is suppressed for exactly this
- * reason; an emote is not, because it carries no board information.
- *
- * Same harness as emotes.test.js: the real registrations against the Redis fake.
+ * The ping handler. The guard that matters: a ping must never reach a PVP
+ * room, since both racers play the same board and a ping is a move hint.
+ * Hover is suppressed for the same reason; an emote carries no board info.
+ * Same harness as emotes.test.js: real registrations against the Redis fake.
  */
 
 const mockEmit = jest.fn();
@@ -17,10 +11,8 @@ const mockOn = jest.fn();
 
 jest.mock('../utils/initializeClient', () => ({
     app: { use: jest.fn(), get: jest.fn(), post: jest.fn(), put: jest.fn(), delete: jest.fn() },
-    // `sockets.sockets` is socket.io's live connection map, empty here for the
-    // same reason as in setup/mockInfra.js. Presence walks it on every connect
-    // (utils/presence.js); without it these suites boot the server against an
-    // `io` that socket.io could not produce, and log a caught failure per test.
+    // `sockets.sockets` is socket.io's live connection map; presence walks it
+    // on every connect (utils/presence.js). Same as setup/mockInfra.js.
     io: { on: mockOn, to: mockTo, use: jest.fn() , sockets: { sockets: new Map() } },
     server: { listen: jest.fn() },
 }));
@@ -42,7 +34,7 @@ const onConnection = mockOn.mock.calls.find(([event]) => event === 'connection')
 const ROOM = 'room-1';
 const ALICE = 'sock-alice';
 
-/** Connects a socket and returns both expression handlers it registered. */
+/** Connects a socket and returns both expression handlers. */
 const connect = async (id = ALICE) => {
     const handlers = {};
     const socket = {
@@ -63,10 +55,7 @@ const connect = async (id = ALICE) => {
     };
 };
 
-/*
- * Dimensions are part of the seed, not decoration: the handler bounds a ping
- * against the ROOM's board, so a room without them relays nothing.
- */
+/* Dimensions matter: the handler bounds a ping against the room's board. */
 const seedRoom = (mode = 'co-op', players = [ALICE], { numRows = 16, numCols = 16 } = {}) => {
     mockRedis.seed(`room:${ROOM}`, {
         mode,
@@ -114,10 +103,7 @@ describe('a valid ping', () => {
 });
 
 describe('PVP', () => {
-    /*
-     * The guard this whole feature turns on. If this test ever goes green with
-     * the mode check removed, pings have become a cheat in the race mode.
-     */
+    /* The guard the feature turns on: without it, pings are a cheat in the race. */
     test('never delivers a ping, however valid it looks', async () => {
         seedRoom('pvp');
         const { pingCell } = await connect();
@@ -127,8 +113,7 @@ describe('PVP', () => {
         expect(pingsSent()).toEqual([]);
     });
 
-    // The contrast that makes the rule legible: same room, same socket, and an
-    // emote goes through — a reaction says nothing about the board.
+    // Same room, same socket: an emote goes through, since it says nothing about the board.
     test('still delivers an emote from the same room', async () => {
         seedRoom('pvp');
         const { pingCell, sendEmote } = await connect();
@@ -159,11 +144,8 @@ describe('what it refuses, silently', () => {
     });
 
     /*
-     * The global 0..100 rule passes anything a small board cannot hold, and it
-     * has to: it runs before any room is loaded. On a 2x3 board (2, 3) is two
-     * cells past the last one in both axes, and a relayed ping is drawn and
-     * announced straight from these numbers — so the room's own dimensions are
-     * the only thing that can refuse it.
+     * The global 0..100 rule runs before any room is loaded, so the room's own
+     * dimensions are the only thing that can refuse an off-board ping.
      */
     describe('a cell the room does not have', () => {
         test.each([
@@ -179,8 +161,7 @@ describe('what it refuses, silently', () => {
             expect(pingsSent()).toEqual([]);
         });
 
-        // The same small board still relays its own last cell, so the rule is
-        // an off-by-one away from refusing every ping on it.
+        // The bound is an off-by-one away from refusing every ping on the board.
         test('but the last cell it does have still goes through', async () => {
             seedRoom('co-op', [ALICE], { numRows: 2, numCols: 3 });
             const { pingCell } = await connect();
@@ -190,8 +171,7 @@ describe('what it refuses, silently', () => {
             expect(pingsSent()).toEqual([{ id: ALICE, name: 'Alice', row: 1, col: 2, room: ROOM }]);
         });
 
-        // A room hash with no dimensions cannot bound anything; refuse rather
-        // than fall back to the global cap.
+        // No dimensions means nothing to bound against; refuse rather than fall back.
         test('a room with no dimensions stored', async () => {
             seedRoom('co-op', [ALICE], { numRows: '', numCols: '' });
             const { pingCell } = await connect();
@@ -203,10 +183,8 @@ describe('what it refuses, silently', () => {
     });
 
     /*
-     * (-1,-1) means "no longer hovering" to cellHover. A ping has no such
-     * state — it expires on its own — so the sentinel is just an off-board
-     * coordinate here, and `isValidCoordinate` is the right rule rather than
-     * `isValidHoverCoordinate`.
+     * A ping expires on its own, so cellHover's (-1,-1) sentinel is just an
+     * off-board coordinate here: `isValidCoordinate`, not `isValidHoverCoordinate`.
      */
     test('a room this socket is not in', async () => {
         seedRoom('co-op', ['sock-somebody-else']);
@@ -229,11 +207,7 @@ describe('what it refuses, silently', () => {
 describe('the expression bucket is shared with emotes', () => {
     beforeEach(() => jest.spyOn(performance, 'now').mockReturnValue(1000));
 
-    /*
-     * The reason there is one bucket rather than two: alternating between the
-     * events must not buy a client double the rate. Spend the whole allowance
-     * on emotes and the very next ping has to be refused.
-     */
+    /* One bucket, not two: alternating events must not buy double the rate. */
     test('emotes spend the allowance a ping would have used', async () => {
         seedRoom();
         const { pingCell, sendEmote } = await connect();

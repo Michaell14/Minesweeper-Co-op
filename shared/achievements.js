@@ -1,42 +1,21 @@
 /**
- * The achievement catalog — the one copy, imported by BOTH halves: the client
- * via `@/shared/achievements`, the server via `require('../../shared/achievements')`.
- * CommonJS for the same reason as boardConfig and events — see ARCHITECTURE.md §6.
- *
- * ## Why the catalog is shared, and declarative
- *
- * The client has to render LOCKED achievements and their progress, not just
- * earned ones, or the shelf only ever shows what you already have. So a
- * `counter` entry carries its metric and threshold as data: the client computes
- * `7 / 25` from the stats payload it already fetches, and the server evaluates
- * `metric >= threshold` from the same two fields. One rule, no second endpoint,
- * nothing to keep in step by hand.
- *
- * A `moment` entry is a predicate over one finished game — too varied to encode
- * as data, and there is no progress to show. Its predicate lives server-side in
- * `server/domain/achievements.js`, keyed by id; `achievements.test.js` fails if
- * the two sets ever disagree.
- *
- * `Object.freeze` for the same reason `shared/events.js` freezes: it makes
- * TypeScript infer the literal ids rather than widening them to `string`.
+ * The achievement catalog, imported by both halves (CommonJS, see
+ * ARCHITECTURE.md §6). Declarative so the client can draw LOCKED progress: a
+ * `counter` carries its metric and threshold as data, and both halves read the
+ * same two fields. A `moment` is a predicate over one finished game, kept
+ * server-side in `server/domain/achievements.js` keyed by id;
+ * `achievements.test.js` fails if the sets disagree. Frozen like
+ * `shared/events.js`, so TypeScript infers the literal ids.
  */
 
 const { ALL_PRESETS, DIFFICULTY_LEVELS } = require('./boardConfig');
 const { boardPartOf } = require('./boardKeys');
 
 /**
- * Every metric a `counter` may name, and their values for a stats snapshot —
- * the shape `getProfile` returns, which is also what the server assembles
- * mid-transaction. Shared so the progress the client draws and the threshold
- * the server awards on cannot drift.
- *
- * The metric NAMES are this function's keys; there is no separate list to keep
- * in step. Five are `user_stats` columns under the names the profile payload
- * already uses, so both halves read them off the same object; three are
- * derived here.
- *
- * Streaks are the BEST, never the current one — a lapsed streak must not
- * revoke a badge someone earned.
+ * Every metric a `counter` may name, from a stats snapshot (the `getProfile`
+ * shape, also what the server assembles mid-transaction). The keys ARE the
+ * metric list. Streaks are the best, never the current: a lapse must not
+ * revoke a badge.
  */
 const metricsFrom = (stats) => {
     const s = stats || {};
@@ -55,12 +34,7 @@ const metricsFrom = (stats) => {
     };
 };
 
-/*
- * Both kinds carry the same KEYS, differing only in their values. The two
- * shapes are one TypeScript type that way, so the client can read
- * `achievement.hidden` on any entry rather than narrowing a union at every
- * call site — worth the two null fields a moment carries.
- */
+/* Both kinds carry the same keys, so the client reads one type instead of a union. */
 const counter = (id, name, description, metric, threshold) =>
     Object.freeze({ id, name, description, metric, threshold, moment: false, hidden: false });
 
@@ -76,12 +50,8 @@ const moment = (id, name, description, options = {}) =>
     });
 
 /**
- * The catalog. Order is display order.
- *
- * Counters are retroactive by construction: the evaluator reads a SNAPSHOT
- * rather than a delta, so a returning player's next finished game grants
- * everything they already qualified for. Moments are not — they describe a
- * single game, and `game_results` only keeps the recent window.
+ * The catalog, in display order. Counters are retroactive (the evaluator reads
+ * a snapshot, not a delta); moments are not, since they describe one game.
  */
 const ACHIEVEMENTS = Object.freeze([
     counter('first-clear', 'First Clear', 'Clear your first board.', 'totalWins', 1),
@@ -118,12 +88,8 @@ const ACHIEVEMENTS = Object.freeze([
 ]);
 
 /**
- * '16x16/40' -> { rows, cols, mines }, or null. The key format is boardKeyOf's.
- *
- * The group suffix a co-op clear carries ('16x16/40@3') is dropped rather than
- * rejected: every predicate here asks about the BOARD, and clearing Extreme
- * with three friends is still clearing Extreme. Reading the whole key would
- * quietly stop awarding those the day records grew a player count.
+ * '16x16/40' -> { rows, cols, mines }, or null (boardKeyOf's format). The group
+ * suffix ('@3') is dropped, not rejected: every predicate asks about the board.
  */
 const parseBoardKey = (boardKey) => {
     if (typeof boardKey !== 'string') return null;
@@ -133,14 +99,10 @@ const parseBoardKey = (boardKey) => {
 };
 
 /**
- * The difficulty a board's density lands on, or null below Easy.
- *
- * **Rounding is the trap here.** `mineCountFor` rounds to whole mines and can
- * round DOWN past the density it came from: Large + Hard is 320 x 0.188 =
- * 60.16 -> 60 mines -> 0.1875, which is under 0.188. A bare `density >= level`
- * files that board as Medium. So the comparison carries a half-mine tolerance,
- * and `achievements.test.js` walks every shipped size/difficulty pair back to
- * its own label.
+ * The difficulty a board's density lands on, or null below Easy. `mineCountFor`
+ * rounds to whole mines and can land under the density it came from (Large +
+ * Hard: 60 mines is 0.1875 < 0.188), so the comparison carries a half-mine
+ * tolerance; `achievements.test.js` walks every preset back to its label.
  */
 const difficultyTierOf = (boardKey) => {
     const board = parseBoardKey(boardKey);
@@ -165,7 +127,7 @@ const isPresetBoard = (boardKey) => {
     return ALL_PRESETS.some((p) => p.rows === board.rows && p.cols === board.cols && p.mines === board.mines);
 };
 
-/** Progress toward a counter, for the shelf. Moments have none — null. */
+/** Progress toward a counter; null for a moment. */
 const progressOf = (achievement, metrics) => {
     if (typeof achievement.metric !== 'string') return null;
     const value = metrics[achievement.metric] ?? 0;
@@ -173,18 +135,10 @@ const progressOf = (achievement, metrics) => {
 };
 
 /**
- * Qualified, but the award has not landed.
- *
- * Normally impossible — the award shares a transaction with the aggregate that
- * triggers it — but lowering a threshold puts everyone who already qualifies
- * here until their next game. Two surfaces show it (the badge shelf and the
- * locked avatars in the picker), which is why the predicate and the sentence
- * below both live here: a full bar in one place and a different explanation in
- * the other reads as two bugs rather than one state.
- *
- * Says nothing about whether the achievement is ALREADY earned — callers know
- * that and this deliberately does not, so an earned badge is not described as
- * pending forever.
+ * Qualified, but the award has not landed: lowering a threshold puts existing
+ * qualifiers here until their next game. Shared by the shelf and the avatar
+ * picker so both explain the state the same way. Says nothing about whether
+ * it is already earned; callers know that.
  *
  * @param {{ metric: string | null, threshold: number | null }} achievement
  * @param {Record<string, number>} metrics
@@ -195,7 +149,7 @@ const isPending = (achievement, metrics) => {
     return !!progress && progress.value >= progress.threshold;
 };
 
-/** What both surfaces say about that state, in one place. */
+/** The wording both surfaces use for that state. */
 const PENDING_NOTE = 'Lands when you next finish a game.';
 
 module.exports = {

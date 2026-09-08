@@ -28,11 +28,8 @@ app.get('/', (req, res) => {
 });
 
 /**
- * Which commit this process is running.
- *
- * HEROKU_SLUG_COMMIT is only set when dyno metadata is enabled, so the usual
- * source is version.json, written at build time by scripts/write-version.js.
- * Read once: it cannot change without a restart.
+ * Which commit this process is running. HEROKU_SLUG_COMMIT needs dyno metadata
+ * enabled, so the usual source is version.json from scripts/write-version.js.
  */
 const buildCommit = (() => {
     if (process.env.HEROKU_SLUG_COMMIT) return process.env.HEROKU_SLUG_COMMIT;
@@ -43,10 +40,7 @@ const buildCommit = (() => {
     }
 })();
 
-/**
- * Health check. `commit` is what lets the post-deploy check tell a finished
- * release from the one it replaced — see .github/workflows/ci.yml.
- */
+/** Health check. `commit` lets the post-deploy check tell a release from the one it replaced. */
 app.get('/health', (req, res) => {
     res.json({ status: 'ok', socketio: 'initialized', commit: buildCommit });
 });

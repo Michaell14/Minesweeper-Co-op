@@ -18,22 +18,16 @@ import {
 } from '@/lib/profileApi';
 
 /**
- * Account management on /profile: who you are signed in as, the rename
- * control, sign out, and — at the very bottom, deliberately quiet — account
- * deletion. This used to live in the account dialog; now the dialog only
- * signs you in, and everything about a signed-in account lives here.
- *
- * Deletion is a muted text link, not a button in a row, and the confirm
- * dialog only arms once the display name is typed back: it is the one
- * irreversible action in the app, so it gets real friction.
+ * Account management on /profile: identity, rename, sign out, and at the very
+ * bottom, quietly, deletion. Deletion is a muted link and the confirm dialog
+ * only arms once the display name is typed back: the one irreversible action
+ * in the app gets real friction.
  */
 export interface AccountPanelProps {
     /**
-     * What this account has earned, for the locked avatars. Undefined while the
-     * stats payload is still in flight or unavailable — the panel renders
-     * without it on purpose (sign-out has to stay reachable when the stats are
-     * down), so a gated face reads as locked until proven otherwise. The wrong
-     * way round would offer a face the save then refuses.
+     * What this account has earned, for the locked avatars. Undefined while
+     * stats are in flight or down; the panel renders without it so sign-out
+     * stays reachable, and a gated face reads as locked until proven otherwise.
      */
     achievements?: EarnedAchievement[];
     /** For the progress under a locked face. Same source as the badge shelf. */
@@ -41,9 +35,7 @@ export interface AccountPanelProps {
 }
 
 export default function AccountPanel({ achievements, stats }: AccountPanelProps) {
-    // The account row from the game server. 'unavailable' covers everything
-    // from "Postgres not provisioned" to "Heroku is down" — states the player
-    // can do nothing about beyond trying later.
+    // 'unavailable' covers everything the player can do nothing about beyond trying later.
     const [profile, setProfile] = React.useState<ProfileUser | null>(null);
     const [profileState, setProfileState] = React.useState<'loading' | 'ready' | 'unavailable'>('loading');
     const [nameDraft, setNameDraft] = React.useState('');
@@ -59,8 +51,7 @@ export default function AccountPanel({ achievements, stats }: AccountPanelProps)
                     setNameDraft(user.displayName);
                 }
             })
-            // 'loading' is the one state with no way out on its own, and it
-            // hides sign-out and deletion while it lasts.
+            // 'loading' has no way out on its own and hides sign-out and deletion.
             .catch(() => { if (!cancelled) setProfileState('unavailable'); });
         return () => { cancelled = true; };
     }, []);
@@ -70,14 +61,10 @@ export default function AccountPanel({ achievements, stats }: AccountPanelProps)
     const [saveError, setSaveError] = React.useState<string | null>(null);
 
     /*
-     * Saves are SERIALISED by profileApi — one request at a time, in click
-     * order — so a response is always the newest server state when it
-     * arrives and applies unconditionally. What survives here is per-field
-     * bookkeeping: `lastConfirmed` is the newest server-confirmed profile,
-     * which is what a failed pick reverts to (a snapshot taken at click time
-     * could predate a queued rename that succeeded meanwhile), and
-     * `latestPick` lets a superseded pick's outcome yield to the newer
-     * pick's — that pick's own response settles the display.
+     * Saves are SERIALISED by profileApi, so a response is always the newest
+     * server state. `lastConfirmed` is what a failed pick reverts to (a snapshot
+     * at click time could predate a queued rename), and `latestPick` lets a
+     * superseded pick's outcome yield to the newer one's.
      */
     const lastConfirmed = React.useRef<ProfileUser | null>(null);
     const latestPick = React.useRef(0);
@@ -102,11 +89,7 @@ export default function AccountPanel({ achievements, stats }: AccountPanelProps)
         }
     };
 
-    /*
-     * The avatar saves on selection, optimistically: the card lights at once,
-     * and a refused/failed save puts the old one back and says why. A "Save"
-     * button here would demote picking a face to a two-step form.
-     */
+    /* The avatar saves on selection, optimistically; a refused save puts the old one back and says why. */
     const [avatarError, setAvatarError] = React.useState<string | null>(null);
     const saveAvatar = async (id: string) => {
         if (!profile || id === profile.avatar) return;
@@ -115,17 +98,13 @@ export default function AccountPanel({ achievements, stats }: AccountPanelProps)
         setAvatarError(null);
         try {
             const user = await updateAvatar(id);
-            // Server-confirmed either way; shown only while this is still
-            // the latest pick — a newer one's optimistic state stands until
-            // its own response settles it.
+            // Shown only while this is still the latest pick; a newer one's optimistic state stands.
             lastConfirmed.current = user;
             if (latestPick.current === myPick) setProfile(user);
         } catch (error) {
             // A newer pick owns the field; its own outcome governs.
             if (latestPick.current !== myPick) return;
-            // The failed write changed nothing server-side, so the last
-            // confirmed profile IS the truth — and the footer already heard
-            // it announced when it was confirmed.
+            // The failed write changed nothing server-side, so the last confirmed profile is the truth.
             if (lastConfirmed.current) setProfile(lastConfirmed.current);
             setAvatarError(
                 error instanceof ProfileApiError ? error.message : 'Could not save right now',
@@ -133,25 +112,17 @@ export default function AccountPanel({ achievements, stats }: AccountPanelProps)
         }
     };
 
-    /*
-     * What each avatar costs, or null if it costs nothing. `canUseAvatar` is the
-     * same function the server enforces with, so the lock drawn here and the
-     * lock applied there cannot drift — this one is only the courtesy copy.
-     */
+    /* What each avatar costs, or null. `canUseAvatar` is the server's own rule, so the locks cannot drift. */
     const lockFor = React.useMemo(() => {
         const earned = (achievements ?? []).map((a) => a.id);
         const metrics = metricsFrom(stats);
         return (id: string): string | null => {
             if (canUseAvatar(id, { earned, current: profile?.avatar ?? null })) return null;
             const achievement = ACHIEVEMENTS.find((a) => a.id === requirementFor(id));
-            // Unreachable while avatarUnlocks.test.js passes, but an
-            // achievement may be RETIRED, and a lock with no legible reason is
-            // worse than a vague one.
+            // Unreachable while avatarUnlocks.test.js passes, but an achievement may be RETIRED.
             if (!achievement) return 'Locked';
             if (!stats) return achievement.description;
-            // The badge shelf shows this same state; both read one predicate
-            // and one sentence, or a full bar here and a different explanation
-            // there reads as two bugs rather than one.
+            // The badge shelf reads the same predicate and sentence, or the two read as two bugs.
             if (isPending(achievement, metrics)) {
                 return `${achievement.description} ${PENDING_NOTE}`;
             }
@@ -173,8 +144,7 @@ export default function AccountPanel({ achievements, stats }: AccountPanelProps)
         setDeleting(true);
         const ok = await deleteAccount();
         if (ok) {
-            // The account row is gone; end the session too. Redirect closes
-            // every dialog by replacing the page.
+            // End the session too; the redirect closes every dialog.
             clearBridgeToken();
             await signOut({ callbackUrl: '/' });
             return;
@@ -232,8 +202,7 @@ export default function AccountPanel({ achievements, stats }: AccountPanelProps)
                                             setSaved(false);
                                         }}
                                         onKeyDown={(e) => {
-                                            // No form here — Enter saves purely
-                                            // as a convenience, like the button.
+                                            // No form here; Enter saves as a convenience, like the button.
                                             if (e.key === 'Enter') {
                                                 e.preventDefault();
                                                 void saveName();
@@ -267,9 +236,7 @@ export default function AccountPanel({ achievements, stats }: AccountPanelProps)
                                                 disabled={lock !== null}
                                                 description={
                                                     <>
-                                                        {/* The face is decoration; the
-                                                            requirement is not, so only
-                                                            one of the two is hidden. */}
+                                                        {/* The face is decoration; the requirement is not. */}
                                                         <span
                                                             aria-hidden="true"
                                                             className={lock ? 'opacity-50' : undefined}>
@@ -351,8 +318,7 @@ export default function AccountPanel({ achievements, stats }: AccountPanelProps)
                         maxLength={16}
                         onChange={(e) => setConfirmDraft(e.target.value)}
                         onKeyDown={(e) => {
-                            // Enter would submit the dialog's method="dialog"
-                            // form — cancelling. Arm-and-fire is click-only.
+                            // Enter would submit the method="dialog" form and cancel; arm-and-fire is click-only.
                             if (e.key === 'Enter') e.preventDefault();
                         }}
                     />

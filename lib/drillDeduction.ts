@@ -12,24 +12,16 @@ export interface LessonRules {
     /** Dropping any one of these must leave the drill unsolved. */
     require: readonly RuleId[];
     /**
-     * Digits, AT LEAST ONE of which must appear in a row or column, so a drill
-     * actually shows a shape it is meant to teach. NECESSARY, not sufficient —
-     * '1211' contains '11' as well as '12' — which is why `firstSubset` carries
-     * the other half of the distinction where a lesson names one pattern.
+     * Digits, at least one of which must appear in a row or column. Necessary,
+     * not sufficient ('1211' contains '11' and '12'), so `firstSubset` carries
+     * the other half where a lesson names one pattern.
      */
     pattern?: readonly string[];
     /**
-     * What the first subset step must prove, scanning the board the way
-     * `deduce` does — top-left onward. The 1-1 rule is the equal-counts case
-     * and proves cells safe; the 1-2 family differs by the count and proves
-     * mines.
-     *
-     * Deliberately scan-ORDER dependent, unlike `pattern`, which is
-     * reflection-invariant. A board and its mirror can lead with different
-     * steps and so belong to different lessons — which is the point: it forces
-     * a drill to be oriented so the lesson's own step is the one the player
-     * meets first. `one-one-c` and `one-two-a` are exactly such a mirror pair,
-     * and each is filed correctly.
+     * What the first subset step must prove, in `deduce`'s scan order (1-1
+     * proves safe, the 1-2 family proves mines). Scan-order dependent, unlike
+     * `pattern`: a board and its mirror can lead with different steps, which
+     * forces a drill to be oriented so the lesson's own step comes first.
      */
     firstSubset?: 'mine' | 'safe';
 }
@@ -40,14 +32,9 @@ export const LESSON_RULES: Record<LessonId, LessonRules> = {
     'one-two': { allow: ALL_RULES, require: ['subset'], pattern: ['12'], firstSubset: 'mine' },
     'one-two-one': { allow: ALL_RULES, require: ['subset'], pattern: ['121'], firstSubset: 'mine' },
     'one-two-two-one': { allow: ALL_RULES, require: ['subset'], pattern: ['1221'], firstSubset: 'mine' },
-    // The general rule, so neither shape nor direction is constrained.
+    // The general rule: neither shape nor direction is constrained.
     'reduction': { allow: ALL_RULES, require: ['subset'] },
-    /*
-     * Bigger boards where a taught pattern has to be FOUND. Any of the named
-     * shapes counts, and `firstSubset` is deliberately absent: on a board this
-     * size the first subset step lands wherever the scan reaches it, so pinning
-     * its direction would assert nothing.
-     */
+    /* Bigger boards where a pattern must be found; no `firstSubset`, since the scan lands anywhere. */
     'in-the-wild': { allow: ALL_RULES, require: ['subset'], pattern: ['11', '12', '121', '1221'] },
 };
 
@@ -68,7 +55,7 @@ function neighbours(rows: number, cols: number, r: number, c: number): Coord[] {
     return out;
 }
 
-/** An opened cell's outstanding mine count over its still-unknown neighbours. */
+/** An opened cell's outstanding mine count over its unknown neighbours. */
 interface Constraint {
     remaining: number;
     unknown: string[];
@@ -225,11 +212,8 @@ export function adjacentMines(layout: readonly string[], r: number, c: number): 
 }
 
 /**
- * Every way a pattern can be read off the board: each row and column, forwards
- * and backwards. Reflection is a symmetry of Minesweeper — a 1-2 met from the
- * other end is a 2-1 and the same pattern — so a gate that only scanned
- * left-to-right and top-to-bottom would reject boards that teach it perfectly
- * well.
+ * Each row and column, forwards and backwards: a 1-2 met from the other end
+ * is the same pattern, so a one-direction scan would reject good boards.
  */
 function lines(layout: readonly string[]): string[] {
     const cols = layout.length === 0 ? 0 : layout[0].length;
@@ -305,12 +289,7 @@ export function validateDrill(drill: Drill): string[] {
     compare('mine', provable.mines, solution.flag);
     compare('safe', provable.safe, solution.open);
 
-    /*
-     * Every mine must be provable, not just the declared ones. An undeducible
-     * mine takes a lucky flag — ground truth calls it correct — but is absent
-     * from the solution, so the marked set can never equal it and the drill
-     * cannot be finished.
-     */
+    /* An undeducible mine is absent from the solution, so the marked set can never equal it. */
     const provenMines = new Set(provable.mines.map(([r, c]) => key(r, c)));
     for (let r = 0; r < rows; r++) {
         for (let c = 0; c < cols; c++) {
@@ -320,10 +299,7 @@ export function validateDrill(drill: Drill): string[] {
         }
     }
 
-    /*
-     * A covered cell nothing can reach is never flagged and never opened, so
-     * the board can be "solved" with it still sitting there looking unfinished.
-     */
+    /* A covered cell nothing reaches is never resolved, so the board looks unfinished when solved. */
     const settled = new Set([...provable.mines, ...provable.safe].map(([r, c]) => key(r, c)));
     for (let r = 0; r < rows; r++) {
         for (let c = 0; c < cols; c++) {
@@ -367,11 +343,7 @@ export function validateDrill(drill: Drill): string[] {
     return problems;
 }
 
-/**
- * The next cell worth pointing at, in DEDUCTION order rather than board order —
- * a hint should offer the step the rules reach next, not whichever cell happens
- * to come first on the board.
- */
+/** The next cell worth pointing at, in deduction order rather than board order. */
 export function nextHint(
     layout: readonly string[],
     done: readonly Coord[],

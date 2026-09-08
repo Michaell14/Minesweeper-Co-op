@@ -1,12 +1,8 @@
 /*
- * A range input in the Switch's visual language: square thumb, square track,
- * no rounding anywhere. The native input is restyled rather than replaced —
- * keyboard, drag and screen-reader behaviour come free and cannot silently
- * break the way a div-built slider's do.
- *
- * The two vendor pseudo-element blocks are deliberately NOT comma-joined:
- * one unrecognised selector in a group invalidates the whole rule, so a
- * shared block styles neither browser.
+ * A range input in the Switch's visual language: square thumb, square track.
+ * The native input is restyled, not replaced, so keyboard, drag and screen
+ * reader behaviour come free. The two vendor pseudo-element blocks are NOT
+ * comma-joined: one unrecognised selector invalidates the whole rule.
  */
 
 .slider {

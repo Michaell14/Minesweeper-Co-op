@@ -1,9 +1,8 @@
 // @vitest-environment jsdom
 /**
- * The daily replay: a resumed terminal attempt now carries its FINAL board,
- * and the handler must recreate the state a live finish leaves behind —
- * board mounted, mines drawable, clock frozen at the recorded time. jsdom
- * (unlike useGameEvents.test.ts) because this handler opens dialogs.
+ * The daily replay: a resumed terminal attempt carries its FINAL board, and
+ * the handler must recreate what a live finish leaves behind. jsdom because
+ * this handler opens dialogs.
  */
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { useMinesweeperStore } from "@/app/store";

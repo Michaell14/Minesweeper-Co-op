@@ -1,12 +1,7 @@
 /**
- * The design system.
- *
- * Import from `@/components/ds` — never from a file inside it. Everything here
- * is driven by the tokens in app/tokens.css, so an alternate palette moves all
- * of it at once and no component carries a colour of its own.
- *
- * Two border treatments, and the distinction is deliberate (see
- * pixel.module.css): controls are notched, regions are boxed.
+ * The design system. Import from `@/components/ds`, never from a file inside
+ * it. Everything is driven by app/tokens.css. Controls are notched, regions
+ * are boxed (pixel.module.css).
  */
 export { default as Avatar } from "./Avatar";
 export { default as Badge } from "./Badge";
@@ -19,9 +14,8 @@ export { default as Field } from "./Field";
 export { default as Input } from "./Input";
 export { default as Panel } from "./Panel";
 export { default as Slider } from "./Slider";
-// Sprite and its defs only: the art table and the rect renderer behind them are
-// internals, and a caller hand-rolling one would bypass the <use> indirection
-// that keeps 512 cells cheap. The /ds catalog reaches past this deliberately.
+// Sprite and its defs only: hand-rolling the art would bypass the <use>
+// indirection that keeps 512 cells cheap. The /ds catalog reaches past this.
 export { default as Sprite, SpriteDefs } from "./sprites";
 export { default as Switch } from "./Switch";
 export { default as Table } from "./Table";

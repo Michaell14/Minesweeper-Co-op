@@ -7,16 +7,15 @@ import type { Cell } from "@/state/types";
 import { useKeyboardControls, type KeyboardActions } from "./useKeyboardControls";
 
 /**
- * Keyboard play. The hook owns window listeners and reads the store at event
- * time, so everything here is: seed the store, dispatch a real KeyboardEvent on
- * the window, assert on the action mocks and on kbCursor.
+ * Keyboard play: seed the store, dispatch a real KeyboardEvent on the window,
+ * assert on the action mocks and kbCursor.
  */
 
 const closed = (): Cell => ({ isMine: false, isOpen: false, isFlagged: false, nearbyMines: 0 });
 const open = (nearbyMines: number): Cell => ({ isMine: false, isOpen: true, isFlagged: false, nearbyMines });
 const flagged = (): Cell => ({ isMine: false, isOpen: false, isFlagged: true, nearbyMines: 0 });
 
-/** A 3x3 all-closed board; the centre (1,1) is where the cursor first shows. */
+/** 3x3 all closed; the cursor first shows at the centre (1,1). */
 const closedBoard = () => [
     [closed(), closed(), closed()],
     [closed(), closed(), closed()],
@@ -245,10 +244,8 @@ describe("actions", () => {
 
 describe("pinging with P", () => {
     /*
-     * A plain key, not a modifier: the guard at the top of the handler drops
-     * every keystroke carrying Ctrl, Meta or Alt, so a modifier binding would
-     * be dead on arrival — and Shift, the one that gets through, is the MOUSE
-     * shortcut. No arming step either: the cursor already says which cell.
+     * A plain key: the handler drops Ctrl/Meta/Alt keystrokes, and Shift is
+     * the mouse shortcut. No arming step; the cursor already says which cell.
      */
     test("points at the cell under the cursor", () => {
         const props = actions();
@@ -269,8 +266,7 @@ describe("pinging with P", () => {
         expect(props.pingCell).not.toHaveBeenCalled();
     });
 
-    // Both racers share a board, so a ping is a move hint; the server refuses
-    // it and the client does not spend a rate-limit token finding out.
+    // A ping is a move hint on a shared board; refused server-side anyway.
     test("is inert in PVP", () => {
         const props = actions();
         render(<Probe {...props} />);
@@ -285,7 +281,7 @@ describe("pinging with P", () => {
         expect(props.pingCell).not.toHaveBeenCalled();
     });
 
-    // The daily passes no handler at all: single-player, nobody to point at.
+    // The daily passes no handler: nobody to point at.
     test("does nothing where no ping action was given", () => {
         const props = actions();
         const { pingCell, ...withoutPing } = props;
@@ -308,7 +304,7 @@ describe("pinging with P", () => {
         expect(props.pingCell).toHaveBeenCalledTimes(1);
     });
 
-    // P is a letter, so it must stay out of the way of anything being typed.
+    // P is a letter, so it must not interrupt typing.
     test("does not fire while a text field has focus", () => {
         const props = actions();
         render(<Probe {...props} />);
@@ -395,10 +391,8 @@ describe("guards", () => {
     });
 
     /*
-     * Closing a dialog (or clicking Reset) parks focus on a button, and no
-     * cell is focusable, so a wholesale interactive-focus guard stranded a
-     * keyboard-only player with every board key dead. A button only owns
-     * Enter/Space; movement takes the keyboard back by blurring it.
+     * Closing a dialog parks focus on a button, so a wholesale focus guard
+     * stranded keyboard players. A button owns only Enter/Space; movement blurs it.
      */
     test("a focused button keeps Enter/Space but yields the movement keys", () => {
         const a = actions();
@@ -412,11 +406,11 @@ describe("guards", () => {
         expect(a.openCell).not.toHaveBeenCalled(); // Space still means the button
 
         key("ArrowRight");
-        expect(state().kbCursor).toEqual({ r: 1, c: 2 }); // movement got through...
-        expect(document.activeElement).not.toBe(button);  // ...and took the keyboard back
+        expect(state().kbCursor).toEqual({ r: 1, c: 2 }); // movement got through
+        expect(document.activeElement).not.toBe(button);  // and took the keyboard back
 
         key(" ");
-        expect(a.openCell).toHaveBeenCalledWith(1, 2); // so reveal works again
+        expect(a.openCell).toHaveBeenCalledWith(1, 2);
     });
 
     test("the HUD switch (a checkbox) yields like a button, not like an input", () => {

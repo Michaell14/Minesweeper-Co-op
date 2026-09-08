@@ -1,10 +1,8 @@
 // @vitest-environment jsdom
 /**
- * The friends panel's silent failures: an outage that renders as an empty
- * graph ("you have no friends" and "we cannot tell" are different sentences),
- * a refused code that looks like it worked, and request rows whose buttons
- * stop naming who they act on — three Accept buttons with no name attached are
- * unusable to a screen reader.
+ * The friends panel's silent failures: an outage rendered as an empty graph,
+ * a refused code that looks like it worked, and buttons that stop naming who
+ * they act on.
  */
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -58,11 +56,7 @@ describe('the account\'s own code', () => {
 });
 
 describe('an outage', () => {
-    /*
-     * The distinction this panel exists to keep: null from the API is "we
-     * cannot tell", and rendering it as an empty list would tell somebody they
-     * have no friends when the truth is the server is down.
-     */
+    /* null from the API is "we cannot tell", not "no friends". */
     it('says so rather than drawing an empty graph', async () => {
         fetchFriends.mockResolvedValue(null);
         render(<FriendsPanel />);
@@ -84,11 +78,7 @@ describe('adding by code', () => {
         expect(await screen.findByText('Request sent.')).toBeTruthy();
     });
 
-    /*
-     * A refusal is an ANSWER, not a failure — and it must not look like one
-     * either. Re-fetching on a refused code would redraw the same graph and
-     * make a typo look like it did something.
-     */
+    /* Re-fetching on a refused code would make a typo look like it did something. */
     it('shows a refusal without reloading the graph', async () => {
         addFriendByCode.mockResolvedValue({ ok: false, message: 'No account with that code' });
         render(<FriendsPanel />);
@@ -118,7 +108,7 @@ describe('adding by code', () => {
 describe('requests waiting on me', () => {
     beforeEach(() => fetchFriends.mockResolvedValue(graph({ incoming: [PAT] })));
 
-    // Three Accept buttons in a list are indistinguishable without the name.
+    // Three Accept buttons are indistinguishable without the name.
     it('names who each button acts on', async () => {
         render(<FriendsPanel />);
         expect(await screen.findByRole('button', { name: 'Accept Pat' })).toBeTruthy();
@@ -161,11 +151,7 @@ describe('the lists', () => {
         expect(screen.queryByRole('button', { name: 'Accept Sam' })).toBeNull();
     });
 
-    /*
-     * The blocker's way back. Blocking is the only edge you cannot undo
-     * without seeing it — off the list, the other person's code simply stops
-     * working with nothing on screen to explain it.
-     */
+    /* The blocker's way back; off the list, a block could never be lifted. */
     it('lists people I blocked so the block can be lifted', async () => {
         fetchFriends.mockResolvedValue(graph({ blocked: [SAM] }));
         render(<FriendsPanel />);

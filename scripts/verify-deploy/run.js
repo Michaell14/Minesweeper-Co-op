@@ -1,27 +1,12 @@
 /**
- * Post-deploy smoke test: does the DEPLOYED backend actually behave?
+ * Post-deploy smoke test against the DEPLOYED backend: `npm test` mocks
+ * infrastructure and `test:ui` drives a local stack, so neither says anything
+ * about production. Connects a real socket.io client and plays enough of a game
+ * to prove PVP deals both players the SAME board with no mine positions in the
+ * payload (ARCHITECTURE.md §5, §3.1) and scoring is a point per cell (§8).
  *
- * `npm test` mocks Redis and io, and `npm run test:ui` drives a local stack.
- * Neither says anything about production. This connects a real socket.io client
- * to a running backend and plays enough of a game to prove the rules that matter
- * still hold — the two that are invisible from the outside and expensive to get
- * wrong:
- *
- *   1. PVP deals both players the SAME board (ARCHITECTURE.md §5), with the
- *      shared opening already revealed and no mine positions in the payload.
- *   2. Scoring is one point per cell opened, in both modes (§8).
- *
- * It also re-checks the projection guarantee — that a client is never sent mine
- * positions for closed cells — which is the one bug here that was a security
- * issue rather than a gameplay one.
- *
- * Usage:
- *   npm run verify:deploy                    # against production
- *   VERIFY_SERVER=http://localhost:3001 npm run verify:deploy
- *
- * This creates real rooms on the target. They are ordinary short-lived rooms
- * with random codes, the same as any player would make, and nothing is left
- * running — but it is not a read-only check, so point it at a backend you own.
+ * Usage: npm run verify:deploy, or VERIFY_SERVER=http://localhost:3001 for a
+ * local stack. Creates real short-lived rooms, so point it at a backend you own.
  */
 
 const { io } = require('socket.io-client');
@@ -53,12 +38,8 @@ const connect = () =>
     });
 
 /**
- * Resolves with an event's payload.
- *
- * Takes args[0] deliberately: socket.io hands the listener every argument, and
- * returning the whole array when there happened to be more than one produced a
- * payload that looked like a board and wasn't. That mistake cost real debugging
- * time, so it is pinned here rather than left to the caller.
+ * Resolves with an event's payload. args[0], not the whole array: socket.io
+ * hands the listener every argument, and an array once passed for a board.
  */
 const once = (socket, event, ms = 20000) =>
     new Promise((resolve, reject) => {
@@ -73,16 +54,10 @@ const roomCode = () => `vd${Math.floor(Math.random() * 90000 + 10000)}`;
 const BOARD = { numRows: 16, numCols: 16, numMines: 40 };
 
 /**
- * Plays one cell and describes what came back.
- *
- * Comparing the two pvpBoardUpdate payloads is NOT enough on its own:
- * startPvpGame emits the shared board it just built, so those payloads match
- * even if the boards actually STORED for the two players differ. (Verified —
- * dealing player 2 their own board again passes a payload-only check.) Playing a
- * cell is what reads the stored board back, so this is the check with teeth.
- *
- * Resolves to null on silence, so a player whose board has the cell already open
- * is reported as a difference rather than hanging the run.
+ * Plays one cell and describes what came back. Comparing the two pvpBoardUpdate
+ * payloads is not enough: startPvpGame emits the board it just built, so they
+ * match even when the STORED boards differ. Playing a cell reads the stored
+ * board back. Resolves to null on silence rather than hanging the run.
  */
 const probeCell = (socket, room, row, col, ms = 4000) =>
     new Promise((resolve) => {
@@ -146,8 +121,7 @@ async function verifyPvp() {
         const centre = hostPayload.board[Math.floor(BOARD.numRows / 2)][Math.floor(BOARD.numCols / 2)];
         check(centre.isOpen === true, 'the shared start cell is open for both players');
 
-        // The boards each player will actually PLAY, not just the ones they were
-        // shown. Same closed cell for both; identical boards must answer alike.
+        // Same closed cell for both: the boards they will actually PLAY must answer alike.
         let target = null;
         hostPayload.board.forEach((cells, row) =>
             cells.forEach((cell, col) => {
@@ -205,10 +179,8 @@ async function verifyScoring() {
 }
 
 /**
- * The account API surface, without an account: an unauthenticated GET /api/me
- * must answer 401 (auth configured and mounted) or 503 (mounted, database not
- * provisioned). Anything else — 404 especially — means the routes never made
- * it into the deploy.
+ * The account API without an account: GET /api/me must answer 401 (auth
+ * mounted) or 503 (database not provisioned). 404 means the routes never deployed.
  */
 async function verifyAccountApi() {
     console.log(bold('\n--- ACCOUNT API ---'));

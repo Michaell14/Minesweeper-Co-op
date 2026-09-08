@@ -1,15 +1,7 @@
 /**
- * Reading an action lock off the Redis mock.
- *
- * `withLock` does not acquire with the caller's owner string, and does not
- * release with a bare DEL — both for the same reason. A move can outlive its
- * lease, and a release that only names a key would then delete whichever move
- * acquired it next; on a PVP or daily lock, that next move is usually the SAME
- * socket, so the owner alone cannot tell the two apart either. So it acquires
- * with a per-acquisition token and releases through an ownership-checked script.
- *
- * These keep the tests reading like the behaviour they are about rather than
- * like the mechanism, which three files would otherwise each spell out.
+ * Reading an action lock off the Redis mock. `withLock` acquires with a
+ * per-acquisition token and releases through an ownership-checked script (a
+ * move can outlive its lease), so tests match on the owner and on the script.
  */
 
 /** The value an action lock is held with: this owner, plus a unique suffix. */

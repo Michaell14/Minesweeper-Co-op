@@ -1,8 +1,7 @@
 // @vitest-environment jsdom
 /**
- * The "new since you last looked" watermark. Both failure modes are silent:
- * a watermark set too high suppresses every badge from then on, and never
- * writing one at all means a player's first achievement announces nothing.
+ * The "new since you last looked" watermark. Both failures are silent: too
+ * high suppresses every badge; never written, a first achievement is silent.
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { markAchievementsSeen, newlyEarned } from './achievementsSeen';
@@ -33,11 +32,7 @@ describe('newlyEarned', () => {
         expect(newlyEarned(SHELF).size).toBe(0);
     });
 
-    /*
-     * The gap worth having a test for: looking at an EMPTY shelf has to be
-     * distinguishable from never looking, or a new player's very first
-     * achievement is silently already-seen.
-     */
+    /* Looking at an EMPTY shelf must differ from never looking, or a first achievement is already-seen. */
     it('flags the first achievement after an empty shelf was seen', () => {
         markAchievementsSeen([]);
         expect([...newlyEarned([SHELF[2]])]).toEqual(['first-clear']);

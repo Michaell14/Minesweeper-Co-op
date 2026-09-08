@@ -1,10 +1,8 @@
 // @vitest-environment jsdom
 /**
- * The RECEIVE side of a reaction — the half `settings.emotes` governs.
- *
- * Applied in the handler rather than in the component on purpose: an opted-out
- * player should accumulate no feed state and hear no blip, not render an empty
- * list. Testing it here is testing the thing the setting actually promises.
+ * The RECEIVE side of a reaction, which `settings.emotes` governs. Applied in
+ * the handler, not the component: an opted-out player should accumulate no
+ * feed state and hear no blip.
  */
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { useMinesweeperStore } from "@/app/store";
@@ -26,8 +24,7 @@ const receive = (payload: { id: string; name: string; emote: string; room?: stri
 beforeEach(() => {
     state().clearPlayerEmotes();
     state().setSetting("emotes", true);
-    // `leftARoom` latches for the life of the session, so a test that leaves a
-    // room would otherwise carry that into the next one. The store is shared.
+    // `leftARoom` latches for the session, and the store is shared across tests.
     useMinesweeperStore.setState({ leftARoom: false });
     // A reaction is scoped to a room, so the receiver has to be IN one.
     state().setRoom(ROOM);
@@ -48,8 +45,7 @@ describe("an incoming reaction", () => {
         expect(state().playerEmotes[0].expiresAt).toBeGreaterThan(Date.now());
     });
 
-    // The server sends to the whole room including the sender, so this is the
-    // ordinary case rather than an edge one.
+    // The server sends to the whole room, sender included.
     test("from yourself lands too", () => {
         receive({ id: "sock-me", name: "Me", emote: "wave" });
 
@@ -64,11 +60,7 @@ describe("an incoming reaction", () => {
         expect(first.key).not.toBe(second.key);
     });
 
-    /*
-     * A newer build could add an emote this one cannot draw. Dropping it is
-     * the same refusal emoteArtById makes — showing a different glyph would
-     * put words in somebody's mouth.
-     */
+    /* Dropping an emote this build cannot draw is the same refusal emoteArtById makes. */
     test("this build cannot draw is dropped", () => {
         receive({ id: "sock-alex", name: "Alex", emote: "not-an-emote" });
 
@@ -85,11 +77,7 @@ describe("with reactions switched off", () => {
         expect(state().playerEmotes).toEqual([]);
     });
 
-    /*
-     * Including your own. The setting means "no reactions on my screen", and
-     * an exception for yourself would leave you emoting into what you believe
-     * is a quiet room.
-     */
+    /* "No reactions on my screen" includes your own, or you emote into what you believe is a quiet room. */
     test("not even your own", () => {
         receive({ id: "sock-me", name: "Me", emote: "wave" });
 
@@ -99,10 +87,8 @@ describe("with reactions switched off", () => {
 
 describe("a reaction from a room this browser is no longer in", () => {
     /*
-     * The relay is delivered even though the room is gone: the server
-     * broadcast it before the leave was processed, and the socket outlives the
-     * room. `leaveRoom` clears what is already stored but cannot refuse what
-     * has not arrived, so without the room on the payload this lands in the
+     * The server broadcast before the leave was processed and the socket
+     * outlives the room. Without the room on the payload this lands in the
      * NEXT room's feed under a name nobody there recognises.
      */
     test("does not land in the room joined next", () => {
@@ -113,9 +99,8 @@ describe("a reaction from a room this browser is no longer in", () => {
         expect(state().playerEmotes).toEqual([]);
     });
 
-    // The other half of the window: still on Landing, joined to nothing. The
-    // code alone is not enough there — `room` also holds what is being TYPED
-    // into the join form, so it matches again mid-keystroke.
+    // Still on Landing, joined to nothing. `room` also holds what is being TYPED
+    // into the join form, so the code alone matches again mid-keystroke.
     test("does not land while typing that room's code on Landing", () => {
         state().setPlayerJoined(false);
 
@@ -126,10 +111,8 @@ describe("a reaction from a room this browser is no longer in", () => {
 });
 
 /*
- * The frontend and the game server both deploy from `main` and neither waits
- * for the other, so a new client spends the length of a deploy talking to a
- * server that has not started sending `room` yet. Refusing those would turn
- * reactions off across the whole window with nothing on screen to say why.
+ * Frontend and server deploy from `main` independently, so a new client spends
+ * a deploy talking to a server that does not send `room` yet.
  */
 describe("a reaction from a server too old to send the room", () => {
     test("lands while this browser has only ever been in this room", () => {
@@ -139,11 +122,9 @@ describe("a reaction from a server too old to send the room", () => {
     });
 
     /*
-     * The reason the fallback is latched rather than unconditional. A stale
-     * relay can only arrive AFTER a leave, so once one has happened a roomless
-     * payload is no longer provably from the room on screen — and accepting it
-     * would put an emote from the room just left into the room joined next,
-     * which is the very thing the room field was added to stop.
+     * Why the fallback is latched: a stale relay can only arrive AFTER a leave,
+     * so once one has happened a roomless payload is no longer provably from
+     * the room on screen.
      */
     test("is refused once this browser has left a room, even back in one", () => {
         state().setPlayerJoined(false);   // left room-a
@@ -155,8 +136,7 @@ describe("a reaction from a server too old to send the room", () => {
         expect(state().playerEmotes).toEqual([]);
     });
 
-    // The other half still holds: no room on the payload is not a reason to
-    // draw on a board this browser is not sitting at.
+    // No room on the payload is not a reason to draw on a board this browser is not at.
     test("is still refused when this browser is in no room at all", () => {
         state().setPlayerJoined(false);
 
@@ -177,9 +157,7 @@ describe("a reaction from a server too old to send the room", () => {
 });
 
 describe("the feed is bounded", () => {
-    // The display half of the server's rate limit: a full room can emote
-    // faster than anyone reads, and an unbounded feed is a way for one player
-    // to push everyone else's reactions off screen.
+    // The display half of the rate limit: an unbounded feed lets one player push everyone else's off screen.
     test("keeps only the most recent few", () => {
         for (let i = 0; i < 8; i++) receive({ id: `sock-${i}`, name: `P${i}`, emote: "nice" });
 

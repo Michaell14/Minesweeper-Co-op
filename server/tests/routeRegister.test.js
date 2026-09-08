@@ -1,14 +1,8 @@
 /**
- * The route registrar — the pipeline every socket handler runs inside.
- *
- * `server.js` used to spell that pipeline out per handler: a `safe` wrapper, a
- * payload check, a membership check, a try/catch. Twenty-two handlers meant
- * twenty-two chances to put those in the wrong order, and one of them —
- * rate limiting BEFORE anything touches Redis — is load-bearing rather than
- * tidy: a hover flood that reaches the membership check has already cost four
- * Redis reads per message, which is the failure a bucket exists to prevent.
- *
- * These tests pin the ORDER, not just the outcome, with synthetic routes. The
+ * The route registrar, the pipeline every socket handler runs inside. These
+ * pin the ORDER, not just the outcome, with synthetic routes: rate limiting
+ * BEFORE anything touches Redis is load-bearing, since a hover flood that
+ * reaches the membership check has already cost four reads per message. The
  * real table is checked in routes.test.js.
  */
 
@@ -39,9 +33,8 @@ describe('wrapRoute', () => {
     });
 
     test('a missing payload reaches the handler as an empty object', async () => {
-        // Handlers destructure in the parameter list, which runs before their
-        // own try/catch — an absent payload used to throw where nothing could
-        // catch it, and in an async listener that ends the process.
+        // Handlers destructure in the parameter list, before their own try/catch;
+        // an absent payload used to throw where nothing could catch it.
         const handler = jest.fn();
 
         await wrapRoute({ event: 'x', guard: ok, handler }, { socket: fakeSocket(), io: {} })(undefined);
