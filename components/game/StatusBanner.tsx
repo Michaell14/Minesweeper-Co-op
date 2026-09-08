@@ -1,6 +1,7 @@
 import React from 'react';
 import { useMinesweeperStore } from '@/app/store';
 import { Badge, Button, NameWithAvatar } from '@/components/ds';
+import CoopLives from '@/components/game/CoopLives';
 
 export interface StatusBannerProps {
     startPvpGame: () => void;
@@ -15,8 +16,6 @@ export interface StatusBannerProps {
 
 /** The strip above the board: PVP lobby states, then win/loss badges. */
 export default function StatusBanner({ startPvpGame, emitConfetti, variant }: StatusBannerProps) {
-    const relaxed = useMinesweeperStore((state) => state.relaxed);
-    const lives = useMinesweeperStore((state) => state.livesRemaining);
     const mode = useMinesweeperStore((state) => state.mode);
     const gameOver = useMinesweeperStore((state) => state.gameOver);
     const gameWon = useMinesweeperStore((state) => state.gameWon);
@@ -39,14 +38,8 @@ export default function StatusBanner({ startPvpGame, emitConfetti, variant }: St
 
     return (
         <div className="flex flex-col items-center justify-center">
-            {mode === 'co-op' && relaxed && (
-                <p className="text-pixel-xs text-center mb-3" role="status" aria-live="polite">
-                    <strong>Relaxed · {lives} / 3 shared lives</strong>
-                    {!gameOver && !gameWon && lives < 3 && (
-                        <span className="block text-ink-muted mt-1">Mine uncovered. Keep sweeping together!</span>
-                    )}
-                </p>
-            )}
+            {/* Desktop only: on mobile the lives sit below the board (see CoopLives). */}
+            {isDesktop && <CoopLives className="mb-3" />}
             {mode === 'pvp' && !pvpRoomReady && !pvpStarted &&
                 <div className="pb-12" role="status" aria-label="Waiting for opponent">
                     <p className="text-pixel-md">Waiting for opponent...</p>

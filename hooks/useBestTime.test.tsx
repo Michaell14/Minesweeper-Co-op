@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, test } from "vitest";
+import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { useMinesweeperStore } from "@/app/store";
 import { boardKey, clearBestTimes, recordBestTime, type BestTime } from "@/lib/bestTimes";
@@ -23,6 +23,9 @@ const select = (rows: number, cols: number, mines: number) => state().setDimensi
 const shown = (text: string) => waitFor(() => expect(screen.getByText(text)).toBeTruthy());
 
 const account = (bests: Record<string, BestTime>) => state().setAccountBests(bests);
+
+// These fixtures exercise existing one-life records.
+beforeEach(() => useMinesweeperStore.getState().setRelaxed(false));
 
 afterEach(() => {
     clearBestTimes();

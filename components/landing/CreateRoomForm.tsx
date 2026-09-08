@@ -1,17 +1,12 @@
 "use client";
 
 import React from 'react';
-import { useForm } from "react-hook-form";
 import { useMinesweeperStore } from '@/app/store';
-import { Button, Field, Input, RadioCard, RadioCardGroup } from "@/components/ds";
+import { Button, Field, RadioCard, RadioCardGroup } from "@/components/ds";
 import { BOARD_SIZES, CUSTOM_SIZE, DIFFICULTY_LEVELS, isValidBoardConfig, mineCountFor } from "@/shared/boardConfig";
 import BestForBoard from '@/components/game/BestForBoard';
 import { DIALOGS, openDialog } from "@/lib/dialogs";
-import { MAX_ROOM_CODE_LENGTH, generateRoomCode } from "@/lib/roomCode";
-
-interface CreateFormValues {
-    roomCode: string;
-}
+import { generateRoomCode } from "@/lib/roomCode";
 
 export interface CreateRoomFormProps {
     /**
@@ -19,6 +14,7 @@ export interface CreateRoomFormProps {
      * (guest) and undefined (account not resolved yet) both mean ask.
      */
     createRoom?: (() => void) | null;
+    retryCreateRoom?: () => void;
 }
 
 /** A radio card's one-line description, sized so four cards on a row stay one line tall. */
@@ -27,7 +23,7 @@ const CardNote = ({ children }: { children: React.ReactNode }) => (
 );
 
 interface OptionRowProps {
-    label: string;
+    label?: string;
     ariaLabel: string;
     /** Radio `name`, unique per row so the three groups don't fight. */
     name: string;
@@ -45,12 +41,8 @@ const OptionRow = ({ label, ariaLabel, name, value, onChange, children }: Option
     </Field>
 );
 
-/**
- * Creating a room: code, then mode, size and difficulty. Submitting records the
- * room and opens the name dialog, which fires `createRoom`; a known name skips
- * the dialog and the action arrives here as a prop.
- */
-export default function CreateRoomForm({ createRoom }: CreateRoomFormProps) {
+/** Mode, size and difficulty stay visible; extra rules live under Customize. */
+export default function CreateRoomForm({ createRoom, retryCreateRoom }: CreateRoomFormProps) {
     const numRows = useMinesweeperStore((state) => state.numRows);
     const numCols = useMinesweeperStore((state) => state.numCols);
     const numMines = useMinesweeperStore((state) => state.numMines);
@@ -64,54 +56,32 @@ export default function CreateRoomForm({ createRoom }: CreateRoomFormProps) {
     const setMode = useMinesweeperStore((state) => state.setMode);
     const setRoom = useMinesweeperStore((state) => state.setRoom);
 
-    const {
-        register,
-        handleSubmit,
-        setValue,
-        setFocus,
-        formState: { errors },
-    } = useForm<CreateFormValues>();
-
-    /*
-     * A suggestion, not a requirement: the field stays editable and `required`.
-     * Set in an effect, not as `defaultValue`, because a random value rendered
-     * during SSR would differ from the client's and hydration would swap it.
-     */
-    React.useEffect(() => {
-        setValue("roomCode", generateRoomCode());
-    }, [setValue]);
-
-    /** A fresh suggestion, into the field and focused so it is obvious what moved. */
-    const suggestAnother = React.useCallback(() => {
-        setValue("roomCode", generateRoomCode());
-        setFocus("roomCode");
-    }, [setValue, setFocus]);
-
-    /*
-     * The collision dialog lives at the app level and cannot reach this form,
-     * so it ticks a counter in the store and this listens.
-     */
+    const [customizing, setCustomizing] = React.useState(false);
+    const optionsId = React.useId();
     const retryNonce = useMinesweeperStore((state) => state.roomCreateNonce);
-    const firstNonce = React.useRef(retryNonce);
+    const lastNonce = React.useRef(retryNonce);
     React.useEffect(() => {
-        if (retryNonce === firstNonce.current) return;
-        suggestAnother();
-    }, [retryNonce, suggestAnother]);
+        if (retryNonce === lastNonce.current) return;
+        lastNonce.current = retryNonce;
+        setRoom(generateRoomCode());
+        retryCreateRoom?.();
+    }, [retryNonce, retryCreateRoom, setRoom]);
 
     /** Mines a difficulty would produce at the current dimensions — the card labels. */
     const minesAt = (difficultyTitle: string) => mineCountFor(numRows, numCols, difficultyTitle);
 
-    const onSubmit = handleSubmit((data) => {
+    const onSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
         // Unreachable today; kept so a future path that skips setBoardConfig surfaces here.
         if (!isValidBoardConfig(numRows, numCols, numMines)) {
             openDialog(DIALOGS.customError);
             return;
         }
         // zustand sets synchronously, so the room recorded here is the one `createRoom` emits.
-        setRoom(data.roomCode);
+        setRoom(generateRoomCode());
         if (createRoom) createRoom();
         else openDialog(DIALOGS.nameCreate);
-    });
+    };
 
     const openCustom = () => {
         setBoardSize(CUSTOM_SIZE);
@@ -120,54 +90,16 @@ export default function CreateRoomForm({ createRoom }: CreateRoomFormProps) {
 
     return (
         <>
-            <p className="text-pixel-xl">Create a New Room:</p>
-            <form onSubmit={onSubmit} className="mt-2" aria-label="Create new room form">
-                <Field invalid={!!errors.roomCode} errorText={errors.roomCode?.message}>
-                    <div className="flex items-start gap-3">
-                        <div className="flex-1">
-                            <Input
-                                size="sm"
-                                maxLength={MAX_ROOM_CODE_LENGTH}
-                                type="text"
-                                placeholder={"Enter Room Code"}
-                                invalid={!!errors.roomCode}
-                                aria-label="Room code"
-                                aria-required="true"
-                                {...register("roomCode", { required: "Room Code is required." })} />
-                        </div>
-                        <Button
-                            type="button"
-                            size="sm"
-                            className="shrink-0"
-                            onClick={suggestAnother}
-                            aria-label="Suggest a different room code">
-                            New code
-                        </Button>
-                    </div>
-                </Field>
-
+            <h2 className="text-pixel-lg mt-6">Play with friends</h2>
+            <form onSubmit={onSubmit} className="mt-3" aria-label="Create new room form">
                 <OptionRow
-                    label={"Select Mode:"}
                     ariaLabel="Select game mode"
                     name="mode"
                     value={mode}
                     onChange={(v) => setMode(v as "co-op" | "pvp")}>
-                    <RadioCard label="Co-op" description={<CardNote>One shared board</CardNote>} value="co-op" />
-                    <RadioCard label="PvP" description={<CardNote>Race an opponent</CardNote>} value="pvp" />
+                    <RadioCard label="Co-op" description={<span className="text-pixel-2xs">Solve together</span>} value="co-op" />
+                    <RadioCard label="PvP" description={<span className="text-pixel-2xs">Race a friend</span>} value="pvp" />
                 </OptionRow>
-
-                {mode === 'co-op' && (
-                    <OptionRow label="Co-op rules:" ariaLabel="Co-op rules" name="coop-rules"
-                        value={relaxed ? 'relaxed' : 'classic'} onChange={(value) => setRelaxed(value === 'relaxed')}>
-                        <RadioCard label="Classic" value="classic" description="One mine ends the game" />
-                        <RadioCard label="Relaxed" value="relaxed" description="Three shared lives" />
-                    </OptionRow>
-                )}
-                {mode === 'co-op' && relaxed && (
-                    <p className="text-pixel-2xs text-ink-muted mt-2">
-                        Keep sweeping after a mistake. The third mine ends the game. Relaxed best times are recorded separately.
-                    </p>
-                )}
 
                 <OptionRow
                     label={"Board Size:"}
@@ -209,8 +141,26 @@ export default function CreateRoomForm({ createRoom }: CreateRoomFormProps) {
                     ))}
                 </OptionRow>
 
-                <div className="mt-2">
-                    <Button type="submit" intent="primary" size="sm" aria-label="Create room with selected settings">Create</Button>
+                <p className="text-pixel-xs text-ink-muted mt-4" aria-live="polite">
+                    {boardSize === CUSTOM_SIZE ? `${numRows}×${numCols} board` : `${boardSize} board`}
+                    {' · '}{difficulty} difficulty
+                    {mode === 'co-op' && ` · ${relaxed ? 'Standard · 3 shared lives' : 'Sudden death · 1 shared life'}`}
+                </p>
+                <div className="flex flex-wrap items-center gap-3 mt-4">
+                    <Button type="submit" intent="primary" size="sm" aria-label="Create room with selected settings">Create room</Button>
+                    <Button type="button" size="sm" aria-expanded={customizing} aria-controls={optionsId}
+                        onClick={() => setCustomizing(!customizing)}>
+                        {customizing ? 'Done customizing' : 'Customize'}
+                    </Button>
+                </div>
+                <div id={optionsId} hidden={!customizing} className="mt-4">
+                    {mode === 'co-op' && (
+                        <OptionRow label="Co-op rules:" ariaLabel="Co-op rules" name="coop-rules"
+                            value={relaxed ? 'relaxed' : 'classic'} onChange={(value) => setRelaxed(value === 'relaxed')}>
+                            <RadioCard label="Standard" value="relaxed" description="Three shared lives" />
+                            <RadioCard label="Sudden death" value="classic" description="One mine ends the game" />
+                        </OptionRow>
+                    )}
                     <BestForBoard />
                 </div>
             </form>

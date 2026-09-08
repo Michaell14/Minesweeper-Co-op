@@ -43,7 +43,7 @@ export default function GameSummary({ addRoomFriend }: GameSummaryProps) {
 
     return (
         <div className="flex flex-col gap-4">
-            {!isPvp && relaxed && <p className="text-pixel-xs text-center m-0">Relaxed co-op · {lives} / 3 lives remaining</p>}
+            {!isPvp && relaxed && <p className="text-pixel-xs text-center m-0">Standard co-op · {lives} / 3 lives remaining</p>}
             <dl className="flex justify-center gap-8 m-0">
                 {duration && <Stat label="Time" value={duration} />}
                 {isPvp ? (

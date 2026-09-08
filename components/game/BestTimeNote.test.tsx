@@ -19,6 +19,7 @@ const setResult = (result: BestTimeResult | null) =>
     useMinesweeperStore.getState().setBestTimeResult(result);
 
 beforeEach(() => {
+    useMinesweeperStore.getState().setRelaxed(false);
     useMinesweeperStore.getState().setDimensions(BOARD.rows, BOARD.cols, BOARD.mines);
 });
 

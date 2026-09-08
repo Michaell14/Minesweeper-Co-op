@@ -17,7 +17,7 @@
 
 ## Features
 
-- **Relaxed Co-op:** Choose three shared lives instead of a one-mine loss. Best times are separate from classic games.
+- **Co-op Rules:** Standard co-op starts with three shared lives. Choose Sudden death under Customize for a one-mine loss. Best times stay separate.
 - **Multiplayer Gameplay:** Play with friends in real-time.
 - **Room Creation:** Easily create and share room codes.
 - **Board Size and Difficulty:** Pick a size (Small, Medium, Large or custom) and a difficulty (Easy, Medium, Hard, Extreme) independently.

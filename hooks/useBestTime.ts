@@ -35,5 +35,5 @@ export function useBestTime(refreshKey: unknown = null): { best: BestTime | null
         setBest(bestFrom(accountBests, boardKey(numRows, numCols, numMines, players, mode === 'co-op' && relaxed)));
     }, [numRows, numCols, numMines, players, accountBests, refreshKey, mode, relaxed]);
 
-    return { best, label: `${mode === 'co-op' && relaxed ? 'Relaxed · ' : ''}${boardLabel(numRows, numCols, numMines)}` };
+    return { best, label: `${mode === 'co-op' && relaxed ? 'Standard · ' : ''}${boardLabel(numRows, numCols, numMines)}` };
 }

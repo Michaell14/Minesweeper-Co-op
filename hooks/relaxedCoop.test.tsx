@@ -10,6 +10,7 @@ import { bestsForImport, boardKey, clearBestTimes, labelForKey, readBestTime, re
 import type { AppSocket } from '@/lib/initSocket';
 import CreateRoomForm from '@/components/landing/CreateRoomForm';
 import StatusBanner from '@/components/game/StatusBanner';
+import CoopLives from '@/components/game/CoopLives';
 vi.mock('@/lib/confetti', () => ({ shootConfetti: vi.fn() }));
 const handlers = () => useGameEvents({ id: 'alice', emit: vi.fn() } as unknown as AppSocket, vi.fn());
 beforeEach(() => {
@@ -18,27 +19,40 @@ beforeEach(() => {
     clearBestTimes();
 });
 
-test('rules selector defaults to classic, enables relaxed, and hides for PvP', () => {
+test('rules selector defaults to standard, offers sudden death, and hides for PvP', () => {
     const { rerender } = render(<CreateRoomForm />);
-    expect(useMinesweeperStore.getState().relaxed).toBe(false);
-    fireEvent.click(screen.getByRole('radio', { name: /Relaxed/ }));
     expect(useMinesweeperStore.getState().relaxed).toBe(true);
-    expect(screen.getByText(/third mine ends the game/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Customize' }));
+    fireEvent.click(screen.getByRole('radio', { name: /Sudden death/ }));
+    expect(useMinesweeperStore.getState().relaxed).toBe(false);
+    fireEvent.click(screen.getByRole('radio', { name: /Standard/ }));
+    expect(useMinesweeperStore.getState().relaxed).toBe(true);
+    expect(screen.getByText(/Standard · 3 shared lives/)).toBeTruthy();
     fireEvent.click(screen.getByRole('radio', { name: /PvP/ }));
     rerender(<CreateRoomForm />);
-    expect(screen.queryByRole('radio', { name: /Relaxed/ })).toBeNull();
+    expect(screen.queryByRole('radio', { name: /Standard/ })).toBeNull();
 });
 
 test('shared-life events update feedback without ending play and ignore other rooms', () => {
     useMinesweeperStore.getState().setPlayerJoined(true);
     const events = handlers();
     events[E.COOP_LIVES]!({ room: 'relax', relaxed: true, livesRemaining: 2 });
-    render(<StatusBanner startPvpGame={vi.fn()} emitConfetti={vi.fn()} variant="mobile" />);
-    expect(screen.getByText('Relaxed · 2 / 3 shared lives')).toBeTruthy();
+    render(<CoopLives />);
+    expect(screen.getByText('Standard · 2 / 3 shared lives')).toBeTruthy();
     expect(screen.getByText(/Keep sweeping together/)).toBeTruthy();
     expect(useMinesweeperStore.getState().gameOver).toBe(false);
     events[E.COOP_LIVES]!({ room: 'other', relaxed: true, livesRemaining: 0 });
     expect(useMinesweeperStore.getState().livesRemaining).toBe(2);
+});
+
+test('the lives line is in the desktop banner only; mobile shows it below the board', () => {
+    // Above the board on a phone it costs the last of the fold (mobileFit in the smoke suite).
+    useMinesweeperStore.setState({ mode: 'co-op', relaxed: true, livesRemaining: 3 });
+    const { unmount } = render(<StatusBanner startPvpGame={vi.fn()} emitConfetti={vi.fn()} variant="desktop" />);
+    expect(screen.getByText('Standard · 3 / 3 shared lives')).toBeTruthy();
+    unmount();
+    render(<StatusBanner startPvpGame={vi.fn()} emitConfetti={vi.fn()} variant="mobile" />);
+    expect(screen.queryByText(/shared lives/)).toBeNull();
 });
 
 test('joining a classic room clears previously selected relaxed rules', () => {
@@ -56,7 +70,7 @@ test('relaxed win is filed separately through the real event handler and survive
     handlers()[E.GAME_WON]!();
     expect(readBestTime(classic)?.seconds).toBe(100);
     expect(readBestTime(relaxed)?.seconds).toBe(10);
-    expect(labelForKey(relaxed)).toMatch(/^Relaxed · /);
+    expect(labelForKey(relaxed)).toMatch(/^Standard · /);
     expect(bestsForImport(100).map((entry) => entry.boardKey)).toContain(relaxed);
 });
 
@@ -78,8 +92,8 @@ test('late life updates after leaving cannot change the next room rules', () => 
     const { result } = renderHook(() => useGameActions(socket));
     act(() => result.current.leaveRoom());
     const events = useGameEvents(socket, result.current.leaveRoom);
-    act(() => events[E.COOP_LIVES]!({ room: 'relax', relaxed: true, livesRemaining: 1 }));
-    expect(useMinesweeperStore.getState()).toMatchObject({ playerJoined: false, relaxed: false, livesRemaining: 3 });
+    act(() => events[E.COOP_LIVES]!({ room: 'relax', relaxed: false, livesRemaining: 1 }));
+    expect(useMinesweeperStore.getState()).toMatchObject({ playerJoined: false, relaxed: true, livesRemaining: 3 });
 });
 
 test.each(['create', 'join'] as const)('accepts life snapshots during a pending %s', (pending) => {
@@ -103,5 +117,5 @@ test('a failed join stops accepting life snapshots', () => {
     useMinesweeperStore.getState().setJoinPending('join');
     events[E.JOIN_ROOM_ERROR]!();
     events[E.COOP_LIVES]!({ room: 'relax', relaxed: true, livesRemaining: 1 });
-    expect(useMinesweeperStore.getState()).toMatchObject({ relaxed: false, livesRemaining: 3 });
+    expect(useMinesweeperStore.getState()).toMatchObject({ relaxed: true, livesRemaining: 3 });
 });
