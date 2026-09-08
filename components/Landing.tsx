@@ -113,11 +113,10 @@ export default function Landing({ createRoom, joinRoom, findMatch, cancelMatch, 
 
             <div className="flex justify-center pb-12">
                 <div className="w-full max-w-2xl mx-auto px-4">
-                    <JoinRoomForm joinRoom={skipNameDialog(joinRoom)} />
-
-                    <p className="my-4" id={"horizontal"}>Or</p>
-
-                    <CreateRoomForm createRoom={skipNameDialog(createRoom)} />
+                    <CreateRoomForm createRoom={skipNameDialog(createRoom)} retryCreateRoom={createRoom} />
+                    <div className="mt-6 pt-4 border-t border-ink-muted">
+                        <JoinRoomForm joinRoom={skipNameDialog(joinRoom)} />
+                    </div>
                 </div>
             </div>
 

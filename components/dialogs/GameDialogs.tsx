@@ -56,7 +56,7 @@ export default function GameDialogs({ resetGame, addRoomFriend }: GameDialogsPro
                 a dead end on the one screen where the player needs direction. */}
             <Dialog
                 id={DIALOGS.createRoomError}
-                title="That room code is taken."
+                title="Couldn’t create the room."
                 alert
                 actionsAlign="between"
                 actions={
@@ -68,12 +68,12 @@ export default function GameDialogs({ resetGame, addRoomFriend }: GameDialogsPro
                             type="submit"
                             intent="primary"
                             onClick={requestNewRoomCode}>
-                            Try a different code
+                            Try again
                         </Button>
                     </>
                 }>
                 <p className="text-pixel-xs text-ink-muted">
-                    Someone is already using it. Pick another and create the room again.
+                    Try again with a fresh room code. Your game settings will stay the same.
                 </p>
             </Dialog>
 

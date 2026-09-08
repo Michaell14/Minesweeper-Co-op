@@ -23,13 +23,7 @@ interface JoinFormValues {
     roomCode: string;
 }
 
-/**
- * Joining an existing room: one field and a button on one row. FIRST on the
- * page, since under the create form's option rows the Join button fell below
- * the fold on a laptop. The join-link effect lives here because it pre-fills
- * this form's input. Submitting records the room and opens the name dialog,
- * which fires the `joinRoom` emit; a known name skips the dialog.
- */
+/** Compact join form; invite links still jump straight to joining. */
 export default function JoinRoomForm({ joinRoom }: JoinRoomFormProps) {
     const setRoom = useMinesweeperStore((state) => state.setRoom);
 
@@ -71,7 +65,7 @@ export default function JoinRoomForm({ joinRoom }: JoinRoomFormProps) {
 
     return (
         <>
-            <p className="text-pixel-xl mt-6">Join an Existing Room:</p>
+            <p className="text-pixel-xs text-ink-muted">Have a room code?</p>
             <form onSubmit={onSubmit} className="mt-2" aria-label="Join existing room form">
                 <div className="flex items-start gap-3">
                     <div className="flex-1">

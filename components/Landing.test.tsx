@@ -84,7 +84,6 @@ afterEach(cleanup);
 
 const submitCreate = async () => {
     const form = screen.getByRole('form', { name: 'Create new room form' });
-    fireEvent.input(form.querySelector('input') as HTMLInputElement, { target: { value: 'testroom' } });
     fireEvent.submit(form);
 };
 

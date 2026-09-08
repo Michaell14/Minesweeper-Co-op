@@ -52,7 +52,11 @@ async function preflight() {
  * Ticks one radio card by its group's aria-label and its own label. Scoped to
  * the group: "Medium" is both a size and a difficulty.
  */
-const selectCard = (page, groupLabel, cardLabel) => page.evaluate(`
+const selectCard = async (page, groupLabel, cardLabel) => {
+    if (await page.evaluate(`return !!document.querySelector('[aria-label=${JSON.stringify(groupLabel)}]')?.closest('[hidden]');`)) {
+        await page.click('button[aria-expanded="false"][aria-controls]');
+    }
+    return page.evaluate(`
     const group = document.querySelector('[aria-label=${JSON.stringify(groupLabel)}]');
     if (!group) throw new Error('no ${groupLabel} group');
     const card = [...group.querySelectorAll('label')]
@@ -61,6 +65,7 @@ const selectCard = (page, groupLabel, cardLabel) => page.evaluate(`
     card.click();
     return true;
 `);
+};
 
 /** The descriptions under one group's cards, e.g. ['10 mines', '13 mines', ...]. */
 const cardNotes = (page, groupLabel) => page.evaluate(`
@@ -85,24 +90,26 @@ async function enterRoom(page, { room, name, mode }) {
         await sleep(250);
     }
 
-    await page.type(`form[aria-label="${formLabel}"] input`, room);
+    if (mode === 'join') await page.type(`form[aria-label="${formLabel}"] input`, room);
     await page.click(`form[aria-label="${formLabel}"] button[type=submit]`);
     await page.waitFor(`document.getElementById('${dialogId}')?.open`, { label: `${name}: name dialog opens` });
     await page.type(`#${dialogId} input[name="name"]`, name);
     await page.click(`#${dialogId} button[type=submit]`);
+    await page.waitFor(`!!document.querySelector('[aria-label^="Room code:"]')`);
+    return page.evaluate(`return document.querySelector('[aria-label^="Room code:"]').textContent.trim();`);
 }
 
 async function relaxedCoop(page) {
     console.log('\n--- RELAXED CO-OP ---');
     await page.goto(CLIENT);
     await page.waitFor(`!!document.querySelector('input[name="coop-rules"][value="relaxed"]')`);
-    await selectCard(page, 'Co-op rules', 'Relaxed');
-    const room = 'relax' + Date.now().toString().slice(-6);
-    await enterRoom(page, { room, name: 'Relaxed' });
-    await page.waitFor(`document.body?.textContent.includes('Relaxed · 3 / 3 shared lives')`);
+    await selectCard(page, 'Co-op rules', 'Standard');
+    let room = 'relax' + Date.now().toString().slice(-6);
+    room = await enterRoom(page, { room, name: 'Relaxed' });
+    await page.waitFor(`document.body?.textContent.includes('Standard · 3 / 3 shared lives')`);
     pass('relaxed room starts with three shared lives');
     await page.send('Page.reload');
-    await page.waitFor(`document.body?.textContent.includes('Relaxed · 3 / 3 shared lives')`, { timeout: 20000 });
+    await page.waitFor(`document.body?.textContent.includes('Standard · 3 / 3 shared lives')`, { timeout: 20000 });
     pass('relaxed rules and lives survive a reload');
     await page.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
     const screenshot = await page.send('Page.captureScreenshot', { format: 'png' });
@@ -115,7 +122,7 @@ async function relaxedCoop(page) {
 
 async function coop(page) {
     console.log('\n\x1b[1m--- CO-OP ---\x1b[0m');
-    const room = 'smoke' + Date.now().toString().slice(-6);
+    let room = 'smoke' + Date.now().toString().slice(-6);
 
     await page.goto(CLIENT);
     // A cold `next dev` compiles on first request; wait for hydration, not just markup.
@@ -127,8 +134,18 @@ async function coop(page) {
     await page.waitFor(`!!document.querySelector('form[aria-label="Create new room form"] button[type=submit]')`,
         { label: 'landing renders on the default settings' });
     pass('landing renders the create-room form');
+    check(await page.evaluate(`return !document.querySelector('form[aria-label="Create new room form"] input[type="text"]');`), 'room creation needs no code input');
+    check(await page.evaluate(`return document.querySelector('button[aria-expanded="false"]')?.textContent === 'Customize';`), 'custom settings start collapsed');
+    const desktopShot = await page.send('Page.captureScreenshot', { format: 'png' });
+    require('fs').writeFileSync('/tmp/minesweeper-simple-desktop.png', Buffer.from(desktopShot.data, 'base64'));
+    await page.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
+    await sleep(250);
+    const mobileShot = await page.send('Page.captureScreenshot', { format: 'png' });
+    require('fs').writeFileSync('/tmp/minesweeper-simple-mobile.png', Buffer.from(mobileShot.data, 'base64'));
+    check(await page.evaluate(`return document.documentElement.scrollWidth <= window.innerWidth;`), 'simplified setup fits mobile without sideways scrolling');
+    await page.send('Emulation.clearDeviceMetricsOverride');
 
-    await enterRoom(page, { room, name: 'Alice' });
+    room = await enterRoom(page, { room, name: 'Alice' });
     // `>=` so a duplicated board fails the count check below instead of timing out here.
     await page.waitFor(`${cellCount} >= 256`, { label: 'a 16x16 board renders' });
     pass('createRoom round-trips and the board renders');
@@ -275,7 +292,7 @@ async function coop(page) {
         'the landing form is showing but the board is still mounted');
 
     // Rejoin for the button's own path, which routes through the same entry.
-    await enterRoom(page, { room, name: 'Alice', mode: 'join' });
+    room = await enterRoom(page, { room, name: 'Alice', mode: 'join' });
     await page.waitFor(`${cellCount} >= 256`, { label: 'rejoined the room' });
 
     // Leave.
@@ -295,7 +312,7 @@ async function coop(page) {
  */
 async function sizeAndDifficulty(page) {
     console.log('\n\x1b[1m--- SIZE x DIFFICULTY ---\x1b[0m');
-    const room = 'smokesd' + Date.now().toString().slice(-6);
+    let room = 'smokesd' + Date.now().toString().slice(-6);
 
     await page.goto(CLIENT);
     await page.waitFor(`!!document.querySelector('[aria-label="Select board size"]')`,
@@ -321,7 +338,7 @@ async function sizeAndDifficulty(page) {
     await selectCard(page, 'Select game difficulty', 'Extreme');
     await sleep(250);
 
-    await enterRoom(page, { room, name: 'Solo' });
+    room = await enterRoom(page, { room, name: 'Solo' });
     await page.waitFor(`${cellCount} >= 81`, { label: 'a 9x9 board renders' });
 
     const cells = await page.evaluate(`return ${cellCount};`);
@@ -349,7 +366,7 @@ async function sizeAndDifficulty(page) {
         const form = document.querySelector('form[aria-label="Create new room form"]');
         return [...form.querySelectorAll('input[type=radio]')].filter(r => r.checked).map(r => r.value).join(',');
     `);
-    check(backToDefaults === 'co-op,classic,Medium,Medium',
+    check(backToDefaults === 'co-op,Medium,Medium,relaxed',
         'leaving resets size and difficulty to the defaults',
         `got "${backToDefaults}"`);
 }
@@ -365,7 +382,7 @@ async function sizeAndDifficulty(page) {
  */
 async function desktopFit(page) {
     console.log('\n\x1b[1m--- DESKTOP FIT ---\x1b[0m');
-    const room = 'smokedesk' + Date.now().toString().slice(-6);
+    let room = 'smokedesk' + Date.now().toString().slice(-6);
 
     // 1000 tall, not 900: at 900 the height half of the clamp binds first. Height is covered in CO-OP.
     await page.send('Emulation.setDeviceMetricsOverride', {
@@ -377,7 +394,7 @@ async function desktopFit(page) {
     await page.goto(CLIENT);
     await page.waitFor(`!!document.querySelector('form[aria-label="Create new room form"] button[type=submit]')`,
         { timeout: 60000, label: 'landing renders at 1280px' });
-    await enterRoom(page, { room, name: 'Desk' });
+    room = await enterRoom(page, { room, name: 'Desk' });
     await page.waitFor(`document.querySelectorAll('[role=gridcell]').length === 256`,
         { label: 'board renders at 1280px' });
 
@@ -445,7 +462,7 @@ async function desktopFit(page) {
  */
 async function mobileFit(page) {
     console.log('\n\x1b[1m--- MOBILE ---\x1b[0m');
-    const room = 'smokemob' + Date.now().toString().slice(-6);
+    let room = 'smokemob' + Date.now().toString().slice(-6);
 
     // mobile:false: touch emulation would stop Input.dispatchMouseEvent clicks landing.
     await page.send('Emulation.setDeviceMetricsOverride', {
@@ -477,7 +494,7 @@ async function mobileFit(page) {
         `documentElement scrolls to ${landing.docScroll}px in a ${landing.body}px body`
         + (landing.widest.length ? ` — past the edge: ${landing.widest.join(', ')}` : ''));
 
-    await enterRoom(page, { room, name: 'Mobile' });
+    room = await enterRoom(page, { room, name: 'Mobile' });
     await page.waitFor(`document.querySelectorAll('[role=gridcell]').length === 256`,
         { label: 'board renders at phone width' });
 
@@ -550,7 +567,7 @@ async function mobileFit(page) {
  */
 async function headerClearance(page) {
     console.log('\n\x1b[1m--- HEADER CLEARANCE ---\x1b[0m');
-    const room = 'smokeftr' + Date.now().toString().slice(-6);
+    let room = 'smokeftr' + Date.now().toString().slice(-6);
 
     await page.send('Emulation.setDeviceMetricsOverride', {
         width: 1320, height: 900, deviceScaleFactor: 1, mobile: false,
@@ -567,7 +584,7 @@ async function headerClearance(page) {
     try {
         await page.waitFor(`!!document.querySelector('form[aria-label="Create new room form"] button[type=submit]')`,
             { timeout: 60000, label: 'landing renders at 1320px' });
-        await enterRoom(page, { room, name: 'Clearance' });
+        room = await enterRoom(page, { room, name: 'Clearance' });
         await page.waitFor(`document.querySelectorAll('[role=gridcell]').length === 256`,
             { label: 'board renders with large cells' });
 
@@ -607,7 +624,7 @@ async function headerClearance(page) {
  */
 async function rejoinOnReload(page) {
     console.log('\n\x1b[1m--- REJOIN ---\x1b[0m');
-    const room = 'smokejoin' + Date.now().toString().slice(-6);
+    let room = 'smokejoin' + Date.now().toString().slice(-6);
 
     /*
      * Start from the landing page whatever the previous section left: with
@@ -623,7 +640,7 @@ async function rejoinOnReload(page) {
     `);
     await page.waitFor(`!!document.querySelector('form[aria-label="Create new room form"] button[type=submit]')`,
         { timeout: 60000, label: 'landing renders' });
-    await enterRoom(page, { room, name: 'Reloader' });
+    room = await enterRoom(page, { room, name: 'Reloader' });
     await page.waitFor(`${cellCount} === 256`, { label: 'board renders before the reload' });
 
     // Open a cascade, so the restored board has something to be wrong about.
@@ -981,18 +998,18 @@ async function themeSprites(page) {
 
 async function pvp(host, guest) {
     console.log('\n\x1b[1m--- PVP ---\x1b[0m');
-    const room = 'smokepvp' + Date.now().toString().slice(-6);
+    let room = 'smokepvp' + Date.now().toString().slice(-6);
 
     await host.goto(CLIENT);
     await guest.goto(CLIENT);
     await host.waitFor(`!!document.querySelector('form[aria-label="Create new room form"] button[type=submit]')`,
         { timeout: 60000, label: 'host landing ready' });
 
-    await enterRoom(host, { room, name: 'Host', mode: 'pvp' });
+    room = await enterRoom(host, { room, name: 'Host', mode: 'pvp' });
     await host.waitFor(`document.body.textContent.includes('Waiting for opponent')`, { label: 'host lobby' });
     pass('host creates a PvP room and waits');
 
-    await enterRoom(guest, { room, name: 'Guest', mode: 'join' });
+    room = await enterRoom(guest, { room, name: 'Guest', mode: 'join' });
     await host.waitFor(`document.body.textContent.includes('Guest')`, { label: 'host sees guest' });
     pass('both players see each other in the lobby');
     // Poll: the guest can trail the host by a beat.
@@ -1132,12 +1149,12 @@ async function pvp(host, guest) {
 /** A join link (?room=...) pre-fills the room code and jumps straight to the name dialog. */
 async function joinLink(host, guest) {
     console.log('\n\x1b[1m--- JOIN LINK ---\x1b[0m');
-    const room = 'smokelink' + Date.now().toString().slice(-6);
+    let room = 'smokelink' + Date.now().toString().slice(-6);
 
     await host.goto(CLIENT);
     await host.waitFor(`!!document.querySelector('form[aria-label="Create new room form"] button[type=submit]')`,
         { timeout: 60000, label: 'host landing ready' });
-    await enterRoom(host, { room, name: 'Host' });
+    room = await enterRoom(host, { room, name: 'Host' });
     await host.waitFor(`${cellCount} >= 256`, { label: 'host board renders' });
     pass('host creates the room to share');
 
@@ -1167,12 +1184,12 @@ async function joinLink(host, guest) {
  */
 async function keyboardPlay(page) {
     console.log('\n\x1b[1m--- KEYBOARD PLAY ---\x1b[0m');
-    const room = 'smokekeys' + Date.now().toString().slice(-6);
+    let room = 'smokekeys' + Date.now().toString().slice(-6);
 
     await page.goto(CLIENT);
     await page.waitFor(`!!document.querySelector('form[aria-label="Create new room form"] button[type=submit]')`,
         { timeout: 60000, label: 'landing ready for keyboard scenario' });
-    await enterRoom(page, { room, name: 'Keys' });
+    room = await enterRoom(page, { room, name: 'Keys' });
     await page.waitFor(`${cellCount} >= 256`, { label: 'board renders' });
 
     // The cursor's live region doubles as the way of knowing what is under the cursor.
@@ -1325,16 +1342,16 @@ async function daily(page) {
  */
 async function emotes(host, guest) {
     console.log('\n\x1b[1m--- EMOTES ---\x1b[0m');
-    const room = 'smokemote' + Date.now().toString().slice(-6);
+    let room = 'smokemote' + Date.now().toString().slice(-6);
 
     await host.goto(CLIENT);
     await guest.goto(CLIENT);
     await host.waitFor(`!!document.querySelector('form[aria-label="Create new room form"] button[type=submit]')`,
         { timeout: 60000, label: 'host landing ready' });
 
-    await enterRoom(host, { room, name: 'Emoter', mode: 'create' });
+    room = await enterRoom(host, { room, name: 'Emoter', mode: 'create' });
     await host.waitFor(`${cellCount} > 0`, { label: 'host board' });
-    await enterRoom(guest, { room, name: 'Watcher', mode: 'join' });
+    room = await enterRoom(guest, { room, name: 'Watcher', mode: 'join' });
     await guest.waitFor(`${cellCount} > 0`, { label: 'guest board' });
 
     const trayCount = `document.querySelectorAll('[aria-label="Send a reaction"]').length`;

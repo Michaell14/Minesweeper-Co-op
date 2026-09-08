@@ -128,6 +128,7 @@ describe("filing a clear as a personal best", () => {
         clearBestTimes();
         const store = useMinesweeperStore.getState();
         store.setMode("co-op");
+        store.setRelaxed(false);
         store.setPlayerStatsInRoom([]);
         store.setAccountBests(null);
     });
@@ -202,6 +203,7 @@ describe("recording a clear against an account", () => {
         clearBestTimes();
         const store = useMinesweeperStore.getState();
         store.setMode("co-op");
+        store.setRelaxed(false);
         store.setPlayerStatsInRoom([]);
         store.setAccountBests({});
     });

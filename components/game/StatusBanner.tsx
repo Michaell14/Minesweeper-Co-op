@@ -41,7 +41,7 @@ export default function StatusBanner({ startPvpGame, emitConfetti, variant }: St
         <div className="flex flex-col items-center justify-center">
             {mode === 'co-op' && relaxed && (
                 <p className="text-pixel-xs text-center mb-3" role="status" aria-live="polite">
-                    <strong>Relaxed · {lives} / 3 shared lives</strong>
+                    <strong>Standard · {lives} / 3 shared lives</strong>
                     {!gameOver && !gameWon && lives < 3 && (
                         <span className="block text-ink-muted mt-1">Mine uncovered. Keep sweeping together!</span>
                     )}

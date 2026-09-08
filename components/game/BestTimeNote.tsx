@@ -21,7 +21,7 @@ export default function BestTimeNote() {
             <p className="text-pixel-sm text-center m-0" role="status">
                 {/* Weight and a glyph, not colour: `--ms-intent-success` is a button
                     fill, and the /ds audit only covers its ink sitting on it. */}
-                <strong>🏆 {relaxed ? 'New relaxed best!' : 'New best!'}</strong>
+                <strong>🏆 {relaxed ? 'New standard best!' : 'New best!'}</strong>
                 {result.previous && (
                     <span className="text-ink-muted"> Beat {formatClock(result.previous.seconds)}.</span>
                 )}
@@ -33,7 +33,7 @@ export default function BestTimeNote() {
 
     return (
         <p className="text-pixel-sm text-center text-ink-muted m-0" role="status">
-            {relaxed ? 'Relaxed best' : 'Best'} {formatClock(best.seconds)}
+            {relaxed ? 'Standard best' : 'Best'} {formatClock(best.seconds)}
             {best.players > 1 && ` with ${best.players} players`}.
         </p>
     );

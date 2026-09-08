@@ -45,7 +45,7 @@ export const createBoardConfigSlice: StateCreator<MinesweeperState, [], [], Boar
     boardSize: DEFAULT_SIZE,
     difficulty: DEFAULT_DIFFICULTY,
     mode: 'co-op',
-    relaxed: false,
+    relaxed: true,
     livesRemaining: 3,
     setRelaxed: (relaxed) => set({ relaxed }),
     setLivesRemaining: (livesRemaining) => set({ livesRemaining }),

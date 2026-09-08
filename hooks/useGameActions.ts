@@ -112,7 +112,7 @@ export function useGameActions(socket: AppSocket | null) {
         store.setPingArmed(false);
         store.resetPvpState(); // also resets gameOver/gameWon
         store.setMode("co-op");
-        store.setRelaxed(false);
+        store.setRelaxed(true);
         store.setLivesRemaining(3);
         // `recordClear` treats a set clock as proof of a run; left standing,
         // joining an already-won room filed the previous game's time as a best.
