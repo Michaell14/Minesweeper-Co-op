@@ -109,6 +109,7 @@ const earnedFrom = (stats, result) => {
          * player, every game, logged only as a dropped stats write.
          * `achievements.test.js` still fails on the missing predicate.
          */
+        if (String(game.boardKey).startsWith('relaxed:')) return false;
         const predicate = MOMENTS[achievement.id];
         return typeof predicate === 'function' && predicate(game) === true;
     }).map((achievement) => achievement.id);

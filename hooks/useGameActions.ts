@@ -140,6 +140,8 @@ export function useGameActions(socket: AppSocket | null) {
         store.setPingArmed(false);
         store.resetPvpState(); // also resets gameOver/gameWon
         store.setMode("co-op");
+        store.setRelaxed(false);
+        store.setLivesRemaining(3);
         // The clock is the record of the run THIS browser played, and
         // `recordClear` treats a set one as proof there was a run to record.
         // Left standing, joining a room whose game was already won filed the
@@ -163,7 +165,9 @@ export function useGameActions(socket: AppSocket | null) {
         // Landing shows "Creating room…" until the server answers; cleared by
         // joinRoomSuccess or any of the error handlers (useGameEvents).
         store.setJoinPending('create');
-        socket.emit(CLIENT_EVENTS.CREATE_ROOM, { room, numRows, numCols, numMines, name, mode });
+        socket.emit(CLIENT_EVENTS.CREATE_ROOM, { room, numRows, numCols, numMines, name, mode,
+            ...(mode === 'co-op' && store.relaxed && { relaxed: true }),
+        });
     }, [socket]);
 
     const joinRoom = useCallback(() => {

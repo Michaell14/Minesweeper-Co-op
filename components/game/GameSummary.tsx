@@ -31,6 +31,8 @@ export interface GameSummaryProps {
  * far each player got.
  */
 export default function GameSummary({ addRoomFriend }: GameSummaryProps) {
+    const relaxed = useMinesweeperStore((state) => state.relaxed);
+    const lives = useMinesweeperStore((state) => state.livesRemaining);
     const mode = useMinesweeperStore((state) => state.mode);
     const startedAt = useMinesweeperStore((state) => state.startedAt);
     const endedAt = useMinesweeperStore((state) => state.endedAt);
@@ -46,6 +48,7 @@ export default function GameSummary({ addRoomFriend }: GameSummaryProps) {
 
     return (
         <div className="flex flex-col gap-4">
+            {!isPvp && relaxed && <p className="text-pixel-xs text-center m-0">Relaxed co-op · {lives} / 3 lives remaining</p>}
             <dl className="flex justify-center gap-8 m-0">
                 {duration && <Stat label="Time" value={duration} />}
                 {isPvp ? (

@@ -26,7 +26,7 @@
 
 /**
  * Separates the board from the size of the group that cleared it. Never appears
- * in the board part, which is only digits, `x` and `/`.
+ * in the board part, including its optional `relaxed:` namespace.
  *
  * Module-private: every key is assembled and read through the helpers below,
  * which is the point of them.
@@ -35,9 +35,10 @@ const PLAYERS_SEPARATOR = '@';
 
 /**
  * A well-formed key, bounded for use as untrusted input (`validation.js`). The
- * suffix is optional because solo records do not carry one.
+ * player suffix is optional because solo records do not carry one. Relaxed
+ * co-op records have their own optional prefix, so classic keys stay stable.
  */
-const BOARD_KEY_PATTERN = /^\d{1,3}x\d{1,3}\/\d{1,4}(@\d{1,3})?$/;
+const BOARD_KEY_PATTERN = /^(relaxed:)?\d{1,3}x\d{1,3}\/\d{1,4}(@\d{1,3})?$/;
 
 /** The board part of a key: everything before the player-count suffix. */
 const boardPartOf = (key) => String(key).split(PLAYERS_SEPARATOR)[0];
@@ -53,10 +54,11 @@ const withPlayers = (boardPart, players) =>
  * @param {number} cols
  * @param {number} mines
  * @param {number} [players]
+ * @param {boolean} [relaxed] Separate namespace for three-life co-op records.
  * @returns {string}
  */
-const boardKey = (rows, cols, mines, players = 1) =>
-    withPlayers(`${rows}x${cols}/${mines}`, players);
+const boardKey = (rows, cols, mines, players = 1, relaxed = false) =>
+    withPlayers(`${relaxed ? 'relaxed:' : ''}${rows}x${cols}/${mines}`, players);
 
 /**
  * How many cleared the board a key describes — the count back out of the key

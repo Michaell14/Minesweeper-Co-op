@@ -35,12 +35,12 @@ const { boardKey, playersForClear } = require('../../shared/boardKeys');
  * @param mode           'co-op' | 'pvp' | 'daily'
  * @param playersInRoom  how many were in the room, however the mode counts them
  */
-const boardKeyOf = (board, mode, playersInRoom) => {
+const boardKeyOf = (board, mode, playersInRoom, relaxed = false) => {
     const rows = board.length;
     const cols = board[0]?.length ?? 0;
     let mines = 0;
     for (const row of board) for (const cell of row) if (cell.isMine) mines++;
-    return boardKey(rows, cols, mines, playersForClear(mode, playersInRoom));
+    return boardKey(rows, cols, mines, playersForClear(mode, playersInRoom), relaxed);
 };
 
 /** The account behind a live socket, or null for guests and gone sockets. */
@@ -93,7 +93,7 @@ const recordForSockets = (socketIds, { board, ...result }) => {
     if (!isDbEnabled()) return;
     // The board itself stops here — the repo stores a key, and handing it a few
     // hundred cells to ignore invites someone to persist them one day.
-    const stored = { ...result, boardKey: boardKeyOf(board, result.mode, result.players) };
+    const stored = { ...result, boardKey: boardKeyOf(board, result.mode, result.players, result.relaxed) };
     for (const socketId of socketIds) {
         const user = userOf(socketId);
         if (!user) continue;

@@ -16,11 +16,11 @@ const { createRoom: createRoomState } = require('../utils/gameUtils');
 const { addPlayerToRoom, removePlayer } = require('../utils/playerUtils');
 const { forgetRoom } = require('../controllers/sessionController');
 const { displayNameFor } = require('../utils/playerIdentity');
-const { isValidRoomCode, isValidPlayerName, isValidBoardConfig, isValidMode } = require('../validation');
+const { isValidRoomCode, isValidPlayerName, isValidBoardConfig, isValidMode, isValidRelaxed } = require('../validation');
 const { SERVER_EVENTS } = require('../../shared/events');
 
 const create = async ({ socket, io, payload }) => {
-    const { room, numRows, numCols, numMines, name, mode } = payload;
+    const { room, numRows, numCols, numMines, name, mode, relaxed } = payload;
     try {
         // Validate the name as it will be STORED — see join below.
         const displayName = displayNameFor(socket, name);
@@ -28,7 +28,8 @@ const create = async ({ socket, io, payload }) => {
             !isValidRoomCode(room) ||
             !isValidPlayerName(displayName) ||
             !isValidBoardConfig(numRows, numCols, numMines) ||
-            !isValidMode(mode)
+            !isValidMode(mode) ||
+            !isValidRelaxed(mode, relaxed)
         ) {
             socket.emit(SERVER_EVENTS.CREATE_ROOM_ERROR);
             return;
@@ -41,7 +42,7 @@ const create = async ({ socket, io, payload }) => {
         }
         socket.join(room);
 
-        await createRoomState(room, numRows, numCols, numMines, mode);
+        await createRoomState(room, numRows, numCols, numMines, mode, true, relaxed === true);
 
         // In PVP the creator is the host.
         if (mode === 'pvp') {
@@ -49,7 +50,9 @@ const create = async ({ socket, io, payload }) => {
         }
 
         await addPlayerToRoom(room, socket.id, displayName, socket.handshake.auth?.sessionId, socket.data?.user?.avatar);
-        io.to(room).emit(SERVER_EVENTS.JOIN_ROOM_SUCCESS, { room, mode, isHost: mode === 'pvp' });
+        io.to(room).emit(SERVER_EVENTS.JOIN_ROOM_SUCCESS, { room, mode, isHost: mode === 'pvp',
+            ...(relaxed === true && { relaxed: true, livesRemaining: 3 }),
+        });
     } catch (error) {
         console.error('Error in createRoom:', error);
         socket.emit(SERVER_EVENTS.CREATE_ROOM_ERROR);
@@ -142,7 +145,8 @@ const join = async ({ socket, io, payload }) => {
             numRows: parseInt(joinedState.numRows),
             numCols: parseInt(joinedState.numCols),
             numMines: parseInt(joinedState.numMines),
-            ...(joinedState.practice === 'true' && { practice: true })
+            ...(joinedState.practice === 'true' && { practice: true }),
+            ...(joinedState.relaxed === 'true' && { relaxed: true, livesRemaining: Number(joinedState.livesRemaining) }),
         });
 
         if (mode === 'pvp') {

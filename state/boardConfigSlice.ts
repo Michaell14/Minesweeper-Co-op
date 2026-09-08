@@ -20,6 +20,10 @@ export interface BoardConfigSlice {
     boardSize: string;      // "Small" | "Medium" | "Large" | "Custom"
     difficulty: string;     // "Easy" | "Medium" | "Hard" | "Extreme"
     mode: GameMode;
+    relaxed: boolean;
+    livesRemaining: number;
+    setRelaxed: (relaxed: boolean) => void;
+    setLivesRemaining: (lives: number) => void;
 
     /**
      * Applies a size/difficulty pick: dimensions from the size (or `dims`, for
@@ -49,6 +53,10 @@ export const createBoardConfigSlice: StateCreator<MinesweeperState, [], [], Boar
     boardSize: DEFAULT_SIZE,
     difficulty: DEFAULT_DIFFICULTY,
     mode: 'co-op',
+    relaxed: false,
+    livesRemaining: 3,
+    setRelaxed: (relaxed) => set({ relaxed }),
+    setLivesRemaining: (livesRemaining) => set({ livesRemaining }),
 
     setBoardConfig: (sizeTitle, difficultyTitle, dims) =>
         set((state) => {

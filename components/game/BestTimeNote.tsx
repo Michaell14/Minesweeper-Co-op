@@ -14,6 +14,7 @@ import { formatClock } from '@/lib/gameClock';
  * over by a disconnect both leave the record standing and say nothing.
  */
 export default function BestTimeNote() {
+    const relaxed = useMinesweeperStore((state) => state.mode === 'co-op' && state.relaxed);
     const result = useMinesweeperStore((state) => state.bestTimeResult);
     // The win handler writes the record, so re-read once a verdict lands.
     const { best } = useBestTime(result);
@@ -25,7 +26,7 @@ export default function BestTimeNote() {
                     is a BUTTON FILL, and the /ds audit only covers its ink
                     sitting on it, so using it as text here is an unmeasured pair
                     in four palettes. */}
-                <strong>🏆 New best!</strong>
+                <strong>🏆 {relaxed ? 'New relaxed best!' : 'New best!'}</strong>
                 {result.previous && (
                     <span className="text-ink-muted"> Beat {formatClock(result.previous.seconds)}.</span>
                 )}
@@ -37,7 +38,7 @@ export default function BestTimeNote() {
 
     return (
         <p className="text-pixel-sm text-center text-ink-muted m-0" role="status">
-            Best {formatClock(best.seconds)}
+            {relaxed ? 'Relaxed best' : 'Best'} {formatClock(best.seconds)}
             {best.players > 1 && ` with ${best.players} players`}.
         </p>
     );

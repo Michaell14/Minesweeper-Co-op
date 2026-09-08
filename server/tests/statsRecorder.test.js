@@ -276,3 +276,9 @@ describe('the unlock announcement', () => {
         }
     });
 });
+
+test('relaxed clears write an account best under a separate key', () => {
+    mockSockets.set('sock-user', { data: { user: { id: 'uuid-1' } } });
+    recordForSockets(['sock-user'], { ...RESULT, mode: 'co-op', relaxed: true, players: 2 });
+    expect(mockRecordResult.mock.calls[0][1].boardKey).toBe('relaxed:9x9/10@2');
+});

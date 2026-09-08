@@ -36,7 +36,7 @@ const recordClear = () => {
     // The count identifies the result, so it decides the key as well as being
     // stored on it — see shared/boardKeys.js for why a race counts as one player.
     const players = playersForClear(mode, playerStatsInRoom.length);
-    const key = boardKey(numRows, numCols, numMines, players);
+    const key = boardKey(numRows, numCols, numMines, players, mode === 'co-op' && store.relaxed);
     const run = { seconds: elapsedSeconds(startedAt, endedAt), players, at: endedAt };
 
     /*
@@ -166,6 +166,16 @@ const coopHandlers = (socket: AppSocket, leaveRoom: () => void): SocketHandlers 
     // Sent on start, on finish, and to anyone arriving mid-run.
     [SERVER_EVENTS.GAME_CLOCK]: (clock) => useMinesweeperStore.getState().setClock(clock),
 
+    [SERVER_EVENTS.COOP_LIVES]: ({ room, relaxed, livesRemaining }) => {
+        const store = useMinesweeperStore.getState();
+        // The room code survives leaving and is also editable on Landing.
+        // Initial join snapshots arrive before JOIN_ROOM_SUCCESS, so accept
+        // an explicit pending join as well as an active room.
+        if (store.room !== room || (!store.playerJoined && store.joinPending === null)) return;
+        store.setRelaxed(relaxed);
+        store.setLivesRemaining(livesRemaining);
+    },
+
     // --- Win / loss ---
     [SERVER_EVENTS.GAME_WON]: () => {
         shootConfetti();
@@ -220,6 +230,8 @@ const coopHandlers = (socket: AppSocket, leaveRoom: () => void): SocketHandlers 
                 ? practiceTargetFor(data.numRows, data.numCols, data.numMines, store.accountBests)
                 : null,
         );
+        store.setRelaxed(data.relaxed === true);
+        store.setLivesRemaining(data.livesRemaining ?? 3);
         store.setPlayerJoined(true);
     },
 
@@ -251,6 +263,7 @@ const coopHandlers = (socket: AppSocket, leaveRoom: () => void): SocketHandlers 
 
         store.setRoom(room);
         store.setName(name);
+        store.setJoinPending('join');
         socket.emit(CLIENT_EVENTS.JOIN_ROOM, { room, name });
     },
 

@@ -78,9 +78,9 @@ export const boardLabel = (rows: number, cols: number, mines: number) => {
  * to the raw key, so a shape this build does not know still renders as itself.
  */
 export const labelForKey = (key: string): string => {
-    const match = boardPartOf(key).match(/^(\d+)x(\d+)\/(\d+)$/);
+    const match = boardPartOf(key).replace(/^relaxed:/, '').match(/^(\d+)x(\d+)\/(\d+)$/);
     if (!match) return key;
-    return boardLabel(Number(match[1]), Number(match[2]), Number(match[3]));
+    return `${key.startsWith('relaxed:') ? 'Relaxed · ' : ''}${boardLabel(Number(match[1]), Number(match[2]), Number(match[3]))}`;
 };
 
 /** A stored entry, or null if it is missing or has been corrupted. */

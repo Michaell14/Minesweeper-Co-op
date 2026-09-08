@@ -22,6 +22,7 @@ export interface GameDialogsProps {
 
 export default function GameDialogs({ resetGame, addRoomFriend }: GameDialogsProps) {
     const summaryProps = { addRoomFriend };
+    const relaxed = useMinesweeperStore((state) => state.relaxed);
     const gameOverName = useMinesweeperStore((state) => state.gameOverName);
     const gameWon = useMinesweeperStore((state) => state.gameWon);
     const setPlayerJoined = useMinesweeperStore((state) => state.setPlayerJoined);
@@ -34,7 +35,7 @@ export default function GameDialogs({ resetGame, addRoomFriend }: GameDialogsPro
                 and a loss want to show are the same numbers. */}
             <Dialog
                 id={DIALOGS.gameSummary}
-                title={gameWon ? 'Board Cleared!' : 'Uh Oh!'}
+                title={gameWon ? 'Board Cleared!' : relaxed ? 'Out of shared lives' : 'Uh Oh!'}
                 alert
                 actionsAlign="between"
                 actions={
@@ -52,7 +53,7 @@ export default function GameDialogs({ resetGame, addRoomFriend }: GameDialogsPro
                     </>
                 }>
                 {!gameWon && (
-                    <p><span className="underline decoration-2">{gameOverName}</span> hit a bomb.</p>
+                    <p>{relaxed ? 'Your team uncovered three mines. Try another board together.' : <><span className="underline decoration-2">{gameOverName}</span> hit a bomb.</>}</p>
                 )}
                 <GameSummary {...summaryProps} />
             </Dialog>

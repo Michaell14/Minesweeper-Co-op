@@ -41,6 +41,8 @@ const isValidPlayerName = (name) =>
 const normalizePlayerName = (name) => (typeof name === 'string' ? name.trim() : '');
 
 const isValidMode = (mode) => mode === 'co-op' || mode === 'pvp';
+const isValidRelaxed = (mode, relaxed) =>
+    (relaxed === undefined || typeof relaxed === 'boolean') && (relaxed !== true || mode === 'co-op');
 
 /** An avatar as STORED: one id from the shared catalog, nothing free-form. */
 const isValidAvatarId = (avatar) => AVATAR_IDS.includes(avatar);
@@ -226,6 +228,7 @@ module.exports = {
     isValidPlayerName,
     normalizePlayerName,
     isValidMode,
+    isValidRelaxed,
     isValidAvatarId,
     isValidEmoteId,
     isValidUserId,

@@ -51,6 +51,7 @@ const checkWin = async (roomState, board, room) => {
             const startedAt = parseInt(roomState.startedAt, 10);
             recordForSockets(players, {
                 mode: 'co-op',
+                relaxed: roomState.relaxed === 'true',
                 board,
                 won: true,
                 durationMs: Number.isFinite(startedAt) ? endedAt - startedAt : null,
@@ -64,9 +65,11 @@ const checkWin = async (roomState, board, room) => {
 };
 
 /** Every Redis value is a string; see ARCHITECTURE.md for the full room schema. */
-const createRoom = async (room, numRows, numCols, numMines, mode = 'co-op', noGuess = true) => {
+const createRoom = async (room, numRows, numCols, numMines, mode = 'co-op', noGuess = true, relaxed = false) => {
     const roomData = {
         mode: mode,
+        relaxed: mode === 'co-op' && relaxed === true ? 'true' : 'false',
+        livesRemaining: mode === 'co-op' && relaxed === true ? '3' : '1',
         noGuess: noGuess !== false ? 'true' : 'false',
         gameOver: 'false',
         gameWon: 'false',
@@ -132,7 +135,11 @@ const resetGame = async (room) => roomRepo.withActionLock(room, 'reset', async (
         startedAt: '',
         endedAt: '',
         gameOverName: '',
+        livesRemaining: roomState.relaxed === 'true' ? '3' : '1',
     });
+
+    io.to(room).emit(SERVER_EVENTS.COOP_LIVES, { room, relaxed: roomState.relaxed === 'true',
+        livesRemaining: roomState.relaxed === 'true' ? 3 : 1 });
 
     await Promise.all([
         resetPlayerScores(room),
