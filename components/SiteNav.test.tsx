@@ -53,7 +53,6 @@ describe('destinations', () => {
         ['Daily', '/daily'],
         ['Drills', '/drills'],
         ['How to play', '/how-to-play'],
-        ['No-guess', '/no-guess-minesweeper'],
         ["What's new", '/changelog'],
         ['Settings', '/settings'],
     ])('links %s to %s', (name, target) => {
@@ -61,14 +60,10 @@ describe('destinations', () => {
         expect(href(name)).toBe(target);
     });
 
-    /*
-     * /no-guess-minesweeper is published for search and the header is its only
-     * front door, so a name that stops resolving takes the page off the map.
-     */
-    it('exposes no-guess on every route, not just the landing page', () => {
-        mockUsePathname.mockReturnValue('/settings');
+    /* No-guess lives inside How to play now; a second tab for it was clutter. */
+    it('has no separate no-guess tab', () => {
         render(<SiteNav />);
-        expect(href('No-guess')).toBe('/no-guess-minesweeper');
+        expect(screen.queryByRole('link', { name: 'No-guess' })).toBeNull();
     });
 
     /* /drills had no entry point at all before this header. */

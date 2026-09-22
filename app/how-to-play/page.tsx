@@ -2,10 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { SITE_URL } from "@/lib/site";
 import ProsePage from "@/components/marketing/ProsePage";
+import { DIFFICULTY_LEVELS, MAX_SAFE_DENSITY } from "@/shared/boardConfig";
 
-const TITLE = "How to Play Minesweeper — Rules, Chording and Multiplayer";
+const TITLE = "How to Play Minesweeper — Rules, Chording, Multiplayer and No-Guess Boards";
 const DESCRIPTION =
-    "The rules of Minesweeper, the chording shortcut most players never learn, and how co-op, 1v1 and the daily challenge each change the game.";
+    "The rules of Minesweeper, the chording shortcut most players never learn, how co-op, 1v1 and the daily challenge each change the game, and how every board is checked to be solvable without guessing.";
 
 /** Own canonical — see the note in app/daily/page.tsx for what inheriting costs. */
 export const metadata: Metadata = {
@@ -47,6 +48,20 @@ const FAQ = [
         q: "Do I need an account to play?",
         a: "No. Rooms and the daily challenge both work with no sign-up and no download. An account only adds saved stats and streaks.",
     },
+];
+
+const pct = (density: number) => `${(density * 100).toFixed(1)}%`;
+
+/**
+ * The measured per-candidate solvable rates behind the density ceiling, on a
+ * 20x16 board. Recorded in shared/boardConfig.js — quoted rather than re-derived
+ * so the page and the constant cannot disagree.
+ */
+const SOLVABLE_RATES = [
+    { density: "18.8%", rate: "17%" },
+    { density: "20.6%", rate: "7%" },
+    { density: "22%", rate: "3%" },
+    { density: "24%", rate: "0.3%" },
 ];
 
 export default function HowToPlayPage() {
@@ -140,6 +155,70 @@ export default function HowToPlayPage() {
                     <p className="mt-3">
                         <strong>The <Link href="/daily">daily challenge</Link></strong> is one board
                         a day, the same for everyone, ranked by time, with a single attempt.
+                    </p>
+                </section>
+
+                {/* Folded in from the former /no-guess-minesweeper page, which now
+                    redirects here (next.config.mjs). The id is the redirect's anchor. */}
+                <section id="no-guess">
+                    <h2 className="text-pixel-md font-bold">No-guess boards</h2>
+                    <p className="mt-3">
+                        Classic Minesweeper will eventually deal you a position where two cells are
+                        equally likely to be the mine and nothing on the board can tell them apart.
+                        Losing there is a coin flip, not a mistake. Every board here is built so
+                        that never happens: at every point in the game there is at least one cell
+                        you can prove is safe using only what the board is showing you. It does not
+                        mean the board is easy, and it does not mean you cannot lose — if you lose,
+                        you missed something, and the deduction was there.
+                    </p>
+                    <p className="mt-3">
+                        It is generate-and-test. A candidate layout is drawn at random, and a
+                        solver plays it the way a careful person would — only ever taking moves it
+                        can prove, never guessing. If the solver clears the board, you get that
+                        layout. If it gets stuck, the candidate is thrown away and another is
+                        drawn, up to 300 times. The solver is the honest part: it is not checking
+                        that the board looks reasonable, it is checking that a complete chain of
+                        deductions exists from the opening cascade to the last safe cell.
+                    </p>
+                    <p className="mt-3">
+                        Solvable layouts get rare fast as mine density climbs, and the rate was
+                        measured rather than guessed at. On a 20x16 board, the share of random
+                        candidates the solver can clear:
+                    </p>
+                    <ul className="mt-3 list-disc space-y-1 pl-6">
+                        {SOLVABLE_RATES.map(({ density, rate }) => (
+                            <li key={density}>
+                                {density} density — <strong>{rate}</strong> of candidates are solvable
+                            </li>
+                        ))}
+                    </ul>
+                    <p className="mt-3">
+                        At 300 attempts, {pct(MAX_SAFE_DENSITY)} never once fell through to an
+                        unchecked board across 200 games on every board size.{" "}
+                        {SOLVABLE_RATES[2].density} still did. So {pct(MAX_SAFE_DENSITY)} is where
+                        the hardest difficulty sits — not because it felt right, but because it is
+                        the densest board the guarantee survives. It is also exactly classic
+                        Minesweeper&apos;s Expert density, 99 mines on a 30x16 grid.
+                    </p>
+                    <p className="mt-3">
+                        Difficulty is a mine density rather than a fixed count, applied to whichever
+                        board size you pick, so the mine count is always derived from the two:
+                    </p>
+                    <ul className="mt-3 list-disc space-y-1 pl-6">
+                        {DIFFICULTY_LEVELS.map(({ title, density }: { title: string; density: number }) => (
+                            <li key={title}>
+                                <strong>{title}</strong> — {pct(density)}
+                            </li>
+                        ))}
+                    </ul>
+                    <p className="mt-3">
+                        The honest caveat: if all 300 candidates fail, the generator returns the
+                        first one it drew rather than failing outright — an unchecked board,
+                        indistinguishable from a real one while you are playing it. That is why the
+                        density ceiling exists. Custom boards can be built up to 32 by 16 with any
+                        mine count under half the grid; push the density past the presets and you
+                        are outside the measured range, where the guarantee is best-effort rather
+                        than reliable.
                     </p>
                 </section>
 

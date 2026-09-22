@@ -97,7 +97,7 @@ export default function DailyPage() {
                                     matters more here than anywhere else on the site: everyone is
                                     playing the same layout, and a forced guess would decide the
                                     leaderboard at random.{" "}
-                                    <Link href="/no-guess-minesweeper">
+                                    <Link href="/how-to-play#no-guess">
                                         How the no-guess generator works
                                     </Link>
                                     .
