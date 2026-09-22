@@ -12,7 +12,6 @@ const ROUTES: { path: string; priority: number; changeFrequency: "daily" | "week
     // Daily, because the board behind it is a different puzzle every day.
     { path: "/daily", priority: 0.9, changeFrequency: "daily" },
     { path: "/how-to-play", priority: 0.7, changeFrequency: "monthly" },
-    { path: "/no-guess-minesweeper", priority: 0.7, changeFrequency: "monthly" },
     { path: "/drills", priority: 0.7, changeFrequency: "monthly" },
     // One per lesson: the pattern names are the searched terms.
     ...LESSONS.map((lesson) => ({

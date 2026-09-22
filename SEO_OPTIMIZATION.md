@@ -102,8 +102,8 @@ generated sitemap cannot have.
     drop is a contradiction, not a hint
   - `/` at priority 1.0 weekly; `/daily` at 0.9 **daily**, since the board
     behind it is a different puzzle every day
-  - `/how-to-play`, `/no-guess-minesweeper`, `/drills` and one entry per drill
-    lesson, whose pattern names are the searched terms
+  - `/how-to-play`, `/drills` and one entry per drill lesson, whose pattern
+    names are the searched terms
   - `lastModified` stamps the build rather than being typed by hand
   - **No image sitemap.** Next only types `images` from 15 on, and the entry it
     replaced pointed at the share card rather than page content
@@ -114,11 +114,14 @@ generated sitemap cannot have.
   - Descriptive paragraph with keywords
   - Natural keyword integration
 
-- ✅ **Content pages** (`app/how-to-play/`, `app/no-guess-minesweeper/`, `app/drills/`)
+- ✅ **Content pages** (`app/how-to-play/`, `app/drills/`)
   - The keyword-rich "How to Play" copy that used to live in a footer dialog is
-    now a real indexable page at `/how-to-play`
-  - `/no-guess-minesweeper` and `/drills` (plus a page per lesson) are the
-    long-tail surface — pattern names like "1-2-1" are searched terms
+    now a real indexable page at `/how-to-play`. The no-guess explainer is a
+    section of it (`#no-guess`); the former `/no-guess-minesweeper` page was
+    retired to cut a header tab, and `next.config.mjs` 301s the old URL to
+    the anchor so inbound links and its index entry carry over
+  - `/drills` (plus a page per lesson) is the long-tail surface — pattern
+    names like "1-2-1" are searched terms
   - Keywords: free, online, multiplayer, unblocked, couples, teams
   - Reached from the site header (`components/SiteNav.tsx`), which replaced the
     five unlabelled floating icons. Pages published for search now have a front

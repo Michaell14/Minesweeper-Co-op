@@ -14,7 +14,6 @@ const LINKS: [href: string, label: string][] = [
     ['/daily', 'Daily'],
     ['/drills', 'Drills'],
     ['/how-to-play', 'How to play'],
-    ['/no-guess-minesweeper', 'No-guess'],
 ];
 
 const ICON_SIZE = 24;

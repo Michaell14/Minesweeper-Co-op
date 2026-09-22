@@ -44,7 +44,7 @@ export default function ProsePage({ title, lede, children, cta }: ProsePageProps
                     <li><Link href="/daily">Today&apos;s daily challenge</Link></li>
                     <li><Link href="/how-to-play">How to play</Link></li>
                     <li><Link href="/drills">Pattern drills</Link></li>
-                    <li><Link href="/no-guess-minesweeper">No-guess boards</Link></li>
+                    <li><Link href="/how-to-play#no-guess">No-guess boards</Link></li>
                 </ul>
             </nav>
         </main>
