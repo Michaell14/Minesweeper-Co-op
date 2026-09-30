@@ -14,6 +14,7 @@ vi.mock("@/lib/authBridge", () => ({
 vi.mock("@/lib/initSocket", () => ({ serverURL: "http://test" }));
 
 import { PROFILE_UPDATED_EVENT, fetchProfile, updateAvatar, updateDisplayName } from "./profileApi";
+import { getBridgeToken } from "./authBridge";
 
 const response = (avatar: string) => ({
     ok: true,
@@ -29,12 +30,14 @@ const listener = (event: Event) => heard.push((event as CustomEvent).detail.avat
 
 beforeEach(() => {
     heard = [];
+    vi.mocked(getBridgeToken).mockReset().mockResolvedValue("tok");
     window.addEventListener(PROFILE_UPDATED_EVENT, listener);
 });
 
 afterEach(() => {
     window.removeEventListener(PROFILE_UPDATED_EVENT, listener);
     vi.unstubAllGlobals();
+    vi.useRealTimers();
 });
 
 it("saves run one at a time, in call order", async () => {
@@ -100,4 +103,33 @@ it("answers null when the body has no user", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, status: 200, json: async () => ({}) })));
 
     await expect(fetchProfile()).resolves.toBeNull();
+});
+
+it.each(["fetch", "body", "token"])("bounds a profile read stalled on %s and aborts its request", async (phase) => {
+    vi.useFakeTimers();
+    const never = new Promise<never>(() => {});
+    const fetchMock = vi.fn().mockImplementation(() => phase === "fetch"
+        ? never
+        : Promise.resolve({ ok: true, json: () => never }));
+    vi.stubGlobal("fetch", fetchMock);
+    if (phase === "token") vi.mocked(getBridgeToken).mockReturnValueOnce(never);
+
+    const result = fetchProfile();
+    await vi.advanceTimersByTimeAsync(8000);
+
+    await expect(result).resolves.toBeNull();
+    if (phase === "token") {
+        expect(fetchMock).not.toHaveBeenCalled();
+    } else {
+        expect((fetchMock.mock.calls[0][1] as RequestInit).signal?.aborted).toBe(true);
+    }
+    expect(vi.getTimerCount()).toBe(0);
+});
+
+it("clears the deadline when profile data arrives normally", async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response("fox")));
+
+    await expect(fetchProfile()).resolves.toEqual({ avatar: "fox" });
+    expect(vi.getTimerCount()).toBe(0);
 });

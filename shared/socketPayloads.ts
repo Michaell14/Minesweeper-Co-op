@@ -262,6 +262,8 @@ export interface ServerToClientEvents {
         opponentAvatar?: string | null;
         opponentProgress?: number;
         totalSafeCells?: number;
+        /** Reconnect snapshot: this player's current mine-hit state, independent of the race winner. */
+        gameOver?: boolean;
     }) => void;
     pvpUpdateCells: (updates: CellUpdate[]) => void;
     /** Sent only to the player who hit a mine. */

@@ -39,9 +39,9 @@ export class ProfileApiError extends Error {
     }
 }
 
-const request = async (method: string, body?: unknown): Promise<Response | null> => {
+const request = async (method: string, body?: unknown, signal?: AbortSignal): Promise<Response | null> => {
     const token = await getBridgeToken();
-    if (!token) return null;
+    if (!token || signal?.aborted) return null;
 
     try {
         return await fetch(`${serverURL}/api/me`, {
@@ -51,6 +51,7 @@ const request = async (method: string, body?: unknown): Promise<Response | null>
                 ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
             },
             ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+            ...(signal ? { signal } : {}),
         });
     } catch {
         return null; // network failure — same rendering as "not available"
@@ -71,18 +72,31 @@ const errorFrom = async (res: Response): Promise<ProfileApiError> => {
 
 /** The signed-in account, or null when there isn't one to show. */
 export async function fetchProfile(): Promise<ProfileUser | null> {
-    const res = await request("GET");
-    if (!res || !res.ok) return null;
+    const controller = new AbortController();
+    // Identity is helpful display data, never a reason to block a solved
+    // daily forever. Bound the entire read, including token and body waits.
+    let timeout: ReturnType<typeof setTimeout>;
+    const deadline = new Promise<null>((resolve) => {
+        timeout = setTimeout(() => {
+            controller.abort();
+            resolve(null);
+        }, 8000);
+    });
+    const read = async (): Promise<ProfileUser | null> => {
+        try {
+            const res = await request("GET", undefined, controller.signal);
+            if (!res || !res.ok) return null;
+            const data = await res.json();
+            return (data?.user as ProfileUser) ?? null;
+        } catch {
+            // Includes a truncated/non-JSON body and an aborted request.
+            return null;
+        }
+    };
     try {
-        const data = await res.json();
-        return (data?.user as ProfileUser) ?? null;
-    } catch {
-        /*
-         * A 200 that is not JSON (a proxy interstitial, a truncated body). Only
-         * an ANSWERED REFUSAL throws; a raw SyntaxError here would leave the
-         * account panel on "Loading…" for good.
-         */
-        return null;
+        return await Promise.race([read(), deadline]);
+    } finally {
+        clearTimeout(timeout!);
     }
 }
 

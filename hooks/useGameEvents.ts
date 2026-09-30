@@ -353,13 +353,16 @@ const pvpHandlers = (socket: AppSocket): SocketHandlers => ({
         store.setPvpOpponentProgress(0);
     },
 
-    [SERVER_EVENTS.PVP_BOARD_UPDATE]: ({ board, opponentName, opponentAvatar, opponentProgress, totalSafeCells }) => {
+    [SERVER_EVENTS.PVP_BOARD_UPDATE]: ({ board, opponentName, opponentAvatar, opponentProgress, totalSafeCells, gameOver }) => {
         const store = useMinesweeperStore.getState();
         store.setBoard(board);
         if (opponentName) store.setPvpOpponentName(opponentName);
         if (opponentAvatar !== undefined) store.setPvpOpponentAvatar(opponentAvatar);
         if (opponentProgress !== undefined) store.setPvpOpponentProgress(opponentProgress);
         if (totalSafeCells !== undefined) store.setPvpTotalSafeCells(totalSafeCells);
+        // Reconnect snapshots carry the current player's outcome separately
+        // from the race winner. Ordinary board updates leave it untouched.
+        if (gameOver !== undefined) store.setGameOver(gameOver);
     },
 
     [SERVER_EVENTS.PVP_UPDATE_CELLS]: applyCellUpdates,

@@ -107,6 +107,9 @@ const restorePvpRacer = async (room, socketId, roomState, previousSocketId) => {
         opponentAvatar,
         opponentProgress,
         totalSafeCells,
+        // A mine hit and the race winner are independent: a completed race
+        // replays the winner below, so the board snapshot must retain both.
+        gameOver: ownGameOver,
     });
 
     // Catch them up on an outcome that landed while they were gone.
@@ -200,8 +203,10 @@ const addPlayerToRoom = async (room, socketId, name, sessionId, avatar, onJoined
     const mode = roomState.mode || 'co-op';
 
     // Send the rules before replaying the board and its terminal summary.
-    io.to(socketId).emit(SERVER_EVENTS.COOP_LIVES, { room, relaxed: roomState.relaxed === 'true',
-        livesRemaining: Number(roomState.livesRemaining ?? (roomState.relaxed === 'true' ? 3 : 1)) });
+    if (mode !== 'co-op') {
+        io.to(socketId).emit(SERVER_EVENTS.COOP_LIVES, { room, relaxed: roomState.relaxed === 'true',
+            livesRemaining: Number(roomState.livesRemaining ?? (roomState.relaxed === 'true' ? 3 : 1)) });
+    }
 
     // A reconnecting host keeps the host role.
     if (reconnectedFrom && roomState.hostSocket === reconnectedFrom) {
@@ -219,6 +224,30 @@ const addPlayerToRoom = async (room, socketId, name, sessionId, avatar, onJoined
         await roomRepo.setPlayers(room, roomPlayers);
     }
 
+    if (mode === 'co-op') {
+        // A join publishes a full board and outcome. Read and send them under
+        // the same lock as moves/reset so an old win cannot follow resetEveryone.
+        // The route's membership lock is outermost; actions never take it.
+        return roomRepo.withActionLock(room, socketId, async () => {
+            const snapshot = await roomRepo.getState(room);
+            io.to(socketId).emit(SERVER_EVENTS.COOP_LIVES, { room, relaxed: snapshot.relaxed === 'true',
+                livesRemaining: Number(snapshot.livesRemaining ?? (snapshot.relaxed === 'true' ? 3 : 1)) });
+            if (onJoined) await onJoined();
+            io.to(socketId).emit(SERVER_EVENTS.GAME_CLOCK, clockOf(snapshot));
+            // Group size must precede a terminal replay, which files a best time.
+            await updatePlayerStatsInRoom(room);
+            const isOver = snapshot.gameOver === 'true' || snapshot.gameWon === 'true';
+            io.to(room).emit(SERVER_EVENTS.BOARD_UPDATE,
+                projectBoard(JSON.parse(snapshot.board), { revealMines: isOver }));
+            if (snapshot.gameWon === 'true') {
+                io.to(socketId).emit(SERVER_EVENTS.GAME_WON, { replay: true });
+            }
+            if (snapshot.gameOver === 'true') {
+                io.to(socketId).emit(SERVER_EVENTS.GAME_OVER, snapshot.gameOverName || 'Someone');
+            }
+        });
+    }
+
     // The arrival must learn the room's dimensions/rules before an outcome
     // triggers client-side records. The route owns the success response.
     if (onJoined) await onJoined();
@@ -229,13 +258,7 @@ const addPlayerToRoom = async (room, socketId, name, sessionId, avatar, onJoined
     // Group size is part of the best-time key, so restore it before any win.
     await updatePlayerStatsInRoom(room);
 
-    // Co-op only; PVP boards are sent when the game starts.
-    if (mode === 'co-op') {
-        const board = JSON.parse(roomState.board);
-        // Mines show only for a finished game; mid-game a joiner could read the layout and leave.
-        const isOver = roomState.gameOver === 'true' || roomState.gameWon === 'true';
-        io.to(room).emit(SERVER_EVENTS.BOARD_UPDATE, projectBoard(board, { revealMines: isOver }));
-    } else if (mode === 'pvp') {
+    if (mode === 'pvp') {
         const restored = reconnectedFrom
             ? await restorePvpRacer(room, socketId, roomState, reconnectedFrom)
             : false;

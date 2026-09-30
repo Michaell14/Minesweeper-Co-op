@@ -468,7 +468,7 @@ Shapes are typed in `shared/socketPayloads.ts` (`ClientToServerEvents`).
 | `pvpRoomFull` | — |
 | `pvpRoomReady` | `{opponentName, isHost}` |
 | `pvpGameStarted` | `{totalSafeCells}` |
-| `pvpBoardUpdate` | `{board, playerIndex, opponentName?, opponentProgress?, totalSafeCells?}` |
+| `pvpBoardUpdate` | `{board, playerIndex, opponentName?, opponentProgress?, totalSafeCells?, gameOver?}` — reconnect snapshots include this player's mine-hit state independently of the race winner |
 | `pvpUpdateCells` | same shape as `updateCells` |
 | `pvpGameOver` | — (only to the player who hit a mine) |
 | `pvpOpponentFailed` / `pvpOpponentReset` / `pvpOpponentLeftBeforeStart` / `pvpHostTransferred` | — |
@@ -1257,9 +1257,14 @@ obsolete board or winner. Moves never take the join lock. Covered by
 Room creation, joins and departures share the room join lock. The existence
 check and initial roster write are one decision, and concurrent roster edits
 cannot overwrite one another. `server/tests/roomMembershipConcurrency.test.js`
-exercises these overlapping requests.
+exercises these overlapping requests. After updating membership, a co-op join
+also takes the action lock, re-reads the room and publishes rules, join success,
+clock, roster, board and terminal outcome before releasing it. This prevents a
+pre-reset win or loss snapshot from arriving after the reset. Lock order is
+membership then action; co-op moves and resets never request the membership
+lock. Covered by `server/tests/coopJoinSnapshotConcurrency.test.js`.
 
-`resetGame` takes the same lock, because it is a co-op board write like any
+`resetGame` takes the action lock, because it is a co-op board write like any
 other. A move in flight when a reset landed used to write its board back on top
 of the fresh one, leaving a room that claimed `initialized: 'false'` while
 holding a played board — and the *next* click would then generate a second board
