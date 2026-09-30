@@ -24,7 +24,8 @@ const settleForfeit = async (room, survivor) => {
     if (roomState.player1GameWon === 'true' || roomState.player2GameWon === 'true') return false;
 
     // They came back. This is the whole point of waiting.
-    if (roomRepo.playersFrom(roomState).length > 1) return false;
+    const players = roomRepo.playersFrom(roomState);
+    if (players.length !== 1 || players[0] !== survivor) return false;
 
     /*
      * Last one here is not the same as having won: a player told "Boom!" and
@@ -34,12 +35,13 @@ const settleForfeit = async (room, survivor) => {
     const slot = roomRepo.pvpSlotOf(roomState, survivor);
     if (slot !== undefined && roomState[pvpPlayerFields(slot).gameOverKey] === 'true') return false;
 
-    await roomRepo.setFields(room, { winnerSocket: survivor });
+    const endedAt = Date.now();
+    await roomRepo.setFields(room, { winnerSocket: survivor, endedAt: String(endedAt) });
 
     // Winning by default still ends the race, so the clock stops.
     io.to(survivor).emit(SERVER_EVENTS.GAME_CLOCK, {
         startedAt: readStamp(roomState.startedAt),
-        endedAt: Date.now(),
+        endedAt,
     });
 
     io.to(survivor).emit(SERVER_EVENTS.PVP_OPPONENT_DISCONNECTED, {

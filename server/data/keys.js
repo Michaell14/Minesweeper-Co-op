@@ -99,6 +99,7 @@ const pvpPlayerFields = (playerIndex) => ({
     initializedKey: `player${playerIndex + 1}Initialized`,
     gameOverKey: `player${playerIndex + 1}GameOver`,
     gameWonKey: `player${playerIndex + 1}GameWon`,
+    endedAtKey: `player${playerIndex + 1}EndedAt`,
     progressKey: `player${playerIndex + 1}Progress`,
     socketKey: `player${playerIndex + 1}Socket`,
 });

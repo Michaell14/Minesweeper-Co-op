@@ -89,6 +89,17 @@ describe('the key it derives', () => {
 });
 
 describe('recordForSockets', () => {
+    test('counts a shared game once when one account plays from multiple tabs', () => {
+        mockSockets.set('sock-first', { data: { user: { id: 'uuid-1' } } });
+        mockSockets.set('sock-second', { data: { user: { id: 'uuid-1' } } });
+        mockSockets.set('sock-friend', { data: { user: { id: 'uuid-2' } } });
+
+        recordForSockets(['sock-first', 'sock-second', 'sock-friend'], { ...RESULT, mode: 'co-op', players: 3 });
+
+        expect(mockRecordResult).toHaveBeenCalledTimes(2);
+        expect(mockRecordResult.mock.calls.map(([userId]) => userId)).toEqual(['uuid-1', 'uuid-2']);
+    });
+
     test('records once per AUTHENTICATED socket; guests and ghosts skip', () => {
         mockSockets.set('sock-user', { data: { user: { id: 'uuid-1' } } });
         mockSockets.set('sock-guest', { data: { user: null } });

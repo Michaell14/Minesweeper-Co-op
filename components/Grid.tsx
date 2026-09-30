@@ -272,11 +272,12 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
                                 <p className="text-pixel-sm mt-3">
                                     Status: <span className={
                                         pvpOpponentStatus === 'won' ? 'text-status-won' :
-                                        pvpOpponentStatus === 'failed' ? 'text-status-failed' :
+                                        pvpOpponentStatus === 'failed' || pvpOpponentStatus === 'lost' ? 'text-status-failed' :
                                         pvpOpponentStatus === 'playing' ? 'text-status-playing' :
                                         'text-status-idle'
                                     }>
                                         {pvpOpponentStatus === 'won' ? '✓ Won' :
+                                         pvpOpponentStatus === 'lost' ? '✗ Lost' :
                                          pvpOpponentStatus === 'failed' ? '✗ Hit a mine' :
                                          pvpOpponentStatus === 'disconnected' ? '✗ Disconnected' :
                                          pvpOpponentStatus === 'playing' ? '▶ Playing' :

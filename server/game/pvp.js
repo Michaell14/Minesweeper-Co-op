@@ -30,9 +30,11 @@ const playerIndexOf = (playerData, socketId) => {
 };
 
 /** Stops one player's clock. Sent to that socket alone; the opponent's keeps running. */
-const stopFor = async (room, socketId) => {
+const stopFor = async (room, socketId, playerIndex) => {
     const startedAt = readStamp(await roomRepo.getField(room, 'startedAt'));
-    io.to(socketId).emit(SERVER_EVENTS.GAME_CLOCK, { startedAt, endedAt: Date.now() });
+    const endedAt = Date.now();
+    await roomRepo.setFields(room, { [playerKeys(playerIndex).endedAtKey]: String(endedAt) });
+    io.to(socketId).emit(SERVER_EVENTS.GAME_CLOCK, { startedAt, endedAt });
 };
 
 /**
@@ -41,7 +43,9 @@ const stopFor = async (room, socketId) => {
  */
 const stopRace = async (room) => {
     const startedAt = readStamp(await roomRepo.getField(room, 'startedAt'));
-    io.to(room).emit(SERVER_EVENTS.GAME_CLOCK, { startedAt, endedAt: Date.now() });
+    const endedAt = Date.now();
+    await roomRepo.setFields(room, { endedAt: String(endedAt) });
+    io.to(room).emit(SERVER_EVENTS.GAME_CLOCK, { startedAt, endedAt });
 };
 
 /**
@@ -55,7 +59,7 @@ const reveal = async (board, r, c, room, socketId, toUpdate, playerIndex) => {
     const { gameOverKey } = playerKeys(playerIndex);
     await roomRepo.setFields(room, { [gameOverKey]: 'true' });
 
-    await stopFor(room, socketId);
+    await stopFor(room, socketId, playerIndex);
     io.to(socketId).emit(SERVER_EVENTS.PVP_GAME_OVER);
 
     /*

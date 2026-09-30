@@ -59,10 +59,10 @@ const ensureDailyBoard = async (date) => {
 
 /**
  * Reads (or creates) the attempt and emits dailyAlreadyAttempted or dailyStarted
- * to fit. Only called under the (date, token) start lock, so two callers can
- * never both create a fresh attempt.
+ * to fit. Only called under the attempt action lock, so a slow start cannot
+ * be bypassed by another tab or race with a move changing the same board.
  */
-const emitStartResult = async ({ socket, date, boardState, numRows, numCols, numMines, totalSafeCells }, dailyAttemptToken) => {
+const emitStartResultUnderLock = async ({ socket, date, boardState, numRows, numCols, numMines, totalSafeCells }, dailyAttemptToken) => {
     const attempt = await dailyRepo.getAttempt(date, dailyAttemptToken);
 
     if (attempt && attempt.status && TERMINAL_STATUSES.includes(attempt.status)) {
@@ -118,6 +118,12 @@ const emitStartResult = async ({ socket, date, boardState, numRows, numCols, num
         startedAt: null,
     });
 };
+
+// Every path, including the start-lock polling timeout, must re-read under
+// the action lock before creating or resuming an attempt.
+const emitStartResult = (ctx, dailyAttemptToken) =>
+    dailyRepo.withAttemptLock(ctx.date, dailyAttemptToken, ctx.socket.id, () =>
+        emitStartResultUnderLock(ctx, dailyAttemptToken));
 
 /** Handles 'startDaily'. */
 const startDaily = async ({ socket, dailyAttemptToken }) => {
@@ -186,10 +192,16 @@ const submitDailyScore = async ({ socket, io, dailyAttemptToken, date, name }) =
         // through to the typed name), and isValidAvatarId drops a retired id.
         const avatar = accountName && isValidAvatarId(accountAvatar) ? accountAvatar : null;
 
-        const attempt = await dailyRepo.getAttempt(date, dailyAttemptToken);
-        if (!attempt || attempt.status !== 'won_pending_submit') return;
+        // Submission changes the attempt too. Re-read under the same lock as
+        // moves, or two tabs can both pass the pending check and the second
+        // overwrites the name/avatar after the first score was published.
+        const elapsedMs = await dailyRepo.withAttemptLock(date, dailyAttemptToken, socket.id, async () => {
+            const attempt = await dailyRepo.getAttempt(date, dailyAttemptToken);
+            if (!attempt || attempt.status !== 'won_pending_submit') return null;
+            return dailyRepo.submitScore(date, dailyAttemptToken, displayName, avatar);
+        });
+        if (elapsedMs === null) return;
 
-        const elapsedMs = await dailyRepo.submitScore(date, dailyAttemptToken, displayName, avatar);
         const rank = await dailyRepo.getRank(date, dailyAttemptToken);
         const totalEntries = await dailyRepo.getEntryCount(date);
 

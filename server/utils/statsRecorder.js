@@ -53,7 +53,9 @@ const announce = (userId) => (unlocked) => {
 };
 
 /**
- * Records one result per AUTHENTICATED socket; guests are skipped. Fire-and-forget.
+ * Records one result per ACCOUNT sharing the outcome; guests are skipped.
+ * Multiple tabs may play in the same room, but still finished one game.
+ * Fire-and-forget.
  * Takes the BOARD, not a key, so the key and its count come from one reading.
  *
  * @param socketIds array of socket ids sharing this outcome
@@ -64,9 +66,11 @@ const recordForSockets = (socketIds, { board, ...result }) => {
     if (!isDbEnabled()) return;
     // The board stops here: the repo stores a key, not cells.
     const stored = { ...result, boardKey: boardKeyOf(board, result.mode, result.players, result.relaxed) };
+    const recordedUsers = new Set();
     for (const socketId of socketIds) {
         const user = userOf(socketId);
-        if (!user) continue;
+        if (!user || recordedUsers.has(user.id)) continue;
+        recordedUsers.add(user.id);
         statsRepo
             .recordResult(user.id, stored)
             /*

@@ -72,6 +72,48 @@ describe("when the tab is still showing the room the offer names", () => {
 
         expect(joinEmits(socket)).toEqual([[CLIENT_EVENTS.JOIN_ROOM, { room: ROOM, name: NAME }]]);
     });
+
+    test("discards an outcome superseded by a teammate's reset while offline", () => {
+        const store = useMinesweeperStore.getState();
+        store.setPlayerJoined(true);
+        store.setRoom(ROOM);
+        store.setGameOver(true);
+        store.setGameWon(true);
+        store.setClock({ startedAt: 1_000, endedAt: 5_000 });
+        store.updatePlayerHover('old-socket', 0, 1, 'Bob', 'red');
+        const socket = fakeSocket();
+
+        deliverResume(socket, { room: ROOM, name: NAME });
+        // A reset room has no GAME_WON/GAME_OVER to overwrite these flags.
+        const handlers = useGameEvents(socket, vi.fn());
+        handlers[SERVER_EVENTS.GAME_CLOCK]!({ startedAt: null, endedAt: null });
+        handlers[SERVER_EVENTS.JOIN_ROOM_SUCCESS]!({ room: ROOM, mode: 'co-op' });
+
+        expect(useMinesweeperStore.getState().gameOver).toBe(false);
+        expect(useMinesweeperStore.getState().gameWon).toBe(false);
+        expect(useMinesweeperStore.getState().bestTimeResult).toBeNull();
+        expect(useMinesweeperStore.getState().playerHovers).toEqual({});
+    });
+
+    test("a resumed race does not inherit the winner of an offline rematch", () => {
+        const store = useMinesweeperStore.getState();
+        store.setPlayerJoined(true);
+        store.setRoom(ROOM);
+        store.setMode('pvp');
+        store.setGameOver(true);
+        store.setPvpWinner('Previous winner');
+        const socket = fakeSocket();
+
+        deliverResume(socket, { room: ROOM, name: NAME });
+        const handlers = useGameEvents(socket, vi.fn());
+        handlers[SERVER_EVENTS.PVP_GAME_STARTED]!({ totalSafeCells: 100 });
+        handlers[SERVER_EVENTS.JOIN_ROOM_SUCCESS]!({ room: ROOM, mode: 'pvp', isHost: true });
+
+        expect(useMinesweeperStore.getState().gameOver).toBe(false);
+        expect(useMinesweeperStore.getState().pvpWinner).toBeNull();
+        expect(useMinesweeperStore.getState().pvpStarted).toBe(true);
+        expect(useMinesweeperStore.getState().pvpIsHost).toBe(true);
+    });
 });
 
 describe("when the offer is not for the room on screen", () => {
@@ -176,6 +218,64 @@ describe("filing a clear as a personal best", () => {
         expect(useMinesweeperStore.getState().bestTimeResult?.improved).toBe(true);
         expect(readBestTime(boardKey(BOARD.rows, BOARD.cols, BOARD.mines))?.seconds).toBe(300);
         expect(readBestTime(boardKey(BOARD.rows, BOARD.cols, BOARD.mines, 2))?.seconds).toBe(60);
+    });
+});
+
+describe("terminal snapshots do not earn personal bests", () => {
+    const BOARD = { rows: 16, cols: 16, mines: 40 };
+
+    beforeEach(() => {
+        useMinesweeperStore.setState(useMinesweeperStore.getInitialState(), true);
+        clearBestTimes();
+        const store = useMinesweeperStore.getState();
+        store.setRelaxed(false);
+        store.setDimensions(BOARD.rows, BOARD.cols, BOARD.mines);
+        store.setClock({ startedAt: 1_000, endedAt: 61_000 });
+        store.setAccountBests({});
+    });
+
+    afterEach(() => useMinesweeperStore.getState().setAccountBests(null));
+
+    test("a late arrival sees the won board without receiving someone else's record", () => {
+        const store = useMinesweeperStore.getState();
+        store.setPlayerStatsInRoom([{ name: 'Original player', score: 216 }, { name: 'Late arrival', score: 0 }]);
+        const handlers = useGameEvents(fakeSocket(), vi.fn());
+
+        handlers[SERVER_EVENTS.GAME_WON]!({ replay: true });
+
+        expect(useMinesweeperStore.getState().gameWon).toBe(true);
+        expect(readBestTime(boardKey(BOARD.rows, BOARD.cols, BOARD.mines, 2))).toBeNull();
+        expect(useMinesweeperStore.getState().accountBests).toEqual({});
+        expect(useMinesweeperStore.getState().bestTimeResult).toBeNull();
+    });
+
+    test("a resumed group clear is not refiled under the roster present after the game", () => {
+        const originalKey = boardKey(BOARD.rows, BOARD.cols, BOARD.mines, 2);
+        recordBestTime(originalKey, { seconds: 60, players: 2, at: 61_000 });
+        useMinesweeperStore.getState().setPlayerStatsInRoom([
+            { name: 'Alice', score: 100 }, { name: 'Bob', score: 116 }, { name: 'Late arrival', score: 0 },
+        ]);
+
+        useGameEvents(fakeSocket(), vi.fn())[SERVER_EVENTS.GAME_WON]!({ replay: true });
+
+        expect(readBestTime(originalKey)?.seconds).toBe(60);
+        expect(readBestTime(boardKey(BOARD.rows, BOARD.cols, BOARD.mines, 3))).toBeNull();
+        expect(useMinesweeperStore.getState().accountBests).toEqual({});
+    });
+
+    test("a returning PvP winner sees victory without recording the old clear again", () => {
+        useMinesweeperStore.getState().setMode('pvp');
+        const socket = fakeSocket();
+
+        useGameEvents(socket, vi.fn())[SERVER_EVENTS.PVP_PLAYER_WON]!({
+            winnerSocket: socket.id!, winnerName: 'Alice', replay: true,
+        });
+
+        expect(useMinesweeperStore.getState().gameWon).toBe(true);
+        expect(useMinesweeperStore.getState().pvpOpponentStatus).toBe('lost');
+        expect(readBestTime(boardKey(BOARD.rows, BOARD.cols, BOARD.mines))).toBeNull();
+        expect(useMinesweeperStore.getState().accountBests).toEqual({});
+        expect(useMinesweeperStore.getState().bestTimeResult).toBeNull();
     });
 });
 

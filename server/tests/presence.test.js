@@ -200,6 +200,45 @@ describe('guests', () => {
     });
 });
 
+describe('accepting a friendship while both players are connected', () => {
+    test('updates every tab on both sides without notifying unrelated players', async () => {
+        connect('alice-game', ALICE);
+        connect('alice-profile', ALICE);
+        connect('bob-game', BOB);
+        connect('unrelated', 'uuid-unrelated');
+        mockQuery.mockResolvedValue({ rows: [{ '?column?': 1 }] });
+
+        await presence.onFriendshipAccepted(ALICE, BOB);
+
+        expect(mockTo.mock.calls.map(([id]) => id)).toEqual(['alice-game', 'alice-profile', 'bob-game']);
+        expect(presenceEvents()).toEqual([
+            { id: BOB, online: true },
+            { id: BOB, online: true },
+            { id: ALICE, online: true },
+        ]);
+    });
+
+    test('does not expose presence if a block or removal already overtook the acceptance', async () => {
+        connect('alice-game', ALICE);
+        connect('bob-game', BOB);
+        mockQuery.mockResolvedValue({ rows: [] });
+
+        await presence.onFriendshipAccepted(ALICE, BOB);
+
+        expect(presenceEvents()).toEqual([]);
+    });
+
+    test('an offline friend is reported offline, and a presence outage does not fail the acceptance', async () => {
+        connect('alice-game', ALICE);
+        mockQuery.mockResolvedValue({ rows: [{ '?column?': 1 }] });
+        await presence.onFriendshipAccepted(ALICE, BOB);
+        expect(presenceEvents()).toEqual([{ id: BOB, online: false }]);
+
+        mockQuery.mockRejectedValue(new Error('connection terminated'));
+        await expect(presence.onFriendshipAccepted(ALICE, BOB)).resolves.toBeUndefined();
+    });
+});
+
 describe('a database outage', () => {
     /*
      * Presence is cosmetic: an exception here would propagate into the

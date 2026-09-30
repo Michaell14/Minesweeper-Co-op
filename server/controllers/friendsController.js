@@ -9,6 +9,7 @@
 const { requireUser } = require('./profileController');
 const friendsRepo = require('../data/friendsRepo');
 const userRepo = require('../data/userRepo');
+const { onFriendshipAccepted } = require('../utils/presence');
 const { isValidUserId } = require('../validation');
 const { isValidFriendCode, normalizeFriendCode } = require('../domain/friendCode');
 
@@ -68,7 +69,9 @@ const registerFriendsRoutes = (app) => {
                 return;
             }
 
-            const outcome = REQUEST_OUTCOMES[await friendsRepo.requestFriend(req.user.id, them.id)];
+            const result = await friendsRepo.requestFriend(req.user.id, them.id);
+            if (result === 'accepted') await onFriendshipAccepted(req.user.id, them.id);
+            const outcome = REQUEST_OUTCOMES[result];
             res.status(outcome.status).json(outcome.body);
         } catch (error) {
             unavailable(res, error, 'adding a friend');
@@ -109,6 +112,7 @@ const registerFriendsRoutes = (app) => {
 
             const outcome = await friendsRepo.acceptRequest(req.user.id, them);
             if (outcome === 'accepted') {
+                await onFriendshipAccepted(req.user.id, them);
                 res.status(204).end();
             } else if (outcome === 'cap-reached' || outcome === 'their-cap-reached') {
                 // Both caps are checked on accept: a request can outlive the check made when sent.

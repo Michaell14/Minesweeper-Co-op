@@ -345,6 +345,8 @@ PVP adds: `pvpStarted` `hostSocket` `player1Socket` `player2Socket` `player{1,2}
 PVP additionally stores `sharedBoard` and `sharedOpenedCells`: the pristine
 starting layout and how many cells its opening revealed, so `resetMyBoard` can
 put a player back to the start rather than onto a board of their own.
+`player{1,2}EndedAt` preserves an individual detonation's stopped clock across
+reloads; the room's `endedAt` preserves the finish of the whole race.
 
 **`session:<sessionId>`** — TTL 24h
 `room` `name` `socketId`. The client keeps `sessionId` in sessionStorage (per tab,
@@ -1246,11 +1248,16 @@ progress bar stayed wrong for the rest of the race. The lock is keyed per
 **player** (`withPvpActionLock`): the two boards are separate hash fields, so one
 player's write never touched the other's, and serialising them against each other
 would break the race itself. `resetMyBoard` takes that player's lock and
-`pvpRematch` takes both, in index order — nothing takes them in any other order,
-and a move only ever holds one, so there is no cycle to deadlock on.
-`startPvpGame` needs none: it refuses to run once `pvpStarted` is `'true'`, and
-no move runs until it is. Covered by `server/tests/pvpConcurrency.test.js`, whose
-last two tests pin down that the two players stay independent.
+re-reads before writing. Start and rematch take the room join lock followed by
+both player locks, in index order, and publish the new snapshot before releasing
+them. This keeps duplicate starts, reconnects and rematches from restoring an
+obsolete board or winner. Moves never take the join lock. Covered by
+`server/tests/pvpConcurrency.test.js` and `server/tests/pvpLifecycleConcurrency.test.js`.
+
+Room creation, joins and departures share the room join lock. The existence
+check and initial roster write are one decision, and concurrent roster edits
+cannot overwrite one another. `server/tests/roomMembershipConcurrency.test.js`
+exercises these overlapping requests.
 
 `resetGame` takes the same lock, because it is a co-op board write like any
 other. A move in flight when a reset landed used to write its board back on top

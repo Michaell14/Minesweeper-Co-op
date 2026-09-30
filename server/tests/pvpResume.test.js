@@ -211,3 +211,37 @@ describe('a player joining a PVP room with no race of their own', () => {
         expect(emitted('pvpGameStarted')).toHaveLength(0);
     });
 });
+
+it('keeps a returning winner as the winner under their new socket id', async () => {
+    arrange({ winnerSocket: OLD_SOCKET, player1GameWon: 'true', endedAt: '2400' });
+
+    await addPlayerToRoom(ROOM, NEW_SOCKET, 'Racer', SESSION);
+
+    expect(roomWrites().winnerSocket).toBe(NEW_SOCKET);
+    expect(emitted('pvpPlayerWon')[0]).toMatchObject({ winnerSocket: NEW_SOCKET });
+});
+
+it('restores the stopped clock of a racer who hit a mine', async () => {
+    arrange({ player1GameOver: 'true', player1EndedAt: '2400' });
+
+    await addPlayerToRoom(ROOM, NEW_SOCKET, 'Racer', SESSION);
+
+    expect(emitted('gameClock').at(-1)).toEqual({ startedAt: 1000, endedAt: 2400 });
+});
+
+it('replays a forfeit victory without crediting an uncompleted board as a clear', async () => {
+    arrange({ winnerSocket: OLD_SOCKET, player1GameWon: 'false', endedAt: '2400' });
+
+    await addPlayerToRoom(ROOM, NEW_SOCKET, 'Racer', SESSION);
+
+    expect(emitted('pvpPlayerWon')).toHaveLength(0);
+    expect(emitted('pvpOpponentDisconnected')[0]).toMatchObject({ winnerSocket: NEW_SOCKET });
+});
+
+it('restores the failed opponent status when the race is still open', async () => {
+    arrange({ player2GameOver: 'true' });
+
+    await addPlayerToRoom(ROOM, NEW_SOCKET, 'Racer', SESSION);
+
+    expect(emitted('pvpOpponentFailed')).toHaveLength(1);
+});

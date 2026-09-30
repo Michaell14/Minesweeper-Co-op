@@ -26,6 +26,7 @@ jest.mock('../utils/initializeRedisClient', () => ({
 
 const { addPlayerToRoom } = require('../utils/playerUtils');
 const { offerResume } = require('../controllers/sessionController');
+const { join } = require('../routes/room');
 const { createEmptyBoard } = require('../domain/board');
 const { SERVER_EVENTS } = require('../../shared/events');
 
@@ -98,6 +99,21 @@ describe('someone else arriving with a live session id', () => {
         await addPlayerToRoom(ROOM, OTHER, 'Thief', SESSION);
 
         expect(Object.keys(mockRedis.read(`player:${OTHER}`)).length).toBeGreaterThan(0);
+    });
+
+    test('cannot bypass the two-player limit by claiming a connected player session', async () => {
+        mockRedis.seed(`room:${ROOM}`, {
+            ...mockRedis.read(`room:${ROOM}`),
+            mode: 'pvp', pvpStarted: 'false', hostSocket: OWNER,
+            players: JSON.stringify([OWNER, 'guest']),
+        });
+        const socket = fakeSocket(OTHER);
+
+        await join({ socket, io: { to: mockTo }, payload: { room: ROOM, name: 'Other' } });
+
+        expect(socket.emit).toHaveBeenCalledWith(SERVER_EVENTS.PVP_ROOM_FULL);
+        expect(JSON.parse(mockRedis.read(`room:${ROOM}`).players)).toEqual([OWNER, 'guest']);
+        expect(mockRedis.read(`player:${OTHER}`)).toEqual({});
     });
 });
 

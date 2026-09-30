@@ -140,3 +140,22 @@ describe('a player finishing at the same moment as the winner', () => {
         expect(won).toBe(true);
     });
 });
+
+it('stores the final race time so a reconnect does not restart either clock', async () => {
+    await winTheRace();
+
+    const [clock] = clockPayloads();
+    expect(client.hSet).toHaveBeenCalledWith(`room:${ROOM}`, expect.objectContaining({
+        endedAt: String(clock.endedAt),
+    }));
+});
+
+it('stores the stopped clock only for the racer who detonated', async () => {
+    await pvp.openCell(0, 0, ROOM, WINNER, roomState(), 0, PLAYER);
+
+    const [clock] = clockPayloads();
+    expect(client.hSet).toHaveBeenCalledWith(`room:${ROOM}`, expect.objectContaining({
+        player1EndedAt: String(clock.endedAt),
+    }));
+    expect(client.hSet.mock.calls.some(([, fields]) => fields && fields.endedAt)).toBe(false);
+});

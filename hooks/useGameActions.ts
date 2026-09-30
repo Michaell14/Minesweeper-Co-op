@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { useMinesweeperStore } from "@/app/store";
 import { throttle } from "@/lib/throttle";
 import { getOrCreateDailyAttemptToken, readDailyAttemptToken } from "@/lib/dailyIdentity";
@@ -85,6 +85,27 @@ const applyOptimisticFlag = (event: CellActionEvent | DailyCellActionEvent, row:
 };
 
 export function useGameActions(socket: AppSocket | null) {
+    const emitCellHover = useCallback(
+        (row: number, col: number) => {
+            const { room, playerJoined, settings } = useMinesweeperStore.getState();
+            if (!socket || !room || !playerJoined) return;
+            // The (-1,-1) clear passes the opt-out so toggling off mid-hover
+            // removes the cursor instead of freezing it.
+            if (!settings.shareCursor && !(row === -1 && col === -1)) return;
+            socket.emit(CLIENT_EVENTS.CELL_HOVER, { room, row, col });
+        },
+        [socket]
+    );
+
+    // A trailing hover belongs to this board visit and this socket only.
+    const throttledEmitCellHover = useMemo(() => throttle(emitCellHover, 100), [emitCellHover]);
+    useEffect(() => () => throttledEmitCellHover.cancel(), [throttledEmitCellHover]);
+
+    const handleBoardLeave = useCallback(() => {
+        throttledEmitCellHover.cancel();
+        emitCellHover(-1, -1);
+    }, [emitCellHover, throttledEmitCellHover]);
+
     /** Leave the room and reset local state back to the Landing defaults. */
     const leaveRoom = useCallback(() => {
         if (!socket) return;
@@ -92,6 +113,7 @@ export function useGameActions(socket: AppSocket | null) {
         const store = useMinesweeperStore.getState();
 
         // Clear the hover first, or it lingers on everyone else's board.
+        throttledEmitCellHover.cancel();
         socket.emit(CLIENT_EVENTS.CELL_HOVER, { room: store.room, row: -1, col: -1 });
         socket.emit(CLIENT_EVENTS.PLAYER_LEAVE);
 
@@ -121,7 +143,7 @@ export function useGameActions(socket: AppSocket | null) {
         store.setPracticeTarget(null);
         store.setKbCursor(null);
         store.setJoinPending(null);
-    }, [socket]);
+    }, [socket, throttledEmitCellHover]);
 
     const createRoom = useCallback(() => {
         const store = useMinesweeperStore.getState();
@@ -279,24 +301,6 @@ export function useGameActions(socket: AppSocket | null) {
         [socket]
     );
 
-    const emitCellHover = useCallback(
-        (row: number, col: number) => {
-            const { room, playerJoined, settings } = useMinesweeperStore.getState();
-            if (!socket || !room || !playerJoined) return;
-            // The (-1,-1) clear passes the opt-out so toggling off mid-hover
-            // removes the cursor instead of freezing it.
-            if (!settings.shareCursor && !(row === -1 && col === -1)) return;
-            socket.emit(CLIENT_EVENTS.CELL_HOVER, { room, row, col });
-        },
-        [socket]
-    );
-
-    // Throttled so a fast mouse cannot flood the room.
-    const throttledEmitCellHover = useMemo(() => throttle(emitCellHover, 100), [emitCellHover]);
-
-    /** Clears this player's hover when the pointer leaves the board. */
-    const handleBoardLeave = useCallback(() => emitCellHover(-1, -1), [emitCellHover]);
-
     // --- Daily challenge ---
 
     const startDaily = useCallback(() => {
@@ -319,7 +323,8 @@ export function useGameActions(socket: AppSocket | null) {
 
     const emitDailyCellAction = useCallback(
         (event: DailyCellActionEvent, row: number, col: number) => {
-            const { dailyActive, dailyDate, dailyStatus } = useMinesweeperStore.getState();
+            const store = useMinesweeperStore.getState();
+            const { dailyActive, dailyDate, dailyStatus } = store;
             if (!dailyActive || !socket) return;
             // A finished attempt is view-only; the server refuses moves anyway,
             // and a blip here would be false feedback.
@@ -327,6 +332,16 @@ export function useGameActions(socket: AppSocket | null) {
             // Read, never mint: the move belongs to the attempt in flight (lib/dailyIdentity.ts).
             const dailyAttemptToken = readDailyAttemptToken();
             if (!dailyAttemptToken) return;
+            // Match the server's first-move guards: touching an open/flagged
+            // cell must not start a clock the server still considers ready.
+            const cell = store.board[row]?.[col];
+            const startsClock = event === CLIENT_EVENTS.DAILY_OPEN_CELL
+                ? cell && !cell.isOpen && !cell.isFlagged
+                : event === CLIENT_EVENTS.DAILY_CHORD_CELL && cell?.isOpen;
+            if (dailyStatus === "ready" && startsClock) {
+                store.setDailyStatus("in_progress");
+                store.setClock({ startedAt: Date.now(), endedAt: null });
+            }
             const sound = cellActionSound(event === CLIENT_EVENTS.DAILY_TOGGLE_FLAG, event === CLIENT_EVENTS.DAILY_CHORD_CELL, row, col);
             if (sound) playSound(sound);
             markCascadeOrigin(event, row, col);
@@ -336,32 +351,13 @@ export function useGameActions(socket: AppSocket | null) {
         [socket]
     );
 
-    /**
-     * Open/chord start the server's clock, but dailyUpdateCells carries no
-     * timestamp, so the display timer starts optimistically on the first move.
-     * The leaderboard time is always the server's; drift here is cosmetic.
-     */
-    const markDailyStartedOptimistically = useCallback(() => {
-        const { dailyStatus, setDailyStatus, setClock } = useMinesweeperStore.getState();
-        if (dailyStatus !== "ready") return;
-        setDailyStatus("in_progress");
-        // <Timer> reads gameSlice's shared clock.
-        setClock({ startedAt: Date.now(), endedAt: null });
-    }, []);
-
     const dailyOpenCell = useCallback(
-        (row: number, col: number) => {
-            markDailyStartedOptimistically();
-            emitDailyCellAction(CLIENT_EVENTS.DAILY_OPEN_CELL, row, col);
-        },
-        [emitDailyCellAction, markDailyStartedOptimistically]
+        (row: number, col: number) => emitDailyCellAction(CLIENT_EVENTS.DAILY_OPEN_CELL, row, col),
+        [emitDailyCellAction]
     );
     const dailyChordCell = useCallback(
-        (row: number, col: number) => {
-            markDailyStartedOptimistically();
-            emitDailyCellAction(CLIENT_EVENTS.DAILY_CHORD_CELL, row, col);
-        },
-        [emitDailyCellAction, markDailyStartedOptimistically]
+        (row: number, col: number) => emitDailyCellAction(CLIENT_EVENTS.DAILY_CHORD_CELL, row, col),
+        [emitDailyCellAction]
     );
     const dailyToggleFlag = useCallback(
         (row: number, col: number) => emitDailyCellAction(CLIENT_EVENTS.DAILY_TOGGLE_FLAG, row, col),

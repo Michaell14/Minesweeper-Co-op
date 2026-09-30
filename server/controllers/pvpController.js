@@ -23,95 +23,120 @@ const buildSharedBoard = (numRows, numCols, numMines) => {
     return { board, openedCells: cellsRevealed };
 };
 
+/**
+ * Start and rematch both replace two boards. Lock in index order and re-read
+ * before deciding: duplicate requests must not redeal an already-started race.
+ * Keep publication inside the locks so a late board payload cannot undo a move.
+ */
+const startRace = async ({ socket, room, io }, rematch = false) =>
+    roomRepo.withJoinLock(room, socket.id, () => roomRepo.withPvpActionLock(room, 0, socket.id, () =>
+        roomRepo.withPvpActionLock(room, 1, socket.id, async () => {
+            const roomState = await roomRepo.getState(room);
+            const mode = roomState.mode || 'co-op';
+            if (mode !== 'pvp') return;
+
+            const players = roomRepo.playersFrom(roomState);
+            if (players.length !== 2) return;
+
+            if (roomState.hostSocket !== socket.id) return;
+            if (roomState.pvpStarted === 'true' && (!rematch || !roomState.winnerSocket)) return;
+
+            const numRows = parseInt(roomState.numRows, 10);
+            const numCols = parseInt(roomState.numCols, 10);
+            const numMines = parseInt(roomState.numMines, 10);
+            const totalSafeCells = (numRows * numCols) - numMines;
+
+            const player1Socket = roomState.hostSocket;
+            const player2Socket = players.find(p => p !== player1Socket);
+            if (!players.includes(player1Socket) || !player2Socket) return;
+            const { board: sharedBoard, openedCells } = buildSharedBoard(numRows, numCols, numMines);
+            const serializedBoard = JSON.stringify(sharedBoard);
+
+            // Both players race from the same server timestamp.
+            const startedAt = Date.now();
+
+            await roomRepo.setFields(room, {
+                pvpStarted: 'true',
+                startedAt: startedAt.toString(),
+                endedAt: '',
+                totalSafeCells: totalSafeCells.toString(),
+                player1Socket,
+                player2Socket,
+                // The same layout for both, already opened at the shared start cell.
+                player1Board: serializedBoard,
+                player2Board: serializedBoard,
+                player1Initialized: 'true',
+                player2Initialized: 'true',
+                player1GameOver: 'false',
+                player2GameOver: 'false',
+                player1GameWon: 'false',
+                player2GameWon: 'false',
+                player1EndedAt: '',
+                player2EndedAt: '',
+                player1Progress: openedCells.toString(),
+                player2Progress: openedCells.toString(),
+                winnerSocket: '',
+                // Pristine copy for resetMyBoard to restore from.
+                sharedBoard: serializedBoard,
+                sharedOpenedCells: openedCells.toString(),
+            });
+
+            const player1Name = await playerRepo.getName(player1Socket);
+            const player2Name = await playerRepo.getName(player2Socket);
+            const player1Avatar = await playerRepo.getAvatar(player1Socket);
+            const player2Avatar = await playerRepo.getAvatar(player2Socket);
+
+            // opponentAvatar rides on the player record like the name: resetMyBoard re-emits identity from it.
+            await playerRepo.setFields(player1Socket, {
+                pvpPlayerIndex: '0',
+                opponentName: player2Name,
+                opponentAvatar: player2Avatar || ''
+            });
+            await playerRepo.setFields(player2Socket, {
+                pvpPlayerIndex: '1',
+                opponentName: player1Name,
+                opponentAvatar: player1Avatar || ''
+            });
+
+            if (rematch) {
+                await playerRepo.resetScore(player1Socket);
+                await playerRepo.resetScore(player2Socket);
+            }
+
+            io.to(room).emit(SERVER_EVENTS.GAME_CLOCK, { startedAt, endedAt: null });
+            if (rematch) {
+                io.to(player1Socket).emit(SERVER_EVENTS.PVP_REMATCH_STARTED, { totalSafeCells, isHost: true });
+                io.to(player2Socket).emit(SERVER_EVENTS.PVP_REMATCH_STARTED, { totalSafeCells, isHost: false });
+            } else {
+                io.to(room).emit(SERVER_EVENTS.PVP_GAME_STARTED, { totalSafeCells });
+            }
+
+            const visibleBoard = projectBoard(sharedBoard);
+
+            io.to(player1Socket).emit(SERVER_EVENTS.PVP_BOARD_UPDATE, {
+                board: visibleBoard,
+                playerIndex: 0,
+                opponentName: player2Name,
+                opponentAvatar: player2Avatar,
+                opponentProgress: openedCells,
+                totalSafeCells
+            });
+
+            io.to(player2Socket).emit(SERVER_EVENTS.PVP_BOARD_UPDATE, {
+                board: visibleBoard,
+                playerIndex: 1,
+                opponentName: player1Name,
+                opponentAvatar: player1Avatar,
+                opponentProgress: openedCells,
+                totalSafeCells
+            });
+            if (rematch) await updatePlayerStatsInRoom(room);
+        })));
+
 /** Handles 'startPvpGame'. */
-const startPvpGame = async ({ socket, room, io }) => {
+const startPvpGame = async (request) => {
     try {
-        const roomState = await roomRepo.getState(room);
-        const mode = roomState.mode || 'co-op';
-        if (mode !== 'pvp') return;
-
-        const players = roomRepo.playersFrom(roomState);
-        if (players.length !== 2) return;
-
-        if (roomState.hostSocket !== socket.id) return;
-        if (roomState.pvpStarted === 'true') return;
-
-        const numRows = parseInt(roomState.numRows, 10);
-        const numCols = parseInt(roomState.numCols, 10);
-        const numMines = parseInt(roomState.numMines, 10);
-        const totalSafeCells = (numRows * numCols) - numMines;
-
-        const player1Socket = roomState.hostSocket;
-        const player2Socket = players.find(p => p !== player1Socket);
-        const { board: sharedBoard, openedCells } = buildSharedBoard(numRows, numCols, numMines);
-        const serializedBoard = JSON.stringify(sharedBoard);
-
-        // The start is room state (both race from the same moment); finishes are not, see pvp.js.
-        const startedAt = Date.now();
-
-        await roomRepo.setFields(room, {
-            pvpStarted: 'true',
-            startedAt: startedAt.toString(),
-            endedAt: '',
-            totalSafeCells: totalSafeCells.toString(),
-            player1Socket,
-            player2Socket,
-            // The same layout for both, already opened at the shared start cell.
-            player1Board: serializedBoard,
-            player2Board: serializedBoard,
-            player1Initialized: 'true',
-            player2Initialized: 'true',
-            player1GameOver: 'false',
-            player2GameOver: 'false',
-            player1GameWon: 'false',
-            player2GameWon: 'false',
-            player1Progress: openedCells.toString(),
-            player2Progress: openedCells.toString(),
-            winnerSocket: '',
-            // Pristine copy for resetMyBoard to restore from.
-            sharedBoard: serializedBoard,
-            sharedOpenedCells: openedCells.toString(),
-        });
-
-        const player1Name = await playerRepo.getName(player1Socket);
-        const player2Name = await playerRepo.getName(player2Socket);
-        const player1Avatar = await playerRepo.getAvatar(player1Socket);
-        const player2Avatar = await playerRepo.getAvatar(player2Socket);
-
-        // opponentAvatar rides on the player record like the name: resetMyBoard re-emits identity from it.
-        await playerRepo.setFields(player1Socket, {
-            pvpPlayerIndex: '0',
-            opponentName: player2Name,
-            opponentAvatar: player2Avatar || ''
-        });
-        await playerRepo.setFields(player2Socket, {
-            pvpPlayerIndex: '1',
-            opponentName: player1Name,
-            opponentAvatar: player1Avatar || ''
-        });
-
-        io.to(room).emit(SERVER_EVENTS.GAME_CLOCK, { startedAt, endedAt: null });
-        io.to(room).emit(SERVER_EVENTS.PVP_GAME_STARTED, { totalSafeCells });
-
-        const visibleBoard = projectBoard(sharedBoard);
-
-        io.to(player1Socket).emit(SERVER_EVENTS.PVP_BOARD_UPDATE, {
-            board: visibleBoard,
-            playerIndex: 0,
-            opponentName: player2Name,
-            opponentAvatar: player2Avatar,
-            opponentProgress: openedCells,
-            totalSafeCells
-        });
-
-        io.to(player2Socket).emit(SERVER_EVENTS.PVP_BOARD_UPDATE, {
-            board: visibleBoard,
-            playerIndex: 1,
-            opponentName: player1Name,
-            opponentAvatar: player1Avatar,
-            opponentProgress: openedCells,
-            totalSafeCells
-        });
+        await startRace(request);
     } catch (error) {
         console.error('Error in startPvpGame:', error);
     }
@@ -120,164 +145,83 @@ const startPvpGame = async ({ socket, room, io }) => {
 /** Handles 'resetMyBoard'. */
 const resetMyBoard = async ({ socket, room, io }) => {
     try {
-        const roomState = await roomRepo.getState(room);
-        const mode = roomState.mode || 'co-op';
+        const initialState = await roomRepo.getState(room);
+        const mode = initialState.mode || 'co-op';
         if (mode !== 'pvp') return;
 
-        if (roomState.winnerSocket && roomState.winnerSocket !== '') return;
+        if (initialState.winnerSocket) return;
 
-        const playerData = await playerRepo.getState(socket.id);
+        const initialPlayer = await playerRepo.getState(socket.id);
         // No index-0 fallback: that once reset PLAYER ONE's board for a socket that owns neither.
-        const playerIndex = pvpIndexOf(playerData);
+        const playerIndex = pvpIndexOf(initialPlayer);
         if (playerIndex === null) {
             console.error(`Player ${socket.id} asked to reset with no pvpPlayerIndex set!`);
             return;
         }
 
-        // Restore the shared starting position, not a blank grid: a retry goes back to where the game began.
-        const { sharedBoard, sharedOpenedCells } = roomState;
-        if (!sharedBoard) return;
-        const openedCells = parseInt(sharedOpenedCells || '0', 10);
-
-        const { boardKey, initializedKey, gameOverKey, progressKey } = pvpPlayerFields(playerIndex);
-
-        // Locked: a move still in flight would otherwise write its board over the restored one.
+        // A winning move or rematch can finish while this request waits.
         await roomRepo.withPvpActionLock(room, playerIndex, socket.id, async () => {
+            const roomState = await roomRepo.getState(room);
+            const playerData = await playerRepo.getState(socket.id);
+            if (roomState.mode !== 'pvp' || roomState.pvpStarted !== 'true' || roomState.winnerSocket) return;
+            if (pvpIndexOf(playerData) !== playerIndex) return;
+
+            // Restore the shared starting position, not a blank grid: a retry goes back to where the game began.
+            const { sharedBoard, sharedOpenedCells } = roomState;
+            if (!sharedBoard) return;
+            const openedCells = parseInt(sharedOpenedCells || '0', 10);
+
+            const { boardKey, initializedKey, gameOverKey, progressKey, endedAtKey } = pvpPlayerFields(playerIndex);
+
             await roomRepo.setFields(room, {
                 [boardKey]: sharedBoard,
                 [initializedKey]: 'true',
                 [gameOverKey]: 'false',
+                [endedAtKey]: '',
                 [progressKey]: openedCells.toString(),
             });
 
             await playerRepo.resetScore(socket.id);
-        });
 
-        // Their clock restarts from the shared start; pvp.js stopped it when they hit the mine.
-        io.to(socket.id).emit(SERVER_EVENTS.GAME_CLOCK, {
-            startedAt: startedAtOf(roomState),
-            endedAt: null
-        });
-
-        io.to(socket.id).emit(SERVER_EVENTS.PVP_BOARD_UPDATE, {
-            board: projectBoard(JSON.parse(sharedBoard)),
-            playerIndex,
-            opponentName: playerData.opponentName || 'Opponent',
-            opponentAvatar: playerData.opponentAvatar || null
-        });
-
-        const players = roomRepo.playersFrom(roomState);
-        const opponentSocket = players.find(p => p !== socket.id);
-        if (opponentSocket) {
-            io.to(opponentSocket).emit(SERVER_EVENTS.PVP_OPPONENT_RESET);
-            const numRows = parseInt(roomState.numRows, 10);
-            const numCols = parseInt(roomState.numCols, 10);
-            const numMines = parseInt(roomState.numMines, 10);
-            const totalSafeCells = (numRows * numCols) - numMines;
-            io.to(opponentSocket).emit(SERVER_EVENTS.PVP_OPPONENT_PROGRESS, {
-                progress: openedCells,
-                totalSafeCells,
-                percentage: totalSafeCells > 0 ? Math.round((openedCells / totalSafeCells) * 100) : 0
+            // Their clock restarts from the shared start; pvp.js stopped it when they hit the mine.
+            io.to(socket.id).emit(SERVER_EVENTS.GAME_CLOCK, {
+                startedAt: startedAtOf(roomState),
+                endedAt: null
             });
-        }
 
-        await updatePlayerStatsInRoom(room);
+            io.to(socket.id).emit(SERVER_EVENTS.PVP_BOARD_UPDATE, {
+                board: projectBoard(JSON.parse(sharedBoard)),
+                playerIndex,
+                opponentName: playerData.opponentName || 'Opponent',
+                opponentAvatar: playerData.opponentAvatar || null
+            });
+
+            const players = roomRepo.playersFrom(roomState);
+            const opponentSocket = players.find(p => p !== socket.id);
+            if (opponentSocket) {
+                io.to(opponentSocket).emit(SERVER_EVENTS.PVP_OPPONENT_RESET);
+                const numRows = parseInt(roomState.numRows, 10);
+                const numCols = parseInt(roomState.numCols, 10);
+                const numMines = parseInt(roomState.numMines, 10);
+                const totalSafeCells = (numRows * numCols) - numMines;
+                io.to(opponentSocket).emit(SERVER_EVENTS.PVP_OPPONENT_PROGRESS, {
+                    progress: openedCells,
+                    totalSafeCells,
+                    percentage: totalSafeCells > 0 ? Math.round((openedCells / totalSafeCells) * 100) : 0
+                });
+            }
+
+            await updatePlayerStatsInRoom(room);
+        });
     } catch (error) {
         console.error('Error in resetMyBoard:', error);
     }
 };
 
 /** Handles 'pvpRematch'. */
-const pvpRematch = async ({ socket, room, io }) => {
+const pvpRematch = async (request) => {
     try {
-        const roomState = await roomRepo.getState(room);
-        const mode = roomState.mode || 'co-op';
-        if (mode !== 'pvp') return;
-
-        if (roomState.hostSocket !== socket.id) return;
-
-        /*
-         * Only once the last race is settled: ungated, the host could rebuild
-         * both boards mid-race, and the UI never offers it before a winner exists.
-         */
-        if (roomState.pvpStarted === 'true' && !roomState.winnerSocket) return;
-
-        const players = roomRepo.playersFrom(roomState);
-        if (players.length !== 2) return;
-
-        const numRows = parseInt(roomState.numRows, 10);
-        const numCols = parseInt(roomState.numCols, 10);
-        const numMines = parseInt(roomState.numMines, 10);
-        const totalSafeCells = (numRows * numCols) - numMines;
-
-        const { board: sharedBoard, openedCells } = buildSharedBoard(numRows, numCols, numMines);
-        const serializedBoard = JSON.stringify(sharedBoard);
-
-        const startedAt = Date.now();
-
-        const player1Socket = roomState.player1Socket;
-        const player2Socket = roomState.player2Socket;
-
-        // Both boards are rewritten, so both locks are held, in index order.
-        // (startPvpGame needs none of this: no move runs until pvpStarted is 'true'.)
-        await roomRepo.withPvpActionLock(room, 0, socket.id, async () => {
-            await roomRepo.withPvpActionLock(room, 1, socket.id, async () => {
-                await roomRepo.setFields(room, {
-                    pvpStarted: 'true',
-                    startedAt: startedAt.toString(),
-                    endedAt: '',
-                    totalSafeCells: totalSafeCells.toString(),
-                    player1Board: serializedBoard,
-                    player2Board: serializedBoard,
-                    player1Initialized: 'true',
-                    player2Initialized: 'true',
-                    player1GameOver: 'false',
-                    player2GameOver: 'false',
-                    player1GameWon: 'false',
-                    player2GameWon: 'false',
-                    player1Progress: openedCells.toString(),
-                    player2Progress: openedCells.toString(),
-                    winnerSocket: '',
-                    // Pristine copy for resetMyBoard to restore from.
-                    sharedBoard: serializedBoard,
-                    sharedOpenedCells: openedCells.toString(),
-                });
-
-                await playerRepo.resetScore(player1Socket);
-                await playerRepo.resetScore(player2Socket);
-            });
-        });
-
-        const player1Name = await playerRepo.getName(player1Socket);
-        const player2Name = await playerRepo.getName(player2Socket);
-        const player1Avatar = await playerRepo.getAvatar(player1Socket);
-        const player2Avatar = await playerRepo.getAvatar(player2Socket);
-
-        io.to(room).emit(SERVER_EVENTS.GAME_CLOCK, { startedAt, endedAt: null });
-        io.to(player1Socket).emit(SERVER_EVENTS.PVP_REMATCH_STARTED, { totalSafeCells, isHost: true });
-        io.to(player2Socket).emit(SERVER_EVENTS.PVP_REMATCH_STARTED, { totalSafeCells, isHost: false });
-
-        const visibleBoard = projectBoard(sharedBoard);
-
-        io.to(player1Socket).emit(SERVER_EVENTS.PVP_BOARD_UPDATE, {
-            board: visibleBoard,
-            playerIndex: 0,
-            opponentName: player2Name,
-            opponentAvatar: player2Avatar,
-            opponentProgress: openedCells,
-            totalSafeCells
-        });
-
-        io.to(player2Socket).emit(SERVER_EVENTS.PVP_BOARD_UPDATE, {
-            board: visibleBoard,
-            playerIndex: 1,
-            opponentName: player1Name,
-            opponentAvatar: player1Avatar,
-            opponentProgress: openedCells,
-            totalSafeCells
-        });
-
-        await updatePlayerStatsInRoom(room);
+        await startRace(request, true);
     } catch (error) {
         console.error('Error in pvpRematch:', error);
     }
