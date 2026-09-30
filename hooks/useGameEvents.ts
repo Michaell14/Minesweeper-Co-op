@@ -128,11 +128,12 @@ const coopHandlers = (socket: AppSocket, leaveRoom: () => void): SocketHandlers 
     },
 
     // --- Win / loss ---
-    [SERVER_EVENTS.GAME_WON]: () => {
+    [SERVER_EVENTS.GAME_WON]: (payload) => {
         shootConfetti();
         playSound('win');
         useMinesweeperStore.getState().setGameWon(true);
-        recordClear();
+        // Joining a completed room is a snapshot, not a clear by this player.
+        if (!payload?.replay) recordClear();
         openSummary(socket, DIALOGS.gameSummary);
     },
 
@@ -200,6 +201,17 @@ const coopHandlers = (socket: AppSocket, leaveRoom: () => void): SocketHandlers 
         // are already in is theirs to reclaim.
         if (store.playerJoined && store.room !== room) return;
 
+        // A teammate may have reset/rematched while this socket was away.
+        // The join snapshot replays current outcomes only, so old true flags
+        // would otherwise survive an active board with no outcome to replay.
+        store.resetPvpState();
+        store.setClock({ startedAt: null, endedAt: null });
+        store.clearAllHovers();
+        store.resetRoomFriends();
+        for (const dialog of [DIALOGS.gameSummary, DIALOGS.pvpGameOver, DIALOGS.pvpYouWon,
+            DIALOGS.pvpOpponentWon, DIALOGS.pvpOpponentDisconnected]) {
+            closeDialog(dialog);
+        }
         store.setRoom(room);
         store.setName(name);
         store.setJoinPending('join');
@@ -341,13 +353,16 @@ const pvpHandlers = (socket: AppSocket): SocketHandlers => ({
         store.setPvpOpponentProgress(0);
     },
 
-    [SERVER_EVENTS.PVP_BOARD_UPDATE]: ({ board, opponentName, opponentAvatar, opponentProgress, totalSafeCells }) => {
+    [SERVER_EVENTS.PVP_BOARD_UPDATE]: ({ board, opponentName, opponentAvatar, opponentProgress, totalSafeCells, gameOver }) => {
         const store = useMinesweeperStore.getState();
         store.setBoard(board);
         if (opponentName) store.setPvpOpponentName(opponentName);
         if (opponentAvatar !== undefined) store.setPvpOpponentAvatar(opponentAvatar);
         if (opponentProgress !== undefined) store.setPvpOpponentProgress(opponentProgress);
         if (totalSafeCells !== undefined) store.setPvpTotalSafeCells(totalSafeCells);
+        // Reconnect snapshots carry the current player's outcome separately
+        // from the race winner. Ordinary board updates leave it untouched.
+        if (gameOver !== undefined) store.setGameOver(gameOver);
     },
 
     [SERVER_EVENTS.PVP_UPDATE_CELLS]: applyCellUpdates,
@@ -356,24 +371,23 @@ const pvpHandlers = (socket: AppSocket): SocketHandlers => ({
         playSound('lose');
         const store = useMinesweeperStore.getState();
         store.setGameOver(true);
-        store.setPvpOpponentStatus("playing"); // Opponent might still be playing
         openSummary(socket, DIALOGS.pvpGameOver);
     },
 
     [SERVER_EVENTS.PVP_OPPONENT_FAILED]: () => useMinesweeperStore.getState().setPvpOpponentStatus("failed"),
     [SERVER_EVENTS.PVP_OPPONENT_RESET]: () => useMinesweeperStore.getState().setPvpOpponentStatus("playing"),
 
-    [SERVER_EVENTS.PVP_PLAYER_WON]: ({ winnerSocket, winnerName }) => {
+    [SERVER_EVENTS.PVP_PLAYER_WON]: ({ winnerSocket, winnerName, replay }) => {
         const store = useMinesweeperStore.getState();
         store.setPvpWinner(winnerName);
-        store.setPvpOpponentStatus("won");
+        store.setPvpOpponentStatus(socket.id === winnerSocket ? "lost" : "won");
 
         if (socket.id === winnerSocket) {
             shootConfetti();
             playSound('win');
             store.setGameWon(true);
             // Winning a race means clearing the board, so it counts.
-            recordClear();
+            if (!replay) recordClear();
             openSummary(socket, DIALOGS.pvpYouWon);
         } else {
             playSound('lose');

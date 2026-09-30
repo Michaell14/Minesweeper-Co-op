@@ -24,6 +24,11 @@ let mockSocket: unknown = { id: 'test-socket' };
 // jsdom has no app-router context, so useRouter throws on sight.
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push }) }));
 
+// This page suite models a guest; identity states are covered by DailyDialogs.
+vi.mock('@/hooks/useAccountProfile', () => ({
+    useAccountProfile: () => ({ profile: null, resolved: true }),
+}));
+
 vi.mock('@/hooks/useGameSession', () => ({
     useGameSession: () => ({
         socket: mockSocket,

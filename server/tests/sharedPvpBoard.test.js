@@ -344,8 +344,8 @@ describe('pvpRematch', () => {
 
         // Spelled out so the comparisons cannot pass on an empty set (Math.max()
         // of nothing is -Infinity). Releases are `eval`; see setup/lockAssertions.js.
-        expect(client.set.mock.invocationCallOrder).toHaveLength(2);
-        expect(client.eval.mock.invocationCallOrder).toHaveLength(2);
+        expect(client.set.mock.invocationCallOrder).toHaveLength(3);
+        expect(client.eval.mock.invocationCallOrder).toHaveLength(3);
 
         const lastAcquire = Math.max(...client.set.mock.invocationCallOrder);
         const firstRelease = Math.min(...client.eval.mock.invocationCallOrder);

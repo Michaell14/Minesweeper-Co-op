@@ -144,6 +144,30 @@ const onDisconnect = async (socket) => {
     }
 };
 
+/**
+ * A newly accepted pair can already be connected. No connection event will
+ * refresh either client's invite list, so tell every tab on both sides now.
+ * Re-check the committed edge before sharing presence in case a block/removal
+ * overtook the accept. Like connection presence, this must never fail the action.
+ */
+const onFriendshipAccepted = async (firstId, secondId) => {
+    if (!isDbEnabled()) return;
+    try {
+        if (!(await friendsRepo.areFriends(firstId, secondId))) return;
+        const byUser = indexSocketsByUser();
+        for (const [userId, friendId] of [[firstId, secondId], [secondId, firstId]]) {
+            for (const [socketId] of byUser.get(userId) ?? []) {
+                io.to(socketId).emit(SERVER_EVENTS.FRIEND_PRESENCE, {
+                    id: friendId,
+                    online: byUser.has(friendId),
+                });
+            }
+        }
+    } catch (error) {
+        console.error('Presence after friendship accepted failed:', error.message);
+    }
+};
+
 module.exports = {
     indexSocketsByUser,
     socketsOf,
@@ -157,4 +181,5 @@ module.exports = {
     announcePresence,
     onConnect,
     onDisconnect,
+    onFriendshipAccepted,
 };

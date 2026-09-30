@@ -1,7 +1,8 @@
 "use client";
 
 import React from 'react';
-import { Button, Dialog, DialogClose, Input } from "@/components/ds";
+import { Button, Dialog, DialogClose, Field, Input } from "@/components/ds";
+import { useMinesweeperStore } from '@/app/store';
 import { DIALOGS, closeDialog } from "@/lib/dialogs";
 
 export interface NameDialogProps {
@@ -12,21 +13,25 @@ export interface NameDialogProps {
 }
 
 /**
- * "Enter your Name", shown before creating, joining and quick match. The ref
- * reads the input without the dialog needing to know its own id.
+ * Reuse the name from this visit across creating, joining and quick match,
+ * while still allowing the guest to edit it before confirming.
  */
 export default function NameDialog({ id, confirmLabel, onConfirm, setName }: NameDialogProps) {
-    const inputRef = React.useRef<HTMLInputElement>(null);
+    const name = useMinesweeperStore((state) => state.name);
+    const [error, setError] = React.useState('');
+    const errorId = `${id}-name-error`;
 
-    const confirm = (e: React.MouseEvent) => {
+    const confirm = (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
         // Trimmed, not merely trim-CHECKED: "  Bob  " once reached the scoreboard.
-        const nameValue = (inputRef.current?.value ?? '').trim();
+        const nameValue = name.trim();
         if (nameValue.length === 0) {
-            e.preventDefault();
-            alert('Please enter a valid name');
+            setError('Enter a name to continue.');
             return;
         }
         setName(nameValue);
+        setError('');
+        closeDialog(id);
         onConfirm();
     };
 
@@ -34,6 +39,8 @@ export default function NameDialog({ id, confirmLabel, onConfirm, setName }: Nam
         <Dialog
             id={id}
             title="Enter your Name:"
+            onSubmit={confirm}
+            onClose={() => setError('')}
             actionsAlign="between"
             actions={
                 <>
@@ -42,21 +49,26 @@ export default function NameDialog({ id, confirmLabel, onConfirm, setName }: Nam
                         onClick={() => closeDialog(id)}>Cancel</Button>
                     <DialogClose
                         intent="success"
-                        onClick={confirm}
                         aria-label={confirmLabel}>Confirm</DialogClose>
                 </>
             }>
-            <Input
-                ref={inputRef}
-                type="text"
-                name="name"
-                maxLength={16}
-                minLength={1}
-                required
-                className="mb-4"
-                aria-label="Your player name"
-                aria-required="true"
-                onChange={(e) => setName(e.target.value)} />
+            <Field invalid={!!error} errorText={error && <span id={errorId}>{error}</span>} className="mb-4">
+                <Input
+                    type="text"
+                    name="name"
+                    value={name}
+                    maxLength={16}
+                    invalid={!!error}
+                    aria-invalid={!!error}
+                    aria-describedby={error ? errorId : undefined}
+                    aria-label="Your player name"
+                    aria-required="true"
+                    autoComplete="nickname"
+                    onChange={(e) => {
+                        setError('');
+                        setName(e.target.value);
+                    }} />
+            </Field>
         </Dialog>
     );
 }

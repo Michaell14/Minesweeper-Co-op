@@ -12,6 +12,7 @@ const { createRoom: createRoomState } = require('../utils/gameUtils');
 const { addPlayerToRoom, removePlayer } = require('../utils/playerUtils');
 const { forgetRoom } = require('../controllers/sessionController');
 const { displayNameFor } = require('../utils/playerIdentity');
+const { isTakeoverOfLiveSession } = require('../utils/sessionGuard');
 const { isValidRoomCode, isValidPlayerName, isValidBoardConfig, isValidMode, isValidRelaxed } = require('../validation');
 const { SERVER_EVENTS } = require('../../shared/events');
 
@@ -31,23 +32,24 @@ const create = async ({ socket, io, payload }) => {
             return;
         }
 
-        const roomExists = await roomRepo.exists(room);
-        if (roomExists) {
-            socket.emit(SERVER_EVENTS.CREATE_ROOM_ERROR);
-            return;
-        }
-        socket.join(room);
+        await roomRepo.withJoinLock(room, socket.id, async () => {
+            // Checking and creating must be one decision, including the first roster entry.
+            if (await roomRepo.exists(room)) {
+                socket.emit(SERVER_EVENTS.CREATE_ROOM_ERROR);
+                return;
+            }
+            socket.join(room);
 
-        await createRoomState(room, numRows, numCols, numMines, mode, true, relaxed === true);
+            await createRoomState(room, numRows, numCols, numMines, mode, true, relaxed === true);
 
-        // In PVP the creator is the host.
-        if (mode === 'pvp') {
-            await roomRepo.setFields(room, { hostSocket: socket.id });
-        }
+            if (mode === 'pvp') {
+                await roomRepo.setFields(room, { hostSocket: socket.id });
+            }
 
-        await addPlayerToRoom(room, socket.id, displayName, socket.handshake.auth?.sessionId, socket.data?.user?.avatar);
-        io.to(room).emit(SERVER_EVENTS.JOIN_ROOM_SUCCESS, { room, mode, isHost: mode === 'pvp',
-            ...(relaxed === true && { relaxed: true, livesRemaining: 3 }),
+            await addPlayerToRoom(room, socket.id, displayName, socket.handshake.auth?.sessionId, socket.data?.user?.avatar);
+            socket.emit(SERVER_EVENTS.JOIN_ROOM_SUCCESS, { room, mode, isHost: mode === 'pvp',
+                ...(relaxed === true && { relaxed: true, livesRemaining: 3 }),
+            });
         });
     } catch (error) {
         console.error('Error in createRoom:', error);
@@ -79,6 +81,29 @@ const join = async ({ socket, io, payload }) => {
         const roomState = await roomRepo.getState(room);
         const mode = roomState.mode || 'co-op';
 
+        let joinedState;
+        const onJoined = async () => {
+            /*
+             * Re-read: `addPlayerToRoom` may have repointed `hostSocket` at THIS
+             * socket for a reconnecting host. The snapshot above still names the
+             * one that dropped, which told a reloaded host `isHost: false`.
+             */
+            joinedState = await roomRepo.getState(room);
+            const isHost = mode === 'pvp' && joinedState.hostSocket === socket.id;
+            // Dimensions so the joiner's flag counter is right; `practice` because a
+            // reload resumes through THIS handler and would otherwise lose the target.
+            socket.emit(SERVER_EVENTS.JOIN_ROOM_SUCCESS, {
+                room,
+                mode,
+                isHost,
+                numRows: parseInt(joinedState.numRows),
+                numCols: parseInt(joinedState.numCols),
+                numMines: parseInt(joinedState.numMines),
+                ...(joinedState.practice === 'true' && { practice: true }),
+                ...(joinedState.relaxed === 'true' && { relaxed: true, livesRemaining: Number(joinedState.livesRemaining) }),
+            });
+        };
+
         /*
          * A PVP room holds two, and a reconnecting player is not a third. Their
          * socket id is new, so the players list cannot recognise them; the
@@ -90,45 +115,36 @@ const join = async ({ socket, io, payload }) => {
             const previousSocketId = sessionId ? await sessionRepo.getSocketId(sessionId) : null;
 
             const admitted = await roomRepo.withJoinLock(room, socket.id, async () => {
+                if (!(await roomRepo.exists(room))) return null;
                 const players = roomRepo.playersFrom(await roomRepo.getState(room));
                 const isReconnecting =
                     players.includes(socket.id) ||
-                    Boolean(previousSocketId && players.includes(previousSocketId));
+                    Boolean(previousSocketId && players.includes(previousSocketId) &&
+                        !(await isTakeoverOfLiveSession(sessionId, socket.id)));
 
                 if (!isReconnecting && players.length >= 2) return false;
 
-                await addPlayerToRoom(room, socket.id, displayName, sessionId, socket.data?.user?.avatar);
+                await addPlayerToRoom(room, socket.id, displayName, sessionId, socket.data?.user?.avatar, onJoined);
                 return true;
             });
 
             if (!admitted) {
-                socket.emit(SERVER_EVENTS.PVP_ROOM_FULL);
+                socket.emit(admitted === null ? SERVER_EVENTS.JOIN_ROOM_ERROR : SERVER_EVENTS.PVP_ROOM_FULL);
                 socket.leave(room);
                 return;
             }
         } else {
-            await addPlayerToRoom(room, socket.id, displayName, sessionId, socket.data?.user?.avatar);
+            const admitted = await roomRepo.withJoinLock(room, socket.id, async () => {
+                if (!(await roomRepo.exists(room))) return false;
+                await addPlayerToRoom(room, socket.id, displayName, sessionId, socket.data?.user?.avatar, onJoined);
+                return true;
+            });
+            if (!admitted) {
+                socket.emit(SERVER_EVENTS.JOIN_ROOM_ERROR);
+                socket.leave(room);
+                return;
+            }
         }
-
-        /*
-         * Re-read: `addPlayerToRoom` may have repointed `hostSocket` at THIS
-         * socket for a reconnecting host. The snapshot above still names the
-         * one that dropped, which told a reloaded host `isHost: false`.
-         */
-        const joinedState = await roomRepo.getState(room);
-        const isHost = mode === 'pvp' && joinedState.hostSocket === socket.id;
-        // Dimensions so the joiner's flag counter is right; `practice` because a
-        // reload resumes through THIS handler and would otherwise lose the target.
-        socket.emit(SERVER_EVENTS.JOIN_ROOM_SUCCESS, {
-            room,
-            mode,
-            isHost,
-            numRows: parseInt(joinedState.numRows),
-            numCols: parseInt(joinedState.numCols),
-            numMines: parseInt(joinedState.numMines),
-            ...(joinedState.practice === 'true' && { practice: true }),
-            ...(joinedState.relaxed === 'true' && { relaxed: true, livesRemaining: Number(joinedState.livesRemaining) }),
-        });
 
         if (mode === 'pvp') {
             const updatedPlayers = await roomRepo.getPlayers(room);

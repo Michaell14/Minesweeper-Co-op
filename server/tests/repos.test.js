@@ -43,6 +43,7 @@ describe('keys', () => {
             initializedKey: 'player1Initialized',
             gameOverKey: 'player1GameOver',
             gameWonKey: 'player1GameWon',
+            endedAtKey: 'player1EndedAt',
             progressKey: 'player1Progress',
             socketKey: 'player1Socket',
         });

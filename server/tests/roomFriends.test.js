@@ -26,6 +26,10 @@ jest.mock('../data/roomRepo', () => ({
 }));
 
 const mockRequestFriend = jest.fn();
+const mockOnFriendshipAccepted = jest.fn();
+jest.mock('../utils/presence', () => ({
+    onFriendshipAccepted: (...args) => mockOnFriendshipAccepted(...args),
+}));
 const mockFindEdges = jest.fn();
 jest.mock('../data/friendsRepo', () => ({
     STATUS: { pending: 'pending', accepted: 'accepted', blocked: 'blocked' },
@@ -66,12 +70,24 @@ beforeEach(() => {
     mockGetPlayers.mockReset();
     mockFindEdges.mockReset().mockResolvedValue(new Map());
     mockRequestFriend.mockReset().mockResolvedValue('requested');
+    mockOnFriendshipAccepted.mockReset().mockResolvedValue(undefined);
     jest.spyOn(console, 'error').mockImplementation(() => {});
 });
 
 afterEach(() => jest.restoreAllMocks());
 
 describe('the list', () => {
+    test('accepting a co-player refreshes presence without either player reconnecting', async () => {
+        const me = socketFor('sock-me', ME_ACCOUNT);
+        socketFor('sock-them', THEM_ACCOUNT);
+        roomHolds('sock-me', 'sock-them');
+        mockRequestFriend.mockResolvedValue('accepted');
+
+        await addRoomFriend(me, { room: ROOM, playerId: 'sock-them', token: TOKEN });
+
+        expect(mockOnFriendshipAccepted).toHaveBeenCalledWith(ME_ACCOUNT.id, THEM_ACCOUNT.id);
+    });
+
     test('offers a signed-in co-player, by socket id and never by account id', async () => {
         const me = socketFor('sock-me', ME_ACCOUNT);
         socketFor('sock-them', THEM_ACCOUNT);

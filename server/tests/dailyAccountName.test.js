@@ -11,6 +11,7 @@ jest.mock('../data/userRepo', () => ({
 }));
 
 jest.mock('../data/dailyRepo', () => ({
+    withAttemptLock: jest.fn((_date, _token, _owner, fn) => fn()),
     getAttempt: jest.fn(),
     submitScore: jest.fn(),
     getRank: jest.fn(),

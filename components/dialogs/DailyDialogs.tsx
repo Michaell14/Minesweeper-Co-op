@@ -7,6 +7,7 @@ import { dailyWinStreak, readDailyHistory } from '@/lib/dailyHistory';
 import { markDailyExplainerSeen } from '@/lib/dailyExplainerSeen';
 import { formatElapsed } from '@/lib/gameClock';
 import { shortLessonName } from '@/lib/lossDiagnosis';
+import { useAccountProfile } from '@/hooks/useAccountProfile';
 
 interface DailyDialogsParams {
     submitDailyScore: (name: string) => void;
@@ -18,6 +19,7 @@ interface DailyDialogsParams {
  * by hooks/useGameEvents.ts and components/DailyChallenge.tsx; this only renders markup.
  */
 export default function DailyDialogs({ submitDailyScore, getDailyLeaderboard }: DailyDialogsParams) {
+    const { profile, resolved: profileResolved } = useAccountProfile();
     const dailyDate = useMinesweeperStore((state) => state.dailyDate);
     const dailyElapsedMs = useMinesweeperStore((state) => state.dailyElapsedMs);
     const dailyRank = useMinesweeperStore((state) => state.dailyRank);
@@ -31,8 +33,8 @@ export default function DailyDialogs({ submitDailyScore, getDailyLeaderboard }: 
     const nameInputRef = React.useRef<HTMLInputElement>(null);
 
     /*
-     * `required` alone passes a name of spaces, and this button does not submit
-     * its form, so native validation never runs. Rendered by Field, not alert()'d.
+     * Whitespace needs the same validation as an empty name. Field renders the
+     * refusal for both keyboard submission and a click.
      */
     const [nameError, setNameError] = React.useState('');
 
@@ -43,10 +45,14 @@ export default function DailyDialogs({ submitDailyScore, getDailyLeaderboard }: 
      * On success `dailyScoreSubmitted` closes the dialog long before it fires.
      */
     const [isSubmitting, setIsSubmitting] = React.useState(false);
+    const [submitError, setSubmitError] = React.useState('');
+    const submissionPending = React.useRef(false);
     const submitTimeout = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const stopSubmitting = React.useCallback(() => {
         if (submitTimeout.current) clearTimeout(submitTimeout.current);
+        submitTimeout.current = null;
+        submissionPending.current = false;
         setIsSubmitting(false);
     }, []);
 
@@ -54,21 +60,32 @@ export default function DailyDialogs({ submitDailyScore, getDailyLeaderboard }: 
 
     // A resumed attempt reopens this dialog; it must not reopen mid-submit.
     React.useEffect(() => {
-        if (dailyStatus !== 'won_pending_submit') stopSubmitting();
+        if (dailyStatus !== 'won_pending_submit') {
+            stopSubmitting();
+            setSubmitError('');
+        }
     }, [dailyStatus, stopSubmitting]);
 
-    const confirmSubmit = () => {
-        if (isSubmitting) return;
+    const confirmSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+        // The shell uses method="dialog": preventing the native submit is
+        // essential, or Enter closes this before the server confirms anything.
+        event.preventDefault();
+        if (submissionPending.current || !profileResolved) return;
 
-        const nameValue = (nameInputRef.current?.value ?? '').trim();
+        const nameValue = (profile?.displayName ?? nameInputRef.current?.value ?? '').trim();
         if (!nameValue) {
             setNameError('Enter a name to go on the leaderboard.');
             return;
         }
         setNameError('');
+        setSubmitError('');
+        submissionPending.current = true;
         setIsSubmitting(true);
         if (submitTimeout.current) clearTimeout(submitTimeout.current);
-        submitTimeout.current = setTimeout(() => setIsSubmitting(false), 5000);
+        submitTimeout.current = setTimeout(() => {
+            stopSubmitting();
+            setSubmitError('No confirmation yet. Your solved puzzle is saved — try submitting again.');
+        }, 5000);
         submitDailyScore(nameValue);
     };
 
@@ -170,43 +187,48 @@ export default function DailyDialogs({ submitDailyScore, getDailyLeaderboard }: 
             <Dialog
                 id={DIALOGS.dailySubmit}
                 title="You solved it!"
+                onSubmit={confirmSubmit}
                 actions={
                     /*
-                     * A plain Button, NOT a DialogClose: the server has the last
-                     * word on whether a submission lands. Closing on click left a
-                     * refused player with no dialog and a status stuck at
-                     * won_pending_submit; `dailyScoreSubmitted` closes it instead.
+                     * A real submit lets Enter and clicking follow one path.
+                     * onSubmit prevents closing; only the server's confirmation
+                     * closes the dialog.
                      */
                     <Button
                         intent="success"
-                        onClick={confirmSubmit}
-                        disabled={isSubmitting}
+                        type="submit"
+                        disabled={isSubmitting || !profileResolved}
                         aria-label="Submit your time to the leaderboard">
-                        {isSubmitting ? 'Submitting...' : 'Submit'}
+                        {isSubmitting ? 'Submitting...' : !profileResolved ? 'Loading your name…' : 'Submit'}
                     </Button>
                 }>
                 <p className="text-pixel-sm">Your time: <strong>{elapsedLabel}</strong></p>
-                {/*
-                 * Not optional as on the room's name dialog, whose TITLE is
-                 * "Enter your Name:"; this title leaves an empty box explaining nothing.
-                 */}
-                <Field
-                    className="mt-3 mb-4"
-                    label="Enter a name for the leaderboard:"
-                    invalid={nameError !== ''}
-                    errorText={nameError}>
-                    <Input
-                        ref={nameInputRef}
-                        type="text"
-                        name="name"
-                        maxLength={16}
-                        minLength={1}
-                        required
-                        placeholder="Your name"
+                {profile ? (
+                    <p className="text-pixel-sm mt-3 mb-4">
+                        Submitting as <NameWithAvatar avatar={profile.avatar}>{profile.displayName}</NameWithAvatar>.
+                        {' '}Your account name will appear on the leaderboard.
+                    </p>
+                ) : !profileResolved ? (
+                    <p className="text-pixel-sm text-ink-muted mt-3 mb-4" role="status">Loading your leaderboard name…</p>
+                ) : (
+                    <Field
+                        className="mt-3 mb-4"
+                        label="Enter a name for the leaderboard:"
                         invalid={nameError !== ''}
-                        aria-label="Your name for the leaderboard"
-                        aria-required="true" />
-                </Field>
+                        errorText={nameError}>
+                        <Input
+                            ref={nameInputRef}
+                            type="text"
+                            name="name"
+                            maxLength={16}
+                            placeholder="Your name"
+                            invalid={nameError !== ''}
+                            aria-label="Your name for the leaderboard"
+                            aria-required="true"
+                            onChange={() => { if (nameError) setNameError(''); }} />
+                    </Field>
+                )}
+                {submitError && <p className="text-pixel-sm" role="alert">{submitError}</p>}
             </Dialog>
 
             {/* Hit a mine: no retry today. */}

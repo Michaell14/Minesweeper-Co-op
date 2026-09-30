@@ -9,6 +9,7 @@ import { bestsForImport, labelForKey, markBestsImported, readBestTimes } from '@
 import { useMinesweeperStore } from '@/app/store';
 import { formatClock } from '@/lib/gameClock';
 import { formatDate } from '@/lib/formatDate';
+import { effectiveDailyStreak as effectiveStreak, todayUtc } from '@/lib/dailyCalendar';
 import { markAchievementsSeen, newlyEarned } from '@/lib/achievementsSeen';
 import AccountPanel from './AccountPanel';
 import AchievementsPanel from './AchievementsPanel';
@@ -87,6 +88,10 @@ export default function ProfileClient() {
     const recentGames = profile?.recentGames ?? [];
     const visibleGames = recentGames.slice(0, recentShown);
     const moreCount = Math.min(RECENT_STEP, recentGames.length - visibleGames.length);
+    // Play streaks expire after the same missed UTC day as daily clear streaks.
+    const playStreak = profile
+        ? effectiveStreak(profile.stats.currentStreak, profile.stats.lastPlayedDay, todayUtc())
+        : 0;
 
     return (
         <main className="max-w-3xl mx-auto px-6 pt-10 pb-24">
@@ -155,8 +160,8 @@ export default function ProfileClient() {
                                 </tbody>
                             </Table>
                             <p className="text-pixel-sm mt-4" role="status" aria-label="Play streak">
-                                🔥 Streak: <strong>{profile.stats.currentStreak}</strong> day
-                                {profile.stats.currentStreak === 1 ? '' : 's'} (best{' '}
+                                🔥 Streak: <strong>{playStreak}</strong> day
+                                {playStreak === 1 ? '' : 's'} (best{' '}
                                 {profile.stats.bestStreak})
                             </p>
                         </Panel>

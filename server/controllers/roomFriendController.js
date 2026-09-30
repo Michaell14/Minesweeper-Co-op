@@ -15,6 +15,7 @@ const { io } = require('../utils/initializeClient');
 const { isDbEnabled } = require('../utils/initializePgClient');
 const roomRepo = require('../data/roomRepo');
 const friendsRepo = require('../data/friendsRepo');
+const { onFriendshipAccepted } = require('../utils/presence');
 const { isValidRoomCode, isPlayerInRoom, isValidRequestToken } = require('../validation');
 const { SERVER_EVENTS } = require('../../shared/events');
 
@@ -106,7 +107,8 @@ const addRoomFriend = async (socket, { room, playerId, token }) => {
         const them = accountOf(playerId);
         if (!them || them.id === me.id) return;
 
-        await friendsRepo.requestFriend(me.id, them.id);
+        const result = await friendsRepo.requestFriend(me.id, them.id);
+        if (result === 'accepted') await onFriendshipAccepted(me.id, them.id);
         await sendRoomFriends(socket, room, token);
     } catch (error) {
         console.error('Error adding a friend from a room:', error.message);

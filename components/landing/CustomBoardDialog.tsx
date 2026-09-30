@@ -4,7 +4,7 @@ import React from 'react';
 import { useForm } from "react-hook-form";
 import { useMinesweeperStore } from '@/app/store';
 import { Button, Dialog, DialogClose, Field, Input } from "@/components/ds";
-import { BOARD_LIMITS, CUSTOM_SIZE, DEFAULT_SIZE, isValidBoardConfig, mineCountFor } from "@/shared/boardConfig";
+import { BOARD_LIMITS, CUSTOM_SIZE, isValidBoardConfig, mineCountFor } from "@/shared/boardConfig";
 import { DIALOGS, closeDialog, openDialog } from "@/lib/dialogs";
 
 /** No mine count: difficulty supplies the density, so mines are derived. */
@@ -26,9 +26,23 @@ export default function CustomBoardDialog() {
     const {
         register,
         handleSubmit,
+        reset,
         watch,
         formState: { errors },
-    } = useForm<CustomFormValues>();
+    } = useForm<CustomFormValues>({ defaultValues: { rows: numRows, cols: numCols } });
+
+    // Each opening starts a fresh draft. Merely opening or dismissing the
+    // dialog must not change the board the player already selected.
+    React.useEffect(() => {
+        const dialog = document.getElementById(DIALOGS.custom) as HTMLDialogElement | null;
+        const onToggle = () => {
+            if (!dialog?.open) return;
+            const { numRows: rows, numCols: cols } = useMinesweeperStore.getState();
+            reset({ rows, cols });
+        };
+        dialog?.addEventListener('toggle', onToggle);
+        return () => dialog?.removeEventListener('toggle', onToggle);
+    }, [reset]);
 
     // Watched so the count updates as you type, the only feedback that mines are derived.
     const previewRows = Number(watch("rows"));
@@ -37,8 +51,8 @@ export default function CustomBoardDialog() {
     const previewValid = isValidBoardConfig(previewRows, previewCols, previewMines);
 
     const onSubmit = handleSubmit((data) => {
-        const rows = parseInt(data.rows.toString());
-        const cols = parseInt(data.cols.toString());
+        const rows = Number(data.rows);
+        const cols = Number(data.cols);
 
         // The same check the server runs, so a board it would reject cannot be accepted here.
         if (!isValidBoardConfig(rows, cols, mineCountFor(rows, cols, difficulty))) {
@@ -51,8 +65,6 @@ export default function CustomBoardDialog() {
     });
 
     const cancel = () => {
-        // Back to the default SIZE, keeping the difficulty: the two are independent.
-        setBoardConfig(DEFAULT_SIZE, difficulty);
         closeDialog(DIALOGS.custom);
     };
 

@@ -51,7 +51,6 @@ export default function CreateRoomForm({ createRoom, retryCreateRoom }: CreateRo
     const relaxed = useMinesweeperStore((state) => state.relaxed);
     const setRelaxed = useMinesweeperStore((state) => state.setRelaxed);
     const mode = useMinesweeperStore((state) => state.mode);
-    const setBoardSize = useMinesweeperStore((state) => state.setBoardSize);
     const setBoardConfig = useMinesweeperStore((state) => state.setBoardConfig);
     const setMode = useMinesweeperStore((state) => state.setMode);
     const setRoom = useMinesweeperStore((state) => state.setRoom);
@@ -84,7 +83,6 @@ export default function CreateRoomForm({ createRoom, retryCreateRoom }: CreateRo
     };
 
     const openCustom = () => {
-        setBoardSize(CUSTOM_SIZE);
         openDialog(DIALOGS.custom);
     };
 

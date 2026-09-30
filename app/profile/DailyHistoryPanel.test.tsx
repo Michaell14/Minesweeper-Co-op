@@ -35,22 +35,22 @@ const renderPanel = (overrides: Partial<React.ComponentProps<typeof DailyHistory
 describe('the calendar grid', () => {
     it('names a cleared day with its time, formatElapsed-style (no leading zero)', () => {
         renderPanel();
-        expect(screen.getByRole('listitem', { name: '2026-08-03 — cleared in 1:32' })).toBeTruthy();
+        expect(screen.getByRole('button', { name: '2026-08-03 — cleared in 1:32' })).toBeTruthy();
     });
 
     it('names a failed day as attempted', () => {
         renderPanel();
-        expect(screen.getByRole('listitem', { name: '2026-08-04 — attempted, not cleared' })).toBeTruthy();
+        expect(screen.getByRole('button', { name: '2026-08-04 — attempted, not cleared (0:45)' })).toBeTruthy();
     });
 
     it('names an unplayed past day', () => {
         renderPanel();
-        expect(screen.getByRole('listitem', { name: '2026-08-01 — not played' })).toBeTruthy();
+        expect(screen.getByRole('button', { name: '2026-08-01 — not played' })).toBeTruthy();
     });
 
     it('hides future days from the accessibility tree', () => {
         renderPanel();
-        expect(screen.queryByRole('listitem', { name: /2026-08-09/ })).toBeNull();
+        expect(screen.queryByRole('button', { name: /2026-08-09/ })).toBeNull();
     });
 
     it('opens on the current month', () => {
@@ -69,13 +69,46 @@ describe('month navigation', () => {
         renderPanel();
         fireEvent.click(screen.getByRole('button', { name: 'Previous month' }));
         expect(screen.getByRole('list', { name: 'Daily results for July 2026' })).toBeTruthy();
-        expect(screen.getByRole('listitem', { name: '2026-07-28 — cleared in 1:01' })).toBeTruthy();
+        expect(screen.getByRole('button', { name: '2026-07-28 — cleared in 1:01' })).toBeTruthy();
     });
 
     it('stops at the earliest recorded month', () => {
         renderPanel();
         fireEvent.click(screen.getByRole('button', { name: 'Previous month' }));
         expect(screen.getByRole('button', { name: 'Previous month' })).toHaveProperty('disabled', true);
+    });
+});
+
+describe('inspecting a day without hover', () => {
+    it('uses a focusable native button and exposes the chosen result as visible live text', () => {
+        renderPanel();
+        const day = screen.getByRole('button', { name: '2026-08-03 — cleared in 1:32' });
+        expect(day.tagName).toBe('BUTTON');
+        expect(day.tabIndex).toBe(0);
+        expect(day.textContent).toBe('3');
+        fireEvent.click(day);
+
+        expect(day.getAttribute('aria-pressed')).toBe('true');
+        expect(screen.getByRole('status', { name: 'Selected daily result' }).textContent).toBe('2026-08-03 — cleared in 1:32');
+    });
+
+    it('shows failed-attempt time, and then explains an unplayed day', () => {
+        renderPanel();
+        fireEvent.click(screen.getByRole('button', { name: /2026-08-04/ }));
+        expect(screen.getByRole('status', { name: 'Selected daily result' }).textContent).toContain('not cleared (0:45)');
+        fireEvent.click(screen.getByRole('button', { name: /2026-08-01/ }));
+        expect(screen.getByRole('status', { name: 'Selected daily result' }).textContent).toBe('2026-08-01 — not played');
+    });
+
+    it('identifies today, names the colors, and clears stale details on month navigation', () => {
+        renderPanel();
+        expect(screen.getByRole('button', { name: /2026-08-08/ }).getAttribute('aria-current')).toBe('date');
+        expect(screen.getByText('Cleared')).toBeTruthy();
+        expect(screen.getByText('Not cleared')).toBeTruthy();
+        expect(screen.getByText('Not played')).toBeTruthy();
+        fireEvent.click(screen.getByRole('button', { name: /2026-08-03/ }));
+        fireEvent.click(screen.getByRole('button', { name: 'Previous month' }));
+        expect(screen.getByRole('status', { name: 'Selected daily result' }).textContent).toMatch(/select a day/i);
     });
 });
 

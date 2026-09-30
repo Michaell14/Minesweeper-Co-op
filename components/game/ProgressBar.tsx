@@ -44,4 +44,4 @@ export default function ProgressBar({ label, percent, colorClass, size = 'md', a
 
 /** Bar colour follows the opponent's state. */
 export const opponentBarColor = (status: string) =>
-    status === 'failed' ? 'bg-progress-failed' : status === 'won' ? 'bg-progress-won' : 'bg-progress-opponent';
+    status === 'failed' || status === 'lost' ? 'bg-progress-failed' : status === 'won' ? 'bg-progress-won' : 'bg-progress-opponent';

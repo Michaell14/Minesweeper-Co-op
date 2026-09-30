@@ -167,7 +167,8 @@ export interface ServerToClientEvents {
     playerStatsUpdate: (stats: PlayerStats[]) => void;
 
     // --- Win / loss ---
-    gameWon: () => void;
+    /** A terminal join snapshot displays the result without earning another best. */
+    gameWon: (payload?: { replay?: boolean }) => void;
     /** Carries the name of whoever hit the mine, not a room code. */
     gameOver: (playerName: string) => void;
     coopLives: (payload: { room: string; relaxed: boolean; livesRemaining: number }) => void;
@@ -261,13 +262,15 @@ export interface ServerToClientEvents {
         opponentAvatar?: string | null;
         opponentProgress?: number;
         totalSafeCells?: number;
+        /** Reconnect snapshot: this player's current mine-hit state, independent of the race winner. */
+        gameOver?: boolean;
     }) => void;
     pvpUpdateCells: (updates: CellUpdate[]) => void;
     /** Sent only to the player who hit a mine. */
     pvpGameOver: () => void;
     pvpOpponentFailed: () => void;
     pvpOpponentReset: () => void;
-    pvpPlayerWon: (payload: WinnerPayload) => void;
+    pvpPlayerWon: (payload: WinnerPayload & { replay?: boolean }) => void;
     pvpOpponentProgress: (payload: {
         progress: number;
         totalSafeCells: number;

@@ -144,3 +144,26 @@ describe('when the survivor has already hit a mine', () => {
         await expect(settleForfeit(ROOM, SURVIVOR)).resolves.toBe(true);
     });
 });
+
+it('stores the final clock when the opponent forfeits', async () => {
+    await settleForfeit(ROOM, SURVIVOR);
+
+    const clock = mockEmit.mock.calls.find(([event]) => event === 'gameClock')[1];
+    expect(client.hSet).toHaveBeenCalledWith(`room:${ROOM}`, expect.objectContaining({
+        endedAt: String(clock.endedAt),
+    }));
+});
+
+it('cannot award a forfeit to someone who has also left', async () => {
+    arrange({ players: '[]' });
+
+    expect(await settleForfeit(ROOM, SURVIVOR)).toBe(false);
+    expect(client.hSet).not.toHaveBeenCalled();
+});
+
+it('cannot award a stale forfeit to the previous occupant of a room', async () => {
+    arrange({ players: JSON.stringify(['new-player']) });
+
+    expect(await settleForfeit(ROOM, SURVIVOR)).toBe(false);
+    expect(client.hSet).not.toHaveBeenCalled();
+});

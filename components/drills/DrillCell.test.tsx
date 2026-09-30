@@ -59,23 +59,31 @@ describe('mouse input', () => {
     test('left opens and right flags', () => {
         renderCell();
         fireEvent.mouseUp(cell(), { button: 0 });
+        fireEvent.click(cell(), { detail: 1 });
         expect(onOpen).toHaveBeenCalledWith(0, 0);
+        expect(onOpen).toHaveBeenCalledTimes(1);
         fireEvent.contextMenu(cell());
         expect(onFlag).toHaveBeenCalledWith(0, 0);
+        expect(onFlag).toHaveBeenCalledTimes(1);
     });
 
     test('swapMouseButtons exchanges what the two buttons mean', () => {
         setSettings({ swapMouseButtons: true });
         renderCell();
         fireEvent.mouseUp(cell(), { button: 0 });
+        fireEvent.click(cell(), { detail: 1 });
         expect(onFlag).toHaveBeenCalledWith(0, 0);
+        expect(onFlag).toHaveBeenCalledTimes(1);
+        expect(onOpen).not.toHaveBeenCalled();
         fireEvent.contextMenu(cell());
         expect(onOpen).toHaveBeenCalledWith(0, 0);
+        expect(onOpen).toHaveBeenCalledTimes(1);
     });
 
     test('an already opened cell takes no move', () => {
         renderCell({ state: 'open', nearby: 1 });
         fireEvent.mouseUp(cell(), { button: 0 });
+        fireEvent.click(cell(), { detail: 0 });
         fireEvent.contextMenu(cell());
         expect(onOpen).not.toHaveBeenCalled();
         expect(onFlag).not.toHaveBeenCalled();
@@ -83,13 +91,35 @@ describe('mouse input', () => {
 });
 
 describe('keyboard input', () => {
-    test('Enter opens and F flags, whatever the mouse swap says', () => {
-        setSettings({ swapMouseButtons: true });
+    test.each(['Enter', ' '])('%j uses native button activation once, independently of pointer preferences', (key) => {
+        setSettings({ swapMouseButtons: true, mobileDefaultFlag: true });
         renderCell();
-        fireEvent.keyDown(cell(), { key: 'Enter' });
+        // jsdom does not synthesize a button click from keyboard events. The
+        // browser must be allowed to perform that default action exactly once.
+        expect(fireEvent.keyDown(cell(), { key })).toBe(true);
+        fireEvent.keyUp(cell(), { key });
+        expect(onOpen).not.toHaveBeenCalled();
+        fireEvent.click(cell(), { detail: 0 });
         expect(onOpen).toHaveBeenCalledWith(0, 0);
+        expect(onOpen).toHaveBeenCalledTimes(1);
+        expect(onFlag).not.toHaveBeenCalled();
+    });
+
+    test('F flags independently of pointer preferences', () => {
+        setSettings({ swapMouseButtons: true, mobileDefaultFlag: true });
+        renderCell();
         fireEvent.keyDown(cell(), { key: 'f' });
         expect(onFlag).toHaveBeenCalledWith(0, 0);
+        expect(onFlag).toHaveBeenCalledTimes(1);
+        expect(onOpen).not.toHaveBeenCalled();
+    });
+
+    test('assistive technology can activate a cell without preceding keyboard or pointer events', () => {
+        renderCell();
+        fireEvent.click(cell(), { detail: 0 });
+        expect(onOpen).toHaveBeenCalledWith(0, 0);
+        expect(onOpen).toHaveBeenCalledTimes(1);
+        expect(onFlag).not.toHaveBeenCalled();
     });
 
     test('every cell is reachable by tab', () => {
@@ -146,24 +176,41 @@ describe('touch input', () => {
         expect(onOpen).not.toHaveBeenCalled();
     });
 
-    test('a long press does the other one', () => {
+    test.each([false, true])('a long press does the opposite of tap once (default flag: %s)', (mobileDefaultFlag) => {
         vi.useFakeTimers();
         try {
+            setSettings({ mobileDefaultFlag });
             renderCell();
             pointer(cell(), 'pointerdown');
             vi.advanceTimersByTime(500);
             pointer(cell(), 'pointerup');
-            expect(onFlag).toHaveBeenCalledWith(0, 0);
-            expect(onOpen).not.toHaveBeenCalled();
+            fireEvent.mouseUp(cell(), { button: 0 });
+            fireEvent.click(cell(), { detail: 1 });
+            expect(mobileDefaultFlag ? onOpen : onFlag).toHaveBeenCalledWith(0, 0);
+            expect(mobileDefaultFlag ? onOpen : onFlag).toHaveBeenCalledTimes(1);
+            expect(mobileDefaultFlag ? onFlag : onOpen).not.toHaveBeenCalled();
         } finally {
             vi.useRealTimers();
         }
     });
 
-    test('a tap does not also fire the compatibility mouse event', () => {
+    test.each([false, true])('a tap ignores compatibility mouse events (default flag: %s)', (mobileDefaultFlag) => {
+        setSettings({ mobileDefaultFlag });
         renderCell();
         tap(cell());
         fireEvent.mouseUp(cell(), { button: 0 });
+        fireEvent.click(cell(), { detail: 1 });
+        expect(mobileDefaultFlag ? onFlag : onOpen).toHaveBeenCalledTimes(1);
+        expect(mobileDefaultFlag ? onOpen : onFlag).not.toHaveBeenCalled();
+    });
+
+    test('touch input does not suppress a later assistive-technology activation', () => {
+        setSettings({ mobileDefaultFlag: true });
+        renderCell();
+        tap(cell());
+        fireEvent.click(cell(), { detail: 1 });
+        fireEvent.click(cell(), { detail: 0 });
+        expect(onFlag).toHaveBeenCalledTimes(1);
         expect(onOpen).toHaveBeenCalledTimes(1);
     });
 });

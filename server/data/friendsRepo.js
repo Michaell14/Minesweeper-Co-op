@@ -277,6 +277,12 @@ const blockUser = async (me, them) => {
     if (me === them) return false;
 
     return withPairLock(me, them, async (client) => {
+        // A block belongs to its author. Replacing an incoming block would
+        // let the blocked account remove the replacement and contact them
+        // again. Keep the refusal invisible, like the other blocked paths.
+        const edge = await findEdge(me, them, client);
+        if (edge?.status === STATUS.blocked && edge.direction === 'incoming') return false;
+
         await client.query(
             `DELETE FROM friendships
              WHERE (requester_id = $1 AND addressee_id = $2)

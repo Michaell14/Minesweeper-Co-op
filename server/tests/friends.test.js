@@ -22,6 +22,10 @@ jest.mock('../utils/initializePgClient', () => ({
 }));
 
 jest.mock('../controllers/profileController', () => ({ requireUser: jest.fn() }));
+const mockOnFriendshipAccepted = jest.fn();
+jest.mock('../utils/presence', () => ({
+    onFriendshipAccepted: (...args) => mockOnFriendshipAccepted(...args),
+}));
 
 const friendsRepo = require('../data/friendsRepo');
 const userRepo = require('../data/userRepo');
@@ -57,6 +61,7 @@ beforeEach(() => {
     mockClientQuery.mockReset();
     mockRelease.mockReset();
     mockConnect.mockReset();
+    mockOnFriendshipAccepted.mockReset().mockResolvedValue(undefined);
     queued = [];
     mockConnect.mockImplementation(async () => ({
         query: (...a) => mockClientQuery(...a),
@@ -249,11 +254,18 @@ describe('removeEdge', () => {
 });
 
 describe('blockUser', () => {
+    test('cannot replace a block placed on me with one I can remove', async () => {
+        answers({ rows: [edgeRow(THEM, ME, 'blocked')] });
+
+        expect(await friendsRepo.blockUser(ME, THEM)).toBe(false);
+        expect(statements().some(([sql]) => /DELETE|INSERT|UPDATE/.test(sql))).toBe(false);
+    });
+
     /* DELETE then INSERT in one transaction: the pair key forbids a block beside an accepted row. */
     test('clears whatever the pair held, then stores the block on my row', async () => {
         expect(await friendsRepo.blockUser(ME, THEM)).toBe(true);
 
-        const written = statements();
+        const written = statements().filter(([sql]) => /DELETE|INSERT/.test(sql));
         expect(written[0][0]).toMatch(/DELETE FROM friendships/);
         expect(written[1][0]).toMatch(/INSERT INTO friendships/);
         expect(written[1][1]).toEqual([ME, THEM, 'blocked']);
@@ -443,6 +455,18 @@ describe('the routes', () => {
         const res = makeRes();
         await routes['PUT /api/friends/:id']({ user: USER, params: { id: THEM }, body: { action: 'accept' } }, res);
         expect(res.statusCode).toBe(204);
+        expect(mockOnFriendshipAccepted).toHaveBeenCalledWith(ME, THEM);
+    });
+
+    test('a reciprocal code request refreshes presence for both new friends', async () => {
+        mockQuery.mockResolvedValueOnce({ rows: [{ id: THEM }] });
+        answers({ rows: [edgeRow(THEM, ME, 'pending')] }, { rows: [{ id: 7 }] });
+        const res = makeRes();
+
+        await routes['POST /api/friends']({ user: USER, body: { code: 'ABC23XYZ' } }, res);
+
+        expect(res.body).toEqual({ result: 'accepted' });
+        expect(mockOnFriendshipAccepted).toHaveBeenCalledWith(ME, THEM);
     });
 
     test('PUT accept answers 404 when there is no request', async () => {
@@ -450,6 +474,7 @@ describe('the routes', () => {
         const res = makeRes();
         await routes['PUT /api/friends/:id']({ user: USER, params: { id: THEM }, body: { action: 'accept' } }, res);
         expect(res.statusCode).toBe(404);
+        expect(mockOnFriendshipAccepted).not.toHaveBeenCalled();
     });
 
     /* Either cap is a 409, worded from the same table as the request path. */

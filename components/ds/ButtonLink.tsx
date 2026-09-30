@@ -10,6 +10,8 @@ export interface ButtonLinkProps
     href: string;
     intent?: ButtonIntent;
     size?: ButtonSize;
+    /** A fresh page load when navigation must reset a live session. */
+    reloadDocument?: boolean;
     /** Escape hatch for layout only — spacing and visibility, never colour. */
     className?: string;
 }
@@ -24,11 +26,13 @@ export default function ButtonLink({
     href,
     intent = "default",
     size = "md",
+    reloadDocument = false,
     className,
     ...rest
 }: ButtonLinkProps) {
+    const NavigationLink = reloadDocument ? "a" : Link;
     return (
-        <Link
+        <NavigationLink
             href={href}
             className={cx(
                 pixel.notched,

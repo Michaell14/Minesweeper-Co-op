@@ -70,11 +70,7 @@ export default function DrillCell({ state, row, col, nearby, hinted, onOpen, onF
     };
 
     const handleKeyDown = (event: React.KeyboardEvent) => {
-        // The keyboard ignores the mouse-button swap: it has no buttons to swap.
-        if (event.key === 'Enter') {
-            event.preventDefault();
-            open();
-        } else if (event.key.toLowerCase() === 'f') {
+        if (event.key.toLowerCase() === 'f') {
             event.preventDefault();
             flag();
         }
@@ -98,6 +94,12 @@ export default function DrillCell({ state, row, col, nearby, hinted, onOpen, onF
             onMouseUp={(event) => {
                 // A tap also raises a compatibility mouseup; the touch path already acted.
                 if (event.button === 0 && !fromTouch.current) primary();
+            }}
+            onClick={(event) => {
+                // Enter, Space and assistive technology activate the native
+                // button without a pointer click count. Mouse/touch already
+                // acted above and must not also take this activation path.
+                if (event.detail === 0) open();
             }}
             onContextMenu={(event) => {
                 event.preventDefault();

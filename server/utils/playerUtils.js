@@ -53,7 +53,7 @@ const restorePvpRacer = async (room, socketId, roomState, previousSocketId) => {
     const slot = roomRepo.pvpSlotOf(roomState, previousSocketId);
     if (slot === undefined) return false;
 
-    const { boardKey, gameOverKey, gameWonKey, socketKey } = pvpPlayerFields(slot);
+    const { boardKey, gameOverKey, gameWonKey, socketKey, endedAtKey } = pvpPlayerFields(slot);
     const boardData = roomState[boardKey];
     if (!boardData) return false;
 
@@ -67,7 +67,13 @@ const restorePvpRacer = async (room, socketId, roomState, previousSocketId) => {
      * `pvpPlayerIndex` is load-bearing: pvp.js silently ignores every click
      * from a socket it cannot place.
      */
-    await roomRepo.setFields(room, { [socketKey]: socketId });
+    // Outcomes are addressed by socket too. Otherwise a returning winner sees
+    // their own previous socket announced as the opponent who beat them.
+    const winnerSocket = roomState.winnerSocket === previousSocketId ? socketId : roomState.winnerSocket;
+    await roomRepo.setFields(room, {
+        [socketKey]: socketId,
+        ...(roomState.winnerSocket === previousSocketId && { winnerSocket }),
+    });
     await playerRepo.setFields(socketId, {
         pvpPlayerIndex: slot.toString(),
         opponentName,
@@ -76,6 +82,13 @@ const restorePvpRacer = async (room, socketId, roomState, previousSocketId) => {
     const totalSafeCells = parseInt(roomState.totalSafeCells, 10) || 0;
     const ownGameOver = roomState[gameOverKey] === 'true';
     const ownGameWon = roomState[gameWonKey] === 'true';
+
+    // A detonation stops just this player; an outright win stops both. Preserve
+    // the timestamp from that event rather than restarting the clock on reload.
+    io.to(socketId).emit(SERVER_EVENTS.GAME_CLOCK, clockOf({
+        ...roomState,
+        endedAt: roomState.winnerSocket ? roomState.endedAt : roomState[endedAtKey],
+    }));
 
     // pvpStarted first: it takes the client out of the lobby.
     io.to(socketId).emit(SERVER_EVENTS.PVP_GAME_STARTED, { totalSafeCells });
@@ -94,16 +107,29 @@ const restorePvpRacer = async (room, socketId, roomState, previousSocketId) => {
         opponentAvatar,
         opponentProgress,
         totalSafeCells,
+        // A mine hit and the race winner are independent: a completed race
+        // replays the winner below, so the board snapshot must retain both.
+        gameOver: ownGameOver,
     });
 
     // Catch them up on an outcome that landed while they were gone.
-    if (roomState.winnerSocket) {
+    if (winnerSocket === socketId && !ownGameWon) {
+        io.to(socketId).emit(SERVER_EVENTS.PVP_OPPONENT_DISCONNECTED, {
+            winnerSocket,
+            winnerName: await playerRepo.getName(socketId) || 'You',
+        });
+    } else if (winnerSocket) {
         io.to(socketId).emit(SERVER_EVENTS.PVP_PLAYER_WON, {
-            winnerSocket: roomState.winnerSocket,
-            winnerName: await playerRepo.getName(roomState.winnerSocket) || 'Someone',
+            winnerSocket,
+            winnerName: await playerRepo.getName(winnerSocket) || 'Someone',
+            replay: true,
         });
     } else if (ownGameOver) {
         io.to(socketId).emit(SERVER_EVENTS.PVP_GAME_OVER);
+    }
+
+    if (!winnerSocket && roomState[opponent.gameOverKey] === 'true') {
+        io.to(socketId).emit(SERVER_EVENTS.PVP_OPPONENT_FAILED);
     }
 
     return true;
@@ -114,7 +140,7 @@ const restorePvpRacer = async (room, socketId, roomState, previousSocketId) => {
  * (the browser's persistent id) already points at a different socket, this is
  * a reconnect: the old socket's place in the room is handed to the new one.
  */
-const addPlayerToRoom = async (room, socketId, name, sessionId, avatar) => {
+const addPlayerToRoom = async (room, socketId, name, sessionId, avatar, onJoined) => {
     // A connect-time snapshot from socket.data.user; validated so only catalog ids are stored.
     const storedAvatar = isValidAvatarId(avatar) ? avatar : '';
 
@@ -176,26 +202,15 @@ const addPlayerToRoom = async (room, socketId, name, sessionId, avatar) => {
     const roomState = await roomRepo.getState(room);
     const mode = roomState.mode || 'co-op';
 
-    // Send the rules before replaying a terminal outcome (which files best times).
-    io.to(socketId).emit(SERVER_EVENTS.COOP_LIVES, { room, relaxed: roomState.relaxed === 'true',
-        livesRemaining: Number(roomState.livesRemaining ?? (roomState.relaxed === 'true' ? 3 : 1)) });
+    // Send the rules before replaying the board and its terminal summary.
+    if (mode !== 'co-op') {
+        io.to(socketId).emit(SERVER_EVENTS.COOP_LIVES, { room, relaxed: roomState.relaxed === 'true',
+            livesRemaining: Number(roomState.livesRemaining ?? (roomState.relaxed === 'true' ? 3 : 1)) });
+    }
 
     // A reconnecting host keeps the host role.
     if (reconnectedFrom && roomState.hostSocket === reconnectedFrom) {
         await roomRepo.setFields(room, { hostSocket: socketId });
-    }
-
-    /*
-     * Sent to the ARRIVAL, not the room: re-broadcasting would re-open
-     * everyone's summary and confetti on every reload.
-     */
-    if (roomState.gameWon === "true") {
-        io.to(socketId).emit(SERVER_EVENTS.GAME_WON);
-    }
-
-    if (roomState.gameOver === "true") {
-        const gameOverName = roomState.gameOverName || "Someone";
-        io.to(socketId).emit(SERVER_EVENTS.GAME_OVER, gameOverName);
     }
 
     const roomPlayers = roomRepo.playersFrom(roomState);
@@ -209,16 +224,41 @@ const addPlayerToRoom = async (room, socketId, name, sessionId, avatar) => {
         await roomRepo.setPlayers(room, roomPlayers);
     }
 
+    if (mode === 'co-op') {
+        // A join publishes a full board and outcome. Read and send them under
+        // the same lock as moves/reset so an old win cannot follow resetEveryone.
+        // The route's membership lock is outermost; actions never take it.
+        return roomRepo.withActionLock(room, socketId, async () => {
+            const snapshot = await roomRepo.getState(room);
+            io.to(socketId).emit(SERVER_EVENTS.COOP_LIVES, { room, relaxed: snapshot.relaxed === 'true',
+                livesRemaining: Number(snapshot.livesRemaining ?? (snapshot.relaxed === 'true' ? 3 : 1)) });
+            if (onJoined) await onJoined();
+            io.to(socketId).emit(SERVER_EVENTS.GAME_CLOCK, clockOf(snapshot));
+            // Group size must precede a terminal replay, which files a best time.
+            await updatePlayerStatsInRoom(room);
+            const isOver = snapshot.gameOver === 'true' || snapshot.gameWon === 'true';
+            io.to(room).emit(SERVER_EVENTS.BOARD_UPDATE,
+                projectBoard(JSON.parse(snapshot.board), { revealMines: isOver }));
+            if (snapshot.gameWon === 'true') {
+                io.to(socketId).emit(SERVER_EVENTS.GAME_WON, { replay: true });
+            }
+            if (snapshot.gameOver === 'true') {
+                io.to(socketId).emit(SERVER_EVENTS.GAME_OVER, snapshot.gameOverName || 'Someone');
+            }
+        });
+    }
+
+    // The arrival must learn the room's dimensions/rules before an outcome
+    // triggers client-side records. The route owns the success response.
+    if (onJoined) await onJoined();
+
     // A late join or reconnect picks up the running clock, which is why it is stored as timestamps.
     io.to(socketId).emit(SERVER_EVENTS.GAME_CLOCK, clockOf(roomState));
 
-    // Co-op only; PVP boards are sent when the game starts.
-    if (mode === 'co-op') {
-        const board = JSON.parse(roomState.board);
-        // Mines show only for a finished game; mid-game a joiner could read the layout and leave.
-        const isOver = roomState.gameOver === 'true' || roomState.gameWon === 'true';
-        io.to(room).emit(SERVER_EVENTS.BOARD_UPDATE, projectBoard(board, { revealMines: isOver }));
-    } else if (mode === 'pvp') {
+    // Group size is part of the best-time key, so restore it before any win.
+    await updatePlayerStatsInRoom(room);
+
+    if (mode === 'pvp') {
         const restored = reconnectedFrom
             ? await restorePvpRacer(room, socketId, roomState, reconnectedFrom)
             : false;
@@ -232,7 +272,13 @@ const addPlayerToRoom = async (room, socketId, name, sessionId, avatar) => {
         }
     }
 
-    await updatePlayerStatsInRoom(room);
+    // Replay only after the snapshot is complete, and only to the arrival.
+    if (roomState.gameWon === 'true') {
+        io.to(socketId).emit(SERVER_EVENTS.GAME_WON, { replay: true });
+    }
+    if (roomState.gameOver === 'true') {
+        io.to(socketId).emit(SERVER_EVENTS.GAME_OVER, roomState.gameOverName || 'Someone');
+    }
 }
 
 const removePlayer = async (socket, socketId) => {
@@ -242,77 +288,79 @@ const removePlayer = async (socket, socketId) => {
     const room = await playerRepo.getRoom(socketId);
     if (!room) return;
 
-    const roomState = await roomRepo.getState(room);
-    if (!roomState || !roomState.players) {
-        // Room already gone; just clean up the player.
+    return roomRepo.withJoinLock(room, socketId, async () => {
+        const roomState = await roomRepo.getState(room);
+        if (!roomState || !roomState.players) {
+            // Room already gone; just clean up the player.
+            socket.leave(room);
+            await playerRepo.remove(socketId);
+            return;
+        }
+
+        const playersInRoom = roomRepo.playersFrom(roomState);
+        const mode = roomState.mode || 'co-op';
+
+        if (playersInRoom && playersInRoom.includes(socketId)) {
+            const index = playersInRoom.indexOf(socketId);
+            if (index > -1) {
+                playersInRoom.splice(index, 1);
+            }
+
+            // Persist the departure before deciding what happens to the room.
+            await roomRepo.setPlayers(room, playersInRoom);
+
+            // Kept briefly so a dropped player can reconnect straight back.
+            if (playersInRoom.length === 0) {
+                await roomRepo.startGracePeriod(room);
+            } else {
+                // A reload is a disconnect too, so the forfeit waits; see pvpForfeit.js.
+                if (mode === 'pvp' && roomState.pvpStarted === 'true' && !roomState.winnerSocket) {
+                    const player1Won = roomState.player1GameWon === 'true';
+                    const player2Won = roomState.player2GameWon === 'true';
+                    if (!player1Won && !player2Won) {
+                        scheduleForfeit(room, playersInRoom[0]);
+                    }
+                }
+
+                // Dropping out of the lobby puts the survivor back in the waiting state.
+                if (mode === 'pvp' && roomState.pvpStarted !== 'true') {
+                    const remainingPlayer = playersInRoom[0];
+
+                    if (roomState.hostSocket === socketId) {
+                        await roomRepo.setFields(room, { hostSocket: remainingPlayer });
+                        io.to(remainingPlayer).emit(SERVER_EVENTS.PVP_HOST_TRANSFERRED);
+                    }
+
+                    io.to(remainingPlayer).emit(SERVER_EVENTS.PVP_OPPONENT_LEFT_BEFORE_START);
+                }
+
+                await updatePlayerStatsInRoom(room);
+                // Clears this player's hover on everyone else's board.
+                socket.to(room).emit(SERVER_EVENTS.PLAYER_LEFT, socketId);
+            }
+        }
         socket.leave(room);
+
+        /*
+         * Keep the score for a reload, but only for a session that could still
+         * resume INTO this room on this socket, which is what `offerResume` will
+         * ask. A deliberate leave reaches here too, after `playerLeave` ran
+         * forgetRoom; a stash then would let the leaver walk back in on their old
+         * score. The socket check stops a second tab on the same session banking
+         * ITS score. The run stamp keeps the score to the game it was earned in;
+         * see `stashScore`.
+         */
+        const sessionId = await playerRepo.getField(socketId, 'sessionId');
+        if (sessionId) {
+            const score = await playerRepo.getScore(socketId);
+            const session = await sessionRepo.getState(sessionId);
+            const resumable = session.room === room && session.socketId === socketId;
+            const run = roomState.startedAt || '';
+            if (score > 0 && resumable) await sessionRepo.stashScore(sessionId, { room, score, run });
+        }
+
         await playerRepo.remove(socketId);
-        return;
-    }
-
-    const playersInRoom = roomRepo.playersFrom(roomState);
-    const mode = roomState.mode || 'co-op';
-
-    if (playersInRoom && playersInRoom.includes(socketId)) {
-        const index = playersInRoom.indexOf(socketId);
-        if (index > -1) {
-            playersInRoom.splice(index, 1);
-        }
-
-        // Persist the departure before deciding what happens to the room.
-        await roomRepo.setPlayers(room, playersInRoom);
-
-        // Kept briefly so a dropped player can reconnect straight back.
-        if (playersInRoom.length === 0) {
-            await roomRepo.startGracePeriod(room);
-        } else {
-            // A reload is a disconnect too, so the forfeit waits; see pvpForfeit.js.
-            if (mode === 'pvp' && roomState.pvpStarted === 'true' && !roomState.winnerSocket) {
-                const player1Won = roomState.player1GameWon === 'true';
-                const player2Won = roomState.player2GameWon === 'true';
-                if (!player1Won && !player2Won) {
-                    scheduleForfeit(room, playersInRoom[0]);
-                }
-            }
-
-            // Dropping out of the lobby puts the survivor back in the waiting state.
-            if (mode === 'pvp' && roomState.pvpStarted !== 'true') {
-                const remainingPlayer = playersInRoom[0];
-
-                if (roomState.hostSocket === socketId) {
-                    await roomRepo.setFields(room, { hostSocket: remainingPlayer });
-                    io.to(remainingPlayer).emit(SERVER_EVENTS.PVP_HOST_TRANSFERRED);
-                }
-
-                io.to(remainingPlayer).emit(SERVER_EVENTS.PVP_OPPONENT_LEFT_BEFORE_START);
-            }
-
-            await updatePlayerStatsInRoom(room);
-            // Clears this player's hover on everyone else's board.
-            socket.to(room).emit(SERVER_EVENTS.PLAYER_LEFT, socketId);
-        }
-    }
-    socket.leave(room);
-
-    /*
-     * Keep the score for a reload, but only for a session that could still
-     * resume INTO this room on this socket, which is what `offerResume` will
-     * ask. A deliberate leave reaches here too, after `playerLeave` ran
-     * forgetRoom; a stash then would let the leaver walk back in on their old
-     * score. The socket check stops a second tab on the same session banking
-     * ITS score. The run stamp keeps the score to the game it was earned in;
-     * see `stashScore`.
-     */
-    const sessionId = await playerRepo.getField(socketId, 'sessionId');
-    if (sessionId) {
-        const score = await playerRepo.getScore(socketId);
-        const session = await sessionRepo.getState(sessionId);
-        const resumable = session.room === room && session.socketId === socketId;
-        const run = roomState.startedAt || '';
-        if (score > 0 && resumable) await sessionRepo.stashScore(sessionId, { room, score, run });
-    }
-
-    await playerRepo.remove(socketId);
+    });
 }
 
 module.exports = { updatePlayerStatsInRoom, resetPlayerScores, addPlayerToRoom, removePlayer };

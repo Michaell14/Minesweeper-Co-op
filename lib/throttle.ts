@@ -2,12 +2,12 @@
 export function throttle<T extends (...args: any[]) => any>(
     func: T,
     limit: number
-): (...args: Parameters<T>) => void {
+): ((...args: Parameters<T>) => void) & { cancel: () => void } {
     let inThrottle: boolean;
     let lastFunc: ReturnType<typeof setTimeout>;
     let lastRan: number;
 
-    return function(this: any, ...args: Parameters<T>) {
+    const throttled = function(this: any, ...args: Parameters<T>) {
         if (!inThrottle) {
             func.apply(this, args);
             lastRan = Date.now();
@@ -22,4 +22,10 @@ export function throttle<T extends (...args: any[]) => any>(
             }, limit - (Date.now() - lastRan));
         }
     };
+
+    throttled.cancel = () => {
+        clearTimeout(lastFunc);
+        inThrottle = false;
+    };
+    return throttled;
 }

@@ -216,6 +216,33 @@ describe('startDaily', () => {
         createAttemptSpy.mockRestore();
     });
 
+    test('a slow first start is never bypassed by the second tab after its polling timeout', async () => {
+        const createAttempt = dailyRepo.createAttempt;
+        let releaseFirst;
+        let firstEntered;
+        const blocked = new Promise((resolve) => { releaseFirst = resolve; });
+        const entered = new Promise((resolve) => { firstEntered = resolve; });
+        const create = jest.spyOn(dailyRepo, 'createAttempt').mockImplementationOnce(async (...args) => {
+            firstEntered();
+            await blocked;
+            return createAttempt(...args);
+        });
+        const first = startDaily({ socket: socketFor('sock-a'), dailyAttemptToken: 'tok-shared' });
+        await entered;
+        const second = startDaily({ socket: socketFor('sock-b'), dailyAttemptToken: 'tok-shared' });
+
+        try {
+            // Longer than the old 20 x 100ms polling escape hatch, shorter
+            // than the action lock lease: the first writer still owns it.
+            await new Promise((resolve) => setTimeout(resolve, 2200));
+            expect(create).toHaveBeenCalledTimes(1);
+        } finally {
+            releaseFirst();
+            await Promise.all([first, second]);
+            create.mockRestore();
+        }
+    });
+
     test('resuming an in_progress attempt returns the ORIGINAL startedAt, not a fresh one', async () => {
         const socket = socketFor('sock-1');
 
@@ -464,6 +491,46 @@ describe('submitDailyScore and the leaderboard', () => {
 
         const [entry] = await dailyRepo.getLeaderboardTop(DATE);
         expect(entry.name).toBe('Alex');
+    });
+
+    test('overlapping submits cannot overwrite the first published name', async () => {
+        const socket = await winWith('tok-1', 'sock-1');
+        const secondTab = socketFor('sock-2');
+        const submit = jest.spyOn(dailyRepo, 'submitScore');
+
+        await Promise.all([
+            submitDailyScore({ socket, io: { to: mockTo }, dailyAttemptToken: 'tok-1', date: DATE, name: 'First' }),
+            submitDailyScore({ socket: secondTab, io: { to: mockTo }, dailyAttemptToken: 'tok-1', date: DATE, name: 'Second' }),
+        ]);
+
+        expect(submit).toHaveBeenCalledTimes(1);
+        expect(await dailyRepo.getLeaderboardTop(DATE)).toEqual([
+            expect.objectContaining({ name: 'First' }),
+        ]);
+        expect(secondTab.emit).toHaveBeenCalledWith('dailyScoreSubmitted', expect.objectContaining({ rank: 1 }));
+        submit.mockRestore();
+    });
+
+    test('retrying a completed submission acknowledges the stored score without changing its identity or broadcasting again', async () => {
+        const socket = await winWith('tok-1', 'sock-1');
+        await submitDailyScore({ socket, io: { to: mockTo }, dailyAttemptToken: 'tok-1', date: DATE, name: 'First' });
+        await mockRedisSingleton.hSet(`daily:${DATE}:attempt:tok-1`, { avatar: 'fox' });
+        const completed = await dailyRepo.getAttempt(DATE, 'tok-1');
+        mockRedisSingleton.hSet.mockClear();
+        mockRedisSingleton.zAdd.mockClear();
+        mockEmit.mockClear();
+        const reconnect = socketFor('sock-reconnected');
+
+        await submitDailyScore({ socket: reconnect, io: { to: mockTo }, dailyAttemptToken: 'tok-1', date: DATE, name: 'Changed' });
+
+        expect(reconnect.emit).toHaveBeenCalledWith('dailyScoreSubmitted', { rank: 1, elapsedMs: 2000, totalEntries: 1 });
+        expect(reconnect.emit).toHaveBeenCalledWith('dailyLeaderboardUpdate', {
+            entries: [expect.objectContaining({ name: 'First', avatar: 'fox', elapsedMs: 2000 })],
+        });
+        expect(await dailyRepo.getAttempt(DATE, 'tok-1')).toEqual(completed);
+        expect(mockRedisSingleton.hSet).not.toHaveBeenCalled();
+        expect(mockRedisSingleton.zAdd).not.toHaveBeenCalled();
+        expect(mockEmit).not.toHaveBeenCalledWith('dailyLeaderboardUpdate', expect.anything());
     });
 
     test('a name that is only whitespace is refused rather than filed as a blank row', async () => {

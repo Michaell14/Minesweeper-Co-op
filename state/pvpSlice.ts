@@ -1,7 +1,7 @@
 import { StateCreator } from 'zustand';
 import type { MinesweeperState } from './store';
 
-export type PvpOpponentStatus = 'waiting' | 'playing' | 'won' | 'failed' | 'disconnected';
+export type PvpOpponentStatus = 'waiting' | 'playing' | 'won' | 'lost' | 'failed' | 'disconnected';
 
 /** Everything that only applies to a 1v1 race. */
 export interface PvpSlice {

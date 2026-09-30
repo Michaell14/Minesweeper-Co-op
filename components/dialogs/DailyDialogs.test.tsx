@@ -7,6 +7,10 @@ import { clearDailyHistory, recordDailyResult } from "@/lib/dailyHistory";
 import type { LossDiagnosis } from "@/lib/lossDiagnosis";
 import DailyDialogs from "./DailyDialogs";
 import { hasSeenDailyExplainer } from "@/lib/dailyExplainerSeen";
+import type { AccountProfile } from "@/hooks/useAccountProfile";
+
+const accountProfile = vi.hoisted(() => vi.fn<() => AccountProfile>());
+vi.mock('@/hooks/useAccountProfile', () => ({ useAccountProfile: accountProfile }));
 
 /**
  * The daily dialogs mix DialogClose and plain Button: only the leaderboard's
@@ -31,6 +35,7 @@ const renderOpen = (id: string) => {
 };
 
 beforeEach(() => {
+    accountProfile.mockReturnValue({ profile: null, resolved: true });
     const store = useMinesweeperStore.getState();
     store.setDailyDate("2026-08-01");
     store.setDailyStatus("failed");
@@ -149,19 +154,56 @@ describe("dailyAlreadyPlayed: resumed after a refresh", () => {
 });
 
 describe("dailySubmit: won, name goes on the leaderboard", () => {
-    /*
-     * Submit is a plain Button: the SERVER decides whether a submission lands.
-     * Closing on click left a refused player with no dialog and a status stuck
-     * at won_pending_submit; `dailyScoreSubmitted` closes it instead.
-     */
-    test("Submit does NOT close its own dialog -- the server has the last word", () => {
+    test("uses a real form submit but cancels native dialog closing until the server confirms", () => {
         const store = useMinesweeperStore.getState();
         store.setDailyStatus("won_pending_submit");
-        renderOpen(DIALOGS.dailySubmit);
+        const dialog = renderOpen(DIALOGS.dailySubmit);
 
         expect(
             screen.getByRole("button", { name: "Submit your time to the leaderboard" }).getAttribute("type"),
-        ).toBe("button");
+        ).toBe("submit");
+        const event = new Event('submit', { bubbles: true, cancelable: true });
+        fireEvent(dialog.querySelector('form')!, event);
+        expect(event.defaultPrevented).toBe(true);
+        expect(dialog.open).toBe(true);
+    });
+
+    test('form submission from Enter sends the name through the same path as a click', () => {
+        const submit = vi.fn();
+        render(<DailyDialogs submitDailyScore={submit} getDailyLeaderboard={vi.fn()} />);
+        const dialog = document.getElementById(DIALOGS.dailySubmit) as HTMLDialogElement;
+        dialog.open = true;
+        fireEvent.change(within(dialog).getByRole('textbox'), { target: { value: 'Alex' } });
+
+        fireEvent.submit(dialog.querySelector('form')!);
+        fireEvent.submit(dialog.querySelector('form')!);
+
+        expect(submit).toHaveBeenCalledExactlyOnceWith('Alex');
+        expect(dialog.open).toBe(true);
+    });
+
+    test('shows and submits the resolved account name without making the player type it again', () => {
+        accountProfile.mockReturnValue({ resolved: true, profile: {
+            id: 'uuid', provider: 'github', email: null, displayName: 'Account Name', avatar: 'fox', createdAt: '',
+        } });
+        const submit = vi.fn();
+        render(<DailyDialogs submitDailyScore={submit} getDailyLeaderboard={vi.fn()} />);
+        const dialog = document.getElementById(DIALOGS.dailySubmit) as HTMLDialogElement;
+        dialog.open = true;
+
+        expect(within(dialog).queryByRole('textbox')).toBeNull();
+        expect(within(dialog).getByText('Account Name')).toBeTruthy();
+        fireEvent.click(within(dialog).getByRole('button', { name: 'Submit your time to the leaderboard' }));
+        expect(submit).toHaveBeenCalledWith('Account Name');
+    });
+
+    test('waits for account identity to resolve instead of briefly offering a guest name', () => {
+        accountProfile.mockReturnValue({ profile: null, resolved: false });
+        const dialog = renderOpen(DIALOGS.dailySubmit);
+
+        expect(within(dialog).queryByRole('textbox')).toBeNull();
+        expect(within(dialog).getByRole('button', { name: 'Submit your time to the leaderboard' })).toHaveProperty('disabled', true);
+        expect(within(dialog).getByRole('status').textContent).toMatch(/loading your leaderboard name/i);
     });
 
     /*
@@ -227,6 +269,25 @@ describe("dailySubmit: won, name goes on the leaderboard", () => {
 
                 expect((submitButton() as HTMLButtonElement).disabled).toBe(false);
                 expect(submitButton().textContent).toMatch(/^Submit$/);
+                expect(screen.getByRole('alert').textContent).toMatch(/no confirmation yet/i);
+            } finally {
+                vi.useRealTimers();
+            }
+        });
+
+        test('retry clears the old error, sends again, and late success cancels the retry timer', () => {
+            vi.useFakeTimers();
+            try {
+                useMinesweeperStore.getState().setDailyStatus('won_pending_submit');
+                const submit = submitValidName();
+                act(() => vi.advanceTimersByTime(5000));
+                fireEvent.click(submitButton());
+                expect(submit).toHaveBeenCalledTimes(2);
+                expect(screen.queryByRole('alert')).toBeNull();
+                act(() => useMinesweeperStore.getState().setDailyStatus('completed'));
+                act(() => vi.advanceTimersByTime(5000));
+                expect(screen.queryByRole('alert')).toBeNull();
+                expect(submitButton()).toHaveProperty('disabled', false);
             } finally {
                 vi.useRealTimers();
             }

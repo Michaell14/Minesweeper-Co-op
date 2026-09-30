@@ -96,10 +96,17 @@ export default function ThemeStudio() {
     const [draft, setDraft] = React.useState<Draft | null>(null);
 
     /** Puts paint back under the saved theme, dropping the preview. */
-    const reapplySaved = () => {
-        const state = useMinesweeperStore.getState();
-        state.replaceSettings(state.settings);
-    };
+    const draftCore = draft?.core;
+    React.useEffect(() => {
+        if (!draftCore) return;
+        applyTheme(null, derivePalette(draftCore));
+        return () => {
+            // Read the latest saved choice: saving or selecting another theme
+            // while editing must survive both closing the editor and navigation.
+            const state = useMinesweeperStore.getState();
+            state.replaceSettings(state.settings);
+        };
+    }, [draftCore]);
 
     const startNew = () => {
         setDraft({ id: null, name: 'My theme', core: coreFromCurrentPaint() });
@@ -113,15 +120,12 @@ export default function ThemeStudio() {
         setDraft((d) => {
             if (!d) return d;
             const core = { ...d.core, [key]: value };
-            // Live preview straight onto :root.
-            applyTheme(null, derivePalette(core));
             return { ...d, core };
         });
     };
 
     const cancel = () => {
         setDraft(null);
-        reapplySaved();
     };
 
     const save = () => {
@@ -148,7 +152,6 @@ export default function ThemeStudio() {
         });
         if (draft?.id === id) {
             setDraft(null);
-            reapplySaved();
         }
     };
 

@@ -49,6 +49,7 @@ beforeEach(() => {
         state().setGameOver(false);
         state().setMode("co-op");
         state().setPvpStarted(false);
+        state().setPingArmed(false);
     });
     useMinesweeperStore.setState({ settings: { ...DEFAULT_SETTINGS } });
 });
@@ -338,6 +339,30 @@ describe("PVP pre-start", () => {
 });
 
 describe("dismissal", () => {
+    test("Escape cancels an armed ping even without a keyboard cursor", () => {
+        const a = actions();
+        render(<Probe {...a} />);
+        act(() => state().setPingArmed(true));
+
+        key("Escape");
+
+        expect(state().pingArmed).toBe(false);
+        expect(a.pingCell).not.toHaveBeenCalled();
+        expect(a.emitCellHover).not.toHaveBeenCalled();
+    });
+
+    test("Escape still cancels a pointer-armed ping when keyboard play is disabled", () => {
+        render(<Probe {...actions()} />);
+        act(() => {
+            state().setPingArmed(true);
+            useMinesweeperStore.setState((s) => ({ settings: { ...s.settings, keyboardControls: false } }));
+        });
+
+        key("Escape");
+
+        expect(state().pingArmed).toBe(false);
+    });
+
     test("Escape hides the cursor and clears the shared hover", () => {
         const a = actions();
         render(<Probe {...a} />);

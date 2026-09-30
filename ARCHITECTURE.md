@@ -345,6 +345,8 @@ PVP adds: `pvpStarted` `hostSocket` `player1Socket` `player2Socket` `player{1,2}
 PVP additionally stores `sharedBoard` and `sharedOpenedCells`: the pristine
 starting layout and how many cells its opening revealed, so `resetMyBoard` can
 put a player back to the start rather than onto a board of their own.
+`player{1,2}EndedAt` preserves an individual detonation's stopped clock across
+reloads; the room's `endedAt` preserves the finish of the whole race.
 
 **`session:<sessionId>`** — TTL 24h
 `room` `name` `socketId`. The client keeps `sessionId` in sessionStorage (per tab,
@@ -466,7 +468,7 @@ Shapes are typed in `shared/socketPayloads.ts` (`ClientToServerEvents`).
 | `pvpRoomFull` | — |
 | `pvpRoomReady` | `{opponentName, isHost}` |
 | `pvpGameStarted` | `{totalSafeCells}` |
-| `pvpBoardUpdate` | `{board, playerIndex, opponentName?, opponentProgress?, totalSafeCells?}` |
+| `pvpBoardUpdate` | `{board, playerIndex, opponentName?, opponentProgress?, totalSafeCells?, gameOver?}` — reconnect snapshots include this player's mine-hit state independently of the race winner |
 | `pvpUpdateCells` | same shape as `updateCells` |
 | `pvpGameOver` | — (only to the player who hit a mine) |
 | `pvpOpponentFailed` / `pvpOpponentReset` / `pvpOpponentLeftBeforeStart` / `pvpHostTransferred` | — |
@@ -1246,13 +1248,23 @@ progress bar stayed wrong for the rest of the race. The lock is keyed per
 **player** (`withPvpActionLock`): the two boards are separate hash fields, so one
 player's write never touched the other's, and serialising them against each other
 would break the race itself. `resetMyBoard` takes that player's lock and
-`pvpRematch` takes both, in index order — nothing takes them in any other order,
-and a move only ever holds one, so there is no cycle to deadlock on.
-`startPvpGame` needs none: it refuses to run once `pvpStarted` is `'true'`, and
-no move runs until it is. Covered by `server/tests/pvpConcurrency.test.js`, whose
-last two tests pin down that the two players stay independent.
+re-reads before writing. Start and rematch take the room join lock followed by
+both player locks, in index order, and publish the new snapshot before releasing
+them. This keeps duplicate starts, reconnects and rematches from restoring an
+obsolete board or winner. Moves never take the join lock. Covered by
+`server/tests/pvpConcurrency.test.js` and `server/tests/pvpLifecycleConcurrency.test.js`.
 
-`resetGame` takes the same lock, because it is a co-op board write like any
+Room creation, joins and departures share the room join lock. The existence
+check and initial roster write are one decision, and concurrent roster edits
+cannot overwrite one another. `server/tests/roomMembershipConcurrency.test.js`
+exercises these overlapping requests. After updating membership, a co-op join
+also takes the action lock, re-reads the room and publishes rules, join success,
+clock, roster, board and terminal outcome before releasing it. This prevents a
+pre-reset win or loss snapshot from arriving after the reset. Lock order is
+membership then action; co-op moves and resets never request the membership
+lock. Covered by `server/tests/coopJoinSnapshotConcurrency.test.js`.
+
+`resetGame` takes the action lock, because it is a co-op board write like any
 other. A move in flight when a reset landed used to write its board back on top
 of the fresh one, leaving a room that claimed `initialized: 'false'` while
 holding a played board — and the *next* click would then generate a second board
