@@ -14,6 +14,27 @@ beforeEach(() => {
     localStorage.clear();
 });
 
+test('leaving keeps the guest name available for the next room', () => {
+    const socket = fakeSocket();
+    const { result } = renderHook(() => useGameActions(socket));
+    act(() => {
+        state().setName('Alice');
+        state().setRoom('first-room');
+        state().setPlayerJoined(true);
+        result.current.leaveRoom();
+    });
+
+    expect(state().playerJoined).toBe(false);
+    expect(state().name).toBe('Alice');
+    act(() => {
+        state().setRoom('next-room');
+        result.current.joinRoom();
+    });
+    expect(socket.emit).toHaveBeenLastCalledWith(CLIENT_EVENTS.JOIN_ROOM, {
+        room: 'next-room', name: 'Alice',
+    });
+});
+
 describe('pending hover cleanup', () => {
     beforeEach(() => {
         vi.useFakeTimers();

@@ -35,6 +35,7 @@ export default function InviteFriendDialog({ inviteFriend }: InviteFriendDialogP
      * retries once per reopen rather than in a loop.
      */
     const reopened = React.useRef(false);
+    const retry = React.useRef<(() => void) | null>(null);
     React.useEffect(() => {
         const dialog = document.getElementById(DIALOGS.inviteFriend);
         if (!dialog) return;
@@ -62,10 +63,16 @@ export default function InviteFriendDialog({ inviteFriend }: InviteFriendDialogP
             }
             void load();
         };
+        retry.current = () => {
+            if (!inFlight.current) void load();
+        };
         // `toggle` rather than a store flag: showModal() is imperative, so the
         // element is the only thing that knows it opened.
         dialog.addEventListener('toggle', onToggle);
-        return () => dialog.removeEventListener('toggle', onToggle);
+        return () => {
+            retry.current = null;
+            dialog.removeEventListener('toggle', onToggle);
+        };
     }, []);
 
     const online = (friends ?? []).filter((friend) => onlineFriendIds.includes(friend.id));
@@ -82,12 +89,13 @@ export default function InviteFriendDialog({ inviteFriend }: InviteFriendDialogP
             id={DIALOGS.inviteFriend}
             title="Invite a friend"
             actions={<DialogClose aria-label="Close invite dialog">Close</DialogClose>}>
-            {friends === null && !failed && <p className="text-pixel-sm text-ink-muted">Loading…</p>}
+            {friends === null && !failed && <p className="text-pixel-sm text-ink-muted" role="status">Loading…</p>}
 
             {failed && (
-                <p className="text-pixel-sm text-ink-muted">
-                    Could not load your friends. Close this and open it again to retry.
-                </p>
+                <div>
+                    <p className="text-pixel-sm text-ink-muted" role="status">Could not load your friends.</p>
+                    <Button size="sm" onClick={() => retry.current?.()}>Retry</Button>
+                </div>
             )}
 
             {!failed && friends !== null && online.length === 0 && (

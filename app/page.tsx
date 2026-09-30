@@ -50,6 +50,8 @@ export default function Home() {
 
             <GameDialogs
                 resetGame={actions.resetGame}
+                resetMyBoard={actions.resetMyBoard}
+                pvpRematch={actions.pvpRematch}
                 addRoomFriend={actions.addRoomFriend}
             />
         </>

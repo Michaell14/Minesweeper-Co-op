@@ -106,7 +106,7 @@ export function useGameActions(socket: AppSocket | null) {
         emitCellHover(-1, -1);
     }, [emitCellHover, throttledEmitCellHover]);
 
-    /** Leave the room and reset local state back to the Landing defaults. */
+    /** Reset room state for Landing, keeping this visit's editable player name. */
     const leaveRoom = useCallback(() => {
         if (!socket) return;
 
@@ -119,7 +119,6 @@ export function useGameActions(socket: AppSocket | null) {
 
         store.setPlayerJoined(false);
         store.setBoard([]);
-        store.setName("");
         // The roster also sizes the group a best time is filed under; left
         // standing, Landing would show the group's record for a solo board.
         store.setPlayerStatsInRoom([]);

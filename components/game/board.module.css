@@ -71,6 +71,11 @@
     gap: var(--cell-gap);
 }
 
+.gameBoard:focus-visible {
+    outline: var(--ms-border-width) solid var(--ms-intent-primary);
+    outline-offset: var(--ms-border-width);
+}
+
 .cell {
     height: var(--cell-size);
     width: var(--cell-size);

@@ -51,6 +51,7 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
     const pvpStarted = useMinesweeperStore((state) => state.pvpStarted);
     const pvpWinner = useMinesweeperStore((state) => state.pvpWinner);
     const pvpIsHost = useMinesweeperStore((state) => state.pvpIsHost);
+    const opponentPresent = useMinesweeperStore((state) => state.playerStatsInRoom.length === 2);
     const pvpOpponentName = useMinesweeperStore((state) => state.pvpOpponentName);
     const pvpOpponentStatus = useMinesweeperStore((state) => state.pvpOpponentStatus);
     const setIsChecked = useMinesweeperStore((state) => state.setIsChecked);
@@ -94,7 +95,7 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
                     Reset My Board
                 </Button>
             }
-            {mode === 'pvp' && pvpWinner && pvpIsHost &&
+            {mode === 'pvp' && pvpWinner && pvpIsHost && opponentPresent &&
                 <Button
                     intent="success"
                     size="sm"
@@ -104,6 +105,16 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
                 </Button>
             }
         </>
+    );
+
+    const rematchHint = mode === 'pvp' && pvpWinner && (!pvpIsHost || !opponentPresent) && (
+        <p className="text-pixel-sm text-ink-muted mt-2 max-w-60" role="status">
+            {opponentPresent
+                ? 'Waiting for the host to start a rematch.'
+                : pvpIsHost
+                    ? 'Invite another player to your room to race again.'
+                    : 'Return home and create a new race to keep playing.'}
+        </p>
     );
 
     const leaveButton = (
@@ -228,17 +239,14 @@ const Grid = React.memo(({ leaveRoom, resetGame, toggleFlag, openCell, chordCell
                             {leaveButton}
                             {actionButtons}
                         </div>
+                        {rematchHint}
 
                         <RoomPanel className="my-6 max-w-60" centered inviteFriend={inviteFriend} />
                     </div>
 
                     <div className="hidden xl:flex flex-col sticky top-20">
                         {actionButtons}
-                        {mode === 'pvp' && pvpWinner && !pvpIsHost &&
-                            <div className="text-pixel-sm text-ink-muted mt-2">
-                                Waiting for host to start rematch...
-                            </div>
-                        }
+                        {rematchHint}
                         {isPracticeRace && <PracticeProgress variant="panel" />}
 
                         {/* The whole panel: a hidden bar must not leave an empty titled box. */}

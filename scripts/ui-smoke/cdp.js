@@ -181,7 +181,9 @@ async function attach(target) {
         };
         await send('Input.dispatchKeyEvent', {
             type: 'keyDown',
-            ...(k.length === 1 ? { text: k } : {}),
+            // Enter needs its character event too, or Chrome never exercises
+            // native implicit form submission (unlike an actual key press).
+            ...(k === 'Enter' ? { text: '\r' } : k.length === 1 ? { text: k } : {}),
             ...base,
         });
         await send('Input.dispatchKeyEvent', { type: 'keyUp', ...base });

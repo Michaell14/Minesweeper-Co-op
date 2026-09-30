@@ -26,6 +26,9 @@ export default function SettingsSync() {
 
     // What the server last agreed with, so a pull does not echo itself back up.
     const lastSynced = React.useRef<string | null>(null);
+    // A failed read says nothing about the account's saved preferences. Never
+    // upload this browser's copy until a successful read establishes the baseline.
+    const remoteReady = React.useRef(false);
 
     React.useEffect(() => {
         hydrateSettings();
@@ -64,21 +67,24 @@ export default function SettingsSync() {
     }, []);
 
     React.useEffect(() => {
+        remoteReady.current = false;
         if (status !== 'authenticated') {
             lastSynced.current = null;
             return;
         }
 
         let cancelled = false;
-        fetchSettings().then((server) => {
-            if (cancelled) return;
+        fetchSettings().then((result) => {
+            if (cancelled || !result) return;
+            remoteReady.current = true;
+            const server = result.settings;
             if (server) {
                 lastSynced.current = JSON.stringify(server);
                 replaceSettings(server);
             } else {
                 const local = useMinesweeperStore.getState().settings;
                 void saveSettings(local).then((ok) => {
-                    if (ok) lastSynced.current = JSON.stringify(local);
+                    if (ok && !cancelled) lastSynced.current = JSON.stringify(local);
                 });
             }
         });
@@ -113,7 +119,7 @@ export default function SettingsSync() {
 
         let timer: ReturnType<typeof setTimeout> | null = null;
         const unsubscribe = useMinesweeperStore.subscribe((state, prev) => {
-            if (state.settings === prev.settings) return;
+            if (!remoteReady.current || state.settings === prev.settings) return;
             const snapshot = JSON.stringify(state.settings);
             if (snapshot === lastSynced.current) return;
 

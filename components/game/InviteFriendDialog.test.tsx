@@ -5,7 +5,7 @@
  * screen, which is why it is here rather than the smoke suite.
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { useMinesweeperStore } from "@/app/store";
 import InviteFriendDialog from "./InviteFriendDialog";
 
@@ -33,6 +33,41 @@ afterEach(() => {
 });
 
 describe("a roster fetch that fails", () => {
+    it("can be retried directly without closing the dialog", async () => {
+        act(() => useMinesweeperStore.getState().setOnlineFriends([ALEX.id]));
+        fetchFriends.mockResolvedValueOnce(null);
+        const { container } = render(<InviteFriendDialog inviteFriend={vi.fn()} />);
+        const dialog = container.querySelector("dialog") as HTMLDialogElement;
+        await open(dialog);
+        fetchFriends.mockResolvedValueOnce({ friends: [ALEX], incoming: [], outgoing: [], blocked: [], code: null });
+
+        await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Retry" })); });
+
+        expect(dialog.open).toBe(true);
+        expect(fetchFriends).toHaveBeenCalledTimes(2);
+        expect(screen.queryByText(/Could not load your friends/)).toBeNull();
+        expect(screen.getByRole("button", { name: `Invite ${ALEX.displayName} to this room` })).toBeTruthy();
+    });
+
+    it("drops repeated retry clicks while the request is pending", async () => {
+        fetchFriends.mockResolvedValueOnce(null);
+        const { container } = render(<InviteFriendDialog inviteFriend={vi.fn()} />);
+        await open(container.querySelector("dialog") as HTMLDialogElement);
+        let finish: (value: null) => void = () => {};
+        fetchFriends.mockReturnValueOnce(new Promise<null>((resolve) => { finish = resolve; }));
+        const button = screen.getByRole("button", { name: "Retry" });
+
+        act(() => {
+            fireEvent.click(button);
+            fireEvent.click(button);
+        });
+
+        expect(fetchFriends).toHaveBeenCalledTimes(2);
+        expect(screen.getByRole("status").textContent).toBe("Loading…");
+        await act(async () => { finish(null); });
+        expect(screen.getByRole("button", { name: "Retry" })).toBeTruthy();
+    });
+
     it("is retried on the next open, and says so meanwhile", async () => {
         act(() => useMinesweeperStore.getState().setOnlineFriends([ALEX.id]));
         fetchFriends.mockResolvedValueOnce(null);

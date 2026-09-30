@@ -507,7 +507,30 @@ describe('submitDailyScore and the leaderboard', () => {
         expect(await dailyRepo.getLeaderboardTop(DATE)).toEqual([
             expect.objectContaining({ name: 'First' }),
         ]);
+        expect(secondTab.emit).toHaveBeenCalledWith('dailyScoreSubmitted', expect.objectContaining({ rank: 1 }));
         submit.mockRestore();
+    });
+
+    test('retrying a completed submission acknowledges the stored score without changing its identity or broadcasting again', async () => {
+        const socket = await winWith('tok-1', 'sock-1');
+        await submitDailyScore({ socket, io: { to: mockTo }, dailyAttemptToken: 'tok-1', date: DATE, name: 'First' });
+        await mockRedisSingleton.hSet(`daily:${DATE}:attempt:tok-1`, { avatar: 'fox' });
+        const completed = await dailyRepo.getAttempt(DATE, 'tok-1');
+        mockRedisSingleton.hSet.mockClear();
+        mockRedisSingleton.zAdd.mockClear();
+        mockEmit.mockClear();
+        const reconnect = socketFor('sock-reconnected');
+
+        await submitDailyScore({ socket: reconnect, io: { to: mockTo }, dailyAttemptToken: 'tok-1', date: DATE, name: 'Changed' });
+
+        expect(reconnect.emit).toHaveBeenCalledWith('dailyScoreSubmitted', { rank: 1, elapsedMs: 2000, totalEntries: 1 });
+        expect(reconnect.emit).toHaveBeenCalledWith('dailyLeaderboardUpdate', {
+            entries: [expect.objectContaining({ name: 'First', avatar: 'fox', elapsedMs: 2000 })],
+        });
+        expect(await dailyRepo.getAttempt(DATE, 'tok-1')).toEqual(completed);
+        expect(mockRedisSingleton.hSet).not.toHaveBeenCalled();
+        expect(mockRedisSingleton.zAdd).not.toHaveBeenCalled();
+        expect(mockEmit).not.toHaveBeenCalledWith('dailyLeaderboardUpdate', expect.anything());
     });
 
     test('a name that is only whitespace is refused rather than filed as a blank row', async () => {

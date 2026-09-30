@@ -1,4 +1,4 @@
-import React, { useLayoutEffect, useRef, useState } from 'react';
+import React, { useId, useLayoutEffect, useRef, useState } from 'react';
 import { useMinesweeperStore } from '@/app/store';
 import Cell from '@/components/game/Cell';
 import CursorLayer from '@/components/game/CursorLayer';
@@ -21,11 +21,34 @@ export interface BoardProps {
 export default function Board({ toggleFlag, openCell, chordCell, emitCellHover, pingCell, handleBoardLeave }: BoardProps) {
     const board = useMinesweeperStore((state) => state.board);
     const cellSize = useMinesweeperStore((state) => state.settings.cellSize);
+    const keyboardControls = useMinesweeperStore((state) => state.settings.keyboardControls);
+    const chording = useMinesweeperStore((state) => state.settings.chording);
+    const mode = useMinesweeperStore((state) => state.mode);
     // Costs no extra render: it only ever changes alongside the board itself.
     const cascadeOrigin = useMinesweeperStore((state) => state.cascadeOrigin);
     const boardRef = useRef<HTMLDivElement>(null);
     const cols = board[0]?.length || 0;
     const rows = board.length;
+    const keyboardHelpId = useId();
+    const pointerFocus = useRef(false);
+
+    const onBoardFocus = (event: React.FocusEvent<HTMLDivElement>) => {
+        if (event.target !== event.currentTarget) return;
+        // Pointer focus follows mousedown; do not put the keyboard cursor back
+        // after the mouse handler just dismissed it.
+        if (pointerFocus.current) {
+            pointerFocus.current = false;
+            return;
+        }
+        if (!keyboardControls || rows === 0 || cols === 0) return;
+        const state = useMinesweeperStore.getState();
+        const previous = state.kbCursor;
+        const cursor = previous && board[previous.r]?.[previous.c]
+            ? previous
+            : { r: Math.floor(rows / 2), c: Math.floor(cols / 2) };
+        state.setKbCursor(cursor);
+        emitCellHover(cursor.r, cursor.c);
+    };
 
     /*
      * Page height ABOVE the board, for the height half of the fit clamp in
@@ -80,6 +103,7 @@ export default function Board({ toggleFlag, openCell, chordCell, emitCellHover, 
     const pingGesture = useRef(false);
 
     const onPointerCapture = (event: React.MouseEvent) => {
+        pointerFocus.current = true;
         // Cleared first so a latch from a press that never finished cannot outlive this one.
         pingGesture.current = false;
         if (!takeoverForPing(event)) return;
@@ -95,6 +119,7 @@ export default function Board({ toggleFlag, openCell, chordCell, emitCellHover, 
 
     /* The rest of the gesture, swallowed so nothing downstream sees half of it. */
     const swallowIfPinging = (event: React.MouseEvent) => {
+        if (event.type === 'mouseup') pointerFocus.current = false;
         if (!pingGesture.current) return;
         // The click is the last of the three; the gesture ends with it.
         if (event.type === 'click') pingGesture.current = false;
@@ -119,8 +144,23 @@ export default function Board({ toggleFlag, openCell, chordCell, emitCellHover, 
             onMouseDownCapture={onPointerCapture}
             onMouseUpCapture={swallowIfPinging}
             onClickCapture={swallowIfPinging}
+            onPointerDownCapture={() => { pointerFocus.current = true; }}
+            onPointerUpCapture={() => { pointerFocus.current = false; }}
+            onPointerCancelCapture={() => { pointerFocus.current = false; }}
+            onFocus={onBoardFocus}
+            onBlur={() => { pointerFocus.current = false; }}
             role="grid"
+            tabIndex={keyboardControls && rows > 0 && cols > 0 ? 0 : undefined}
+            aria-describedby={keyboardControls ? keyboardHelpId : undefined}
             aria-label={`Minesweeper game board, ${board.length} rows by ${board[0]?.length || 0} columns`}>
+            {keyboardControls && (
+                <span id={keyboardHelpId} className="sr-only">
+                    Arrow keys or W A S D move. Space or Enter reveals. F flags.
+                    {chording && ' Space or Enter on a revealed number opens its unflagged neighbours.'}
+                    {pingCell && mode !== 'pvp' && ' P pings a cell for your teammates.'}
+                    {' Escape hides the cursor or cancels a ping. Tab moves to the next control.'}
+                </span>
+            )}
             {board.map((row, rowIndex: number) => (
                 <div key={rowIndex} className={styles.gameRow} role="row">
                     {row.map((cell, colIndex: number) => (

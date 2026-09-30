@@ -13,6 +13,11 @@ vi.mock('next-auth/react', () => ({
     signOut: vi.fn(),
 }));
 
+vi.mock('@/lib/dailyCalendar', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('@/lib/dailyCalendar')>()),
+    todayUtc: () => '2026-08-02',
+}));
+
 const mockFetchStats = vi.fn();
 const mockImportBests = vi.fn();
 const mockFetchBoardBests = vi.fn(async (): Promise<Record<string, never> | null> => null);
@@ -124,6 +129,22 @@ describe('signed in', () => {
         );
         expect(screen.getByRole('list', { name: /Daily results for/ })).toBeTruthy();
         expect(screen.getByText(/No dailies recorded yet/)).toBeTruthy();
+    });
+
+    it.each([
+        ['2026-08-02', 3], // Today in UTC: still active.
+        ['2026-08-01', 3], // Yesterday: today remains available to extend it.
+        ['2026-07-31', 0], // A missed UTC day expires the stored streak.
+        [null, 0],
+    ])('displays the effective play streak last played on %s and preserves the best', async (lastPlayedDay, expected) => {
+        mockFetchStats.mockResolvedValue({
+            ...PAYLOAD,
+            stats: { ...PAYLOAD.stats, lastPlayedDay },
+        });
+        render(<ProfileClient />);
+
+        const streak = await screen.findByRole('status', { name: 'Play streak' });
+        expect(streak.textContent).toBe(`🔥 Streak: ${expected} days (best 7)`);
     });
 
     it('degrades to the unavailable panel with a retry', async () => {

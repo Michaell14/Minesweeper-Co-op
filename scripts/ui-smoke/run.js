@@ -8,6 +8,7 @@
  * client cannot see the mines, so that is tested against the server.
  */
 const { launchChrome, attach, newTarget, sleep } = require('./cdp');
+const qualityOfLife = require('./quality-of-life');
 
 const CLIENT = process.env.UI_SMOKE_CLIENT || 'http://localhost:3000';
 const SERVER = process.env.UI_SMOKE_SERVER || 'http://localhost:3001';
@@ -1073,12 +1074,13 @@ async function pvp(host, guest) {
         return true;
     `);
 
-    /** Takes the "Reset My Board" offer if the last click hit a mine. */
-    const reviveIfDead = () => host.evaluate(`
-        const btn = [...document.querySelectorAll('button')].find(b => b.offsetParent !== null && b.textContent.includes('Reset My Board'));
-        if (btn) { btn.click(); return true; }
-        return false;
-    `);
+    /** Retry through the native modal, just as a player does after hitting a mine. */
+    const reviveIfDead = async () => {
+        if (!await host.evaluate(`return !!document.getElementById('dialog-pvp-game-over')?.open;`)) return false;
+        await host.click('#dialog-pvp-game-over button[type="submit"]', { nth: 1 });
+        await host.waitFor(`!document.getElementById('dialog-pvp-game-over')?.open`, { label: 'retry closes the mine-hit dialog' });
+        return true;
+    };
 
     /*
      * One click is a bad test of progress: it is a whole percent, so one cell
@@ -1494,10 +1496,13 @@ async function emotes(host, guest) {
         const linkGuest = await attach(await newTarget('about:blank'));
         await joinLink(linkHost, linkGuest);
 
+        const qualityPage = await attach(await newTarget('about:blank'));
+        await qualityOfLife(qualityPage, { client: CLIENT, check, selectCard });
+
         console.log('\n\x1b[1m--- CONSOLE ---\x1b[0m');
         const errors = [...page.consoleErrors, ...host.consoleErrors, ...guest.consoleErrors,
             ...emoteHost.consoleErrors, ...emoteGuest.consoleErrors,
-            ...linkHost.consoleErrors, ...linkGuest.consoleErrors]
+            ...linkHost.consoleErrors, ...linkGuest.consoleErrors, ...qualityPage.consoleErrors]
             .filter((e) => !/favicon|404/i.test(e));
         check(errors.length === 0, 'no uncaught errors in any client', errors.slice(0, 3).join('\n        '));
     } catch (e) {

@@ -25,13 +25,15 @@ const request = async (method: string, body?: unknown): Promise<Response | null>
     }
 };
 
-/** The account's settings, sanitised, or null whenever the local copy stays authoritative. */
-export async function fetchSettings(): Promise<Settings | null> {
+/** null means unavailable; only a successful { settings: null } may seed a new account. */
+export async function fetchSettings(): Promise<{ settings: Settings | null } | null> {
     const res = await request("GET");
     if (!res || !res.ok) return null;
     const data = await res.json().catch(() => null);
-    if (!data || data.settings == null) return null;
-    return sanitizeSettings(data.settings);
+    if (!data || !Object.prototype.hasOwnProperty.call(data, 'settings')) return null;
+    if (data.settings === null) return { settings: null };
+    if (typeof data.settings !== 'object' || Array.isArray(data.settings)) return null;
+    return { settings: sanitizeSettings(data.settings) };
 }
 
 /** Mirrors the blob up. Best-effort: a miss is retried on the next change. */

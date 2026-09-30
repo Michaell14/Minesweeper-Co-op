@@ -14,15 +14,38 @@ export interface GameDialogsProps {
     addRoomFriend: (playerId: string) => void;
     /** Starts a fresh board. Same action as the side panel's Reset. */
     resetGame: () => void;
+    resetMyBoard: () => void;
+    pvpRematch: () => void;
 }
 
-export default function GameDialogs({ resetGame, addRoomFriend }: GameDialogsProps) {
+export default function GameDialogs({ resetGame, resetMyBoard, pvpRematch, addRoomFriend }: GameDialogsProps) {
     const summaryProps = { addRoomFriend };
     const relaxed = useMinesweeperStore((state) => state.relaxed);
     const gameOverName = useMinesweeperStore((state) => state.gameOverName);
     const gameWon = useMinesweeperStore((state) => state.gameWon);
+    const pvpIsHost = useMinesweeperStore((state) => state.pvpIsHost);
+    const pvpWinner = useMinesweeperStore((state) => state.pvpWinner);
+    const opponentPresent = useMinesweeperStore((state) => state.playerStatsInRoom.length === 2);
     const setPlayerJoined = useMinesweeperStore((state) => state.setPlayerJoined);
     const requestNewRoomCode = useMinesweeperStore((state) => state.requestNewRoomCode);
+
+    const raceActions = (
+        <>
+            <DialogClose aria-label="Close race summary">View board</DialogClose>
+            {pvpIsHost && pvpWinner && opponentPresent && (
+                <Button type="submit" intent="primary" onClick={pvpRematch}>Rematch</Button>
+            )}
+        </>
+    );
+    const rematchHint = pvpWinner && (!pvpIsHost || !opponentPresent) && (
+        <p className="text-pixel-xs text-ink-muted mt-4" role="status">
+            {opponentPresent
+                ? 'Waiting for the host to start a rematch.'
+                : pvpIsHost
+                    ? 'Invite another player to your room to race again.'
+                    : 'Return home and create a new race to keep playing.'}
+        </p>
+    );
 
     return (
         <>
@@ -117,41 +140,49 @@ export default function GameDialogs({ resetGame, addRoomFriend }: GameDialogsPro
                 id={DIALOGS.pvpGameOver}
                 title="Boom!"
                 alert
+                actionsAlign="between"
                 actions={
-                    <DialogClose intent="error" aria-label="Close dialog">OK</DialogClose>
+                    <>
+                        <DialogClose aria-label="Close dialog">View board</DialogClose>
+                        {!pvpWinner && (
+                            <Button type="submit" intent="primary" onClick={resetMyBoard}>Try again</Button>
+                        )}
+                    </>
                 }>
-                <p>You hit a mine. Reset your board to try again!</p>
+                <p>You hit a mine. Try again from the same starting board while your opponent keeps racing.</p>
             </Dialog>
 
             <Dialog
                 id={DIALOGS.pvpYouWon}
                 title="Victory!"
                 alert
-                actions={
-                    <DialogClose intent="success" aria-label="Close dialog">Awesome!</DialogClose>
-                }>
+                actionsAlign="between"
+                actions={raceActions}>
                 <p>You completed your board first. You win!</p>
                 <GameSummary {...summaryProps} />
+                {rematchHint}
             </Dialog>
 
             <Dialog
                 id={DIALOGS.pvpOpponentWon}
                 title="Defeat"
                 alert
-                actions={<DialogClose aria-label="Close dialog">OK</DialogClose>}>
+                actionsAlign="between"
+                actions={raceActions}>
                 <p>Your opponent completed their board first.</p>
                 <GameSummary {...summaryProps} />
+                {rematchHint}
             </Dialog>
 
             <Dialog
                 id={DIALOGS.pvpOpponentDisconnected}
                 title="Victory!"
                 alert
-                actions={
-                    <DialogClose intent="success" aria-label="Close dialog">Nice!</DialogClose>
-                }>
+                actionsAlign="between"
+                actions={raceActions}>
                 <p>Your opponent disconnected. You win by default!</p>
                 <GameSummary {...summaryProps} />
+                {rematchHint}
             </Dialog>
         </>
     );

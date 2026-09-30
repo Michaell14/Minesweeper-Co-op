@@ -5,8 +5,8 @@
  */
 
 /**
- * The longest code the field accepts, tighter than the server's 100
- * (MAX_ROOM_CODE_LENGTH in server/validation.js). Every generated code fits.
+ * The upper bound for generated codes, tighter than the server's 100.
+ * Joining also accepts longer legacy codes (see lib/roomLink.ts).
  */
 export const MAX_ROOM_CODE_LENGTH = 28;
 

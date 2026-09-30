@@ -165,9 +165,10 @@ const startDaily = async ({ socket, dailyAttemptToken }) => {
     }
 };
 
-/** Handles 'submitDailyScore'. Only a 'won_pending_submit' attempt can submit. */
+/** Handles 'submitDailyScore'. Completed attempts only replay their acknowledgement. */
 const submitDailyScore = async ({ socket, io, dailyAttemptToken, date, name }) => {
     try {
+        if (!isValidDailyToken(dailyAttemptToken)) return;
         // Validate what gets STORED, not what arrived. A signed-in player's entry
         // carries their ACCOUNT name, RE-READ here rather than taken from the
         // socket: socket.data.user is a connect-time snapshot, and the
@@ -186,7 +187,6 @@ const submitDailyScore = async ({ socket, io, dailyAttemptToken, date, name }) =
             }
         }
         const displayName = normalizePlayerName(accountName || name);
-        if (!isValidDailyToken(dailyAttemptToken) || !isValidPlayerName(displayName)) return;
 
         // The avatar rides only with an ACCOUNT entry (a deleted account fell
         // through to the typed name), and isValidAvatarId drops a retired id.
@@ -195,12 +195,21 @@ const submitDailyScore = async ({ socket, io, dailyAttemptToken, date, name }) =
         // Submission changes the attempt too. Re-read under the same lock as
         // moves, or two tabs can both pass the pending check and the second
         // overwrites the name/avatar after the first score was published.
-        const elapsedMs = await dailyRepo.withAttemptLock(date, dailyAttemptToken, socket.id, async () => {
+        const submission = await dailyRepo.withAttemptLock(date, dailyAttemptToken, socket.id, async () => {
             const attempt = await dailyRepo.getAttempt(date, dailyAttemptToken);
-            if (!attempt || attempt.status !== 'won_pending_submit') return null;
-            return dailyRepo.submitScore(date, dailyAttemptToken, displayName, avatar);
+            if (!attempt) return null;
+            // A lost acknowledgement must be retryable without rewriting the
+            // published identity, elapsed time, or leaderboard entry.
+            if (attempt.status === 'completed') {
+                const elapsedMs = parseIntOrUndefined(attempt.elapsedMs);
+                return elapsedMs === undefined ? null : { elapsedMs, published: false };
+            }
+            if (attempt.status !== 'won_pending_submit' || !isValidPlayerName(displayName)) return null;
+            const elapsedMs = await dailyRepo.submitScore(date, dailyAttemptToken, displayName, avatar);
+            return { elapsedMs, published: true };
         });
-        if (elapsedMs === null) return;
+        if (!submission) return;
+        const { elapsedMs, published } = submission;
 
         const rank = await dailyRepo.getRank(date, dailyAttemptToken);
         const totalEntries = await dailyRepo.getEntryCount(date);
@@ -210,7 +219,13 @@ const submitDailyScore = async ({ socket, io, dailyAttemptToken, date, name }) =
         // Join before broadcasting: the submitter may never have asked for the leaderboard.
         socket.join(dailyLeaderboardChannel(date));
         const entries = await dailyRepo.getLeaderboardTop(date);
-        io.to(dailyLeaderboardChannel(date)).emit(SERVER_EVENTS.DAILY_LEADERBOARD_UPDATE, { entries });
+        if (published) {
+            io.to(dailyLeaderboardChannel(date)).emit(SERVER_EVENTS.DAILY_LEADERBOARD_UPDATE, { entries });
+        } else {
+            // A reconnect also needs the current table, but nobody else needs
+            // another broadcast for a submission already published.
+            socket.emit(SERVER_EVENTS.DAILY_LEADERBOARD_UPDATE, { entries });
+        }
     } catch (error) {
         console.error('Error in submitDailyScore:', error);
     }

@@ -1,6 +1,6 @@
 'use client'
 import React from 'react';
-import { NameWithAvatar, Panel, Button } from '@/components/ds';
+import { NameWithAvatar, Panel, Button, ButtonLink } from '@/components/ds';
 import { useMinesweeperStore } from '@/app/store';
 import { ROOM_QUERY_PARAM } from '@/lib/roomLink';
 
@@ -53,14 +53,16 @@ export default function FriendInviteToast() {
                     wants you in {invite.mode === 'pvp' ? 'a race' : 'a co-op game'} — room {invite.room}
                 </p>
                 <div className="flex gap-2 mt-3">
-                    {/* A link, not a button: the same door a shared link opens. */}
-                    <a
+                    {/* A fresh page load leaves any current room before the join flow. */}
+                    <ButtonLink
                         href={href}
-                        className="no-underline"
+                        intent="primary"
+                        size="sm"
+                        reloadDocument
                         onClick={() => setFriendInvite(null)}
                         aria-label={`Join ${invite.fromName} in room ${invite.room}`}>
-                        <Button intent="primary" size="sm">Join</Button>
-                    </a>
+                        Join
+                    </ButtonLink>
                     <Button
                         size="sm"
                         onClick={() => setFriendInvite(null)}

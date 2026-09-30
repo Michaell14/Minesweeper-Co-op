@@ -3,7 +3,7 @@
 import React from 'react';
 import { useSession } from 'next-auth/react';
 import { useMinesweeperStore } from '@/app/store';
-import { Button, Panel } from '@/components/ds';
+import { Button, Field, Input, Panel } from '@/components/ds';
 import { buildJoinUrl } from '@/lib/roomLink';
 import { DIALOGS, openDialog } from '@/lib/dialogs';
 
@@ -33,6 +33,8 @@ export default function RoomPanel({ className = '', centered = false, inviteFrie
     const canInvite = status === 'authenticated' && !!inviteFriend;
 
     const [linkCopied, setLinkCopied] = React.useState(false);
+    const [manualLink, setManualLink] = React.useState<string | null>(null);
+    const manualLinkRef = React.useRef<HTMLInputElement>(null);
     const copyTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // Cancels the pending "reset to Copy Link" timer if the panel unmounts first.
@@ -40,14 +42,28 @@ export default function RoomPanel({ className = '', centered = false, inviteFrie
         if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
     }, []);
 
+    React.useEffect(() => {
+        setLinkCopied(false);
+        setManualLink(null);
+        if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
+    }, [room]);
+
+    React.useEffect(() => {
+        if (!manualLink) return;
+        manualLinkRef.current?.focus();
+        manualLinkRef.current?.select();
+    }, [manualLink]);
+
     const copyRoomLink = React.useCallback(async () => {
         try {
             await navigator.clipboard.writeText(buildJoinUrl(room));
             setLinkCopied(true);
+            setManualLink(null);
             if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
             copyTimeoutRef.current = setTimeout(() => setLinkCopied(false), 2000);
         } catch {
-            // Clipboard denied/unavailable — button just stays "Copy Link".
+            setLinkCopied(false);
+            setManualLink(buildJoinUrl(room));
         }
     }, [room]);
 
@@ -78,6 +94,25 @@ export default function RoomPanel({ className = '', centered = false, inviteFrie
             <span className="sr-only" aria-live="polite">
                 {linkCopied ? 'Link copied to clipboard' : ''}
             </span>
+
+            {manualLink && (
+                <div className="mt-3">
+                    <p className="text-pixel-2xs text-ink-muted mb-2" role="status">
+                        Copy didn&apos;t work. You can copy the link below.
+                    </p>
+                    <Field label="Room invite link">
+                        <Input
+                            ref={manualLinkRef}
+                            size="sm"
+                            value={manualLink}
+                            readOnly
+                            aria-label="Room invite link"
+                            onFocus={(event) => event.currentTarget.select()}
+                            onClick={(event) => event.currentTarget.select()}
+                        />
+                    </Field>
+                </div>
+            )}
 
             {/* The BUTTON only: this panel is mounted twice, so the dialog lives in Grid, mounted once. */}
             {canInvite && (

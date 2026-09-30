@@ -51,17 +51,32 @@ export function useKeyboardControls({ openCell, toggleFlag, chordCell, emitCellH
     useEffect(() => {
         const onKeyDown = (event: KeyboardEvent) => {
             const state = useMinesweeperStore.getState();
-            if (!state.settings.keyboardControls) return;
             if (event.defaultPrevented) return;
             // Shift changes no binding here.
             if (event.ctrlKey || event.metaKey || event.altKey) return;
             if (document.querySelector("dialog[open]")) return;
             const editableFocus = document.activeElement?.closest(EDITABLE);
             if (editableFocus && !isCheckbox(editableFocus)) return;
-            const activatableFocus = editableFocus ?? document.activeElement?.closest(ACTIVATABLE);
+            // The grid is a keyboard entry point, not a button: it keeps focus
+            // while arrows move and Space/Enter act on its selected cell.
+            const gridFocused = document.activeElement?.matches('[role="grid"]');
+            const activatableFocus = gridFocused ? null : editableFocus ?? document.activeElement?.closest(ACTIVATABLE);
 
             const key = event.key.toLowerCase();
             const { board, kbCursor } = state;
+
+            if (key === "escape") {
+                if (kbCursor === null && !state.pingArmed) return;
+                event.preventDefault();
+                state.setPingArmed(false);
+                if (kbCursor !== null) {
+                    state.setKbCursor(null);
+                    emitCellHover(-1, -1);
+                }
+                return;
+            }
+
+            if (!state.settings.keyboardControls) return;
 
             const move = MOVES[key];
             if (move) {
@@ -84,14 +99,6 @@ export function useKeyboardControls({ openCell, toggleFlag, chordCell, emitCellH
                 }
                 state.setKbCursor(next);
                 emitCellHover(next.r, next.c);
-                return;
-            }
-
-            if (key === "escape") {
-                if (kbCursor === null) return;
-                event.preventDefault();
-                state.setKbCursor(null);
-                emitCellHover(-1, -1);
                 return;
             }
 

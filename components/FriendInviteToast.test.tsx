@@ -58,12 +58,18 @@ describe('an offer', () => {
      * A link, not a button. The `?room=` flow already fills the code, asks for
      * a name, and copes with a full room; this player may be mid-game elsewhere.
      */
-    it('accepts by navigating into the existing join flow', () => {
+    it('offers one accessible Join action that navigates into the existing join flow', () => {
         render(<FriendInviteToast />);
         offer();
 
         const join = screen.getByRole('link', { name: 'Join Pat in room wired-room' });
         expect(join.getAttribute('href')).toBe('/?room=wired-room');
+        // Accept and dismiss are the only two focus targets. A button nested
+        // in the link used to announce a second, misleading Join action.
+        expect(screen.getAllByRole('link')).toEqual([join]);
+        expect(screen.getAllByRole('button')).toEqual([
+            screen.getByRole('button', { name: "Dismiss Pat's invite" }),
+        ]);
     });
 
     it('encodes a room code that needs it', () => {

@@ -125,15 +125,31 @@ describe("always", () => {
         expect(screen.getByText("Link copied to clipboard")).toBeDefined();
     });
 
-    /* A denied clipboard must not throw; the button just stays as it was. */
-    test("survives a clipboard the browser refuses", async () => {
+    test("offers a selected manual link when the browser refuses clipboard access", async () => {
         stubClipboard(vi.fn().mockRejectedValue(new Error("denied")));
         render(<RoomPanel />);
 
         fireEvent.click(screen.getByRole("button", { name: /copy shareable room link/i }));
 
-        await waitFor(() =>
-            expect(screen.getByRole("button", { name: /copy/i }).textContent).toBe("Copy Link"));
+        const input = await screen.findByRole('textbox', { name: 'Room invite link' }) as HTMLInputElement;
+        expect(input.value).toContain('?room=ABC123');
+        expect(input.readOnly).toBe(true);
+        expect(document.activeElement).toBe(input);
+        expect(input.selectionStart).toBe(0);
+        expect(input.selectionEnd).toBe(input.value.length);
+        expect(screen.getByRole('status').textContent).toContain("Copy didn't work");
+    });
+
+    test("a later successful copy removes the manual fallback", async () => {
+        const writeText = vi.fn().mockRejectedValueOnce(new Error('denied')).mockResolvedValue(undefined);
+        stubClipboard(writeText);
+        render(<RoomPanel />);
+        const copy = screen.getByRole('button', { name: /copy shareable room link/i });
+        fireEvent.click(copy);
+        await screen.findByRole('textbox', { name: 'Room invite link' });
+        fireEvent.click(copy);
+        await waitFor(() => expect(screen.queryByRole('textbox', { name: 'Room invite link' })).toBeNull());
+        expect(copy.textContent).toBe('Copied!');
     });
 });
 
