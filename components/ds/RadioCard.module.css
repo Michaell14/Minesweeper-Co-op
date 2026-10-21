@@ -91,6 +91,11 @@
     background-color: var(--ms-surface-option-selected);
 }
 
+/* Seasonal emphasis stays inside the card so it cannot move or clip the layout. */
+:global([data-theme="halloween"]) .input:checked ~ .control {
+    box-shadow: inset 0 0 0 calc(var(--ms-border-width) / 2) var(--ms-intent-primary);
+}
+
 /* Focus follows the input to the card, since the input itself is clipped. */
 .input:focus-visible ~ .control {
     outline: 2px solid var(--ms-intent-primary);
