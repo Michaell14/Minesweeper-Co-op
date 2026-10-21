@@ -145,6 +145,9 @@ async function coop(page) {
     require('fs').writeFileSync('/tmp/minesweeper-simple-mobile.png', Buffer.from(mobileShot.data, 'base64'));
     check(await page.evaluate(`return document.documentElement.scrollWidth <= window.innerWidth;`), 'simplified setup fits mobile without sideways scrolling');
     await page.send('Emulation.clearDeviceMetricsOverride');
+    // Paint the desktop viewport before the driver measures a click target.
+    // Otherwise a mobile-to-desktop reflow can move the button after measurement.
+    await page.evaluate(`return new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve(true))));`);
 
     room = await enterRoom(page, { room, name: 'Alice' });
     // `>=` so a duplicated board fails the count check below instead of timing out here.

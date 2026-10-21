@@ -7,6 +7,7 @@ import { explain, nextHint } from '@/lib/drillDeduction';
 import { recordSolved } from '@/lib/drillProgress';
 import DrillBoard, { initialMarks, type DrillMarks } from './DrillBoard';
 import type { DrillCellState } from './drillLabel';
+import { trackUsage } from '@/lib/analytics';
 
 export interface DrillRunnerProps {
     drill: Drill;
@@ -26,6 +27,13 @@ export default function DrillRunner({ drill, onSolved }: DrillRunnerProps) {
     const [hints, setHints] = React.useState(0);
     const [message, setMessage] = React.useState<string | null>(null);
     const [hintAt, setHintAt] = React.useState<Coord | null>(null);
+    const started = React.useRef(false);
+
+    const startDrill = () => {
+        if (started.current) return;
+        started.current = true;
+        trackUsage('drill_used', { action: 'started', lesson: drill.lesson, drill: drill.id });
+    };
 
     React.useEffect(() => {
         setMarks(initialMarks(drill.layout));
@@ -33,6 +41,7 @@ export default function DrillRunner({ drill, onSolved }: DrillRunnerProps) {
         setHints(0);
         setMessage(null);
         setHintAt(null);
+        started.current = false;
     }, [drill]);
 
     const solved = matches(marks, drill.solution.flag, 'flagged')
@@ -43,8 +52,9 @@ export default function DrillRunner({ drill, onSolved }: DrillRunnerProps) {
         if (!solved || recorded.current === drill.id) return;
         recorded.current = drill.id;
         recordSolved(drill.id, { mistakes, hints });
+        trackUsage('drill_used', { action: 'solved', lesson: drill.lesson, drill: drill.id, mistakes, hints });
         onSolved?.(drill.id, mistakes);
-    }, [solved, drill.id, mistakes, hints, onSolved]);
+    }, [solved, drill.id, drill.lesson, mistakes, hints, onSolved]);
 
     /** What the player has already worked out, so a hint moves them forward. */
     const settled = (): Coord[] => {
@@ -58,6 +68,8 @@ export default function DrillRunner({ drill, onSolved }: DrillRunnerProps) {
     const takeHint = () => {
         const hint = nextHint(drill.layout, settled());
         if (!hint) return;
+        startDrill();
+        trackUsage('drill_used', { action: 'hint', lesson: drill.lesson, drill: drill.id });
         setHints((n) => n + 1);
         setHintAt(hint.at);
         setMessage(`Look at row ${hint.at[0] + 1}, column ${hint.at[1] + 1}. ${hint.why.text}`);
@@ -70,6 +82,7 @@ export default function DrillRunner({ drill, onSolved }: DrillRunnerProps) {
         const current = marks[row][col];
         // A flag protects the cell from being opened, as it does in the game.
         if (current === 'open' || (current === 'flagged' && want === 'open')) return;
+        startDrill();
 
         const next: DrillCellState = current === 'wrong' || current === 'flagged'
             ? 'covered'

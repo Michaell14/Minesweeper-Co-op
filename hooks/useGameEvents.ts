@@ -16,6 +16,7 @@ import { EMOTE_LIFETIME_MS, PING_LIFETIME_MS } from "@/lib/emotes";
 import type { AppSocket } from "@/lib/initSocket";
 import type { CellUpdate } from "@/shared/socketPayloads";
 import type { SocketHandlers } from "./useSocketEvents";
+import { boardProperties, confirmDailyStart, finishMeasuredGame, forgetMeasuredGame, resolvePlay, startMeasuredGame } from '@/lib/analytics';
 
 /**
  * Files a completed board as a personal best. WIN handlers only: a loss or an
@@ -115,7 +116,14 @@ const coopHandlers = (socket: AppSocket, leaveRoom: () => void): SocketHandlers 
     [SERVER_EVENTS.PLAYER_STATS_UPDATE]: (stats) => useMinesweeperStore.getState().setPlayerStatsInRoom(stats),
 
     // Sent on start, on finish, and to anyone arriving mid-run.
-    [SERVER_EVENTS.GAME_CLOCK]: (clock) => useMinesweeperStore.getState().setClock(clock),
+    [SERVER_EVENTS.GAME_CLOCK]: (clock) => {
+        const store = useMinesweeperStore.getState();
+        // Join/reconnect snapshots precede JOIN_ROOM_SUCCESS, and must not count as new runs.
+        if (clock.startedAt !== null && clock.endedAt === null && store.playerJoined && store.joinPending === null) {
+            startMeasuredGame(socket, clock.startedAt, boardProperties(store));
+        }
+        store.setClock(clock);
+    },
 
     [SERVER_EVENTS.COOP_LIVES]: ({ room, relaxed, livesRemaining }) => {
         const store = useMinesweeperStore.getState();
@@ -129,6 +137,7 @@ const coopHandlers = (socket: AppSocket, leaveRoom: () => void): SocketHandlers 
 
     // --- Win / loss ---
     [SERVER_EVENTS.GAME_WON]: (payload) => {
+        if (!payload?.replay) finishMeasuredGame(socket, 'won');
         shootConfetti();
         playSound('win');
         useMinesweeperStore.getState().setGameWon(true);
@@ -138,6 +147,7 @@ const coopHandlers = (socket: AppSocket, leaveRoom: () => void): SocketHandlers 
     },
 
     [SERVER_EVENTS.GAME_OVER]: (name) => {
+        finishMeasuredGame(socket, 'lost');
         playSound('lose');
         const store = useMinesweeperStore.getState();
         store.setGameOver(true);
@@ -181,6 +191,7 @@ const coopHandlers = (socket: AppSocket, leaveRoom: () => void): SocketHandlers 
         store.setRelaxed(data.relaxed === true);
         store.setLivesRemaining(data.livesRemaining ?? 3);
         store.setPlayerJoined(true);
+        resolvePlay(socket, 'entered', boardProperties(useMinesweeperStore.getState()));
     },
 
     /*
@@ -200,6 +211,7 @@ const coopHandlers = (socket: AppSocket, leaveRoom: () => void): SocketHandlers 
         // An offer for a different room is a stale session; only the room they
         // are already in is theirs to reclaim.
         if (store.playerJoined && store.room !== room) return;
+        forgetMeasuredGame(socket);
 
         // A teammate may have reset/rematched while this socket was away.
         // The join snapshot replays current outcomes only, so old true flags
@@ -219,15 +231,18 @@ const coopHandlers = (socket: AppSocket, leaveRoom: () => void): SocketHandlers 
     },
 
     [SERVER_EVENTS.JOIN_ROOM_ERROR]: () => {
+        resolvePlay(socket, 'error');
         useMinesweeperStore.getState().setJoinPending(null);
         openDialog(DIALOGS.joinRoomError);
     },
     [SERVER_EVENTS.CREATE_ROOM_ERROR]: () => {
+        resolvePlay(socket, 'error');
         useMinesweeperStore.getState().setJoinPending(null);
         openDialog(DIALOGS.createRoomError);
     },
 
     [SERVER_EVENTS.ROOM_DOES_NOT_EXIST_ERROR]: () => {
+        resolvePlay(socket, 'error');
         leaveRoom(); // also clears joinPending
         openDialog(DIALOGS.roomDoesNotExist);
     },
@@ -332,6 +347,7 @@ const coopHandlers = (socket: AppSocket, leaveRoom: () => void): SocketHandlers 
 /** PVP events. `socket` is needed to tell "I won" from "they won". */
 const pvpHandlers = (socket: AppSocket): SocketHandlers => ({
     [SERVER_EVENTS.PVP_ROOM_FULL]: () => {
+        resolvePlay(socket, 'error');
         // A refused join ends the wait just as surely as an accepted one.
         useMinesweeperStore.getState().setJoinPending(null);
         openDialog(DIALOGS.pvpRoomFull);
@@ -368,6 +384,7 @@ const pvpHandlers = (socket: AppSocket): SocketHandlers => ({
     [SERVER_EVENTS.PVP_UPDATE_CELLS]: applyCellUpdates,
 
     [SERVER_EVENTS.PVP_GAME_OVER]: () => {
+        finishMeasuredGame(socket, 'lost');
         playSound('lose');
         const store = useMinesweeperStore.getState();
         store.setGameOver(true);
@@ -378,6 +395,7 @@ const pvpHandlers = (socket: AppSocket): SocketHandlers => ({
     [SERVER_EVENTS.PVP_OPPONENT_RESET]: () => useMinesweeperStore.getState().setPvpOpponentStatus("playing"),
 
     [SERVER_EVENTS.PVP_PLAYER_WON]: ({ winnerSocket, winnerName, replay }) => {
+        if (!replay) finishMeasuredGame(socket, socket.id === winnerSocket ? 'won' : 'lost');
         const store = useMinesweeperStore.getState();
         store.setPvpWinner(winnerName);
         store.setPvpOpponentStatus(socket.id === winnerSocket ? "lost" : "won");
@@ -399,6 +417,7 @@ const pvpHandlers = (socket: AppSocket): SocketHandlers => ({
 
     // No recordClear: winning because the other player left is not a board you finished.
     [SERVER_EVENTS.PVP_OPPONENT_DISCONNECTED]: ({ winnerName }) => {
+        finishMeasuredGame(socket, 'opponent_left');
         const store = useMinesweeperStore.getState();
         store.setPvpWinner(winnerName);
         store.setPvpOpponentStatus("disconnected");
@@ -431,7 +450,7 @@ const pvpHandlers = (socket: AppSocket): SocketHandlers => ({
  * Matchmaking events, every one of which ENDS a search. The start is the
  * client's own `findMatch`, and a pairing lands as an ordinary `joinRoomSuccess`.
  */
-const matchHandlers = (): SocketHandlers => ({
+const matchHandlers = (socket: AppSocket): SocketHandlers => ({
     // Queued, nobody to pair with yet. The dialog is already open (`findMatch`).
     [SERVER_EVENTS.MATCH_SEARCHING]: ({ othersOnline }) => {
         const store = useMinesweeperStore.getState();
@@ -446,11 +465,13 @@ const matchHandlers = (): SocketHandlers => ({
     },
 
     [SERVER_EVENTS.MATCH_CANCELLED]: () => {
+        resolvePlay(socket, 'cancelled');
         useMinesweeperStore.getState().setMatchSearching(false);
         closeDialog(DIALOGS.matchSearching);
     },
 
     [SERVER_EVENTS.MATCH_ERROR]: () => {
+        resolvePlay(socket, 'error');
         useMinesweeperStore.getState().setMatchSearching(false);
         closeDialog(DIALOGS.matchSearching);
         openDialog(DIALOGS.matchError);
@@ -461,7 +482,7 @@ const matchHandlers = (): SocketHandlers => ({
  * Daily challenge events. Not room-scoped and mutually exclusive with the
  * coop/pvp views, so this reuses gameSlice's board/gameOver/gameWon.
  */
-const dailyHandlers = (): SocketHandlers => ({
+const dailyHandlers = (socket: AppSocket): SocketHandlers => ({
     [SERVER_EVENTS.DAILY_STARTED]: ({ date, board, numRows, numCols, numMines, totalSafeCells, startedAt }) => {
         const store = useMinesweeperStore.getState();
         store.setDailyActive(true);
@@ -480,10 +501,12 @@ const dailyHandlers = (): SocketHandlers => ({
         // from a useEffect in DailyChallenge.tsx, which would render one frame
         // of the PREVIOUS clock first on a resume.
         store.setClock({ startedAt, endedAt: null });
+        resolvePlay(socket, startedAt === null ? 'entered' : 'resumed', boardProperties(useMinesweeperStore.getState()));
     },
 
     /** Today's attempt already ended. 'won_pending_submit' (won, never named) reopens the submit dialog. */
     [SERVER_EVENTS.DAILY_ALREADY_ATTEMPTED]: ({ date, status, elapsedMs, rank, totalEntries, board, milestones, numRows, numCols, numMines }) => {
+        resolvePlay(socket, 'already_played');
         const store = useMinesweeperStore.getState();
         store.setDailyActive(true);
         store.setDailyDate(date);
@@ -525,13 +548,17 @@ const dailyHandlers = (): SocketHandlers => ({
         }
     },
 
-    [SERVER_EVENTS.DAILY_UPDATE_CELLS]: applyCellUpdates,
+    [SERVER_EVENTS.DAILY_UPDATE_CELLS]: (cells) => {
+        confirmDailyStart(socket);
+        applyCellUpdates(cells);
+    },
 
     /**
      * Terminal states only, mines revealed/flagged. An open mine can only be a
      * detonation; the store still holds the pre-move position until setBoard.
      */
     [SERVER_EVENTS.DAILY_BOARD_UPDATE]: ({ board }) => {
+        confirmDailyStart(socket);
         const store = useMinesweeperStore.getState();
         if (board.some((row) => row.some((cell) => cell.isOpen && cell.isMine))) {
             store.setDailyDiagnosis(diagnoseLoss(store.board, board));
@@ -540,6 +567,8 @@ const dailyHandlers = (): SocketHandlers => ({
     },
 
     [SERVER_EVENTS.DAILY_GAME_OVER]: ({ elapsedMs, milestones }) => {
+        confirmDailyStart(socket);
+        finishMeasuredGame(socket, 'lost');
         playSound('lose');
         const store = useMinesweeperStore.getState();
         store.setGameOver(true); // lets Cell.tsx reveal every mine, same as coop/PVP
@@ -553,6 +582,8 @@ const dailyHandlers = (): SocketHandlers => ({
     },
 
     [SERVER_EVENTS.DAILY_WON]: ({ elapsedMs, milestones }) => {
+        confirmDailyStart(socket);
+        finishMeasuredGame(socket, 'won');
         playSound('win');
         const store = useMinesweeperStore.getState();
         shootConfetti();
@@ -585,5 +616,5 @@ const dailyHandlers = (): SocketHandlers => ({
  */
 export function useGameEvents(socket: AppSocket | null, leaveRoom: () => void): SocketHandlers {
     if (!socket) return {};
-    return { ...coopHandlers(socket, leaveRoom), ...pvpHandlers(socket), ...matchHandlers(), ...dailyHandlers() };
+    return { ...coopHandlers(socket, leaveRoom), ...pvpHandlers(socket), ...matchHandlers(socket), ...dailyHandlers(socket) };
 }

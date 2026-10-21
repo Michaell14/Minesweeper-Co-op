@@ -10,6 +10,7 @@ import {
 } from '@/lib/settings';
 import { applyTheme } from '@/lib/theme';
 import { activeOverride, type HolidayOccurrence } from '@/lib/holidays';
+import { trackUsage } from '@/lib/analytics';
 import {
     CUSTOM_THEME_PREFIX,
     isCustomThemeSetting,
@@ -125,6 +126,7 @@ export const createSettingsSlice: StateCreator<MinesweeperState, [], [], Setting
             // Picking the palette already painting is a no-op; writing it would
             // outlive the window and strand the player on Halloween in December.
             if (key === 'theme' && holiday && value === holiday.themeId) return {};
+            const changed = state.settings[key] !== value;
 
             const settings = { ...state.settings, [key]: value };
 
@@ -136,6 +138,15 @@ export const createSettingsSlice: StateCreator<MinesweeperState, [], [], Setting
 
             writeStoredSettings(settings);
             const seasonalOverride = applySideEffects(settings, state.customThemes);
+            // Only deliberate changes. Hydration/server sync use replaceSettings.
+            // Volume sliders are noisy; custom palette slugs may contain player text.
+            if (changed && key !== 'soundVolume' && key !== 'seasonalDismissed') {
+                trackUsage('setting_changed', {
+                    setting: key,
+                    value: key === 'theme' && typeof value === 'string' && value.startsWith(CUSTOM_THEME_PREFIX)
+                        ? 'custom' : value,
+                });
+            }
             return { settings, seasonalOverride, ...emoteFeedReset(state.settings, settings) };
         }),
 

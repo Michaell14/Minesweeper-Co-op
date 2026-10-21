@@ -393,6 +393,13 @@ describe("custom theme ids in settings", () => {
 });
 
 describe("NO_FLASH_SCRIPT with a custom theme", () => {
+    // Exercise the saved palette outside a seasonal override, regardless of today's date.
+    beforeEach(() => {
+        vi.useFakeTimers({ shouldAdvanceTime: true });
+        vi.setSystemTime(new Date(`${ORDINARY_DAY}T12:00:00`));
+    });
+    afterEach(() => vi.useRealTimers());
+
     it("stamps the stored palette before paint, palette-layer names only", () => {
         localStorage.setItem(
             SETTINGS_STORAGE_KEY,

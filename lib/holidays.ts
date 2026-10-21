@@ -129,7 +129,7 @@ const HOLIDAYS: Holiday[] = [
     { id: "stpatricks", window: fixed("03-15", "03-18") },
     { id: "pride", window: fixed("06-01", "06-30") },
     // Ends ON the night: Día de Muertos is adjacent, not overlapping.
-    { id: "halloween", window: fixed("10-24", "10-31") },
+    { id: "halloween", window: fixed("10-18", "10-31") },
     { id: "day-of-the-dead", window: fixed("11-01", "11-02") },
     /*
      * The one holiday wrong to show worldwide: a national holiday with no date
@@ -244,7 +244,7 @@ export const SCHEDULE_SNIPPET = `
       spans.push(['valentines', y + '-02-10', y + '-02-15']);
       spans.push(['stpatricks', y + '-03-15', y + '-03-18']);
       spans.push(['pride', y + '-06-01', y + '-06-30']);
-      spans.push(['halloween', y + '-10-24', y + '-10-31']);
+      spans.push(['halloween', y + '-10-18', y + '-10-31']);
       spans.push(['day-of-the-dead', y + '-11-01', y + '-11-02']);
       var nov = new Date(Date.UTC(y, 10, 1));
       var thu = shift(y + '-11-01', ((4 - nov.getUTCDay() + 7) % 7) + 21);

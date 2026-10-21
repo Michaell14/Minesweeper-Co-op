@@ -103,15 +103,21 @@ export default function AccountMenu() {
                 className="max-w-lg"
                 actions={<DialogClose aria-label="Close privacy dialog">Close</DialogClose>}>
                 <p className="text-pixel-sm">
-                    Signed out, nothing about you leaves this browser: your palette and
-                    personal bests live in local storage here.
+                    Signed out, your palette and personal bests live in this
+                    browser. Playing sends your chosen name and moves to the
+                    game server so your room can stay in sync.
                 </p>
                 <p className="text-pixel-sm">
                     Signing in stores the id your OAuth provider gives us, the email
                     address it reports, your display name, your chosen avatar — and,
                     as you play, your settings, saved themes and the game results
-                    behind your private stats. Nothing is shared with anyone else, and there is no
-                    advertising or tracking attached to any of it.
+                    behind your private stats. Your account data is not used for advertising.
+                </p>
+                <p className="text-pixel-sm">
+                    We use Vercel Analytics to understand page visits and feature
+                    usage, such as game modes and settings. Our analytics events
+                    exclude player names, room codes, invite links, account ids,
+                    and authentication tokens.
                 </p>
                 <p className="text-pixel-sm">
                     Deleting your account (Profile → Delete account) removes all of it

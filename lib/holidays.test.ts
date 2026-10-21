@@ -27,7 +27,9 @@ function everyDay(from: string, to: string): Date[] {
 describe("the windows land where they should", () => {
     test.each([
         ["2026-10-31", "halloween"], // the night itself, and the last day of it
-        ["2026-10-24", "halloween"], // first day
+        ["2026-10-18", "halloween"], // first day
+        ["2026-10-21", "halloween"], // active today
+        ["2027-10-18", "halloween"], // repeats every year
         ["2026-11-01", "day-of-the-dead"], // picks up where Halloween stops
         ["2026-11-02", "day-of-the-dead"],
         ["2026-03-17", "stpatricks"],
@@ -41,7 +43,7 @@ describe("the windows land where they should", () => {
         expect(activeHoliday(on(day))?.themeId).toBe(id);
     });
 
-    test.each(["2026-11-03", "2026-07-01", "2026-12-27", "2026-02-25", "2026-05-30"])(
+    test.each(["2026-10-17", "2027-10-17", "2026-11-03", "2026-07-01", "2026-12-27", "2026-02-25", "2026-05-30"])(
         "%s is an ordinary day",
         (day) => {
             expect(activeHoliday(on(day))).toBeNull();
@@ -105,7 +107,7 @@ describe("no holiday quietly eats another", () => {
         valentines: 6,
         stpatricks: 4,
         pride: 30,
-        halloween: 8,
+        halloween: 14,
         "day-of-the-dead": 2,
         thanksgiving: 10,
         christmas: 12,

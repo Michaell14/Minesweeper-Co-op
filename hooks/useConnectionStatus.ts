@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useMinesweeperStore } from "@/app/store";
 import type { AppSocket } from "@/lib/initSocket";
+import { trackUsage } from '@/lib/analytics';
 
 /**
  * Feeds connectionSlice from the socket's lifecycle events. These are
@@ -29,12 +30,14 @@ export function useConnectionStatus(socket: AppSocket | null): void {
                 store.setJoinPending(null);
                 return;
             }
+            if (store.connectionStatus !== 'reconnecting') trackUsage('connection_problem', { status: 'reconnecting' });
             store.setConnectionStatus("reconnecting");
         };
 
         const onConnectError = () => {
             const store = useMinesweeperStore.getState();
             if (store.connectionStatus === "connecting" || store.connectionStatus === "unreachable") {
+                if (store.connectionStatus !== 'unreachable') trackUsage('connection_problem', { status: 'unreachable' });
                 store.setConnectionStatus("unreachable");
             }
         };

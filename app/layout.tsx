@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
-import { Inter, Press_Start_2P } from "next/font/google";
+// Ship the fonts with the app; production builds need no Google Fonts access.
+import localFont from 'next/font/local';
 // Tokens first: globals.css and components/ds read the custom properties it defines.
 import "./tokens.css";
 import "./globals.css";
-import { Analytics } from '@vercel/analytics/next';
+import UsageAnalytics from '@/components/UsageAnalytics';
 import { NO_FLASH_SCRIPT } from "@/lib/settings";
 import { OG_IMAGE, SITE_URL } from "@/lib/site";
 import SiteNav from "@/components/SiteNav";
@@ -15,14 +16,17 @@ import SettingsSync from "@/components/SettingsSync";
 import BestsSync from "@/components/BestsSync";
 import SpriteDefsHost from "@/components/SpriteDefsHost";
 
-// `variable` as well as `className`: the `*` rule in globals.css overrides the
-// body class with the pixel face; the variable lets `.ms-prose` opt back in.
-const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
-const pressStart2P = Press_Start_2P({
-  weight: "400",
-  subsets: ["latin"],
-  display: "optional",
-  variable: "--font-press-start-2p"
+const inter = localFont({
+  src: '../node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2',
+  weight: '100 900',
+  display: 'swap',
+  variable: '--font-inter',
+});
+const pressStart2P = localFont({
+  src: '../node_modules/@fontsource/press-start-2p/files/press-start-2p-latin-400-normal.woff2',
+  weight: '400',
+  display: 'optional',
+  variable: '--font-press-start-2p',
 });
 
 // Within the SERP's limits (~60-char title, ~155-char description). No
@@ -151,7 +155,7 @@ export default function RootLayout({
           <AchievementToast />
           <FriendInviteToast />
         </AuthProvider>
-        <Analytics />
+        <UsageAnalytics />
       </body>
 
     </html>
