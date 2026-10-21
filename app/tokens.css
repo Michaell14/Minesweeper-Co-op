@@ -1084,7 +1084,8 @@
 
 /* ---------------------------------------------------------------------------
  * Halloween. Midnight purple, pumpkin, toxic green, bone. Dark, so fills are
- * bright with DARK ink and the numbers are bright hues on a near-black cell.
+ * bright with DARK ink, the banner is plum, and the numbers stay bright on a
+ * near-black cell. Lighter unopened cells separate them from revealed space.
  * ------------------------------------------------------------------------- */
 :root[data-theme="halloween"] {
     --ms-palette-ink: #f6ead6;
@@ -1123,13 +1124,13 @@
     --ms-palette-green-text: #9ce03f;
     --ms-palette-red-alt: #ff5c5c;
     --ms-palette-red-text: #ff8080;
-    --ms-palette-orange-alt: #ff9440;
-    --ms-palette-amber: #ffc23c;
-    --ms-palette-amber-ink: #241600;
+    --ms-palette-orange-alt: #c792ff;
+    --ms-palette-amber: #291b35;
+    --ms-palette-amber-ink: #f6ead6;
 
-    --ms-palette-cell-closed: #3a2d52;
-    --ms-palette-cell-light: #52407a;
-    --ms-palette-cell-shade: #241a38;
+    --ms-palette-cell-closed: #705c8c;
+    --ms-palette-cell-light: #9177ad;
+    --ms-palette-cell-shade: #49375f;
     --ms-palette-cell-open: #1c1430;
     --ms-palette-gutter: #0c0814;
     --ms-palette-mine: #ff5c5c;
