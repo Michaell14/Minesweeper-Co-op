@@ -6,6 +6,7 @@ import { useMinesweeperStore } from '@/app/store';
 import { Button, Field, Input, Panel } from '@/components/ds';
 import { buildJoinUrl } from '@/lib/roomLink';
 import { DIALOGS, openDialog } from '@/lib/dialogs';
+import { trackUsage } from '@/lib/analytics';
 
 export interface RoomPanelProps {
     /** Desktop and mobile size the panel differently. */
@@ -57,6 +58,7 @@ export default function RoomPanel({ className = '', centered = false, inviteFrie
     const copyRoomLink = React.useCallback(async () => {
         try {
             await navigator.clipboard.writeText(buildJoinUrl(room));
+            trackUsage('room_link_share', { result: 'copied', mode });
             setLinkCopied(true);
             setManualLink(null);
             if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
@@ -64,8 +66,9 @@ export default function RoomPanel({ className = '', centered = false, inviteFrie
         } catch {
             setLinkCopied(false);
             setManualLink(buildJoinUrl(room));
+            trackUsage('room_link_share', { result: 'manual_fallback', mode });
         }
-    }, [room]);
+    }, [room, mode]);
 
     return (
         <Panel

@@ -10,6 +10,7 @@ import { CLIENT_EVENTS } from "@/shared/events";
 import type { AppSocket } from "@/lib/initSocket";
 import { playSound, type SoundName } from "@/lib/sound";
 import type { ClientToServerEvents } from "@/shared/socketPayloads";
+import { boardProperties, forgetMeasuredGame, requestDailyStart, requestPlay, resolvePlay } from '@/lib/analytics';
 
 /** The emits that take a room code and a cell. */
 type CellActionEvent = 'openCell' | 'chordCell' | 'toggleFlag' | 'cellHover';
@@ -109,6 +110,8 @@ export function useGameActions(socket: AppSocket | null) {
     /** Reset room state for Landing, keeping this visit's editable player name. */
     const leaveRoom = useCallback(() => {
         if (!socket) return;
+        forgetMeasuredGame(socket);
+        resolvePlay(socket, 'cancelled');
 
         const store = useMinesweeperStore.getState();
 
@@ -148,6 +151,7 @@ export function useGameActions(socket: AppSocket | null) {
         const store = useMinesweeperStore.getState();
         const { room, numRows, numCols, numMines, name, mode } = store;
         if (!room || !socket) return;
+        requestPlay(socket, 'create');
         // Cleared by joinRoomSuccess or an error handler (useGameEvents).
         store.setJoinPending('create');
         socket.emit(CLIENT_EVENTS.CREATE_ROOM, { room, numRows, numCols, numMines, name, mode,
@@ -159,6 +163,7 @@ export function useGameActions(socket: AppSocket | null) {
         const store = useMinesweeperStore.getState();
         const { room, name } = store;
         if (!room || !socket) return;
+        requestPlay(socket, 'join');
         store.setJoinPending('join');
         socket.emit(CLIENT_EVENTS.JOIN_ROOM, { room, name });
     }, [socket]);
@@ -170,6 +175,7 @@ export function useGameActions(socket: AppSocket | null) {
     const findMatch = useCallback(() => {
         const { name } = useMinesweeperStore.getState();
         if (!name || !socket) return;
+        requestPlay(socket, 'quick_match');
         useMinesweeperStore.getState().setMatchSearching(true);
         openDialog(DIALOGS.matchSearching);
         socket.emit(CLIENT_EVENTS.FIND_MATCH, { name });
@@ -178,6 +184,7 @@ export function useGameActions(socket: AppSocket | null) {
     /** Leave the queue. The dialog's own Cancel button closes it natively. */
     const cancelMatch = useCallback(() => {
         if (!socket) return;
+        resolvePlay(socket, 'cancelled');
         useMinesweeperStore.getState().setMatchSearching(false);
         socket.emit(CLIENT_EVENTS.CANCEL_MATCH);
     }, [socket]);
@@ -190,6 +197,8 @@ export function useGameActions(socket: AppSocket | null) {
     const startPracticeRace = useCallback(() => {
         const { name } = useMinesweeperStore.getState();
         if (!name || !socket) return;
+        resolvePlay(socket, 'practice');
+        requestPlay(socket, 'practice');
 
         useMinesweeperStore.getState().setMatchSearching(false);
         socket.emit(CLIENT_EVENTS.START_PRACTICE_RACE, { name });
@@ -304,11 +313,16 @@ export function useGameActions(socket: AppSocket | null) {
 
     const startDaily = useCallback(() => {
         if (!socket) return;
+        requestPlay(socket, 'daily');
         socket.emit(CLIENT_EVENTS.START_DAILY, { dailyAttemptToken: getOrCreateDailyAttemptToken() });
     }, [socket]);
 
     /** Back to Landing. No server event: the attempt persists in Redis regardless. */
     const leaveDaily = useCallback(() => {
+        if (socket) {
+            forgetMeasuredGame(socket);
+            resolvePlay(socket, 'cancelled');
+        }
         const store = useMinesweeperStore.getState();
         store.setDailyActive(false);
         store.setBoard([]);
@@ -318,7 +332,7 @@ export function useGameActions(socket: AppSocket | null) {
         // Same reason as leaveRoom: a stale clock would be recorded as a run.
         store.setClock({ startedAt: null, endedAt: null });
         store.setKbCursor(null);
-    }, []);
+    }, [socket]);
 
     const emitDailyCellAction = useCallback(
         (event: DailyCellActionEvent, row: number, col: number) => {
@@ -339,7 +353,9 @@ export function useGameActions(socket: AppSocket | null) {
                 : event === CLIENT_EVENTS.DAILY_CHORD_CELL && cell?.isOpen;
             if (dailyStatus === "ready" && startsClock) {
                 store.setDailyStatus("in_progress");
-                store.setClock({ startedAt: Date.now(), endedAt: null });
+                const startedAt = Date.now();
+                store.setClock({ startedAt, endedAt: null });
+                requestDailyStart(socket, startedAt, boardProperties(store));
             }
             const sound = cellActionSound(event === CLIENT_EVENTS.DAILY_TOGGLE_FLAG, event === CLIENT_EVENTS.DAILY_CHORD_CELL, row, col);
             if (sound) playSound(sound);

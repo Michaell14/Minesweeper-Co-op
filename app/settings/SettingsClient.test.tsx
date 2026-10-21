@@ -179,7 +179,7 @@ describe('a holiday in season', () => {
  * answer. Both edges: a palette that never leaves is the same bug.
  */
 describe('crossing a window boundary with the tab open', () => {
-    pinTo('2026-10-23'); // the evening before Halloween opens
+    pinTo('2026-10-17'); // the evening before Halloween opens
 
     const crossTo = (day: string) => {
         vi.setSystemTime(new Date(`${day}T00:00:30`));
@@ -190,7 +190,7 @@ describe('crossing a window boundary with the tab open', () => {
         render(<SettingsClient />);
         expect(paletteGroup().queryByRole('radio', { name: /Halloween/ })).toBeNull();
 
-        crossTo('2026-10-24');
+        crossTo('2026-10-18');
 
         expect(paletteGroup().getByRole('radio', { name: /Halloween/ })).toBeTruthy();
         expect(document.documentElement.dataset.theme).toBe('halloween');
@@ -198,7 +198,7 @@ describe('crossing a window boundary with the tab open', () => {
 
     it('hands the saved palette back when the window closes', () => {
         seed({ theme: 'gameboy' });
-        crossTo('2026-10-24');
+        crossTo('2026-10-18');
         render(<SettingsClient />);
         expect(document.documentElement.dataset.theme).toBe('halloween');
 
@@ -214,7 +214,7 @@ describe('crossing a window boundary with the tab open', () => {
         render(<SettingsClient />);
         const before = useMinesweeperStore.getState().settings;
 
-        vi.setSystemTime(new Date('2026-10-23T23:00:00'));
+        vi.setSystemTime(new Date('2026-10-17T23:00:00'));
         act(() => useMinesweeperStore.getState().refreshSeasonal());
 
         expect(useMinesweeperStore.getState().settings).toBe(before);

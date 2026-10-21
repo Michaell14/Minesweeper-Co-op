@@ -5,7 +5,7 @@
  * never a throw — for every "anonymous" outcome, because a throw here would
  * take the socket's auth callback down with it.
  */
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { getBridgeToken, clearBridgeToken } from './authBridge';
 
 const okResponse = (token: string, ttlMs = 60 * 60 * 1000) => ({
@@ -15,6 +15,11 @@ const okResponse = (token: string, ttlMs = 60 * 60 * 1000) => ({
 
 beforeEach(() => {
     clearBridgeToken();
+    vi.unstubAllGlobals();
+});
+
+afterEach(() => {
+    vi.useRealTimers();
     vi.unstubAllGlobals();
 });
 
@@ -85,5 +90,69 @@ describe('getBridgeToken', () => {
         expect(await getBridgeToken()).toBe('tok-1');
         clearBridgeToken();
         expect(await getBridgeToken()).toBe('tok-2');
+    });
+
+    it('avoids repeated guest requests for one minute, then checks again', async () => {
+        vi.useFakeTimers();
+        const fetchMock = vi.fn()
+            .mockResolvedValueOnce({ ok: false, status: 401 })
+            .mockResolvedValueOnce(okResponse('signed-in-later'));
+        vi.stubGlobal('fetch', fetchMock);
+        expect(await getBridgeToken()).toBeNull();
+        await vi.advanceTimersByTimeAsync(59_999);
+        expect(await getBridgeToken()).toBeNull();
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        await vi.advanceTimersByTimeAsync(1);
+        expect(await getBridgeToken()).toBe('signed-in-later');
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    it('clearing the cache also removes the anonymous cooldown', async () => {
+        const fetchMock = vi.fn()
+            .mockResolvedValueOnce({ ok: false, status: 401 })
+            .mockResolvedValueOnce(okResponse('new-account'));
+        vi.stubGlobal('fetch', fetchMock);
+        expect(await getBridgeToken()).toBeNull();
+        clearBridgeToken();
+        expect(await getBridgeToken()).toBe('new-account');
+    });
+
+    it('does not delay retrying a temporary server failure', async () => {
+        const fetchMock = vi.fn()
+            .mockResolvedValueOnce({ ok: false, status: 503 })
+            .mockResolvedValueOnce(okResponse('recovered'));
+        vi.stubGlobal('fetch', fetchMock);
+        expect(await getBridgeToken()).toBeNull();
+        expect(await getBridgeToken()).toBe('recovered');
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    it('a token arriving after sign-out cannot restore the old identity', async () => {
+        let arrive!: (value: ReturnType<typeof okResponse>) => void;
+        const fetchMock = vi.fn()
+            .mockReturnValueOnce(new Promise((resolve) => { arrive = resolve; }))
+            .mockResolvedValueOnce(okResponse('new-account'));
+        vi.stubGlobal('fetch', fetchMock);
+        const old = getBridgeToken();
+        clearBridgeToken();
+        const fresh = getBridgeToken();
+        arrive(okResponse('old-account'));
+        expect(await old).toBeNull();
+        expect(await fresh).toBe('new-account');
+        expect(await getBridgeToken()).toBe('new-account');
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    it('an old guest response cannot put the next account into a cooldown', async () => {
+        let arrive!: (value: { ok: false; status: number }) => void;
+        const fetchMock = vi.fn()
+            .mockReturnValueOnce(new Promise((resolve) => { arrive = resolve; }))
+            .mockResolvedValueOnce(okResponse('new-account'));
+        vi.stubGlobal('fetch', fetchMock);
+        const old = getBridgeToken();
+        clearBridgeToken();
+        arrive({ ok: false, status: 401 });
+        expect(await old).toBeNull();
+        expect(await getBridgeToken()).toBe('new-account');
     });
 });

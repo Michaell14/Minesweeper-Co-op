@@ -18,6 +18,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
     {
+        id: 'halloween-2026',
+        date: '2026-10-21',
+        tag: 'New',
+        title: 'Halloween is here',
+        bullets: [
+            'Spooky colors and sprites through October 31. Enable seasonal themes in Settings.',
+            'Halloween now runs October 18–31 every year, following your local time.',
+        ],
+    },
+    {
         id: 'relaxed-coop',
         date: '2026-09-08',
         tag: 'New',
