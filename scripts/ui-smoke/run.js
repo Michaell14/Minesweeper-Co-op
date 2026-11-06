@@ -7,15 +7,35 @@
  * two-client PVP round, join links and keyboard play. NOT chording: a browser
  * client cannot see the mines, so that is tested against the server.
  */
+const fs = require('fs');
 const { launchChrome, attach, newTarget, sleep } = require('./cdp');
 const qualityOfLife = require('./quality-of-life');
 
 const CLIENT = process.env.UI_SMOKE_CLIENT || 'http://localhost:3000';
 const SERVER = process.env.UI_SMOKE_SERVER || 'http://localhost:3001';
 
+/*
+ * CI sends the backend's output here (.github/workflows/ci.yml). Its lines have
+ * no timestamps, so a harness error shows what the server wrote after this run
+ * began instead; once up, the server logs only errors. Locally the file is
+ * usually missing, and nothing is printed.
+ */
+const SERVER_LOG = process.env.UI_SMOKE_SERVER_LOG || '/tmp/server.log';
+const SERVER_LOG_LINES = 20;
+const serverLogSize = () => { try { return fs.statSync(SERVER_LOG).size; } catch { return null; } };
+const serverLogSince = (offset) => {
+    let text;
+    try { text = fs.readFileSync(SERVER_LOG).subarray(offset).toString('utf8').trim(); } catch { return ''; }
+    if (!text) return `\n${SERVER_LOG}: nothing written since the run began`;
+    const lines = text.split('\n');
+    const shown = lines.length > SERVER_LOG_LINES ? `last ${SERVER_LOG_LINES} of ${lines.length} lines` : `${lines.length} lines`;
+    return `\n${SERVER_LOG} since the run began (${shown}):\n` + lines.slice(-SERVER_LOG_LINES).map((l) => '  ' + l).join('\n');
+};
+
 let failures = 0;
 const pass = (label) => console.log(`  \x1b[32mPASS\x1b[0m  ${label}`);
-const fail = (label, detail) => { failures++; console.log(`  \x1b[31mFAIL\x1b[0m  ${label}${detail ? '\n        ' + detail : ''}`); };
+// Every line of a multi-line detail is indented, so a waitFor page snapshot lines up under its label.
+const fail = (label, detail) => { failures++; console.log(`  \x1b[31mFAIL\x1b[0m  ${label}${detail ? '\n        ' + String(detail).replace(/\n/g, '\n        ') : ''}`); };
 const check = (condition, label, detail) => (condition ? pass(label) : fail(label, detail));
 
 /** Waits for an expression and reports whether it held, instead of throwing; for a lagging second client. */
@@ -1468,6 +1488,7 @@ async function emotes(host, guest) {
 
 (async () => {
     await preflight();
+    const serverLogStart = serverLogSize();
     const chrome = await launchChrome();
 
     try {
@@ -1507,9 +1528,9 @@ async function emotes(host, guest) {
             ...emoteHost.consoleErrors, ...emoteGuest.consoleErrors,
             ...linkHost.consoleErrors, ...linkGuest.consoleErrors, ...qualityPage.consoleErrors]
             .filter((e) => !/favicon|404/i.test(e));
-        check(errors.length === 0, 'no uncaught errors in any client', errors.slice(0, 3).join('\n        '));
+        check(errors.length === 0, 'no uncaught errors in any client', errors.slice(0, 3).join('\n'));
     } catch (e) {
-        fail('harness error', e.message);
+        fail('harness error', e.message + (serverLogStart === null ? '' : serverLogSince(serverLogStart)));
     } finally {
         chrome.kill();
     }
