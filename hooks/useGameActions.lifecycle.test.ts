@@ -35,11 +35,21 @@ test('leaving keeps the guest name available for the next room', () => {
     });
 });
 
+/** A co-op room with somebody else in it: the only place a cursor is shown. */
+const inCompany = () => {
+    state().setMode('co-op');
+    state().setPlayerStatsInRoom([
+        { name: 'Alice', score: 0 },
+        { name: 'Bob', score: 0 },
+    ]);
+};
+
 describe('pending hover cleanup', () => {
     beforeEach(() => {
         vi.useFakeTimers();
         state().setRoom('first-room');
         state().setPlayerJoined(true);
+        inCompany();
     });
 
     afterEach(() => vi.useRealTimers());
@@ -84,6 +94,77 @@ describe('pending hover cleanup', () => {
         vi.advanceTimersByTime(100);
 
         expect(socket.emit).toHaveBeenCalledTimes(1);
+    });
+});
+
+/**
+ * Every hover the server receives costs it work, and one nobody can see is
+ * pure cost: PVP hovers are dropped on arrival, and alone in a room there is
+ * nobody to show one to. Both used to go out ~10 times a second.
+ */
+describe('a hover is sent only when somebody can see it', () => {
+    beforeEach(() => {
+        vi.useFakeTimers();
+        state().setRoom('first-room');
+        state().setPlayerJoined(true);
+    });
+
+    afterEach(() => vi.useRealTimers());
+
+    const hoverEmits = (socket: AppSocket) =>
+        (socket.emit as unknown as ReturnType<typeof vi.fn>).mock.calls.filter(
+            ([event]) => event === CLIENT_EVENTS.CELL_HOVER,
+        );
+
+    test('co-op with company sends it', () => {
+        inCompany();
+        const socket = fakeSocket();
+        const { result } = renderHook(() => useGameActions(socket));
+
+        result.current.emitCellHover(2, 3);
+
+        expect(socket.emit).toHaveBeenCalledWith(CLIENT_EVENTS.CELL_HOVER, { room: 'first-room', row: 2, col: 3 });
+    });
+
+    test('alone in a room, neither a cursor nor its clear goes out', () => {
+        state().setMode('co-op');
+        state().setPlayerStatsInRoom([{ name: 'Alice', score: 0 }]);
+        const socket = fakeSocket();
+        const { result } = renderHook(() => useGameActions(socket));
+
+        result.current.emitCellHover(2, 3);
+        result.current.handleBoardLeave();
+        vi.advanceTimersByTime(100);
+
+        expect(hoverEmits(socket)).toEqual([]);
+    });
+
+    test('a PVP racer sends none, though the room has two', () => {
+        inCompany();
+        state().setMode('pvp');
+        const socket = fakeSocket();
+        const { result } = renderHook(() => useGameActions(socket));
+
+        result.current.emitCellHover(2, 3);
+        result.current.handleBoardLeave();
+        vi.advanceTimersByTime(100);
+
+        expect(hoverEmits(socket)).toEqual([]);
+    });
+
+    test('a co-player arriving is enough to start sending', () => {
+        state().setMode('co-op');
+        state().setPlayerStatsInRoom([{ name: 'Alice', score: 0 }]);
+        const socket = fakeSocket();
+        const { result } = renderHook(() => useGameActions(socket));
+        result.current.emitCellHover(0, 0);
+        vi.advanceTimersByTime(100);
+
+        inCompany();
+        result.current.emitCellHover(2, 3);
+        vi.advanceTimersByTime(100);
+
+        expect(hoverEmits(socket)).toEqual([[CLIENT_EVENTS.CELL_HOVER, { room: 'first-room', row: 2, col: 3 }]]);
     });
 });
 

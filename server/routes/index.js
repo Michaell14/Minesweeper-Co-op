@@ -88,7 +88,7 @@ const ROUTES = [
 
     /*
      * --- Expression: rate-limited, and refused in silence ---
-     * All three fan out to the room and take the SILENT guard: an error would
+     * All three fan out to the room and take a SILENT guard: an error would
      * hand a flooder an amplifier, and eviction would end a game over a
      * cosmetic message. Emote and ping share ONE bucket, keyed by category so
      * a third expressive message cannot widen the limit (domain/rateLimit.js).
@@ -114,7 +114,8 @@ const ROUTES = [
         rateLimit: { key: 'hoverBucket', burst: HOVER_BURST, perSecond: HOVER_PER_SECOND },
         // row/col of -1 means "no hover", which isValidCoordinate refuses.
         validate: ({ room: code, row, col }) => isValidRoomCode(code) && isValidHoverCoordinate(row, col),
-        guard: GUARDS.ROOM_MEMBER_SILENT,
+        // Silent like the two above, but sent ~10/s, so its admission is reused (routes/guards.js).
+        guard: GUARDS.ROOM_MEMBER_CACHED,
         handler: social.hover,
     },
 

@@ -125,11 +125,21 @@ const revealToLoser = async (room, winnerSocketId) => {
     });
 };
 
+/**
+ * Everything `checkWin` reads of the room: this player's outcome, the race's,
+ * both slots' sockets (who lost) and the start time. Never a board — the
+ * whole hash holds three, and this runs on every open and chord.
+ */
+const winCheckFields = (playerIndex) => {
+    const { gameOverKey, gameWonKey } = playerKeys(playerIndex);
+    return [gameOverKey, gameWonKey, 'winnerSocket', 'startedAt', playerKeys(0).socketKey, playerKeys(1).socketKey];
+};
+
 /** Won iff every non-mine cell on THIS player's board is open. */
 const checkWin = async (board, room, socketId, playerIndex) => {
     const { gameOverKey, gameWonKey } = playerKeys(playerIndex);
 
-    const roomState = await roomRepo.getState(room);
+    const roomState = await roomRepo.getFields(room, winCheckFields(playerIndex));
     if (roomState[gameOverKey] === 'true' || roomState[gameWonKey] === 'true') {
         return;
     }
@@ -242,8 +252,7 @@ const openCell = async (row, col, room, socketId, roomState, playerScore, player
     }
 
     // Re-read: `reveal` may have written to the room since the snapshot was taken.
-    const freshRoomState = await roomRepo.getState(room);
-    const currentProgress = parseInt(freshRoomState[progressKey] || '0', 10);
+    const currentProgress = parseInt((await roomRepo.getField(room, progressKey)) || '0', 10);
     const newProgress = currentProgress + safeCellsRevealed;
     await roomRepo.setFields(room, { [progressKey]: newProgress.toString() });
 

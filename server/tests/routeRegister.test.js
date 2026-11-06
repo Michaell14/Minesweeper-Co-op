@@ -2,7 +2,7 @@
  * The route registrar, the pipeline every socket handler runs inside. These
  * pin the ORDER, not just the outcome, with synthetic routes: rate limiting
  * BEFORE anything touches Redis is load-bearing, since a hover flood that
- * reaches the membership check has already cost four reads per message. The
+ * reaches the membership check has already cost Redis reads per message. The
  * real table is checked in routes.test.js.
  */
 

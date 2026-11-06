@@ -7,7 +7,7 @@
  */
 
 const { generateBoard } = require('../domain/boardGen');
-const { checkWin } = require('../utils/gameUtils');
+const { checkWin, CHECK_WIN_FIELDS } = require('../utils/gameUtils');
 const { updatePlayerStatsInRoom } = require('../utils/playerUtils');
 const { getAdjacentCells, revealFrom, projectBoard, projectCells } = require('../domain/board');
 const { clockOf, readStamp } = require('../domain/clock');
@@ -16,6 +16,15 @@ const roomRepo = require('../data/roomRepo');
 const playerRepo = require('../data/playerRepo');
 const { recordForSockets } = require('../utils/statsRecorder');
 const { SERVER_EVENTS } = require('../../shared/events');
+
+/**
+ * What a move re-reads after writing its board: the win check's fields, plus
+ * `endedAt` for the clock. Never the board — the move holds the one it wrote.
+ */
+const AFTER_MOVE_FIELDS = [...CHECK_WIN_FIELDS, 'endedAt'];
+
+/** The room as the move left it, minus the board it already has. */
+const readAfterMove = (room) => roomRepo.getFields(room, AFTER_MOVE_FIELDS);
 
 /**
  * Returns safe cells opened, -1 for a fatal mine, or -2 for a nonfatal mine.
@@ -148,7 +157,7 @@ const openCell = async (row, col, room, socketId, roomState, playerScore) => {
     await roomRepo.setBoard(room, board);
 
     // Re-read: `reveal` may have just ended the game.
-    const freshRoomState = await roomRepo.getState(room);
+    const freshRoomState = await readAfterMove(room);
     await checkWin(freshRoomState, board, room);
 
     const isOver = freshRoomState.gameOver === 'true' || freshRoomState.gameWon === 'true';
@@ -209,7 +218,7 @@ const chordCell = async (row, col, room, socketId, roomState) => {
     await roomRepo.setBoard(room, board);
     // Re-read: revealing may have just ended the game; the stale snapshot would
     // let a chord that detonates also report a win.
-    await checkWin(await roomRepo.getState(room), board, room);
+    await checkWin(await readAfterMove(room), board, room);
     io.to(room).emit(SERVER_EVENTS.UPDATE_CELLS, projectCells(toUpdate));
 };
 
@@ -233,7 +242,7 @@ const toggleFlag = async (row, col, room, socketId, roomState) => {
     // The flagged cell is still CLOSED; projecting stops the toggle leaking its mine status.
     io.to(room).emit(SERVER_EVENTS.UPDATE_CELLS, projectCells(toUpdate));
     await roomRepo.setBoard(room, board);
-    await checkWin(await roomRepo.getState(room), board, room);
+    await checkWin(await readAfterMove(room), board, room);
 };
 
 module.exports = { openCell, chordCell, toggleFlag };
