@@ -25,6 +25,7 @@ jest.mock('../utils/initializeRedisClient', () => ({
 
 const { openCell } = require('../game');
 const { SERVER_EVENTS } = require('../../shared/events');
+const { encodeBoard } = require('../domain/boardCodec');
 
 const ROOM = 'r-loss';
 const ALICE = 'sock-a';   // slot 0
@@ -44,8 +45,8 @@ const seedRace = (extra = {}) => {
     mockRedis.seed(`room:${ROOM}`, {
         mode: 'pvp',
         pvpStarted: 'true',
-        player1Board: JSON.stringify(board()),
-        player2Board: JSON.stringify(board()),
+        player1Board: encodeBoard(board()),
+        player2Board: encodeBoard(board()),
         player1Initialized: 'true', player2Initialized: 'true',
         player1GameOver: 'false', player1GameWon: 'false',
         player2GameOver: 'false', player2GameWon: 'false',

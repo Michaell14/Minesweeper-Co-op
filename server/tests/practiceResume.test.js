@@ -23,6 +23,7 @@ jest.mock('../utils/initializeClient', () => ({
     server: { listen: jest.fn() },
 }));
 
+const { encodeBoard } = require('../domain/boardCodec');
 const { createFakeRedis } = require('./setup/fakeRedis');
 const mockRedis = createFakeRedis();
 
@@ -66,7 +67,7 @@ const seedRoom = (extra) => {
         numRows: '1',
         numCols: '1',
         numMines: '0',
-        board: JSON.stringify(BOARD),
+        board: encodeBoard(BOARD),
         players: JSON.stringify([]),
         ...extra,
     });

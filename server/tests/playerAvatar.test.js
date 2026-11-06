@@ -20,6 +20,7 @@ jest.mock('../utils/initializeClient', () => ({
     server: { listen: jest.fn() },
 }));
 
+const { encodeBoard } = require('../domain/boardCodec');
 const { createFakeRedis } = require('./setup/fakeRedis');
 const mockRedis = createFakeRedis();
 
@@ -59,7 +60,7 @@ const seedRoom = () => {
         numCols: '1',
         numMines: '0',
         // The co-op join path re-broadcasts the board, so one has to exist.
-        board: JSON.stringify([[{ isMine: false, isOpen: false, isFlagged: false, nearbyMines: 0 }]]),
+        board: encodeBoard([[{ isMine: false, isOpen: false, isFlagged: false, nearbyMines: 0 }]]),
         players: JSON.stringify([]),
     });
 };

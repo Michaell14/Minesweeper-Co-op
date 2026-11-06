@@ -14,6 +14,7 @@ const mockRedis = createFakeRedis();
 jest.mock('../utils/initializeRedisClient', () => ({ redisClient: Promise.resolve(mockRedis) }));
 
 const { join } = require('../routes/room');
+const { encodeBoard } = require('../domain/boardCodec');
 const ROOM = 'finished-room';
 const PLAYER = 'arrival';
 
@@ -25,7 +26,7 @@ beforeEach(() => {
         mode: 'co-op', initialized: 'true', gameWon: 'true', gameOver: 'false',
         numRows: '2', numCols: '2', numMines: '1',
         startedAt: '1000', endedAt: '2400', players: JSON.stringify(['teammate']),
-        board: JSON.stringify([
+        board: encodeBoard([
             [{ isMine: true, isOpen: false, isFlagged: true, nearbyMines: 0 },
                 { isMine: false, isOpen: true, isFlagged: false, nearbyMines: 1 }],
             [{ isMine: false, isOpen: true, isFlagged: false, nearbyMines: 1 },

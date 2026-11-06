@@ -16,6 +16,7 @@ jest.mock('../utils/initializeClient', () => ({
 const { startPvpGame, resetMyBoard, pvpRematch } = require('../controllers/pvpController');
 const { redisClient } = require('../utils/initializeRedisClient');
 const { lockedBy, releasedLock } = require('./setup/lockAssertions');
+const { encodeBoard, decodeBoard } = require('../domain/boardCodec');
 
 const ROOM = 'r1';
 const HOST = 'sock-host';
@@ -70,14 +71,14 @@ describe('startPvpGame', () => {
     test('the shared board has the requested number of mines', async () => {
         await startPvpGame({ socket: { id: HOST }, room: ROOM, io });
 
-        const board = JSON.parse(roomFields().player1Board);
+        const board = decodeBoard(roomFields().player1Board);
         expect(board.flat().filter((c) => c.isMine)).toHaveLength(10);
     });
 
     test('opens a shared starting cell, so neither player can lose on move one', async () => {
         await startPvpGame({ socket: { id: HOST }, room: ROOM, io });
 
-        const board = JSON.parse(roomFields().player1Board);
+        const board = decodeBoard(roomFields().player1Board);
         const centre = board[4][4];
         expect(centre.isOpen).toBe(true);
         expect(centre.isMine).toBe(false);
@@ -87,7 +88,7 @@ describe('startPvpGame', () => {
     test('never opens a mine as part of the opening', async () => {
         await startPvpGame({ socket: { id: HOST }, room: ROOM, io });
 
-        const board = JSON.parse(roomFields().player1Board);
+        const board = decodeBoard(roomFields().player1Board);
         expect(board.flat().filter((c) => c.isOpen && c.isMine)).toHaveLength(0);
     });
 
@@ -95,7 +96,7 @@ describe('startPvpGame', () => {
         await startPvpGame({ socket: { id: HOST }, room: ROOM, io });
 
         const fields = roomFields();
-        const opened = JSON.parse(fields.player1Board).flat().filter((c) => c.isOpen).length;
+        const opened = decodeBoard(fields.player1Board).flat().filter((c) => c.isOpen).length;
         expect(fields.player1Progress).toBe(String(opened));
         expect(fields.player2Progress).toBe(String(opened));
     });
@@ -167,7 +168,7 @@ describe('resetMyBoard', () => {
         await arrangeReset();
         client.hGetAll.mockImplementation(async (key) =>
             key.startsWith('room:')
-                ? { ...startedRoom('[]', 0), sharedBoard: JSON.stringify([[]]), startedAt: '1000' }
+                ? { ...startedRoom(encodeBoard([[]]), 0), startedAt: '1000' }
                 : { name: 'Host', score: '0', pvpPlayerIndex: '0' }
         );
 
@@ -231,7 +232,7 @@ describe('resetMyBoard', () => {
         await arrangeReset();
         client.hGetAll.mockImplementation(async (key) =>
             key.startsWith('room:')
-                ? startedRoom(JSON.stringify([[]]), 0)
+                ? startedRoom(encodeBoard([[]]), 0)
                 : { name: 'Guest', score: '0', pvpPlayerIndex: '1' }
         );
 
@@ -250,7 +251,7 @@ describe('resetMyBoard', () => {
         await arrangeReset();
         client.hGetAll.mockImplementation(async (key) =>
             key.startsWith('room:')
-                ? startedRoom(JSON.stringify([[]]), 0)
+                ? startedRoom(encodeBoard([[]]), 0)
                 : { name: 'Stranger', score: '0' }   // no pvpPlayerIndex
         );
 
@@ -286,7 +287,7 @@ describe('pvpRematch', () => {
 
         const fields = roomFields();
         expect(fields.player1Board).toBe(fields.player2Board);
-        expect(JSON.parse(fields.player1Board).flat().filter((c) => c.isMine)).toHaveLength(10);
+        expect(decodeBoard(fields.player1Board).flat().filter((c) => c.isMine)).toHaveLength(10);
         expect(fields.player1Progress).toBe(fields.player2Progress);
     });
 

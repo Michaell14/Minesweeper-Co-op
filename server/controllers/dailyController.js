@@ -21,7 +21,6 @@ const todayUtc = () => new Date(Date.now()).toISOString().slice(0, 10);
 /** Socket.io room for live leaderboard fan-out, unrelated to the Redis `room:` hash. */
 const dailyLeaderboardChannel = (date) => `daily-lb:${date}`;
 
-const parseBoard = (raw) => (raw ? JSON.parse(raw) : null);
 const parseIntOrUndefined = (raw) => {
     const n = parseInt(raw, 10);
     return Number.isNaN(n) ? undefined : n;
@@ -72,7 +71,7 @@ const emitStartResultUnderLock = async ({ socket, date, boardState, numRows, num
         const totalEntries = isCompleted ? await dailyRepo.getEntryCount(date) : null;
         // The FINAL board rides along for a view-only replay; a terminal state
         // may reveal everything (ARCHITECTURE.md §3.1). Older attempts have none.
-        const finalBoard = parseBoard(attempt.board);
+        const finalBoard = dailyRepo.boardFrom(attempt);
         socket.emit(SERVER_EVENTS.DAILY_ALREADY_ATTEMPTED, {
             date,
             status: attempt.status,
@@ -95,7 +94,7 @@ const emitStartResultUnderLock = async ({ socket, date, boardState, numRows, num
         // true elapsed time. This is the real backstop for one-per-day.
         socket.emit(SERVER_EVENTS.DAILY_STARTED, {
             date,
-            board: projectBoard(parseBoard(attempt.board)),
+            board: projectBoard(dailyRepo.boardFrom(attempt)),
             numRows,
             numCols,
             numMines,
@@ -106,7 +105,7 @@ const emitStartResultUnderLock = async ({ socket, date, boardState, numRows, num
     }
 
     // Fresh attempt: consumes the day's one attempt immediately, moves or not.
-    const templateBoard = parseBoard(boardState.board);
+    const templateBoard = dailyRepo.boardFrom(boardState);
     await dailyRepo.createAttempt(date, dailyAttemptToken, { board: templateBoard, socketId: socket.id });
     socket.emit(SERVER_EVENTS.DAILY_STARTED, {
         date,

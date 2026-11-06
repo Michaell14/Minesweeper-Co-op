@@ -15,6 +15,7 @@ jest.mock('../utils/initializeClient', () => ({
 
 const coop = require('../game/coop');
 const { redisClient } = require('../utils/initializeRedisClient');
+const { encodeBoard } = require('../domain/boardCodec');
 
 const ROOM = 'r1';
 const SOCKET = 'sock-1';
@@ -58,7 +59,7 @@ describe('chording into a mine', () => {
     const staleSnapshot = (board) => ({
         gameOver: 'false',   // true at entry, and no longer true by the time checkWin runs
         gameWon: 'false',
-        board: JSON.stringify(board),
+        board: encodeBoard(board),
         numRows: '3',
         numCols: '3',
         numMines: '1',
@@ -91,7 +92,7 @@ describe('toggleFlag reads current state too', () => {
         await coop.toggleFlag(2, 2, ROOM, SOCKET, {
             gameOver: 'false', // stale
             gameWon: 'false',
-            board: JSON.stringify(board),
+            board: encodeBoard(board),
             numRows: '3',
             numCols: '3',
             players: JSON.stringify([SOCKET]),

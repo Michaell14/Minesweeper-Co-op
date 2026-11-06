@@ -184,7 +184,7 @@ const openCell = async (date, token, socketId, row, col) =>
         const attempt = await dailyRepo.getAttempt(date, token);
         if (!attempt || !attempt.status || TERMINAL_STATUSES.includes(attempt.status)) return;
 
-        const board = JSON.parse(attempt.board);
+        const board = dailyRepo.boardFrom(attempt);
         if (!board || row < 0 || row >= board.length || col < 0 || col >= board[0].length) return;
         if (board[row][col] === undefined || !board[row][col] || board[row][col].isOpen || board[row][col].isFlagged) return;
 
@@ -213,7 +213,7 @@ const chordCell = async (date, token, socketId, row, col) =>
         const attempt = await dailyRepo.getAttempt(date, token);
         if (!attempt || !attempt.status || TERMINAL_STATUSES.includes(attempt.status)) return;
 
-        const board = JSON.parse(attempt.board);
+        const board = dailyRepo.boardFrom(attempt);
         if (!board || row < 0 || row >= board.length || col < 0 || col >= board[0].length) return;
         if (!board[row][col] || !board[row][col].isOpen) return;
 
@@ -253,7 +253,7 @@ const toggleFlag = async (date, token, socketId, row, col) =>
         const attempt = await dailyRepo.getAttempt(date, token);
         if (!attempt || !attempt.status || TERMINAL_STATUSES.includes(attempt.status)) return;
 
-        const board = JSON.parse(attempt.board);
+        const board = dailyRepo.boardFrom(attempt);
         if (!board || row < 0 || row >= board.length || col < 0 || col >= board[0].length) return;
         if (board[row][col] === undefined || !board[row][col] || board[row][col].isOpen) return;
 

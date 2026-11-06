@@ -5,6 +5,7 @@
  */
 
 const { redisClient } = require('../utils/initializeRedisClient');
+const { encodeBoard, decodeBoard } = require('../domain/boardCodec');
 const { withLock } = require('./locks');
 const {
     dailyBoardKey,
@@ -20,6 +21,13 @@ const {
 /** The attempt has reached today's one allowed outcome. Shared by game/daily.js and dailyController.js. */
 const TERMINAL_STATUSES = ['failed', 'won_pending_submit', 'completed'];
 
+/**
+ * The board from a template or attempt hash already in hand, or null. Boards
+ * are written encoded (domain/boardCodec.js) and handed out as arrays; an
+ * attempt from before the encoding still reads, as JSON.
+ */
+const boardFrom = (hash) => decodeBoard(hash ? hash.board : null);
+
 // --- Board template -----------------------------------------------------
 
 /** The day's generated template. Returns {} if not yet generated. */
@@ -32,7 +40,7 @@ const getBoardState = async (date) => {
 const saveBoardState = async (date, { board, seed, numRows, numCols, numMines, openedCells, startRow, startCol }) => {
     const client = await redisClient;
     await client.hSet(dailyBoardKey(date), {
-        board: JSON.stringify(board),
+        board: encodeBoard(board),
         seed: String(seed),
         numRows: numRows.toString(),
         numCols: numCols.toString(),
@@ -57,7 +65,7 @@ const createAttempt = async (date, token, { board, socketId }) => {
     const client = await redisClient;
     await client.hSet(dailyAttemptKey(date, token), {
         status: 'ready',
-        board: JSON.stringify(board),
+        board: encodeBoard(board),
         name: '',
         startedAt: '',
         finishedAt: '',
@@ -84,7 +92,7 @@ const markStarted = (date, token, startedAt) =>
  */
 const setAttemptBoard = (date, token, board, milestones = null) =>
     setAttemptFields(date, token, {
-        board: JSON.stringify(board),
+        board: encodeBoard(board),
         ...(milestones ? { milestones: JSON.stringify(milestones) } : {}),
     });
 
@@ -185,6 +193,7 @@ const withAttemptLock = (date, token, owner, fn) =>
 
 module.exports = {
     TERMINAL_STATUSES,
+    boardFrom,
     withAttemptLock,
     getBoardState,
     saveBoardState,

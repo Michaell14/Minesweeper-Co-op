@@ -17,6 +17,7 @@ jest.mock('../utils/initializeRedisClient', () => ({
 const { startPvpGame, resetMyBoard, pvpRematch } = require('../controllers/pvpController');
 const roomRepo = require('../data/roomRepo');
 const { toggleFlag } = require('../game');
+const { encodeBoard, decodeBoard } = require('../domain/boardCodec');
 
 const ROOM = 'lifecycle';
 const HOST = 'host';
@@ -90,14 +91,14 @@ test('a rematch requested from an unstarted lobby assigns both playable slots', 
     expect(storedRoom().player2Socket).toBe(GUEST);
     expect(mockRedis.read(`player:${HOST}`).pvpPlayerIndex).toBe('0');
     expect(mockRedis.read(`player:${GUEST}`).pvpPlayerIndex).toBe('1');
-    const board = JSON.parse(storedRoom().player1Board);
+    const board = decodeBoard(storedRoom().player1Board);
     let next;
     board.forEach((row, r) => row.forEach((cell, c) => {
         if (!cell.isOpen) next = [r, c];
     }));
     expect(next).toBeDefined();
     await toggleFlag(...next, ROOM, HOST);
-    expect(JSON.parse(storedRoom().player1Board)[next[0]][next[1]].isFlagged).toBe(true);
+    expect(decodeBoard(storedRoom().player1Board)[next[0]][next[1]].isFlagged).toBe(true);
 });
 
 test('a reset queued behind the winning move cannot restart a decided race', async () => {
@@ -117,9 +118,9 @@ test('a reset queued behind the winning move cannot restart a decided race', asy
 
 test('a queued reset restores the current race, not an older shared board', async () => {
     await startPvpGame(hostRequest);
-    const newerBoard = JSON.parse(storedRoom().sharedBoard);
+    const newerBoard = decodeBoard(storedRoom().sharedBoard);
     newerBoard[0][0].isOpen = !newerBoard[0][0].isOpen;
-    const serialized = JSON.stringify(newerBoard);
+    const serialized = encodeBoard(newerBoard);
     jest.clearAllMocks();
 
     await whileResetWaits(() => roomRepo.setFields(ROOM, {

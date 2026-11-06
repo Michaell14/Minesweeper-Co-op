@@ -7,10 +7,11 @@ const { openCell, chordCell } = require('../game');
 const { resetGame, createRoom } = require('../utils/gameUtils');
 const { addPlayerToRoom } = require('../utils/playerUtils');
 const { SERVER_EVENTS: E } = require('../../shared/events');
+const { encodeBoard, decodeBoard } = require('../domain/boardCodec');
 const { boardKey, BOARD_KEY_PATTERN } = require('../../shared/boardKeys');
 
 const room = () => mockRedis.read('room:relax');
-const board = () => JSON.parse(room().board);
+const board = () => decodeBoard(room().board);
 const events = (name) => mockEmit.mock.calls.filter(([event]) => event === name);
 function seed(extra = {}) {
     const cells = Array.from({ length: 4 }, () => Array.from({ length: 4 }, () =>
@@ -18,7 +19,7 @@ function seed(extra = {}) {
     cells[0][0].isMine = cells[0][1].isMine = cells[0][2].isMine = true;
     mockRedis.seed('room:relax', { mode: 'co-op', relaxed: 'true', livesRemaining: '3',
         gameOver: 'false', gameWon: 'false', initialized: 'true', noGuess: 'false',
-        board: JSON.stringify(cells), numRows: '4', numCols: '4', numMines: '3',
+        board: encodeBoard(cells), numRows: '4', numCols: '4', numMines: '3',
         players: '["alice","bob"]', startedAt: '1000', ...extra });
     for (const id of ['alice', 'bob']) mockRedis.seed(`player:${id}`, { name: id, room: 'relax', score: '0' });
 }
@@ -56,7 +57,7 @@ test('a mistaken chord stops after its first mine', async () => {
     const cells = board();
     cells[1][1].isOpen = true;
     cells[2][1].isFlagged = true;
-    mockRedis.seed('room:relax', { ...room(), board: JSON.stringify(cells) });
+    mockRedis.seed('room:relax', { ...room(), board: encodeBoard(cells) });
     await chordCell(1, 1, 'relax', 'alice');
     expect(room().livesRemaining).toBe('2');
     expect(board()[0].filter((c) => c.isMine && c.isOpen)).toHaveLength(1);
@@ -69,7 +70,7 @@ test('uncovered mines count toward a subsequent chord', async () => {
     cells[1][0].isOpen = true;
     cells[1][0].nearbyMines = 2;
     cells[0][1].isFlagged = true;
-    mockRedis.seed('room:relax', { ...room(), livesRemaining: '2', board: JSON.stringify(cells) });
+    mockRedis.seed('room:relax', { ...room(), livesRemaining: '2', board: encodeBoard(cells) });
     await chordCell(1, 0, 'relax', 'alice');
     expect(board()[2][0].isOpen).toBe(true);
     expect(room().livesRemaining).toBe('2');

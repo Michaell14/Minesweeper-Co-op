@@ -17,6 +17,7 @@ jest.mock('../utils/initializeClient', () => ({
 const coop = require('../game/coop');
 const { clockOf, stoppedAt, readStamp } = require('../domain/clock');
 const { redisClient } = require('../utils/initializeRedisClient');
+const { encodeBoard } = require('../domain/boardCodec');
 
 const ROOM = 'r1';
 const SOCKET = 'sock-1';
@@ -39,7 +40,7 @@ const snapshot = (overrides = {}) => ({
     gameOver: 'false',
     gameWon: 'false',
     initialized: 'true',
-    board: JSON.stringify(freshBoard()),
+    board: encodeBoard(freshBoard()),
     numRows: '3',
     numCols: '3',
     numMines: '1',

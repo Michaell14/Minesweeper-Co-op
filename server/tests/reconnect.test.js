@@ -15,6 +15,7 @@ jest.mock('../utils/initializeClient', () => ({
 const { addPlayerToRoom, removePlayer } = require('../utils/playerUtils');
 const { redisClient } = require('../utils/initializeRedisClient');
 const { createEmptyBoard } = require('../domain/board');
+const { encodeBoard } = require('../domain/boardCodec');
 
 const ROOM = 'r1';
 let client;
@@ -23,7 +24,7 @@ const roomState = (extra = {}) => ({
     mode: 'co-op',
     gameOver: 'false',
     gameWon: 'false',
-    board: JSON.stringify(createEmptyBoard(2, 2)),
+    board: encodeBoard(createEmptyBoard(2, 2)),
     numRows: '2',
     numCols: '2',
     players: JSON.stringify([]),

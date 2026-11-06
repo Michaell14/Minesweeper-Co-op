@@ -15,6 +15,7 @@ jest.mock('../utils/initializeClient', () => ({
 const pvp = require('../game/pvp');
 const { pvpIndexOf } = require('../domain/pvpPlayer');
 const { redisClient } = require('../utils/initializeRedisClient');
+const { encodeBoard } = require('../domain/boardCodec');
 
 const ROOM = 'r1';
 const STRANGER = 'sock-no-index';
@@ -34,8 +35,8 @@ const board = () => {
 
 const startedRoom = () => ({
     pvpStarted: 'true',
-    player1Board: JSON.stringify(board()),
-    player2Board: JSON.stringify(board()),
+    player1Board: encodeBoard(board()),
+    player2Board: encodeBoard(board()),
     player1GameOver: 'false',
     player1GameWon: 'false',
     player2GameOver: 'false',

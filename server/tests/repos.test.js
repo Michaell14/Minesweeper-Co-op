@@ -6,6 +6,7 @@
 const keys = require('../data/keys');
 const roomRepo = require('../data/roomRepo');
 const playerRepo = require('../data/playerRepo');
+const { encodeBoard } = require('../domain/boardCodec');
 const { redisClient } = require('../utils/initializeRedisClient');
 const { lockedBy, releasedLock } = require('./setup/lockAssertions');
 
@@ -112,12 +113,20 @@ describe('roomRepo', () => {
         expect(await roomRepo.opponentOf('r1', 'a')).toBeUndefined();
     });
 
-    test('board round-trips through JSON', async () => {
+    test('a board is stored encoded and handed back as the array', async () => {
         const board = [[{ isMine: true, isOpen: false, isFlagged: false, nearbyMines: 0 }]];
         await roomRepo.setBoard('r1', board);
-        expect(client.hSet).toHaveBeenCalledWith('room:r1', { board: JSON.stringify(board) });
+        expect(client.hSet).toHaveBeenCalledWith('room:r1', { board: encodeBoard(board) });
 
+        client.hGet.mockResolvedValue(encodeBoard(board));
+        expect(await roomRepo.getBoard('r1')).toEqual(board);
+    });
+
+    // Rooms outlive a deploy by up to a day, so a board written as JSON is still in play.
+    test('getBoard still reads a board stored as JSON before the encoding', async () => {
+        const board = [[{ isMine: false, isOpen: true, isFlagged: false, nearbyMines: 2 }]];
         client.hGet.mockResolvedValue(JSON.stringify(board));
+
         expect(await roomRepo.getBoard('r1')).toEqual(board);
     });
 
@@ -127,14 +136,70 @@ describe('roomRepo', () => {
         expect(await roomRepo.getBoard('r1')).toBeNull();
     });
 
+    /* One hSet: a win's flag in a separate write could land while the board's failed. */
+    test('setBoard writes the fields that change with the board in the same hSet', async () => {
+        const board = [[{ isMine: false, isOpen: true, isFlagged: false, nearbyMines: 0 }]];
+
+        await roomRepo.setBoard('r1', board, { gameWon: 'true', endedAt: '5000' });
+
+        expect(client.hSet).toHaveBeenCalledTimes(1);
+        expect(client.hSet).toHaveBeenCalledWith('room:r1', {
+            gameWon: 'true',
+            endedAt: '5000',
+            board: encodeBoard(board),
+        });
+    });
+
+    test('create stores a co-op board encoded, in the creating write', async () => {
+        const board = [[{ isMine: false, isOpen: false, isFlagged: false, nearbyMines: 0 }]];
+
+        await roomRepo.create('r1', { mode: 'co-op' }, board);
+
+        expect(client.hSet).toHaveBeenCalledTimes(1);
+        expect(client.hSet).toHaveBeenCalledWith('room:r1', { mode: 'co-op', board: encodeBoard(board) });
+    });
+
     test('PVP boards address the right per-player field', async () => {
         const board = [[{ isMine: false, isOpen: false, isFlagged: false, nearbyMines: 0 }]];
 
         await roomRepo.setPvpBoard('r1', 0, board);
-        expect(client.hSet).toHaveBeenCalledWith('room:r1', { player1Board: JSON.stringify(board) });
+        expect(client.hSet).toHaveBeenCalledWith('room:r1', { player1Board: encodeBoard(board) });
 
-        await roomRepo.setPvpBoard('r1', 1, board);
-        expect(client.hSet).toHaveBeenCalledWith('room:r1', { player2Board: JSON.stringify(board) });
+        await roomRepo.setPvpBoard('r1', 1, board, { player2Progress: '3' });
+        expect(client.hSet).toHaveBeenCalledWith('room:r1', { player2Progress: '3', player2Board: encodeBoard(board) });
+    });
+
+    test('dealPvpBoards gives both racers and the reset copy one board, in one write', async () => {
+        const board = [[{ isMine: false, isOpen: true, isFlagged: false, nearbyMines: 1 }]];
+        const encoded = encodeBoard(board);
+
+        await roomRepo.dealPvpBoards('r1', board, { pvpStarted: 'true' });
+
+        expect(client.hSet).toHaveBeenCalledTimes(1);
+        expect(client.hSet).toHaveBeenCalledWith('room:r1', {
+            pvpStarted: 'true',
+            player1Board: encoded,
+            player2Board: encoded,
+            sharedBoard: encoded,
+        });
+    });
+
+    test('the From readers decode the board in a hash already in hand, old JSON included', () => {
+        const board = [[{ isMine: true, isOpen: true, isFlagged: true, nearbyMines: 3 }]];
+        const roomState = {
+            board: encodeBoard(board),
+            player1Board: '',
+            player2Board: JSON.stringify(board),
+            sharedBoard: encodeBoard(board),
+        };
+
+        expect(roomRepo.boardFrom(roomState)).toEqual(board);
+        expect(roomRepo.pvpBoardFrom(roomState, 1)).toEqual(board);
+        expect(roomRepo.sharedBoardFrom(roomState)).toEqual(board);
+        // '' is a PVP board not dealt yet; no hash at all is a room that has gone.
+        expect(roomRepo.pvpBoardFrom(roomState, 0)).toBeNull();
+        expect(roomRepo.boardFrom({})).toBeNull();
+        expect(roomRepo.boardFrom(undefined)).toBeNull();
     });
 
     test('touch restores the full room lifetime, cancelling a grace period', async () => {

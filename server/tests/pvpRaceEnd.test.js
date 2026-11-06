@@ -15,6 +15,7 @@ jest.mock('../utils/initializeClient', () => ({
 
 const pvp = require('../game/pvp');
 const { redisClient } = require('../utils/initializeRedisClient');
+const { encodeBoard } = require('../domain/boardCodec');
 
 const ROOM = 'r1';
 const WINNER = 'sock-winner';
@@ -50,8 +51,8 @@ const racingRoom = (extra = {}) => ({
     players: JSON.stringify([WINNER, LOSER]),
     player1Socket: WINNER,
     player2Socket: LOSER,
-    player1Board: JSON.stringify(oneMoveFromWinning()),
-    player2Board: JSON.stringify(halfPlayedBoard()),
+    player1Board: encodeBoard(oneMoveFromWinning()),
+    player2Board: encodeBoard(halfPlayedBoard()),
     player1Initialized: 'true',
     player2Initialized: 'true',
     player1GameOver: 'false',
@@ -163,7 +164,7 @@ describe('moves after the race has been decided', () => {
     test('a move already in flight can still record a simultaneous finish', async () => {
         // The snapshot still says the race is open (read under the lock before
         // the other win landed); only the re-read inside checkWin sees the winner.
-        const stillOpen = racingRoom({ player2Board: JSON.stringify(oneMoveFromWinning()) });
+        const stillOpen = racingRoom({ player2Board: encodeBoard(oneMoveFromWinning()) });
         client.hGetAll.mockImplementation(async (key) =>
             key.startsWith('room:') ? decided() : asLoser
         );

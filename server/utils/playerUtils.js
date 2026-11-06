@@ -53,9 +53,9 @@ const restorePvpRacer = async (room, socketId, roomState, previousSocketId) => {
     const slot = roomRepo.pvpSlotOf(roomState, previousSocketId);
     if (slot === undefined) return false;
 
-    const { boardKey, gameOverKey, gameWonKey, socketKey, endedAtKey } = pvpPlayerFields(slot);
-    const boardData = roomState[boardKey];
-    if (!boardData) return false;
+    const { gameOverKey, gameWonKey, socketKey, endedAtKey } = pvpPlayerFields(slot);
+    const board = roomRepo.pvpBoardFrom(roomState, slot);
+    if (!board) return false;
 
     const opponent = pvpPlayerFields(slot === 0 ? 1 : 0);
     const opponentName = (await playerRepo.getName(roomState[opponent.socketKey])) || 'Opponent';
@@ -99,7 +99,7 @@ const restorePvpRacer = async (room, socketId, roomState, previousSocketId) => {
          * a racer can `resetMyBoard` and race the same layout, so revealing here
          * would be the die-and-read exploit with a reload in place of the reset.
          */
-        board: projectBoard(JSON.parse(boardData), {
+        board: projectBoard(board, {
             revealMines: ownGameWon || Boolean(roomState.winnerSocket),
         }),
         playerIndex: slot,
@@ -238,7 +238,7 @@ const addPlayerToRoom = async (room, socketId, name, sessionId, avatar, onJoined
             await updatePlayerStatsInRoom(room);
             const isOver = snapshot.gameOver === 'true' || snapshot.gameWon === 'true';
             io.to(room).emit(SERVER_EVENTS.BOARD_UPDATE,
-                projectBoard(JSON.parse(snapshot.board), { revealMines: isOver }));
+                projectBoard(roomRepo.boardFrom(snapshot), { revealMines: isOver }));
             if (snapshot.gameWon === 'true') {
                 io.to(socketId).emit(SERVER_EVENTS.GAME_WON, { replay: true });
             }

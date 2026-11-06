@@ -5,6 +5,7 @@
 
 const keys = require('../data/keys');
 const dailyRepo = require('../data/dailyRepo');
+const { encodeBoard } = require('../domain/boardCodec');
 const { redisClient } = require('../utils/initializeRedisClient');
 const { lockedBy, releasedLock } = require('./setup/lockAssertions');
 
@@ -46,7 +47,7 @@ describe('board template', () => {
         });
 
         expect(client.hSet).toHaveBeenCalledWith('daily:2026-07-30:board', {
-            board: JSON.stringify(board),
+            board: encodeBoard(board),
             seed: '12345',
             numRows: '16',
             numCols: '16',
@@ -74,7 +75,7 @@ describe('attempts', () => {
 
         expect(client.hSet).toHaveBeenCalledWith('daily:2026-07-30:attempt:tok-1', {
             status: 'ready',
-            board: JSON.stringify(board),
+            board: encodeBoard(board),
             name: '',
             startedAt: '',
             finishedAt: '',
@@ -92,6 +93,16 @@ describe('attempts', () => {
         expect(client.hGetAll).toHaveBeenCalledWith('daily:2026-07-30:attempt:tok-1');
     });
 
+    // Attempts live 48h, so one started before the encoding shipped still stores JSON.
+    test('boardFrom decodes a board in hand, including one stored as JSON', () => {
+        const board = [[{ isMine: true, isOpen: false, isFlagged: true, nearbyMines: 0 }]];
+
+        expect(dailyRepo.boardFrom({ board: encodeBoard(board) })).toEqual(board);
+        expect(dailyRepo.boardFrom({ board: JSON.stringify(board) })).toEqual(board);
+        expect(dailyRepo.boardFrom({ status: 'ready' })).toBeNull();
+        expect(dailyRepo.boardFrom(undefined)).toBeNull();
+    });
+
     test('markStarted flips to in_progress and stamps startedAt', async () => {
         await dailyRepo.markStarted('2026-07-30', 'tok-1', 1000);
 
@@ -101,13 +112,13 @@ describe('attempts', () => {
         });
     });
 
-    test('setAttemptBoard round-trips the board through JSON', async () => {
+    test('setAttemptBoard stores the board encoded', async () => {
         const board = [[{ isMine: true, isOpen: true, isFlagged: false, nearbyMines: 0 }]];
 
         await dailyRepo.setAttemptBoard('2026-07-30', 'tok-1', board);
 
         expect(client.hSet).toHaveBeenCalledWith('daily:2026-07-30:attempt:tok-1', {
-            board: JSON.stringify(board),
+            board: encodeBoard(board),
         });
     });
 
@@ -119,7 +130,7 @@ describe('attempts', () => {
 
         expect(client.hSet).toHaveBeenCalledTimes(1);
         expect(client.hSet).toHaveBeenCalledWith('daily:2026-07-30:attempt:tok-1', {
-            board: JSON.stringify(board),
+            board: encodeBoard(board),
             milestones: '[0,500,1200]',
         });
     });

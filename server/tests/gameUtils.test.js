@@ -20,6 +20,7 @@ jest.mock('../utils/initializeRedisClient', () => ({
 }));
 
 const { generateBoard } = require('../domain/boardGen');
+const { decodeBoard } = require('../domain/boardCodec');
 const { checkWin } = require('../utils/gameUtils');
 
 beforeEach(() => {
@@ -135,6 +136,13 @@ describe('checkWin', () => {
         await checkWin({ gameOver: 'false', gameWon: 'false' }, board, 'testroom');
 
         expect(board[0][1].isFlagged).toBe(true);
+    });
+
+    test('stores the flagged board in the same write as the win', async () => {
+        await checkWin({ gameOver: 'false', gameWon: 'false' }, wonBoard(), 'testroom');
+
+        const win = mockRedisClient.hSet.mock.calls.find(([, fields]) => fields.gameWon === 'true');
+        expect(decodeBoard(win[1].board)[0][1]).toEqual({ isMine: true, isOpen: false, isFlagged: true, nearbyMines: 0 });
     });
 
     test('does nothing while any non-mine cell is still closed', async () => {

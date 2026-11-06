@@ -116,13 +116,14 @@ server/                   Separate npm package (own package.json, lockfile, node
   data/
     keys.js               Every Redis key and TTL. Nothing else builds a key by hand
     locks.js              SET NX lease mechanics, shared by every repo that takes one
-    roomRepo.js           All room reads/writes, incl. board JSON, players list and locks
+    roomRepo.js           All room reads/writes, incl. boards (stored encoded), players list and locks
     playerRepo.js         All player reads/writes
     sessionRepo.js        Browser sessions, mapping a stable id onto the current socket
-    dailyRepo.js          The day's board template, attempts and leaderboard
+    dailyRepo.js          The day's board template, attempts (boards stored encoded) and leaderboard
   domain/                 Pure. No Redis, no io, no config — enforced by tests/layering.test.js
     board.js              Board primitives (createEmptyBoard, getAdjacentCells,
                           revealFrom, projectBoard/projectCells)
+    boardCodec.js         How a board is STORED: one character per cell; still reads the old JSON
     clock.js              Run-clock reads (timestamps in, payload out)
     pvpPlayer.js          Which of a room's two boards a socket owns. One rule, no fallback
     boardGen.js           Board generation and the no-guess retry loop; `rng` is injectable
@@ -227,7 +228,7 @@ dailyController ─→ game/daily , domain/board , validation , data/dailyRepo
 gameUtils ─→ playerUtils , domain/{board,clock,boardGen} , data/roomRepo , io
 playerUtils ─→ utils/pvpForfeit , domain/{board,clock} , data/* , io
 utils/pvpForfeit ─→ domain/clock , data/* , config , io
-data/*Repo ─→ data/keys , data/locks , initializeRedisClient
+data/*Repo ─→ data/keys , data/locks , initializeRedisClient , domain/*   ← roomRepo/dailyRepo store boards via domain/boardCodec
 data/locks ─→ data/keys , initializeRedisClient
 domain/* ─→ only other domain/*
 data/keys , config , validation ─→ (nothing)
@@ -284,8 +285,8 @@ inversion without inventing a layer.
 3. `game/index.js` reads the room's `mode` field alone and **dispatches on it** to `game/coop.js` or `game/pvp.js`
 4. An action lock is taken — the room's for co-op, that player's for PVP — and the room hash is **read whole, once, under it**. Nothing read before the lock is used for the move: the mode only chooses the module, and (in PVP) the player's slot only picks the lock key. That snapshot is what the mode module gets; anything re-read after the write (the win check, PVP progress) asks for its named fields with `roomRepo.getFields`
 
-**The room hash is the expensive read.** It carries every board in the room as JSON (~17KB each on a 16x16, three of them in PVP), so `roomRepo.getState` belongs only where a board is needed. Hover and every click used to fetch it whole — four or five times per click — which put production over its Redis plan's bandwidth and ops limits. `tests/redisCost.test.js` counts the commands: one full read per click, none per hover.
-5. Board JSON is mutated and written back, and the lock released
+**The room hash is the expensive read.** It carries every board in the room — three in PVP — so `roomRepo.getState` belongs only where a board is needed. Hover and every click used to fetch it whole, four or five times per click, while each board was ~17KB of JSON; that put production over its Redis plan's bandwidth and ops limits. Boards are now stored encoded (~265 bytes on a 16x16; see the Redis data model below), and `tests/redisCost.test.js` counts the commands and their bytes: one full read per click, none per hover, and a 16x16 click under 2KB in co-op.
+5. The board is decoded from that snapshot, mutated and written back encoded — both through the repo — and the lock released
 6. The result is **projected** (see §3.1) and emitted via `io.to(room)` (co-op) or `io.to(socketId)` (PVP)
 
 ### 3.1 Board projection — what a client is allowed to see
@@ -334,7 +335,7 @@ Defined in `server/data/keys.js`; all access goes through the repos in
 Redis client directly.
 
 **`room:<roomCode>`** — TTL 24h
-`mode` `noGuess` `gameOver` `gameWon` `gameOverName` `initialized` `players` (JSON array of socket ids) `numRows` `numCols` `numMines` `board` (co-op only, JSON) `startedAt` `endedAt`
+`mode` `noGuess` `gameOver` `gameWon` `gameOverName` `initialized` `players` (JSON array of socket ids) `numRows` `numCols` `numMines` `board` (co-op only, encoded — see below) `startedAt` `endedAt`
 
 `startedAt`/`endedAt` are the run clock, as epoch milliseconds. They are
 timestamps rather than an elapsed count on purpose — see §5.
@@ -350,6 +351,19 @@ put a player back to the start rather than onto a board of their own.
 `player{1,2}EndedAt` preserves an individual detonation's stopped clock across
 reloads; the room's `endedAt` preserves the finish of the whole race.
 
+**Every board field is encoded, not JSON** — co-op `board`, PVP
+`player{1,2}Board` and `sharedBoard`, and the daily template and attempts.
+`domain/boardCodec.js` writes `b1:<rows>x<cols>:` and then one character per
+cell, row-major, so a 16x16 board is 265 bytes where its JSON was ~17KB. Each
+full read of a room hash carries its boards (a PVP room holds three), which made
+them most of the server's Redis traffic. Only `roomRepo` and `dailyRepo` call
+the codec; everything above `data/` reads arrays (`getBoard`, and `boardFrom` /
+`pvpBoardFrom` / `sharedBoardFrom` on a hash already in hand) and writes arrays
+(`setBoard` / `setPvpBoard` take the fields that must land in the same HSET). The
+decoder still reads the old JSON — a value starting with `[` — because rooms and
+daily attempts outlive a deploy; a board is rewritten encoded on its next move.
+**Never `JSON.parse` or `JSON.stringify` a board field.**
+
 **`session:<sessionId>`** — TTL 24h
 `room` `name` `socketId`. The client keeps `sessionId` in sessionStorage (per tab,
 survives reload) and sends it in the socket handshake, so a reconnecting player
@@ -359,7 +373,7 @@ can be swapped back into their slot instead of joining as a stranger.
 `room` `name` `score`, plus `pvpPlayerIndex` and `opponentName` in PVP
 
 **`daily:<date>:board`** — TTL 48h
-The day's generated template: `board` (JSON) `seed` `numRows` `numCols` `numMines` `openedCells` `startRow` `startCol`. One per UTC date, shared by every player.
+The day's generated template: `board` (encoded) `seed` `numRows` `numCols` `numMines` `openedCells` `startRow` `startCol`. One per UTC date, shared by every player.
 
 **`daily:<date>:attempt:<token>`** — TTL 48h
 One player's attempt, filed under an opaque browser token rather than a socket
@@ -1306,6 +1320,7 @@ through both modes and compares, so the two can't drift apart again.
 | What the server listens for | `server/routes/index.js` (the table) | `routes.test.js` fails if a row is missing, duplicated, or names an unknown guard |
 | Achievement catalog | `shared/achievements.js` | moment predicates in `server/domain/achievements.js`, matched to the catalog by `achievements.test.js` |
 | Redis key names | `server/data/keys.js` | — |
+| How a board is stored in Redis | `server/domain/boardCodec.js` (`encodeBoard` / `decodeBoard`) | — called only by `roomRepo` and `dailyRepo`; reads the pre-encoding JSON too |
 | CORS origins | `server/config.js` | — |
 | Backend URL | `lib/initSocket.ts` (`NEXT_PUBLIC_SOCKET_URL`) | — |
 | Join-link query param | `lib/roomLink.ts` (`ROOM_QUERY_PARAM`, `buildJoinUrl`) | — |

@@ -29,6 +29,7 @@ const { offerResume } = require('../controllers/sessionController');
 const { join } = require('../routes/room');
 const { createEmptyBoard } = require('../domain/board');
 const { SERVER_EVENTS } = require('../../shared/events');
+const { encodeBoard } = require('../domain/boardCodec');
 
 const ROOM = 'r-sess';
 const SESSION = 'session-abc';
@@ -43,7 +44,7 @@ const seed = () => {
         mode: 'co-op',
         gameOver: 'false',
         gameWon: 'false',
-        board: JSON.stringify(createEmptyBoard(2, 2)),
+        board: encodeBoard(createEmptyBoard(2, 2)),
         numRows: '2', numCols: '2', numMines: '1',
         players: JSON.stringify([OWNER]),
     });
