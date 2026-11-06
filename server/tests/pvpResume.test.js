@@ -14,6 +14,7 @@ jest.mock('../utils/initializeClient', () => ({
 
 const { addPlayerToRoom } = require('../utils/playerUtils');
 const { redisClient } = require('../utils/initializeRedisClient');
+const { encodeBoard } = require('../domain/boardCodec');
 
 const ROOM = 'r1';
 const OLD_SOCKET = 'sock-old';
@@ -45,8 +46,8 @@ const racingRoom = (extra = {}) => ({
     totalSafeCells: '3',
     player1Socket: OLD_SOCKET,
     player2Socket: RIVAL,
-    player1Board: JSON.stringify(board()),
-    player2Board: JSON.stringify(board()),
+    player1Board: encodeBoard(board()),
+    player2Board: encodeBoard(board()),
     player1Progress: '2',
     player2Progress: '1',
     player1GameOver: 'false',

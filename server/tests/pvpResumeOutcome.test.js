@@ -13,6 +13,7 @@ const { openCell } = require('../game');
 const { resetMyBoard } = require('../controllers/pvpController');
 const { addPlayerToRoom, removePlayer } = require('../utils/playerUtils');
 const roomRepo = require('../data/roomRepo');
+const { encodeBoard } = require('../domain/boardCodec');
 
 const ROOM = 'resume-outcome';
 const RACER = 'racer';
@@ -39,12 +40,12 @@ beforeEach(() => {
         numRows: '2', numCols: '2', numMines: '1', totalSafeCells: '3',
         players: JSON.stringify([RACER, RIVAL]), startedAt: '1000', winnerSocket: '',
         player1Socket: RACER, player2Socket: RIVAL,
-        player1Board: JSON.stringify(board), player2Board: JSON.stringify(board),
+        player1Board: encodeBoard(board), player2Board: encodeBoard(board),
         player1Initialized: 'true', player2Initialized: 'true',
         player1GameOver: 'false', player2GameOver: 'false',
         player1GameWon: 'false', player2GameWon: 'false',
         player1Progress: '2', player2Progress: '2',
-        sharedBoard: JSON.stringify(board), sharedOpenedCells: '2',
+        sharedBoard: encodeBoard(board), sharedOpenedCells: '2',
     });
     mockRedis.seed(`player:${RACER}`, {
         room: ROOM, name: 'Racer', score: '0', pvpPlayerIndex: '0', sessionId: SESSION,

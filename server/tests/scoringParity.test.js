@@ -17,6 +17,7 @@ jest.mock('../utils/initializeClient', () => ({
 const coop = require('../game/coop');
 const pvp = require('../game/pvp');
 const { redisClient } = require('../utils/initializeRedisClient');
+const { encodeBoard, decodeBoard } = require('../domain/boardCodec');
 
 const ROOM = 'r1';
 const SOCKET = 'sock-1';
@@ -48,7 +49,7 @@ const coopState = (board) => ({
     gameWon: 'false',
     initialized: 'true',
     noGuess: 'false',
-    board: JSON.stringify(board),
+    board: encodeBoard(board),
     numRows: '4',
     numCols: '4',
     numMines: '1',
@@ -57,8 +58,8 @@ const coopState = (board) => ({
 
 const pvpState = (board) => ({
     pvpStarted: 'true',
-    player1Board: JSON.stringify(board),
-    player2Board: JSON.stringify(board),
+    player1Board: encodeBoard(board),
+    player2Board: encodeBoard(board),
     player1Initialized: 'true',
     player2Initialized: 'true',
     player1GameOver: 'false',
@@ -84,7 +85,7 @@ const openedCount = () => {
     const call = [...client.hSet.mock.calls]
         .reverse()
         .find((c) => c[1] && (c[1].board || c[1].player1Board));
-    const board = JSON.parse(call[1].board || call[1].player1Board);
+    const board = decodeBoard(call[1].board || call[1].player1Board);
     return board.flat().filter((cell) => cell.isOpen).length;
 };
 

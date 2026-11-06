@@ -22,6 +22,7 @@ jest.mock('../utils/initializeRedisClient', () => ({
 }));
 
 const daily = require('../game/daily');
+const { encodeBoard, decodeBoard } = require('../domain/boardCodec');
 
 const DATE = '2026-08-02';
 const TOKEN = 'tok-1';
@@ -40,7 +41,7 @@ const quietBoard = () => {
 const seedAttempt = (board = quietBoard(), extra = {}) => {
     mockRedis.seed(ATTEMPT, {
         status: 'in_progress',
-        board: JSON.stringify(board),
+        board: encodeBoard(board),
         name: '',
         startedAt: '1000',
         finishedAt: '',
@@ -51,7 +52,7 @@ const seedAttempt = (board = quietBoard(), extra = {}) => {
 };
 
 const storedAttempt = () => mockRedis.read(ATTEMPT);
-const storedBoard = () => JSON.parse(storedAttempt().board);
+const storedBoard = () => decodeBoard(storedAttempt().board);
 
 const openCoords = (board) => {
     const open = [];
@@ -159,7 +160,7 @@ describe('two different players', () => {
         seedAttempt();
         mockRedis.seed(`daily:${DATE}:attempt:tok-2`, {
             status: 'in_progress',
-            board: JSON.stringify(quietBoard()),
+            board: encodeBoard(quietBoard()),
             name: '', startedAt: '1000', finishedAt: '', elapsedMs: '', socketId: 'sock-2',
         });
 
@@ -169,7 +170,7 @@ describe('two different players', () => {
         ]);
 
         expect(openCoords(storedBoard())).toEqual(['0,0']);
-        expect(openCoords(JSON.parse(mockRedis.read(`daily:${DATE}:attempt:tok-2`).board))).toEqual(['1,1']);
+        expect(openCoords(decodeBoard(mockRedis.read(`daily:${DATE}:attempt:tok-2`).board))).toEqual(['1,1']);
 
         const lockKeys = mockRedis.locksTaken();
         expect(new Set(lockKeys).size).toBe(2);

@@ -41,9 +41,8 @@ const checkWin = async (roomState, board, room) => {
         }
 
         const endedAt = Date.now();
-        await roomRepo.setFields(room, {
+        await roomRepo.setBoard(room, board, {
             gameWon: 'true',
-            board: JSON.stringify(board),
             endedAt: endedAt.toString()
         });
 
@@ -87,9 +86,9 @@ const createRoom = async (room, numRows, numCols, numMines, mode = 'co-op', noGu
         numMines: numMines.toString()
     };
 
-    if (mode === 'co-op') {
-        roomData.board = JSON.stringify(createEmptyBoard(numRows, numCols));
-    } else if (mode === 'pvp') {
+    // Co-op's board rides the creating write; PVP's are dealt when the race starts.
+    const board = mode === 'co-op' ? createEmptyBoard(numRows, numCols) : null;
+    if (mode === 'pvp') {
         roomData.pvpStarted = 'false';
         roomData.hostSocket = ''; // the first player to join
         roomData.player1Socket = '';
@@ -108,7 +107,7 @@ const createRoom = async (room, numRows, numCols, numMines, mode = 'co-op', noGu
         roomData.winnerSocket = '';
     }
 
-    await roomRepo.create(room, roomData);
+    await roomRepo.create(room, roomData, board);
 }
 
 /**
@@ -128,8 +127,7 @@ const resetGame = async (room) => roomRepo.withActionLock(room, 'reset', async (
     io.to(room).emit(SERVER_EVENTS.GAME_CLOCK, { startedAt: null, endedAt: null });
     io.to(room).emit(SERVER_EVENTS.RESET_EVERYONE);
 
-    await roomRepo.setFields(room, {
-        board: JSON.stringify(newBoard),
+    await roomRepo.setBoard(room, newBoard, {
         gameOver: 'false',
         gameWon: 'false',
         initialized: 'false',

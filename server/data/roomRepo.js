@@ -5,6 +5,7 @@
  */
 
 const { redisClient } = require('../utils/initializeRedisClient');
+const { encodeBoard, decodeBoard } = require('../domain/boardCodec');
 const { acquireLock, releaseLock, withLock } = require('./locks');
 const {
     roomKey,
@@ -56,10 +57,13 @@ const setFields = async (room, fields) => {
     return await client.hSet(roomKey(room), fields);
 };
 
-/** Writes the initial hash and starts its 24h expiry. */
-const create = async (room, roomData) => {
+/**
+ * Writes the initial hash and starts its 24h expiry. A co-op room passes its
+ * `board` as an array, stored encoded in the same write.
+ */
+const create = async (room, roomData, board = null) => {
     const client = await redisClient;
-    await client.hSet(roomKey(room), roomData);
+    await client.hSet(roomKey(room), board ? { ...roomData, board: encodeBoard(board) } : roomData);
     await client.expire(roomKey(room), ROOM_TTL_SECONDS);
 };
 
@@ -117,18 +121,48 @@ const pvpSlotOf = (roomState, socketId) => {
 
 // --- Boards -----------------------------------------------------------------
 
-/** Co-op board (the shared one). */
-const getBoard = async (room) => {
-    const raw = await getField(room, 'board');
-    return raw ? JSON.parse(raw) : null;
-};
+/*
+ * Stored encoded (domain/boardCodec.js, which still reads the old JSON) and
+ * handed out as arrays: nothing above data/ sees the string. The `...From`
+ * readers take a room hash already in hand, like `playersFrom`, so a move
+ * decodes the board from the snapshot it read under its lock. A write takes
+ * `fields` to land in the SAME HSET, for state that must change with the board.
+ */
 
-const setBoard = async (room, board) => setFields(room, { board: JSON.stringify(board) });
+/** Co-op board (the shared one), or null. */
+const getBoard = async (room) => decodeBoard(await getField(room, 'board'));
+
+/** The co-op board from a room hash already in hand, or null. */
+const boardFrom = (roomState) => decodeBoard(roomState ? roomState.board : null);
+
+/** One PVP player's board from a room hash already in hand; null before the race is dealt. */
+const pvpBoardFrom = (roomState, playerIndex) =>
+    decodeBoard(roomState ? roomState[pvpPlayerFields(playerIndex).boardKey] : null);
+
+/** The race's pristine starting board, which `resetMyBoard` restores, or null. */
+const sharedBoardFrom = (roomState) => decodeBoard(roomState ? roomState.sharedBoard : null);
+
+const setBoard = async (room, board, fields = {}) =>
+    setFields(room, { ...fields, board: encodeBoard(board) });
 
 /** One PVP player's board. */
-const setPvpBoard = async (room, playerIndex, board) => {
+const setPvpBoard = async (room, playerIndex, board, fields = {}) => {
     const { boardKey } = pvpPlayerFields(playerIndex);
-    return setFields(room, { [boardKey]: JSON.stringify(board) });
+    return setFields(room, { ...fields, [boardKey]: encodeBoard(board) });
+};
+
+/**
+ * Deals a race: the same board to both players, plus the pristine copy
+ * `resetMyBoard` restores. Encoded once, since all three are the same string.
+ */
+const dealPvpBoards = async (room, board, fields = {}) => {
+    const encoded = encodeBoard(board);
+    return setFields(room, {
+        ...fields,
+        [pvpPlayerFields(0).boardKey]: encoded,
+        [pvpPlayerFields(1).boardKey]: encoded,
+        sharedBoard: encoded,
+    });
 };
 
 // --- Locks ------------------------------------------------------------------
@@ -172,8 +206,12 @@ module.exports = {
     opponentOf,
     pvpSlotOf,
     getBoard,
+    boardFrom,
+    pvpBoardFrom,
+    sharedBoardFrom,
     setBoard,
     setPvpBoard,
+    dealPvpBoards,
     acquireInitLock,
     releaseInitLock,
     acquireWinnerLock,

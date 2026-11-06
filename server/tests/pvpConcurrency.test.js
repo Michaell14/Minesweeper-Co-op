@@ -23,6 +23,7 @@ jest.mock('../utils/initializeRedisClient', () => ({
 }));
 
 const { openCell, chordCell, toggleFlag } = require('../game');
+const { encodeBoard, decodeBoard } = require('../domain/boardCodec');
 
 const ROOM = 'p1';
 const ALICE = 'sock-1';   // pvpPlayerIndex 0 -> player1* fields
@@ -41,8 +42,8 @@ const seedRace = (aliceBoard = quietBoard(), extra = {}) => {
     mockRedis.seed(`room:${ROOM}`, {
         mode: 'pvp',
         pvpStarted: 'true',
-        player1Board: JSON.stringify(aliceBoard),
-        player2Board: JSON.stringify(quietBoard()),
+        player1Board: encodeBoard(aliceBoard),
+        player2Board: encodeBoard(quietBoard()),
         player1Initialized: 'true',
         player2Initialized: 'true',
         player1GameOver: 'false', player1GameWon: 'false',
@@ -60,7 +61,7 @@ const seedRace = (aliceBoard = quietBoard(), extra = {}) => {
 };
 
 const storedRoom = () => mockRedis.read(`room:${ROOM}`);
-const boardOf = (field) => JSON.parse(storedRoom()[field]);
+const boardOf = (field) => decodeBoard(storedRoom()[field]);
 
 const openCoords = (board) => {
     const open = [];

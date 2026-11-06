@@ -4,7 +4,7 @@
  * player while the mouse moves) and four or five times per click. At peak that
  * was most of the server's Redis operations and bandwidth, past the plan's
  * limits. Driven through the REAL route rows and registrar, against the
- * event-loop fake with every command counted.
+ * event-loop fake with every command counted, and the bytes each one moved.
  */
 
 const mockEmit = jest.fn();
@@ -17,7 +17,23 @@ jest.mock('../utils/initializeClient', () => ({
 const { createFakeRedis } = require('./setup/fakeRedis');
 const mockRedis = createFakeRedis();
 
-/** Every command the code under test sends, as [command, key]. */
+/**
+ * Bytes of a hash payload, field names and values: what a write sends or a
+ * read's reply carries, near enough. Keys, locks and protocol framing are
+ * left out; they are small and do not grow with the board.
+ */
+const mockSizeOf = (payload) => {
+    if (payload === null || payload === undefined) return 0;
+    if (Array.isArray(payload)) return payload.reduce((total, value) => total + mockSizeOf(value), 0);
+    if (typeof payload === 'object') {
+        return Object.entries(payload).reduce((total, [field, value]) => total + Buffer.byteLength(field) + mockSizeOf(value), 0);
+    }
+    return Buffer.byteLength(String(payload));
+};
+
+const HASH_READS = ['hGetAll', 'hGet', 'hmGet'];
+
+/** Every command the code under test sends, as [command, key, bytes moved]. */
 const mockCommands = [];
 
 jest.mock('../utils/initializeRedisClient', () => ({
@@ -26,9 +42,12 @@ jest.mock('../utils/initializeRedisClient', () => ({
             get: (target, name) => {
                 const value = target[name];
                 if (typeof value !== 'function' || ['seed', 'read', 'flush', 'locksTaken'].includes(name)) return value;
-                return (...args) => {
-                    mockCommands.push([name, args[0]]);
-                    return value(...args);
+                return async (...args) => {
+                    const command = [name, args[0], name === 'hSet' ? mockSizeOf(args[1]) : 0];
+                    mockCommands.push(command);
+                    const reply = await value(...args);
+                    if (HASH_READS.includes(name)) command[2] = mockSizeOf(reply);
+                    return reply;
                 };
             },
         }),
@@ -36,6 +55,10 @@ jest.mock('../utils/initializeRedisClient', () => ({
 }));
 
 const roomRepo = require('../data/roomRepo');
+const { createEmptyBoard, revealFrom } = require('../domain/board');
+const { encodeBoard, decodeBoard } = require('../domain/boardCodec');
+const { generateBoard } = require('../domain/boardGen');
+const { mulberry32 } = require('../domain/seededRandom');
 const { ROUTES } = require('../routes');
 const { wrapRoute } = require('../routes/register');
 const { CLIENT_EVENTS, SERVER_EVENTS } = require('../../shared/events');
@@ -63,18 +86,14 @@ const BOB = 'sock-b';
 const routeFor = (event) => ROUTES.find((route) => route.event === event);
 const hoverRoute = routeFor(CLIENT_EVENTS.CELL_HOVER);
 
-/** A 16x16 board, as JSON: what every hover used to pull out of Redis. */
-const boardJson = JSON.stringify(
-    Array.from({ length: 16 }, () =>
-        Array.from({ length: 16 }, () => ({ isMine: false, isOpen: false, isFlagged: false, nearbyMines: 0 })),
-    ),
-);
+/** A 16x16 board as stored: every hover used to pull the room hash, boards and all. */
+const board16 = encodeBoard(createEmptyBoard(16, 16));
 
 const seedRoom = (mode = 'co-op') => {
     mockRedis.seed(`room:${ROOM}`, {
         mode,
-        board: boardJson,
-        ...(mode === 'pvp' && { player1Board: boardJson, player2Board: boardJson, sharedBoard: boardJson }),
+        board: board16,
+        ...(mode === 'pvp' && { player1Board: board16, player2Board: board16, sharedBoard: board16 }),
         numRows: '16',
         numCols: '16',
         players: JSON.stringify([ALICE, BOB]),
@@ -206,12 +225,19 @@ const boardWithAnOpenCell = () => {
     return board;
 };
 
+/** The room's dimension fields, read off the board they describe. */
+const dimsOf = (board) => ({
+    numRows: String(board.length),
+    numCols: String(board[0].length),
+    numMines: String(board.flat().filter((cell) => cell.isMine).length),
+});
+
 const seedCoopGame = (board) => {
     mockRedis.seed(`room:${ROOM}`, {
         mode: 'co-op', gameOver: 'false', gameWon: 'false', initialized: 'true', noGuess: 'false',
         relaxed: 'false', livesRemaining: '1',
-        board: JSON.stringify(board),
-        numRows: '4', numCols: '4', numMines: '1',
+        board: encodeBoard(board),
+        ...dimsOf(board),
         players: JSON.stringify([ALICE, BOB]),
         startedAt: '1000',
     });
@@ -222,16 +248,16 @@ const seedCoopGame = (board) => {
 const seedRace = (board) => {
     mockRedis.seed(`room:${ROOM}`, {
         mode: 'pvp', pvpStarted: 'true',
-        sharedBoard: JSON.stringify(quietBoard()),
-        player1Board: JSON.stringify(board),
-        player2Board: JSON.stringify(quietBoard()),
+        sharedBoard: encodeBoard(quietBoard()),
+        player1Board: encodeBoard(board),
+        player2Board: encodeBoard(quietBoard()),
         player1Initialized: 'true', player2Initialized: 'true',
         player1GameOver: 'false', player1GameWon: 'false',
         player2GameOver: 'false', player2GameWon: 'false',
         player1Progress: '0', player2Progress: '0',
         player1Socket: ALICE, player2Socket: BOB,
-        totalSafeCells: '15',
-        numRows: '4', numCols: '4', numMines: '1',
+        ...dimsOf(board),
+        totalSafeCells: String(board.length * board[0].length - Number(dimsOf(board).numMines)),
         players: JSON.stringify([ALICE, BOB]),
         startedAt: '1000',
         winnerSocket: '',
@@ -270,7 +296,7 @@ describe.each([
         await clickAs(socket, CLIENT_EVENTS.OPEN_CELL, 0, 0);
 
         const stored = mockRedis.read(`room:${ROOM}`);
-        const board = JSON.parse(stored.board ?? stored.player1Board);
+        const board = decodeBoard(stored.board ?? stored.player1Board);
         expect(board[0][0].isOpen).toBe(true);
     });
 });
@@ -328,5 +354,63 @@ describe('the paths that end a game read only fields they asked for', () => {
         );
 
         expect(emitted()).toContain(SERVER_EVENTS.PLAYER_PING);
+    });
+});
+
+/** 16x16 mid-game from a fixed seed, so every run plays the same move. */
+const midGame16 = () => {
+    const board = generateBoard(16, 16, 40, 8, 8, { noGuess: false, rng: mulberry32(7) });
+    revealFrom(board, 8, 8, []);
+    return board;
+};
+
+/** A closed numbered cell: a real move that opens one cell and ends nothing. */
+const quietMoveOn = (board) => {
+    for (let r = 0; r < board.length; r++) {
+        for (let c = 0; c < board[r].length; c++) {
+            const cell = board[r][c];
+            if (!cell.isOpen && !cell.isMine && cell.nearbyMines > 0) return [r, c];
+        }
+    }
+    throw new Error('no quiet move on this board');
+};
+
+const bytesMoved = () => mockCommands.reduce((total, [, , bytes]) => total + bytes, 0);
+const largestReply = () => Math.max(...mockCommands.filter(([command]) => HASH_READS.includes(command)).map(([, , bytes]) => bytes));
+
+/**
+ * And what a click MOVES. Its one full read carries every board in the room,
+ * so the board's encoding (domain/boardCodec.js) decides the bytes: as JSON a
+ * 16x16 board was ~17KB, and the PVP hash held three.
+ */
+describe('a 16x16 click', () => {
+    test('in co-op writes a board of a few hundred bytes and moves under 2KB in all', async () => {
+        const board = midGame16();
+        seedCoopGame(board);
+        const { socket } = aliceSocket();
+
+        await clickAs(socket, CLIENT_EVENTS.OPEN_CELL, ...quietMoveOn(board));
+
+        const stored = mockRedis.read(`room:${ROOM}`).board;
+        expect(stored).toMatch(/^b1:16x16:/);
+        expect(Buffer.byteLength(stored)).toBeLessThan(300);
+        expect(largestReply()).toBeLessThan(1024);
+        expect(bytesMoved()).toBeLessThan(2 * 1024);
+    });
+
+    test('in PVP, with three boards in the room, still moves under 3KB in all', async () => {
+        const board = midGame16();
+        seedRace(board);
+        mockRedis.seed(`room:${ROOM}`, {
+            ...mockRedis.read(`room:${ROOM}`), player2Board: encodeBoard(board), sharedBoard: encodeBoard(board),
+        });
+        const { socket } = aliceSocket();
+
+        await clickAs(socket, CLIENT_EVENTS.OPEN_CELL, ...quietMoveOn(board));
+
+        expect(Buffer.byteLength(mockRedis.read(`room:${ROOM}`).player1Board)).toBeLessThan(300);
+        // One JSON board alone was ~17KB, and this reply holds all three.
+        expect(largestReply()).toBeLessThan(2 * 1024);
+        expect(bytesMoved()).toBeLessThan(3 * 1024);
     });
 });

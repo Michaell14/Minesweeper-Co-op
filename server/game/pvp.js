@@ -114,13 +114,12 @@ const revealToLoser = async (room, winnerSocketId) => {
     if (winnerSlot === undefined) return;
 
     const loserSlot = winnerSlot === 0 ? 1 : 0;
-    const { boardKey, socketKey } = playerKeys(loserSlot);
-    const loserSocket = roomState[socketKey];
-    const boardData = roomState[boardKey];
-    if (!loserSocket || !boardData) return;
+    const loserSocket = roomState[playerKeys(loserSlot).socketKey];
+    const board = roomRepo.pvpBoardFrom(roomState, loserSlot);
+    if (!loserSocket || !board) return;
 
     io.to(loserSocket).emit(SERVER_EVENTS.PVP_BOARD_UPDATE, {
-        board: projectBoard(JSON.parse(boardData), { revealMines: true }),
+        board: projectBoard(board, { revealMines: true }),
         playerIndex: loserSlot,
     });
 };
@@ -211,7 +210,7 @@ const openCell = async (row, col, room, socketId, roomState, playerScore, player
 
     const playerIndex = playerIndexOf(playerData, socketId);
     if (playerIndex === null) return;
-    const { boardKey, initializedKey, gameOverKey, gameWonKey, progressKey } = playerKeys(playerIndex);
+    const { initializedKey, gameOverKey, gameWonKey, progressKey } = playerKeys(playerIndex);
 
     if (raceIsOver(roomState) || roomState[gameOverKey] === 'true' || roomState[gameWonKey] === 'true') {
         return;
@@ -227,14 +226,13 @@ const openCell = async (row, col, room, socketId, roomState, playerScore, player
         console.error(`[PVP] board not initialised for player ${playerIndex}`);
         return;
     }
-    const boardData = roomState[boardKey];
-    if (!boardData || boardData === '') {
+    const board = roomRepo.pvpBoardFrom(roomState, playerIndex);
+    if (!board) {
         console.error(`[PVP] Board data missing for player ${playerIndex}`);
         return;
     }
-    const board = JSON.parse(boardData);
 
-    if (!board || !Array.isArray(board) || board.length === 0) return;
+    if (board.length === 0) return;
     if (
         board[row][col] === undefined ||
         !board[row][col] ||
@@ -273,17 +271,14 @@ const chordCell = async (row, col, room, socketId, roomState) => {
     const playerData = await playerRepo.getState(socketId);
     const playerIndex = playerIndexOf(playerData, socketId);
     if (playerIndex === null) return;
-    const { boardKey, gameOverKey, gameWonKey, progressKey } = playerKeys(playerIndex);
+    const { gameOverKey, gameWonKey, progressKey } = playerKeys(playerIndex);
 
     if (roomState.pvpStarted !== 'true') return;
     if (raceIsOver(roomState) || roomState[gameOverKey] === 'true' || roomState[gameWonKey] === 'true') return;
 
-    const boardData = roomState[boardKey];
-    if (!boardData || boardData === '') return;
+    const board = roomRepo.pvpBoardFrom(roomState, playerIndex);
 
-    let board = JSON.parse(boardData);
-
-    if (!board || !Array.isArray(board) || board.length === 0) return;
+    if (!board || board.length === 0) return;
     if (row < 0 || row >= board.length || col < 0 || col >= board[0].length) return;
     if (!board[row][col].isOpen) return;
 
@@ -329,17 +324,14 @@ const toggleFlag = async (row, col, room, socketId, roomState) => {
     const playerData = await playerRepo.getState(socketId);
     const playerIndex = playerIndexOf(playerData, socketId);
     if (playerIndex === null) return;
-    const { boardKey, gameOverKey, gameWonKey } = playerKeys(playerIndex);
+    const { gameOverKey, gameWonKey } = playerKeys(playerIndex);
 
     if (roomState.pvpStarted !== 'true') return;
     if (raceIsOver(roomState) || roomState[gameOverKey] === 'true' || roomState[gameWonKey] === 'true') return;
 
-    const boardData = roomState[boardKey];
-    if (!boardData || boardData === '') return;
+    const board = roomRepo.pvpBoardFrom(roomState, playerIndex);
 
-    const board = JSON.parse(boardData);
-
-    if (!board || !Array.isArray(board) || board.length === 0) return;
+    if (!board || board.length === 0) return;
     if (row < 0 || row >= board.length || col < 0 || col >= board[0].length) return;
     if (board[row][col] === undefined || !board[row][col] || board[row][col].isOpen) return;
 

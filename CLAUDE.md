@@ -51,6 +51,7 @@ Backend deps install separately: `npm --prefix server install`.
 - **A socket handler is a ROW in `server/routes/index.js`, not a `socket.on` call.** The row declares its payload check (`validate`, a pure predicate from `server/validation.js`) and who may send it (`guard`); `routes/register.js` applies rate limit → validate → guard → handler for every route, so that order is structural rather than remembered. Add new payload rules to `validation.js` rather than inline. Pick `GUARDS.ROOM_MEMBER_SILENT` over `ROOM_MEMBER` only for spam surfaces — it refuses without emitting or evicting.
 - **Anything that rewrites a board must hold an action lock**, and re-read under it — anything read before the lock is stale by the time the write runs. Co-op shares one board, so its lock is per room (`withActionLock`, taken by `game/index.js` and by `resetGame`). PVP players own separate board fields and are meant to race, so theirs is per player (`withPvpActionLock`, taken by `game/index.js`, `resetMyBoard` and `pvpRematch`) — **never key a PVP lock by room**, that serialises the racers against each other. New state a handler both reads and writes goes inside the lock too, and gets read there rather than passed in. The locks are **not reentrant**: a function holding one must not call anything that takes the same key, and the two PVP keys are only ever taken in index order. The daily challenge follows the same rule per attempt (`dailyRepo.withAttemptLock`), since one browser's token is shared across tabs.
 - Board cells are always `{ isMine, isOpen, isFlagged, nearbyMines }`.
+- **A stored board is encoded, not JSON** (`server/domain/boardCodec.js`, one byte a cell: a 16x16 board is 265 bytes, not ~17KB). Read and write boards through the repos — `roomRepo.getBoard` / `boardFrom` / `pvpBoardFrom` / `sharedBoardFrom` / `setBoard` / `setPvpBoard` / `dealPvpBoards`, `dailyRepo.boardFrom` / `setAttemptBoard` — and never `JSON.parse` or `JSON.stringify` a board field. Tests seed with `encodeBoard` and read back with `decodeBoard`. The decoder still reads the old JSON, because rooms and daily attempts outlive a deploy.
 - **Never emit a board or cell list straight from Redis.** Run it through `projectBoard` / `projectCells` (`server/domain/board.js`) so closed cells don't leak `isMine` or `nearbyMines`. Pass `{ revealMines: true }` only for terminal states. See ARCHITECTURE.md §3.1.
 
 ## Where things live
@@ -74,6 +75,7 @@ Backend deps install separately: `npm --prefix server install`.
 | Board generation, no-guess solvability | `server/domain/boardGen.js`, `server/domain/solverUtils.js` (pure — easiest place to add tests) |
 | Join/leave, scores, disconnects | `server/utils/playerUtils.js` |
 | Redis schema / any data access | `server/data/keys.js` and the repos beside it (`roomRepo`, `playerRepo`, `sessionRepo`, `dailyRepo`) |
+| How a board is stored in Redis (the encoding, legacy JSON reads) | `server/domain/boardCodec.js`, called only by `roomRepo` and `dailyRepo`; per-click byte budget in `server/tests/redisCost.test.js` |
 | Lock mechanics (lease, backoff, release) | `server/data/locks.js` — one implementation; each repo only picks the key |
 | Client state | `state/` (one slice per concern); import from `@/app/store` |
 | Design system (buttons, inputs, panels, dialogs, table, icons) | `components/ds/`; barrel at `components/ds/index.ts` |
@@ -155,9 +157,10 @@ clicks and chords, co-op and PVP. Both modes are compared directly in
 ## Testing
 
 Jest, in `server/tests/`, run from the repo root with `npm test`. Covers board
-generation and the solver, board primitives and projection, payload validation,
-mode dispatch, the Redis key schema and repositories, concurrent co-op moves, and
-the `resetGame` require-order regression.
+generation and the solver, board primitives and projection, the board storage
+encoding (and that boards stored as JSON before it still play), payload
+validation, mode dispatch, the Redis key schema and repositories, concurrent
+co-op moves, and the `resetGame` require-order regression.
 
 `io` and Redis are mocked globally by `server/tests/setup/mockInfra.js`, so no
 test reaches real infrastructure; declare a per-file `jest.mock` when you need to

@@ -15,6 +15,7 @@ jest.mock('../utils/initializeClient', () => ({
 
 const pvp = require('../game/pvp');
 const { redisClient } = require('../utils/initializeRedisClient');
+const { encodeBoard } = require('../domain/boardCodec');
 
 const ROOM = 'r1';
 const WINNER = 'sock-winner';
@@ -52,8 +53,8 @@ const clockPayloads = () =>
 const roomState = (extra = {}) => ({
     pvpStarted: 'true',
     startedAt: '1000',
-    player1Board: JSON.stringify(oneCellFromWinning()),
-    player2Board: JSON.stringify(oneCellFromWinning()),
+    player1Board: encodeBoard(oneCellFromWinning()),
+    player2Board: encodeBoard(oneCellFromWinning()),
     player1Initialized: 'true',
     player2Initialized: 'true',
     numRows: '3',

@@ -14,6 +14,7 @@ const { actionLockKey } = require('../data/keys');
 const { join } = require('../routes/room');
 const { resetGame } = require('../utils/gameUtils');
 const { projectBoard } = require('../domain/board');
+const { encodeBoard, decodeBoard } = require('../domain/boardCodec');
 const { SERVER_EVENTS: E } = require('../../shared/events');
 
 const ROOM = 'finished-room';
@@ -41,7 +42,7 @@ test.each([
         gameOverName: outcome === 'lost' ? 'Teammate' : '',
         numRows: '2', numCols: '2', numMines: '1', startedAt: '1000', endedAt: '2400',
         players: JSON.stringify(['teammate']),
-        board: JSON.stringify([
+        board: encodeBoard([
             [{ isMine: true, isOpen: false, isFlagged: true, nearbyMines: 0 },
                 { isMine: false, isOpen: true, isFlagged: false, nearbyMines: 1 }],
             [{ isMine: false, isOpen: true, isFlagged: false, nearbyMines: 1 },
@@ -96,7 +97,7 @@ test.each([
 
     const lastPayload = (event) => mockEvents.filter((sent) => sent.event === event).at(-1).payload;
     const stored = mockRedis.read(`room:${ROOM}`);
-    expect(lastPayload(E.BOARD_UPDATE)).toEqual(projectBoard(JSON.parse(stored.board)));
+    expect(lastPayload(E.BOARD_UPDATE)).toEqual(projectBoard(decodeBoard(stored.board)));
     expect(lastPayload(E.GAME_CLOCK)).toEqual({ startedAt: null, endedAt: null });
     expect(lastPayload(E.COOP_LIVES)).toEqual({ room: ROOM, relaxed: true, livesRemaining: 3 });
     expect(stored).toMatchObject({ gameWon: 'false', gameOver: 'false', initialized: 'false' });

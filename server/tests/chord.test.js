@@ -14,6 +14,7 @@ jest.mock('../utils/initializeClient', () => ({
 
 const coop = require('../game/coop');
 const { redisClient } = require('../utils/initializeRedisClient');
+const { encodeBoard, decodeBoard } = require('../domain/boardCodec');
 
 const ROOM = 'r1';
 const SOCKET = 'sock-1';
@@ -36,7 +37,7 @@ const buildBoard = ({ flagMine = true } = {}) => {
 const roomStateWith = (board, extra = {}) => ({
     gameOver: 'false',
     gameWon: 'false',
-    board: JSON.stringify(board),
+    board: encodeBoard(board),
     numRows: '4',
     numCols: '4',
     numMines: '1',
@@ -82,7 +83,7 @@ describe('chordCell when the flag count matches the number', () => {
 
         await coop.chordCell(1, 1, ROOM, SOCKET, roomStateWith(board));
 
-        const saved = JSON.parse(client.hSet.mock.calls.find((c) => c[1].board)[1].board);
+        const saved = decodeBoard(client.hSet.mock.calls.find((c) => c[1].board)[1].board);
         expect(saved[0][0].isOpen).toBe(false);
         expect(saved[0][0].isFlagged).toBe(true);
     });
@@ -106,7 +107,7 @@ describe('chordCell when the flag count matches the number', () => {
 
         expect(lastUpdateCells()).toHaveLength(6); // 8 neighbours - 2 flagged
         expect(client.hSet).toHaveBeenCalledWith(`player:${SOCKET}`, { score: '6' });
-        const saved = JSON.parse(client.hSet.mock.calls.find((c) => c[1].board)[1].board);
+        const saved = decodeBoard(client.hSet.mock.calls.find((c) => c[1].board)[1].board);
         expect(saved[2][2].isOpen).toBe(false);
     });
 
@@ -115,7 +116,7 @@ describe('chordCell when the flag count matches the number', () => {
 
         await coop.chordCell(1, 1, ROOM, SOCKET, roomStateWith(board));
 
-        const saved = JSON.parse(client.hSet.mock.calls.find((c) => c[1].board)[1].board);
+        const saved = decodeBoard(client.hSet.mock.calls.find((c) => c[1].board)[1].board);
         expect(saved[1][0].isOpen).toBe(true);
         expect(saved[2][2].isOpen).toBe(true);
     });
@@ -155,7 +156,7 @@ describe('chordCell that detonates more than one mine', () => {
     test('stops opening cells once the game has ended', async () => {
         await coop.chordCell(1, 1, ROOM, SOCKET, roomStateWith(twoMineBoard()));
 
-        const saved = JSON.parse(client.hSet.mock.calls.find((c) => c[1].board)[1].board);
+        const saved = decodeBoard(client.hSet.mock.calls.find((c) => c[1].board)[1].board);
         const detonated = [saved[0][0].isOpen, saved[2][2].isOpen].filter(Boolean);
         expect(detonated).toHaveLength(1);
     });

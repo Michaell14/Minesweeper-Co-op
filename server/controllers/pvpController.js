@@ -50,21 +50,19 @@ const startRace = async ({ socket, room, io }, rematch = false) =>
             const player2Socket = players.find(p => p !== player1Socket);
             if (!players.includes(player1Socket) || !player2Socket) return;
             const { board: sharedBoard, openedCells } = buildSharedBoard(numRows, numCols, numMines);
-            const serializedBoard = JSON.stringify(sharedBoard);
 
             // Both players race from the same server timestamp.
             const startedAt = Date.now();
 
-            await roomRepo.setFields(room, {
+            // The same layout for both, already opened at the shared start cell,
+            // plus the pristine copy resetMyBoard restores from.
+            await roomRepo.dealPvpBoards(room, sharedBoard, {
                 pvpStarted: 'true',
                 startedAt: startedAt.toString(),
                 endedAt: '',
                 totalSafeCells: totalSafeCells.toString(),
                 player1Socket,
                 player2Socket,
-                // The same layout for both, already opened at the shared start cell.
-                player1Board: serializedBoard,
-                player2Board: serializedBoard,
                 player1Initialized: 'true',
                 player2Initialized: 'true',
                 player1GameOver: 'false',
@@ -76,8 +74,6 @@ const startRace = async ({ socket, room, io }, rematch = false) =>
                 player1Progress: openedCells.toString(),
                 player2Progress: openedCells.toString(),
                 winnerSocket: '',
-                // Pristine copy for resetMyBoard to restore from.
-                sharedBoard: serializedBoard,
                 sharedOpenedCells: openedCells.toString(),
             });
 
@@ -167,14 +163,13 @@ const resetMyBoard = async ({ socket, room, io }) => {
             if (pvpIndexOf(playerData) !== playerIndex) return;
 
             // Restore the shared starting position, not a blank grid: a retry goes back to where the game began.
-            const { sharedBoard, sharedOpenedCells } = roomState;
+            const sharedBoard = roomRepo.sharedBoardFrom(roomState);
             if (!sharedBoard) return;
-            const openedCells = parseInt(sharedOpenedCells || '0', 10);
+            const openedCells = parseInt(roomState.sharedOpenedCells || '0', 10);
 
-            const { boardKey, initializedKey, gameOverKey, progressKey, endedAtKey } = pvpPlayerFields(playerIndex);
+            const { initializedKey, gameOverKey, progressKey, endedAtKey } = pvpPlayerFields(playerIndex);
 
-            await roomRepo.setFields(room, {
-                [boardKey]: sharedBoard,
+            await roomRepo.setPvpBoard(room, playerIndex, sharedBoard, {
                 [initializedKey]: 'true',
                 [gameOverKey]: 'false',
                 [endedAtKey]: '',
@@ -190,7 +185,7 @@ const resetMyBoard = async ({ socket, room, io }) => {
             });
 
             io.to(socket.id).emit(SERVER_EVENTS.PVP_BOARD_UPDATE, {
-                board: projectBoard(JSON.parse(sharedBoard)),
+                board: projectBoard(sharedBoard),
                 playerIndex,
                 opponentName: playerData.opponentName || 'Opponent',
                 opponentAvatar: playerData.opponentAvatar || null

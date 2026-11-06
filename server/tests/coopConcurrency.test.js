@@ -24,6 +24,7 @@ jest.mock('../utils/initializeRedisClient', () => ({
 
 const { openCell, chordCell, toggleFlag } = require('../game');
 const { resetGame } = require('../utils/gameUtils');
+const { encodeBoard, decodeBoard } = require('../domain/boardCodec');
 
 const ROOM = 'r1';
 const ALICE = 'sock-a';
@@ -45,7 +46,7 @@ const seedRoom = (board, extra = {}) => {
         gameWon: 'false',
         initialized: 'true',
         noGuess: 'false',
-        board: JSON.stringify(board),
+        board: encodeBoard(board),
         numRows: '4',
         numCols: '4',
         numMines: '1',
@@ -58,7 +59,7 @@ const seedRoom = (board, extra = {}) => {
 };
 
 /** The board as the SERVER now holds it. */
-const storedBoard = () => JSON.parse(mockRedis.read(`room:${ROOM}`).board);
+const storedBoard = () => decodeBoard(mockRedis.read(`room:${ROOM}`).board);
 
 const storedRoom = () => mockRedis.read(`room:${ROOM}`);
 

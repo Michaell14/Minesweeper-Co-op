@@ -30,6 +30,7 @@ const { addPlayerToRoom, removePlayer } = require('../utils/playerUtils');
 const { leave } = require('../routes/room');
 const { resetGame } = require('../utils/gameUtils');
 const { createEmptyBoard } = require('../domain/board');
+const { encodeBoard } = require('../domain/boardCodec');
 
 const ROOM = 'r-score';
 const SESSION = 'session-score';
@@ -44,7 +45,7 @@ const seed = (mode = 'co-op') => {
         mode,
         gameOver: 'false',
         gameWon: 'false',
-        board: JSON.stringify(createEmptyBoard(2, 2)),
+        board: encodeBoard(createEmptyBoard(2, 2)),
         numRows: '2', numCols: '2', numMines: '1',
         // A real run stamp: with both ends blank the run check would pass vacuously.
         startedAt: '1700000000000',

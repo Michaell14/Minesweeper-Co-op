@@ -15,6 +15,7 @@ jest.mock('../utils/initializeClient', () => ({
 const coop = require('../game/coop');
 const { redisClient } = require('../utils/initializeRedisClient');
 const { createEmptyBoard } = require('../domain/board');
+const { encodeBoard, decodeBoard } = require('../domain/boardCodec');
 
 const ROOM = 'r1';
 const SOCKET = 'sock-1';
@@ -35,7 +36,7 @@ const roomStateWith = (board, extra = {}) => ({
     gameWon: 'false',
     initialized: 'true',
     noGuess: 'false',      // skip the solver; generation is covered elsewhere
-    board: JSON.stringify(board),
+    board: encodeBoard(board),
     numRows: '4',
     numCols: '4',
     numMines: '1',
@@ -51,7 +52,7 @@ const emitted = (event) => {
 /** The board as last written back to Redis. */
 const savedBoard = () => {
     const call = [...client.hSet.mock.calls].reverse().find((c) => c[1] && c[1].board);
-    return call ? JSON.parse(call[1].board) : null;
+    return call ? decodeBoard(call[1].board) : null;
 };
 
 const scoreWrites = () => client.hSet.mock.calls.filter((c) => c[0] === `player:${SOCKET}` && c[1].score);
@@ -87,7 +88,7 @@ describe('the first click on a room', () => {
         const init = client.hSet.mock.calls.find((c) => c[1] && c[1].initialized);
         expect(init[0]).toBe(`room:${ROOM}`);
         expect(init[1].initialized).toBe('true');
-        expect(JSON.parse(init[1].board)).toHaveLength(4);
+        expect(decodeBoard(init[1].board)).toHaveLength(4);
     });
 
     test('never puts a mine under the first click', async () => {
@@ -251,7 +252,7 @@ describe('when another player is initialising the same room', () => {
         let polls = 0;
         client.hGet.mockImplementation(async (key, field) => {
             if (field === 'initialized') { polls++; return 'true'; }
-            if (field === 'board') return JSON.stringify(theirBoard);
+            if (field === 'board') return encodeBoard(theirBoard);
             if (field === 'score') return '0';
             if (field === 'players') return JSON.stringify([SOCKET]);
             if (field === 'gameWon') return 'false';

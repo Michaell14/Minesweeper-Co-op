@@ -36,7 +36,7 @@ const reveal = async (board, r, c, room, socketId, toUpdate, roomState) => {
 
     if (roomState.relaxed === 'true') {
         const livesRemaining = Math.max(0, Number(roomState.livesRemaining ?? 3) - 1);
-        await roomRepo.setFields(room, { livesRemaining: String(livesRemaining), board: JSON.stringify(board) });
+        await roomRepo.setBoard(room, board, { livesRemaining: String(livesRemaining) });
         io.to(room).emit(SERVER_EVENTS.COOP_LIVES, { room, relaxed: true, livesRemaining });
         if (livesRemaining > 0) return -2;
     }
@@ -79,9 +79,9 @@ const openCell = async (row, col, room, socketId, roomState, playerScore) => {
         return;
     }
 
-    let board = JSON.parse(roomState.board);
+    let board = roomRepo.boardFrom(roomState);
 
-    if (!board || !Array.isArray(board) || board.length === 0) return;
+    if (!board || board.length === 0) return;
     if (row < 0 || row >= board.length || col < 0 || col >= board[0].length) return;
     if (
         board[row][col] === undefined ||
@@ -110,9 +110,8 @@ const openCell = async (row, col, room, socketId, roomState, playerScore) => {
                 const shouldNoGuess = roomState.noGuess !== 'false';
                 board = generateBoard(numRows, numCols, numMines, row, col, { noGuess: shouldNoGuess });
                 // The clock starts on the first reveal: a room can sit open for minutes first.
-                await roomRepo.setFields(room, {
+                await roomRepo.setBoard(room, board, {
                     initialized: 'true',
-                    board: JSON.stringify(board),
                     startedAt: Date.now().toString()
                 });
                 await roomRepo.releaseInitLock(room);
@@ -174,13 +173,10 @@ const chordCell = async (row, col, room, socketId, roomState) => {
     if (roomState === undefined || !roomState || roomState.gameOver === 'true' || roomState.gameWon === 'true') {
         return;
     }
-    if (roomState.board === undefined || !roomState.board) {
-        return;
-    }
 
-    const board = JSON.parse(roomState.board);
+    const board = roomRepo.boardFrom(roomState);
 
-    if (!board || !Array.isArray(board) || board.length === 0) return;
+    if (!board || board.length === 0) return;
     if (row < 0 || row >= board.length || col < 0 || col >= board[0].length) return;
     if (!board[row][col].isOpen || board[row][col].isMine) return;
 
@@ -223,11 +219,11 @@ const chordCell = async (row, col, room, socketId, roomState) => {
 };
 
 const toggleFlag = async (row, col, room, socketId, roomState) => {
-    if (!roomState || !roomState.board || roomState.gameOver === 'true' || roomState.gameWon === 'true') return;
+    if (!roomState || roomState.gameOver === 'true' || roomState.gameWon === 'true') return;
 
-    const board = JSON.parse(roomState.board);
+    const board = roomRepo.boardFrom(roomState);
 
-    if (!board || !Array.isArray(board) || board.length === 0) return;
+    if (!board || board.length === 0) return;
     if (row < 0 || row >= board.length || col < 0 || col >= board[0].length) return;
     if (board[row][col] === undefined || !board[row][col] || board[row][col].isOpen) return;
 
