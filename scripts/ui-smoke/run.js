@@ -38,9 +38,19 @@ const pass = (label) => console.log(`  \x1b[32mPASS\x1b[0m  ${label}`);
 const fail = (label, detail) => { failures++; console.log(`  \x1b[31mFAIL\x1b[0m  ${label}${detail ? '\n        ' + String(detail).replace(/\n/g, '\n        ') : ''}`); };
 const check = (condition, label, detail) => (condition ? pass(label) : fail(label, detail));
 
-/** Waits for an expression and reports whether it held, instead of throwing; for a lagging second client. */
+/** Waits for an expression and reports whether it held, instead of throwing. */
 const settles = (page, expression, timeout = 8000) =>
     page.waitFor(expression, { timeout }).then(() => true).catch(() => false);
+
+/**
+ * check() for an expression that may come true late, e.g. on a lagging second
+ * client. A miss fails the check rather than the run, and the failure carries
+ * waitFor's page snapshot under the detail.
+ */
+const checkSettles = (page, expression, label, detail, timeout = 8000) =>
+    page.waitFor(expression, { timeout }).then(
+        () => pass(label),
+        (e) => fail(label, detail ? `${detail}\n${e.message}` : e.message));
 
 /** Exactly one board in the DOM; `gridCount` below asserts it stays that way. */
 const VISIBLE_CELLS = `
@@ -1037,7 +1047,7 @@ async function pvp(host, guest) {
     await host.waitFor(`document.body.textContent.includes('Guest')`, { label: 'host sees guest' });
     pass('both players see each other in the lobby');
     // Poll: the guest can trail the host by a beat.
-    check(await settles(guest, `document.body.textContent.includes('Waiting for host')`), 'the non-host is told to wait');
+    await checkSettles(guest, `document.body.textContent.includes('Waiting for host')`, 'the non-host is told to wait');
 
     /*
      * The lobby banner is the tallest chrome the board ever sits under, which
@@ -1130,10 +1140,10 @@ async function pvp(host, guest) {
             (deaths ? `, after ${deaths} mine${deaths > 1 ? 's' : ''}` : '') + ')',
         'opened cells but the percentage never moved');
 
-    check(await settles(guest, `(() => {
+    await checkSettles(guest, `(() => {
         const m = document.body.textContent.match(/Host:\\s*(\\d+)%/);
         return m && parseInt(m[1], 10) === ${hostAfter};
-    })()`), `the guest sees the host at ${hostAfter}% (was ${seenBefore}%)`);
+    })()`, `the guest sees the host at ${hostAfter}% (was ${seenBefore}%)`);
 
     const guestBoardAfter = await guest.evaluate(`return ${revealedCount};`);
     check(guestBoardAfter === guestBoardAtStart,
@@ -1166,7 +1176,7 @@ async function pvp(host, guest) {
         inner.click();
         return true;
     `);
-    check(await settles(guest, `${revealedCount} !== ${beforeClick}`),
+    await checkSettles(guest, `${revealedCount} !== ${beforeClick}`,
         'the restored board still responds to clicks',
         'the board came back but ignores every click — the slot was not repointed');
 }
@@ -1404,12 +1414,12 @@ async function emotes(host, guest) {
         return true;
     `);
 
-    check(await settles(guest, `${feedText}.includes('Emoter')`),
+    await checkSettles(guest, `${feedText}.includes('Emoter')`,
         "the other player sees who reacted",
         'the reaction never reached the second client');
 
     // Everyone sees the same feed, sender included: the server fans out with io.to.
-    check(await settles(host, `${feedText}.includes('Emoter')`),
+    await checkSettles(host, `${feedText}.includes('Emoter')`,
         'the sender sees their own reaction too');
 
     /* Scoped to the tray's subtree: the game screen carries four other polite live regions. */
@@ -1418,7 +1428,7 @@ async function emotes(host, guest) {
         const live = tray && tray.parentElement.querySelector('[aria-live=polite]');
         return live ? live.textContent : '';
     })()`;
-    check(await settles(guest, `${feedAnnouncement}.includes('Emoter: Nice')`),
+    await checkSettles(guest, `${feedAnnouncement}.includes('Emoter: Nice')`,
         'it is announced as speech, not as a picture',
         'the live region never carried the reaction');
 
@@ -1429,9 +1439,9 @@ async function emotes(host, guest) {
     })()`;
 
     // The lifetime is a plain timer, so this one has to wait in real time.
-    check(await settles(guest, `!${feedText}.includes('Emoter')`, 8000),
+    await checkSettles(guest, `!${feedText}.includes('Emoter')`,
         'it clears itself without anyone dismissing it',
-        'the chip is still on screen well past its lifetime');
+        'the chip is still on screen well past its lifetime', 8000);
 
     /*
      * Pings. The CLICK needs a real browser: the interception runs in the
@@ -1464,11 +1474,11 @@ async function emotes(host, guest) {
         return true;
     `);
 
-    check(await settles(guest, `document.querySelectorAll('[data-ping]').length > 0`),
+    await checkSettles(guest, `document.querySelectorAll('[data-ping]').length > 0`,
         'the other player sees a ring on the pinged cell',
         'no ring appeared on the second client');
 
-    check(await settles(guest, `${pingAnnouncement}.includes('Emoter pinged row 3, column 4')`),
+    await checkSettles(guest, `${pingAnnouncement}.includes('Emoter pinged row 3, column 4')`,
         'the ping is announced with the same 1-based cell the label uses',
         'the live region never named the pinged cell');
 
@@ -1481,9 +1491,9 @@ async function emotes(host, guest) {
         'the arm is one-shot and clears itself',
         'the board is still armed after the ping');
 
-    check(await settles(guest, `document.querySelectorAll('[data-ping]').length === 0`, 8000),
+    await checkSettles(guest, `document.querySelectorAll('[data-ping]').length === 0`,
         'the ring clears itself without anyone dismissing it',
-        'the ring is still on the board well past its lifetime');
+        'the ring is still on the board well past its lifetime', 8000);
 }
 
 (async () => {
