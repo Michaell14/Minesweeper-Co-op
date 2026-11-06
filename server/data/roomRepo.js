@@ -34,6 +34,23 @@ const getField = async (room, field) => {
     return await client.hGet(roomKey(room), field);
 };
 
+/**
+ * Only the named fields, shaped like `getState`'s answer: a field the hash
+ * lacks is absent rather than null, and a missing room reads as {}. For any
+ * read that does not need a board — the whole hash carries every board in the
+ * room (three in PVP), and fetching it per hover and several times per click
+ * was most of the server's Redis bandwidth.
+ */
+const getFields = async (room, fields) => {
+    const client = await redisClient;
+    const values = (await client.hmGet(roomKey(room), fields)) || [];
+    const state = {};
+    fields.forEach((field, i) => {
+        if (values[i] !== null && values[i] !== undefined) state[field] = values[i];
+    });
+    return state;
+};
+
 const setFields = async (room, fields) => {
     const client = await redisClient;
     return await client.hSet(roomKey(room), fields);
@@ -144,6 +161,7 @@ module.exports = {
     exists,
     getState,
     getField,
+    getFields,
     setFields,
     create,
     touch,

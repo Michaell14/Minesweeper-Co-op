@@ -3,7 +3,7 @@
  * `routes/index.js`: rate limit -> validate -> guard -> handler.
  *
  * Rate limiting is FIRST so a flood is stopped before it costs anything (a
- * hover reaching the membership check has already spent four Redis reads);
+ * hover reaching the membership check has already spent Redis reads);
  * validation precedes the guard so a malformed room code never reaches Redis.
  * Every refusal is SILENT; a route that owes the client an error emits it
  * from its guard or handler, where the specific error is known.

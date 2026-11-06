@@ -88,8 +88,12 @@ const applyOptimisticFlag = (event: CellActionEvent | DailyCellActionEvent, row:
 export function useGameActions(socket: AppSocket | null) {
     const emitCellHover = useCallback(
         (row: number, col: number) => {
-            const { room, playerJoined, settings } = useMinesweeperStore.getState();
+            const { room, playerJoined, settings, mode, playerStatsInRoom } = useMinesweeperStore.getState();
             if (!socket || !room || !playerJoined) return;
+            // Only co-op with company shows a cursor: the server drops PVP
+            // hovers, and alone there is nobody to see one. Both were sent at
+            // ~10/s anyway, each a Redis round trip.
+            if (mode !== 'co-op' || playerStatsInRoom.length < 2) return;
             // The (-1,-1) clear passes the opt-out so toggling off mid-hover
             // removes the cursor instead of freezing it.
             if (!settings.shareCursor && !(row === -1 && col === -1)) return;

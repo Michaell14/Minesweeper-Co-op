@@ -280,9 +280,11 @@ inversion without inventing a layer.
 ### Request path
 
 1. Client emits → the matching row in `server/routes/index.js`, wrapped by `routes/register.js`
-2. The row's pipeline, in this order: its rate-limit bucket (if any) BEFORE anything touches Redis, then `validate` (pure, from `server/validation.js`), then its `guard` — room exists, player exists, player is in the room's `players` array. The guard passes the room state it read down to the handler
-3. `game/index.js` loads the room hash from Redis and **dispatches on `roomState.mode`** to `game/coop.js` or `game/pvp.js`
-4. An action lock is taken — the room's for co-op, that player's for PVP — and the room hash is **read again under it**. The snapshot from step 3 predates the lock, so it is only good for choosing the mode and (in PVP) the lock key. That fresh snapshot is what the mode module gets
+2. The row's pipeline, in this order: its rate-limit bucket (if any) BEFORE anything touches Redis, then `validate` (pure, from `server/validation.js`), then its `guard` — room exists, player exists, player is in the room's `players` array. The guard reads only `MEMBERSHIP_FIELDS` (`players`, `mode`, `numRows`, `numCols`), never the whole hash, and passes that view down to the handler
+3. `game/index.js` reads the room's `mode` field alone and **dispatches on it** to `game/coop.js` or `game/pvp.js`
+4. An action lock is taken — the room's for co-op, that player's for PVP — and the room hash is **read whole, once, under it**. Nothing read before the lock is used for the move: the mode only chooses the module, and (in PVP) the player's slot only picks the lock key. That snapshot is what the mode module gets; anything re-read after the write (the win check, PVP progress) asks for its named fields with `roomRepo.getFields`
+
+**The room hash is the expensive read.** It carries every board in the room as JSON (~17KB each on a 16x16, three of them in PVP), so `roomRepo.getState` belongs only where a board is needed. Hover and every click used to fetch it whole — four or five times per click — which put production over its Redis plan's bandwidth and ops limits. `tests/redisCost.test.js` counts the commands: one full read per click, none per hover.
 5. Board JSON is mutated and written back, and the lock released
 6. The result is **projected** (see §3.1) and emitted via `io.to(room)` (co-op) or `io.to(socketId)` (PVP)
 
@@ -825,10 +827,21 @@ Three gestures, all on an opened number. Both mouse buttons pressed together: `C
 ### Hover presence (co-op only)
 `Cell` `onMouseEnter` → throttled 100ms → `cellHover` → server broadcasts `playerHoverUpdate` to everyone else → each client colors the cell using a hash of the socket id. Suppressed in PVP (`routes/social.js`, from the room state its guard read).
 
+**The client only sends one when it can be shown**: co-op, with at least one
+other player in the room (`emitCellHover` in `hooks/useGameActions.ts`). Solo
+rooms, practice races and PVP used to send ~10 a second to a server that showed
+them to nobody.
+
+**It costs Redis nothing in steady state.** Its route takes `ROOM_MEMBER_CACHED`,
+which reuses an admission for `MEMBER_PASS_MS` (10s) while socket.io still has
+the socket in the room — every exit calls `socket.leave`, so leaving voids the
+pass at once — and the sender's name is kept for the same window. The first
+hover of a pass costs three small reads; the rest, none.
+
 **Rate limited on the server too, and that is not belt-and-braces.** This is the
 only message a client sends continuously rather than on purpose, and the only
-one that fans out to every other player in the room — four Redis reads and N-1
-broadcasts each, with no cap on N since co-op rooms have no size limit. A single
+one that fans out to every other player in the room — N-1 broadcasts each, with
+no cap on N since co-op rooms have no size limit. A single
 socket ignoring the 100ms client throttle therefore took the whole server with
 it: measured, a flood in one room pushed an *uninvolved* two-player room from
 6ms to 2785ms per request and dropped three of seven, while receiving none of

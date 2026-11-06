@@ -15,7 +15,7 @@ const {
     EXPRESSION_PER_SECOND,
 } = require('../domain/rateLimit');
 
-const ROOM_GUARDS = [GUARDS.ROOM_MEMBER, GUARDS.ROOM_MEMBER_SILENT];
+const ROOM_GUARDS = [GUARDS.ROOM_MEMBER, GUARDS.ROOM_MEMBER_SILENT, GUARDS.ROOM_MEMBER_CACHED];
 const eventOf = (route) => route.event;
 
 describe('the table covers the protocol', () => {
@@ -61,7 +61,7 @@ describe('a room guard is never handed an unvalidated room code', () => {
     test.each(roomRoutes.map((route) => [route.event, route]))(
         '%s rejects a payload with no room before the guard runs',
         (_event, route) => {
-            // The guard calls roomRepo.exists(payload.room) first; unvalidated, that is `undefined`.
+            // The guard reads roomRepo.getFields(payload.room, ...) first; unvalidated, that is `undefined`.
             expect(route.validate).toBeDefined();
             expect(route.validate({})).toBe(false);
         },

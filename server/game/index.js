@@ -2,8 +2,9 @@
  * Mode dispatch for cell actions: the only place that decides co-op vs PVP.
  * Every action runs under a lock (overlapping board writes erase each other);
  * co-op's is per ROOM, PVP's per PLAYER so the racers are not serialised. State
- * read before the lock is stale, so both paths re-read inside it and pass THAT
- * snapshot to the mode module.
+ * read before the lock is stale, so nothing is read before it but the mode
+ * (and in PVP the player's slot, which picks the lock key); the room hash is
+ * read once, inside the lock, and THAT snapshot goes to the mode module.
  */
 
 const coop = require('./coop');
@@ -16,28 +17,34 @@ const { pvpIndexOf } = require('../domain/pvpPlayer');
 const modeOf = (roomState) => (roomState && roomState.mode) || 'co-op';
 
 /**
- * Runs a PVP move under that player's lock with room state re-read inside.
+ * The mode alone, which is all dispatch needs. Not the whole hash: that holds
+ * every board in the room (three in PVP), and the move reads it again under
+ * its lock anyway.
+ */
+const readMode = async (room) => modeOf({ mode: await roomRepo.getField(room, 'mode') });
+
+/**
+ * Runs a PVP move under that player's lock with room state read inside.
  * The index alone is safe to read before the lock: startPvpGame writes it once
  * and it picks the lock key. No index means no lock and no board; pvp.js refuses.
  */
-const withPvpMove = async (room, socketId, roomState, run) => {
+const withPvpMove = async (room, socketId, run) => {
     const playerIndex = pvpIndexOf(await playerRepo.getState(socketId));
-    if (playerIndex === null) return await run(roomState);
+    if (playerIndex === null) return await run(await roomRepo.getState(room));
 
     return await roomRepo.withPvpActionLock(room, playerIndex, socketId, async () =>
         await run(await roomRepo.getState(room)));
 };
 
 const openCell = async (row, col, room, socketId) => {
-    const [roomState, playerScore, playerData] = await Promise.all([
-        roomRepo.getState(room),
-        playerRepo.getField(socketId, "score"),
-        playerRepo.getState(socketId),
-    ]);
-
-    if (modeOf(roomState) === 'pvp') {
+    if ((await readMode(room)) === 'pvp') {
+        const playerData = await playerRepo.getState(socketId);
         const playerIndex = pvpIndexOf(playerData);
         if (playerIndex === null) {
+            const [roomState, playerScore] = await Promise.all([
+                roomRepo.getState(room),
+                playerRepo.getField(socketId, 'score'),
+            ]);
             return await pvp.openCell(row, col, room, socketId, roomState, playerScore, playerData);
         }
 
@@ -62,10 +69,8 @@ const openCell = async (row, col, room, socketId) => {
 };
 
 const chordCell = async (row, col, room, socketId) => {
-    const roomState = await roomRepo.getState(room);
-
-    if (modeOf(roomState) === 'pvp') {
-        return await withPvpMove(room, socketId, roomState, (fresh) =>
+    if ((await readMode(room)) === 'pvp') {
+        return await withPvpMove(room, socketId, (fresh) =>
             pvp.chordCell(row, col, room, socketId, fresh));
     }
 
@@ -74,10 +79,8 @@ const chordCell = async (row, col, room, socketId) => {
 };
 
 const toggleFlag = async (row, col, room, socketId) => {
-    const roomState = await roomRepo.getState(room);
-
-    if (modeOf(roomState) === 'pvp') {
-        return await withPvpMove(room, socketId, roomState, (fresh) =>
+    if ((await readMode(room)) === 'pvp') {
+        return await withPvpMove(room, socketId, (fresh) =>
             pvp.toggleFlag(row, col, room, socketId, fresh));
     }
 

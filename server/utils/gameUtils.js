@@ -6,6 +6,14 @@ const { stoppedAt } = require('../domain/clock');
 const { createEmptyBoard, projectBoard } = require('../domain/board');
 const { SERVER_EVENTS } = require('../../shared/events');
 
+/**
+ * Every room field `checkWin` reads off the state it is handed. A caller that
+ * already holds the board fetches these (`roomRepo.getFields`) rather than the
+ * whole hash, which would carry that board across the wire again. Reading a
+ * new field below means adding it here, or it arrives undefined.
+ */
+const CHECK_WIN_FIELDS = ['gameOver', 'gameWon', 'players', 'startedAt', 'relaxed'];
+
 /** Won iff every non-mine cell is open. */
 const checkWin = async (roomState, board, room) => {
     if (!roomState || roomState.gameOver === 'true' || roomState.gameWon === 'true') {
@@ -139,4 +147,4 @@ const resetGame = async (room) => roomRepo.withActionLock(room, 'reset', async (
         updatePlayerStatsInRoom(room),
     ]);
 });
-module.exports = { checkWin, createRoom, resetGame };
+module.exports = { checkWin, CHECK_WIN_FIELDS, createRoom, resetGame };

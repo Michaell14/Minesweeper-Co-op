@@ -5,10 +5,20 @@
  * assert on these declares its own jest.mock (see tests/gameUtils.test.js).
  */
 
-jest.mock('../../utils/initializeRedisClient', () => ({
-    redisClient: Promise.resolve({
+jest.mock('../../utils/initializeRedisClient', () => {
+    const client = {
         hGet: jest.fn(),
-        hmGet: jest.fn(),
+        /*
+         * Answers from whatever the test made hGetAll hold, so a narrow read
+         * (`roomRepo.getFields`) sees the same canned room as a full one.
+         * Without it every such read came back empty and a test seeding the
+         * room through hGetAll silently stopped describing what the code saw.
+         * A test about WHICH command ran mocks this outright.
+         */
+        hmGet: jest.fn(async (key, fields) => {
+            const hash = (await client.hGetAll(key)) || {};
+            return fields.map((field) => (hash[field] === undefined ? null : hash[field]));
+        }),
         hGetAll: jest.fn(),
         hSet: jest.fn(),
         hDel: jest.fn(),
@@ -26,8 +36,9 @@ jest.mock('../../utils/initializeRedisClient', () => ({
         zRangeWithScores: jest.fn(),
         zRank: jest.fn(),
         zCard: jest.fn(),
-    }),
-}));
+    };
+    return { redisClient: Promise.resolve(client) };
+});
 
 jest.mock('../../utils/initializeClient', () => ({
     app: { use: jest.fn(), get: jest.fn(), post: jest.fn(), put: jest.fn(), delete: jest.fn() },
