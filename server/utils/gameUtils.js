@@ -14,10 +14,14 @@ const { SERVER_EVENTS } = require('../../shared/events');
  */
 const CHECK_WIN_FIELDS = ['gameOver', 'gameWon', 'players', 'startedAt', 'relaxed'];
 
-/** Won iff every non-mine cell is open. */
+/**
+ * Won iff every non-mine cell is open. Resolves true only when THIS call
+ * recorded the win, so a caller still holding the pre-win `roomState` knows
+ * not to emit a running clock or a hidden board after the final ones.
+ */
 const checkWin = async (roomState, board, room) => {
     if (!roomState || roomState.gameOver === 'true' || roomState.gameWon === 'true') {
-        return;
+        return false;
     }
 
     const allNonMinesOpened = board.every((row) =>
@@ -28,7 +32,7 @@ const checkWin = async (roomState, board, room) => {
         // Re-read: two moves that both finish the board would otherwise both emit.
         const currentState = await roomRepo.getField(room, 'gameWon');
         if (currentState === 'true') {
-            return;
+            return false;
         }
 
         // Auto-flag the remaining mines for a clean visual completion.
@@ -67,7 +71,9 @@ const checkWin = async (roomState, board, room) => {
         } catch (error) {
             console.error('Stats write dropped:', error.message);
         }
+        return true;
     }
+    return false;
 };
 
 /** Every Redis value is a string; see ARCHITECTURE.md for the full room schema. */

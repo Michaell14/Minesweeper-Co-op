@@ -157,13 +157,23 @@ const openCell = async (row, col, room, socketId, roomState, playerScore) => {
 
     // Re-read: `reveal` may have just ended the game.
     const freshRoomState = await readAfterMove(room);
-    await checkWin(freshRoomState, board, room);
 
-    const isOver = freshRoomState.gameOver === 'true' || freshRoomState.gameWon === 'true';
-
+    // The start goes out before the win check. A first click that clears the
+    // whole board wins inside checkWin, and a running clock sent after its
+    // stopped one would restart the timer.
     if (justInitialized) {
         io.to(room).emit(SERVER_EVENTS.GAME_CLOCK, clockOf(freshRoomState));
-        io.to(room).emit(SERVER_EVENTS.BOARD_UPDATE, projectBoard(board, { revealMines: isOver }));
+    }
+
+    // `freshRoomState` predates any win checkWin records, hence its result.
+    const wonNow = await checkWin(freshRoomState, board, room);
+    const isOver = wonNow || freshRoomState.gameOver === 'true' || freshRoomState.gameWon === 'true';
+
+    if (justInitialized) {
+        // A win already sent the revealed board; a hidden one now would cover it.
+        if (!wonNow) {
+            io.to(room).emit(SERVER_EVENTS.BOARD_UPDATE, projectBoard(board, { revealMines: isOver }));
+        }
     } else {
         io.to(room).emit(SERVER_EVENTS.UPDATE_CELLS, projectCells(toUpdate, { revealMines: isOver }));
     }
