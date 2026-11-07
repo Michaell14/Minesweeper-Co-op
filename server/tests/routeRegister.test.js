@@ -143,6 +143,103 @@ describe('wrapRoute', () => {
     });
 });
 
+/*
+ * A `serial` row (cellHover) runs one socket's events one at a time. Its guard
+ * answers some events from a cache and others from Redis, so without the queue
+ * a later event can finish before an earlier one.
+ */
+describe('serial routes', () => {
+    /** A guard that holds event 1 until released and admits everything else at once. */
+    const slowFirst = () => {
+        let release;
+        const held = new Promise((resolve) => { release = resolve; });
+        const guard = async ({ payload }) => {
+            if (payload.n === 1) await held;
+            return { ok: true };
+        };
+        return { guard, release };
+    };
+    const turn = () => new Promise((resolve) => setImmediate(resolve));
+
+    test('handles a socket\'s events in arrival order when an earlier one is slower', async () => {
+        const { guard, release } = slowFirst();
+        const order = [];
+        const handler = async ({ payload }) => { order.push(payload.n); };
+        const listener = wrapRoute({ event: 'x', guard, handler, serial: true }, { socket: fakeSocket(), io: {} });
+
+        const first = listener({ n: 1 });
+        const second = listener({ n: 2 });
+        await turn();
+        expect(order).toEqual([]);            // the second waits behind the first
+
+        release();
+        await Promise.all([first, second]);
+        expect(order).toEqual([1, 2]);
+    });
+
+    test('without it, the faster later event finishes first', async () => {
+        const { guard, release } = slowFirst();
+        const order = [];
+        const handler = async ({ payload }) => { order.push(payload.n); };
+        const listener = wrapRoute({ event: 'x', guard, handler }, { socket: fakeSocket(), io: {} });
+
+        const first = listener({ n: 1 });
+        const second = listener({ n: 2 });
+        await turn();
+        release();
+        await Promise.all([first, second]);
+        expect(order).toEqual([2, 1]);
+    });
+
+    test('a failing event is logged and the next still runs', async () => {
+        const spy = jest.spyOn(console, 'error').mockImplementation(() => {});
+        const order = [];
+        const handler = async ({ payload }) => {
+            if (payload.n === 1) throw new Error('boom');
+            order.push(payload.n);
+        };
+        const listener = wrapRoute({ event: 'cellHover', guard: ok, handler, serial: true }, { socket: fakeSocket(), io: {} });
+
+        await Promise.all([listener({ n: 1 }), listener({ n: 2 })]);
+
+        expect(order).toEqual([2]);
+        expect(spy.mock.calls[0][0]).toContain('cellHover');
+        spy.mockRestore();
+    });
+
+    test('one socket waiting does not hold up another', async () => {
+        const { guard, release } = slowFirst();
+        const handled = [];
+        const handler = async ({ socket, payload }) => { handled.push(`${socket.id}:${payload.n}`); };
+        const route = { event: 'x', guard, handler, serial: true };
+        const alice = { ...fakeSocket(), id: 'alice' };
+        const bob = { ...fakeSocket(), id: 'bob' };
+
+        const aliceSlow = wrapRoute(route, { socket: alice, io: {} })({ n: 1 });
+        await wrapRoute(route, { socket: bob, io: {} })({ n: 2 });
+        expect(handled).toEqual(['bob:2']);
+
+        release();
+        await aliceSlow;
+        expect(handled).toEqual(['bob:2', 'alice:1']);
+    });
+
+    test('a rate-limited event is refused on arrival, not queued', async () => {
+        const { guard, release } = slowFirst();
+        const handler = jest.fn();
+        const route = { event: 'x', rateLimit: { key: 'b', burst: 1, perSecond: 0.001 }, guard, handler, serial: true };
+        const listener = wrapRoute(route, { socket: fakeSocket(), io: {} });
+
+        const first = listener({ n: 1 });
+        // Resolves at once: refused before it could wait behind the first.
+        await listener({ n: 2 });
+        release();
+        await first;
+
+        expect(handler.mock.calls.map(([{ payload }]) => payload.n)).toEqual([1]);
+    });
+});
+
 describe('registerRoutes', () => {
     test('attaches one listener per route, under its event name', () => {
         const socket = fakeSocket();

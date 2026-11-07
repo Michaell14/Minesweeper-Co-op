@@ -6,6 +6,8 @@
  *   validate   optional; a pure payload predicate. Refusal is SILENT
  *   guard      required; see routes/guards.js
  *   handler    ({ socket, io, payload, roomState }) => Promise
+ *   serial     optional; true runs guard + handler one event at a time per
+ *              socket, in arrival order
  *
  * routes/register.js applies them in that order. `createRoom`, `joinRoom` and
  * the matchmaking routes declare no `validate` because they owe a refused
@@ -117,6 +119,10 @@ const ROUTES = [
         // Silent like the two above, but sent ~10/s, so its admission is reused (routes/guards.js).
         guard: GUARDS.ROOM_MEMBER_CACHED,
         handler: social.hover,
+        // The cached admission and name answer some hovers without Redis, so a
+        // later hover could overtake one still waiting and be relayed first,
+        // leaving the co-player's cursor where the earlier one pointed.
+        serial: true,
     },
 
     /*

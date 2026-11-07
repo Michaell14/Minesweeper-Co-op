@@ -7,9 +7,27 @@
  * validation precedes the guard so a malformed room code never reaches Redis.
  * Every refusal is SILENT; a route that owes the client an error emits it
  * from its guard or handler, where the specific error is known.
+ *
+ * A `serial` row runs its guard and handler for one socket one event at a
+ * time, in arrival order. Rate limit and validate still run on arrival, so a
+ * flood is refused before anything is queued.
  */
 
 const { createBucket, takeToken } = require('../domain/rateLimit');
+
+/**
+ * Runs `task` after every earlier task queued for this socket and event. A
+ * cache lets some events answer without Redis while others wait on it, so
+ * without this a later event could finish first. The stored link never
+ * rejects, or one failure would stall every event after it; the caller still
+ * sees the rejection.
+ */
+const enqueue = (socket, event, task) => {
+    const queues = (socket.data.routeQueues ??= {});
+    const run = (queues[event] ?? Promise.resolve()).then(task);
+    queues[event] = run.catch(() => {});
+    return run;
+};
 
 /**
  * Turns one route into a socket listener. The try/catch cannot live inside
@@ -32,10 +50,14 @@ const wrapRoute = (route, { socket, io }) => async (rawPayload) => {
 
         if (route.validate && !route.validate(payload)) return;
 
-        const { ok, roomState } = await route.guard({ socket, payload });
-        if (!ok) return;
+        const admitAndHandle = async () => {
+            const { ok, roomState } = await route.guard({ socket, payload });
+            if (!ok) return;
 
-        await route.handler({ socket, io, payload, roomState });
+            await route.handler({ socket, io, payload, roomState });
+        };
+
+        await (route.serial ? enqueue(socket, route.event, admitAndHandle) : admitAndHandle());
     } catch (error) {
         console.error(`Unhandled error in ${route.event}:`, error);
     }
