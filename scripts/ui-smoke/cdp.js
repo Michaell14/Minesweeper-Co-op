@@ -19,6 +19,50 @@ const PORT = Number(process.env.CDP_PORT || 9222);
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+/** How many console errors a timeout repeats; the end of the run still checks them all. */
+const RECENT_ERRORS = 3;
+
+/** Inputs a person types into. Not password: this ends up in CI logs. */
+const TEXT_TYPES = ['text', 'search', 'email', 'url', 'tel', 'number', 'textarea'];
+
+/*
+ * What the page showed when a wait gave up, gathered in the page. These fields
+ * tell the usual causes apart: a keystroke lost to focus (dialog still open,
+ * focus elsewhere), an emit that never got an answer ("Creating room…" or
+ * "Connection lost" under role=status), and the wrong board (the cell count).
+ * checkVisibility, not offsetParent: the connection banner is position: fixed.
+ * The condition runs once more because this lands after the deadline, so true
+ * here means the condition came true late.
+ */
+const pageState = (expression) => `
+    const describe = (el) => {
+        if (!el) return 'nothing';
+        const label = el.getAttribute('aria-label');
+        const name = el.getAttribute('name');
+        const dialog = el.parentElement?.closest('dialog[id]');
+        return el.tagName.toLowerCase()
+            + (el.id ? '#' + el.id : label ? '[aria-label="' + label + '"]' : name ? '[name="' + name + '"]' : '')
+            + (dialog ? ' in #' + dialog.id : '');
+    };
+    const visible = (selector) => [...document.querySelectorAll(selector)].filter((el) => el.checkVisibility());
+    let condition;
+    try { condition = String(!!(${expression})); } catch (e) { condition = 'threw ' + e.message; }
+    return {
+        url: location.href,
+        dialogs: [...document.querySelectorAll('dialog[open]')].map((d) => '#' + (d.id || '(no id)')),
+        focus: describe(document.activeElement),
+        gridcells: document.querySelectorAll('[role=gridcell]').length,
+        inputs: visible('input, textarea')
+            .filter((el) => ${JSON.stringify(TEXT_TYPES)}.includes(el.type))
+            .map((el) => describe(el) + ' = ' + JSON.stringify(el.value)),
+        status: visible('[role=status], [role=alert]')
+            .map((el) => el.textContent.replace(/\\s+/g, ' ').trim().slice(0, 80))
+            .filter(Boolean)
+            .slice(0, 5),
+        condition,
+    };
+`;
+
 function findChrome() {
     const fs = require('fs');
     const found = CHROME_CANDIDATES.find((p) => {
@@ -124,7 +168,37 @@ async function attach(target) {
         return r.result.value;
     };
 
-    /** Polls an expression until it is truthy, or throws on timeout. */
+    /**
+     * The page as a timed-out wait left it, as indented lines for the error.
+     * Never throws: if the page cannot answer, that goes in the report and the
+     * timeout is still the error.
+     */
+    const describePage = async (expression, timeout) => {
+        let lines;
+        try {
+            const s = await evaluate(pageState(expression));
+            lines = [
+                `url: ${s.url}`,
+                `open dialogs: ${s.dialogs.join(', ') || 'none'}`,
+                `focus: ${s.focus}`,
+                `gridcells: ${s.gridcells}`,
+                `text inputs: ${s.inputs.join(', ') || 'none'}`,
+                `status: ${s.status.join(' | ') || 'none'}`,
+                `condition now: ${s.condition === 'true' ? 'true (it came true after the timeout)' : s.condition}`,
+            ];
+        } catch (e) {
+            lines = [`page state unavailable: ${String(e.message).split('\n')[0]}`];
+        }
+        // Held on this side, so they survive a page that cannot answer.
+        const recent = consoleErrors.slice(-RECENT_ERRORS);
+        lines.push(`console errors: ${recent.length ? `last ${recent.length} of ${consoleErrors.length}` : 'none'}`);
+        for (const error of recent) {
+            lines.push(...error.split('\n').slice(0, 3).map((l, i) => (i ? '    ' : '  ') + l.trim()));
+        }
+        return [`page after ${timeout}ms:`, ...lines.map((l) => '  ' + l)].join('\n');
+    };
+
+    /** Polls an expression until it is truthy; on timeout, throws with what the page showed. */
     const waitFor = async (expression, { timeout = 10000, label } = {}) => {
         const deadline = Date.now() + timeout;
         while (Date.now() < deadline) {
@@ -132,7 +206,7 @@ async function attach(target) {
             if (value) return value;
             await sleep(150);
         }
-        throw new Error(`timed out waiting for: ${label || expression}`);
+        throw new Error(`timed out waiting for: ${label || expression}\n${await describePage(expression, timeout)}`);
     };
 
     /** Real mouse click at the centre of a selector, scrolled into view first. */
