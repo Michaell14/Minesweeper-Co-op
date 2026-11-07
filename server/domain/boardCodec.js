@@ -95,6 +95,7 @@ const decodeCell = (raw, index) => {
 const decodeBoard = (raw) => {
     if (raw === null || raw === undefined || raw === '') return null;
     if (typeof raw !== 'string') throw new TypeError('decodeBoard: expected a string');
+    // Keep: a join refreshes a room's expiry, so JSON boards have no end date (CLAUDE.md trap 13).
     if (raw.startsWith('[')) return JSON.parse(raw);
 
     const header = HEADER.exec(raw);
