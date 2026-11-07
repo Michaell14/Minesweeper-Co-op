@@ -281,7 +281,7 @@ inversion without inventing a layer.
 ### Request path
 
 1. Client emits → the matching row in `server/routes/index.js`, wrapped by `routes/register.js`
-2. The row's pipeline, in this order: its rate-limit bucket (if any) BEFORE anything touches Redis, then `validate` (pure, from `server/validation.js`), then its `guard` — room exists, player exists, player is in the room's `players` array. The guard reads only `MEMBERSHIP_FIELDS` (`players`, `mode`, `numRows`, `numCols`), never the whole hash, and passes that view down to the handler
+2. The row's pipeline, in this order: its rate-limit bucket (if any) BEFORE anything touches Redis, then `validate` (pure, from `server/validation.js`), then its `guard` — room exists, player exists, player is in the room's `players` array. The guard reads only `MEMBERSHIP_FIELDS` (`players`, `mode`, `numRows`, `numCols`), never the whole hash, and passes that view down to the handler. A row marked `serial` runs guard and handler one event at a time per socket, after the rate limit and `validate` have passed
 3. `game/index.js` reads the room's `mode` field alone and **dispatches on it** to `game/coop.js` or `game/pvp.js`
 4. An action lock is taken — the room's for co-op, that player's for PVP — and the room hash is **read whole, once, under it**. Nothing read before the lock is used for the move: the mode only chooses the module, and (in PVP) the player's slot only picks the lock key. That snapshot is what the mode module gets; anything re-read after the write (the win check, PVP progress) asks for its named fields with `roomRepo.getFields`
 
@@ -523,7 +523,7 @@ broadcast, because no two players share state in it.
 
 | Event | Payload |
 |---|---|
-| `gameClock` | `{startedAt, endedAt}` — epoch ms, either may be null |
+| `gameClock` | `{startedAt, endedAt, replay?}` — epoch ms, either may be null; `replay` marks the snapshot a joining or reconnecting socket is sent, which analytics never count as a start |
 | `sessionResume` | `{room, name}` — sent on connect to a browser whose room is still alive |
 
 Shapes are typed in `shared/socketPayloads.ts` (`ServerToClientEvents`).
@@ -851,6 +851,12 @@ which reuses an admission for `MEMBER_PASS_MS` (10s) while socket.io still has
 the socket in the room — every exit calls `socket.leave`, so leaving voids the
 pass at once — and the sender's name is kept for the same window. The first
 hover of a pass costs three small reads; the rest, none.
+
+**Its row is `serial`** (`routes/register.js`): one socket's hovers run one at
+a time, in arrival order. The cache answers some hovers without Redis while
+others wait on it, so without the queue a later hover overtook one still
+waiting, and the co-player's cursor stuck where the overtaken hover pointed
+(`tests/hoverOrder.test.js`).
 
 **Rate limited on the server too, and that is not belt-and-braces.** This is the
 only message a client sends continuously rather than on purpose, and the only

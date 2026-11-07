@@ -3,7 +3,7 @@ const { createEmptyBoard, projectBoard } = require('../domain/board');
 const { pvpPlayerFields } = require('../data/keys');
 const { scheduleForfeit } = require('./pvpForfeit');
 const roomRepo = require('../data/roomRepo');
-const { clockOf } = require('../domain/clock');
+const { replayClockOf } = require('../domain/clock');
 const playerRepo = require('../data/playerRepo');
 const sessionRepo = require('../data/sessionRepo');
 const { sessionHolder } = require('./sessionGuard');
@@ -85,7 +85,7 @@ const restorePvpRacer = async (room, socketId, roomState, previousSocketId) => {
 
     // A detonation stops just this player; an outright win stops both. Preserve
     // the timestamp from that event rather than restarting the clock on reload.
-    io.to(socketId).emit(SERVER_EVENTS.GAME_CLOCK, clockOf({
+    io.to(socketId).emit(SERVER_EVENTS.GAME_CLOCK, replayClockOf({
         ...roomState,
         endedAt: roomState.winnerSocket ? roomState.endedAt : roomState[endedAtKey],
     }));
@@ -233,7 +233,7 @@ const addPlayerToRoom = async (room, socketId, name, sessionId, avatar, onJoined
             io.to(socketId).emit(SERVER_EVENTS.COOP_LIVES, { room, relaxed: snapshot.relaxed === 'true',
                 livesRemaining: Number(snapshot.livesRemaining ?? (snapshot.relaxed === 'true' ? 3 : 1)) });
             if (onJoined) await onJoined();
-            io.to(socketId).emit(SERVER_EVENTS.GAME_CLOCK, clockOf(snapshot));
+            io.to(socketId).emit(SERVER_EVENTS.GAME_CLOCK, replayClockOf(snapshot));
             // Group size must precede a terminal replay, which files a best time.
             await updatePlayerStatsInRoom(room);
             const isOver = snapshot.gameOver === 'true' || snapshot.gameWon === 'true';
@@ -253,7 +253,7 @@ const addPlayerToRoom = async (room, socketId, name, sessionId, avatar, onJoined
     if (onJoined) await onJoined();
 
     // A late join or reconnect picks up the running clock, which is why it is stored as timestamps.
-    io.to(socketId).emit(SERVER_EVENTS.GAME_CLOCK, clockOf(roomState));
+    io.to(socketId).emit(SERVER_EVENTS.GAME_CLOCK, replayClockOf(roomState));
 
     // Group size is part of the best-time key, so restore it before any win.
     await updatePlayerStatsInRoom(room);

@@ -55,6 +55,6 @@ test('publishes dimensions, final clock, board and group size before replaying t
     expect(mockEvents.find(({ event }) => event === 'joinRoomSuccess').payload).toMatchObject({
         numRows: 2, numCols: 2, numMines: 1,
     });
-    expect(mockEvents.find(({ event }) => event === 'gameClock').payload).toEqual({ startedAt: 1000, endedAt: 2400 });
+    expect(mockEvents.find(({ event }) => event === 'gameClock').payload).toEqual({ startedAt: 1000, endedAt: 2400, replay: true });
     expect(mockEvents.find(({ event }) => event === 'playerStatsUpdate').payload).toHaveLength(2);
 });

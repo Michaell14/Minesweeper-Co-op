@@ -229,9 +229,10 @@ export interface ServerToClientEvents {
      * The room's clock as epoch ms. The client ticks locally from `startedAt`,
      * so nothing streams per second and a late join or reload picks it up at
      * the right time. `startedAt` is null before the first reveal, `endedAt`
-     * null until the game ends.
+     * null until the game ends. `replay` marks the snapshot a joining or
+     * reconnecting socket is sent: a run caught up on, not one starting.
      */
-    gameClock: (payload: { startedAt: number | null; endedAt: number | null }) => void;
+    gameClock: (payload: { startedAt: number | null; endedAt: number | null; replay?: boolean }) => void;
     /**
      * Sent on connect when the handshake's session id still maps to a live
      * room; the client answers with a normal `joinRoom`. Never sent after a

@@ -115,11 +115,12 @@ const coopHandlers = (socket: AppSocket, leaveRoom: () => void): SocketHandlers 
 
     [SERVER_EVENTS.PLAYER_STATS_UPDATE]: (stats) => useMinesweeperStore.getState().setPlayerStatsInRoom(stats),
 
-    // Sent on start, on finish, and to anyone arriving mid-run.
+    // Sent on start, on finish, and as a `replay` snapshot to anyone arriving mid-run.
     [SERVER_EVENTS.GAME_CLOCK]: (clock) => {
         const store = useMinesweeperStore.getState();
-        // Join/reconnect snapshots precede JOIN_ROOM_SUCCESS, and must not count as new runs.
-        if (clock.startedAt !== null && clock.endedAt === null && store.playerJoined && store.joinPending === null) {
+        // A join or reconnect snapshot lands AFTER JOIN_ROOM_SUCCESS, so only
+        // the server's `replay` mark tells it apart from a run starting now.
+        if (!clock.replay && clock.startedAt !== null && clock.endedAt === null && store.playerJoined && store.joinPending === null) {
             startMeasuredGame(socket, clock.startedAt, boardProperties(store));
         }
         store.setClock(clock);

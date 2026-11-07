@@ -25,4 +25,10 @@ const clockOf = (roomState) => ({
  */
 const stoppedAt = (roomState, endedAt) => ({ startedAt: startedAtOf(roomState), endedAt });
 
-module.exports = { clockOf, startedAtOf, stoppedAt, readStamp };
+/**
+ * The clock as a join or reconnect snapshot. `replay` tells the client it is
+ * catching up on a run, not watching one start, so analytics count no new game.
+ */
+const replayClockOf = (roomState) => ({ ...clockOf(roomState), replay: true });
+
+module.exports = { clockOf, replayClockOf, startedAtOf, stoppedAt, readStamp };
