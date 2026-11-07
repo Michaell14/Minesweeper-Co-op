@@ -523,7 +523,7 @@ broadcast, because no two players share state in it.
 
 | Event | Payload |
 |---|---|
-| `gameClock` | `{startedAt, endedAt}` — epoch ms, either may be null |
+| `gameClock` | `{startedAt, endedAt, replay?}` — epoch ms, either may be null; `replay` marks the snapshot a joining or reconnecting socket is sent, which analytics never count as a start |
 | `sessionResume` | `{room, name}` — sent on connect to a browser whose room is still alive |
 
 Shapes are typed in `shared/socketPayloads.ts` (`ServerToClientEvents`).

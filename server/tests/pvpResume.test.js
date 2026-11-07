@@ -227,7 +227,7 @@ it('restores the stopped clock of a racer who hit a mine', async () => {
 
     await addPlayerToRoom(ROOM, NEW_SOCKET, 'Racer', SESSION);
 
-    expect(emitted('gameClock').at(-1)).toEqual({ startedAt: 1000, endedAt: 2400 });
+    expect(emitted('gameClock').at(-1)).toEqual({ startedAt: 1000, endedAt: 2400, replay: true });
 });
 
 it('replays a forfeit victory without crediting an uncompleted board as a clear', async () => {

@@ -98,7 +98,8 @@ test.each([
     const lastPayload = (event) => mockEvents.filter((sent) => sent.event === event).at(-1).payload;
     const stored = mockRedis.read(`room:${ROOM}`);
     expect(lastPayload(E.BOARD_UPDATE)).toEqual(projectBoard(decodeBoard(stored.board)));
-    expect(lastPayload(E.GAME_CLOCK)).toEqual({ startedAt: null, endedAt: null });
+    // Values only: the join snapshot (a replay) or the reset's own clock may land last.
+    expect(lastPayload(E.GAME_CLOCK)).toMatchObject({ startedAt: null, endedAt: null });
     expect(lastPayload(E.COOP_LIVES)).toEqual({ room: ROOM, relaxed: true, livesRemaining: 3 });
     expect(stored).toMatchObject({ gameWon: 'false', gameOver: 'false', initialized: 'false' });
 });

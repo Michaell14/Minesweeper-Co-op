@@ -33,12 +33,65 @@ test('request and confirmed room entry form a funnel without player or room iden
     expect(JSON.stringify(vi.mocked(track).mock.calls)).not.toMatch(/private-room|Private player|private-socket/);
 });
 
-test('restoring a running or completed room is not a new game or conversion', () => {
+/*
+ * The server's real join order (server/utils/playerUtils.js addPlayerToRoom):
+ * JOIN_ROOM_SUCCESS first, THEN the clock snapshot, marked `replay`. A test
+ * sending the clock first once passed while every reload counted a new game.
+ */
+type Events = ReturnType<typeof setup>['events'];
+const joinWithSnapshot = (events: Events, clock: { startedAt: number | null; endedAt: number | null }, mode: 'co-op' | 'pvp' = 'co-op') => {
+    events[SERVER_EVENTS.JOIN_ROOM_SUCCESS]!({ room: 'private-room', mode });
+    events[SERVER_EVENTS.GAME_CLOCK]!({ ...clock, replay: true });
+};
+const tracked = () => vi.mocked(track).mock.calls.map(([event]) => event);
+
+test('reloading into a running game counts no new start', () => {
     const { events } = setup();
     events[SERVER_EVENTS.SESSION_RESUME]!({ room: 'private-room', name: 'Private player' });
-    events[SERVER_EVENTS.GAME_CLOCK]!({ startedAt: 1000, endedAt: null });
-    events[SERVER_EVENTS.JOIN_ROOM_SUCCESS]!({ room: 'private-room', mode: 'co-op' });
+    joinWithSnapshot(events, { startedAt: 1000, endedAt: null });
+    expect(track).not.toHaveBeenCalled();
+});
+
+test('reloading into a finished game counts nothing', () => {
+    const { events } = setup();
+    events[SERVER_EVENTS.SESSION_RESUME]!({ room: 'private-room', name: 'Private player' });
+    joinWithSnapshot(events, { startedAt: 1000, endedAt: 2400 });
     events[SERVER_EVENTS.GAME_WON]!({ replay: true });
+    expect(track).not.toHaveBeenCalled();
+});
+
+test('a reconnect in the same tab neither re-counts the start nor counts the resumed finish', () => {
+    const { events } = setup();
+    act(() => { state().setRoom('private-room'); state().setPlayerJoined(true); });
+    events[SERVER_EVENTS.GAME_CLOCK]!({ startedAt: 1000, endedAt: null });
+    events[SERVER_EVENTS.SESSION_RESUME]!({ room: 'private-room', name: 'Private player' });
+    joinWithSnapshot(events, { startedAt: 1000, endedAt: null });
+    events[SERVER_EVENTS.GAME_WON]!({});
+    expect(tracked()).toEqual(['game_started']);
+});
+
+test('joining a game already under way is an entry, not a start', () => {
+    const { actions, events } = setup();
+    act(() => { state().setRoom('private-room'); state().setName('Private player'); actions.joinRoom(); });
+    joinWithSnapshot(events, { startedAt: 1000, endedAt: null });
+    expect(tracked()).toEqual(['play_requested', 'play_result']);
+});
+
+test('a joiner still counts the start when the game begins after they arrive', () => {
+    const { actions, events } = setup();
+    act(() => { state().setRoom('private-room'); state().setName('Private player'); actions.joinRoom(); });
+    joinWithSnapshot(events, { startedAt: null, endedAt: null });
+    events[SERVER_EVENTS.GAME_CLOCK]!({ startedAt: 1000, endedAt: null });
+    expect(tracked()).toEqual(['play_requested', 'play_result', 'game_started']);
+});
+
+test('reloading a race after your own mine records no phantom start or loss', () => {
+    const { events } = setup();
+    events[SERVER_EVENTS.SESSION_RESUME]!({ room: 'private-room', name: 'Private player' });
+    // The room's running clock, then the racer's own, stopped by the mine.
+    joinWithSnapshot(events, { startedAt: 1000, endedAt: null }, 'pvp');
+    events[SERVER_EVENTS.GAME_CLOCK]!({ startedAt: 1000, endedAt: 2000, replay: true });
+    events[SERVER_EVENTS.PVP_GAME_OVER]!();
     expect(track).not.toHaveBeenCalled();
 });
 

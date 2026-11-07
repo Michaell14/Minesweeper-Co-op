@@ -34,7 +34,7 @@ individual game outcomes.
 | --- | --- |
 | `play_requested` | An action reached the socket emit: `create`, `join`, `quick_match`, `practice`, or `daily`. Not a successful game. Re-queueing the same pending search does not create another request. |
 | `play_result` | Resolution of that request: `entered`, `resumed`, `cancelled`, `practice` (switch from matchmaking), `error`, or `already_played`. Wait is bucketed as `<1s`, `1-4s`, `5-14s`, `15-29s`, or `30s+`. Fresh room entry includes actual mode, dimensions, mines, and rules. |
-| `game_started` | A live room clock starts for an already joined player. Daily starts wait for a server response to the first valid move. Board metadata distinguishes co-op, PvP, practice, daily, standard and sudden-death rules. |
+| `game_started` | A live room clock starts for an already joined player. The clock a joining or reconnecting socket is sent carries `replay` and never counts. Daily starts wait for a server response to the first valid move. Board metadata distinguishes co-op, PvP, practice, daily, standard and sudden-death rules. |
 | `game_finished` | A measured start reaches `won`, `lost`, or `opponent_left`. Duplicate outcomes and terminal snapshots do not count. |
 | `setting_changed` | A changed preference chosen through `setSetting`, not hydration/account sync. Captures the setting and new value. Custom palettes are grouped as `custom`; slider volume and seasonal dismissal metadata are omitted. |
 | `room_link_share` | Clipboard copy succeeded (`copied`) or manual fallback was displayed (`manual_fallback`). Neither proves a friend received the link. |
