@@ -12,9 +12,16 @@ jest.mock('../utils/initializeClient', () => ({
     server: {},
 }));
 
+// The real generator, unless a test hands it a layout.
+jest.mock('../domain/boardGen', () => {
+    const actual = jest.requireActual('../domain/boardGen');
+    return { ...actual, generateBoard: jest.fn(actual.generateBoard) };
+});
+
 const coop = require('../game/coop');
 const { redisClient } = require('../utils/initializeRedisClient');
 const { createEmptyBoard } = require('../domain/board');
+const { generateBoard } = require('../domain/boardGen');
 const { encodeBoard, decodeBoard } = require('../domain/boardCodec');
 
 const ROOM = 'r1';
@@ -30,6 +37,20 @@ const playedBoard = () => {
     board[3][3] = { isMine: true, isOpen: false, isFlagged: false, nearbyMines: 0 };
     return board;
 };
+
+/**
+ * A deal for a first click at (1,1), mines (null) at (0,3) and (3,3). The
+ * cascade opens 12 cells and stops short of (1,3) and (2,3), so the game goes
+ * on. A random deal clears this board about one time in four, and that win
+ * reveals the mines (tests/firstClickWin.test.js).
+ */
+const unfinishedOpening = () =>
+    [
+        [0, 0, 1, null],
+        [0, 0, 1, 1],
+        [0, 0, 1, 1],
+        [0, 0, 1, null],
+    ].map((row) => row.map((n) => ({ isMine: n === null, isOpen: false, isFlagged: false, nearbyMines: n ?? 0 })));
 
 const roomStateWith = (board, extra = {}) => ({
     gameOver: 'false',
@@ -108,8 +129,11 @@ describe('the first click on a room', () => {
     });
 
     test('the board it sends carries no mine positions', async () => {
+        generateBoard.mockImplementationOnce(unfinishedOpening);
+
         await coop.openCell(1, 1, ROOM, SOCKET, firstClickState(), '0');
 
+        expect(mockEmit).not.toHaveBeenCalledWith('gameWon');   // the game goes on
         const board = emitted('boardUpdate');
         expect(board.flat().every((cell) => cell.isMine === false)).toBe(true);
         // Redis keeps the real thing.
