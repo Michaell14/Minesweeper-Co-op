@@ -4,7 +4,7 @@
  * available right now".
  */
 
-import { serverURL } from "@/lib/initSocket";
+import { serverURL } from "@/lib/serverUrl";
 import { getBridgeToken } from "@/lib/authBridge";
 import { byPlayerCount, type BestTime, type ImportableBest } from "@/lib/bestTimes";
 

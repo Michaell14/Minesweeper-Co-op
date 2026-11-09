@@ -11,7 +11,7 @@ vi.mock("@/lib/authBridge", () => ({
     getBridgeToken: vi.fn(async () => "tok"),
     clearBridgeToken: vi.fn(),
 }));
-vi.mock("@/lib/initSocket", () => ({ serverURL: "http://test" }));
+vi.mock("@/lib/serverUrl", () => ({ serverURL: "http://test" }));
 
 import { PROFILE_UPDATED_EVENT, fetchProfile, updateAvatar, updateDisplayName } from "./profileApi";
 import { getBridgeToken } from "./authBridge";

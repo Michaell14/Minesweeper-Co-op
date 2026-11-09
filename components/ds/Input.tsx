@@ -11,7 +11,7 @@ export interface InputProps
     className?: string;
 }
 
-/** Text input. Forwards its ref, which react-hook-form's `register()` needs. */
+/** Text input. Forwards its ref: the landing forms are uncontrolled, and read and focus the field through it. */
 const Input = React.forwardRef<HTMLInputElement, InputProps>(function Input(
     { size = "md", invalid, className, ...rest },
     ref,

@@ -32,7 +32,7 @@ export interface RoomSlice {
     practiceTargetIsPersonal: boolean;
     /**
      * Ticks when the create-room collision dialog asks for a different code. A
-     * counter, not the code: the form owns the field (react-hook-form).
+     * counter, not the code: the form owns the field.
      */
     roomCreateNonce: number;
 

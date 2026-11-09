@@ -3,7 +3,7 @@
  * "not available" and sync waits; the local copy is always a good fallback.
  */
 
-import { serverURL } from "@/lib/initSocket";
+import { serverURL } from "@/lib/serverUrl";
 import { getBridgeToken } from "@/lib/authBridge";
 import { sanitizeSettings, type Settings } from "@/lib/settings";
 

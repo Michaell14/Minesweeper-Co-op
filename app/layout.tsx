@@ -9,19 +9,15 @@ import { NO_FLASH_SCRIPT } from "@/lib/settings";
 import { OG_IMAGE, SITE_URL } from "@/lib/site";
 import SiteNav from "@/components/SiteNav";
 import AccountMenu from "@/components/AccountMenu";
-import AchievementToast from "@/components/AchievementToast";
-import FriendInviteToast from "@/components/FriendInviteToast";
+import Toasts from "@/components/Toasts";
 import AuthProvider from "@/components/AuthProvider";
 import SettingsSync from "@/components/SettingsSync";
 import BestsSync from "@/components/BestsSync";
 import SpriteDefsHost from "@/components/SpriteDefsHost";
 
-const inter = localFont({
-  src: '../node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2',
-  weight: '100 900',
-  display: 'swap',
-  variable: '--font-inter',
-});
+// The pixel face sets every element, so it belongs here, preloaded on every
+// route. Inter sets prose only, so it is declared beside the prose shell
+// instead (components/marketing/proseFont.ts).
 const pressStart2P = localFont({
   src: '../node_modules/@fontsource/press-start-2p/files/press-start-2p-latin-400-normal.woff2',
   weight: '400',
@@ -88,11 +84,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning className={`${pressStart2P.variable} ${inter.variable}`}>
+    <html lang="en" suppressHydrationWarning className={pressStart2P.variable}>
       <head>
-        <link rel="icon" href="/favicon.ico" sizes="any" />
-        <link rel="icon" href="/icon.svg" type="image/svg+xml" />
-        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+        {/* No icon links here: Next writes them from app/favicon.ico,
+            app/icon.svg and app/apple-icon.png, and a second hand-written set
+            only duplicated them. */}
         {/* Applies the stored palette before first paint, or a themed player
             sees the default flash on every load. <html> carries
             suppressHydrationWarning so this may mutate it. */}
@@ -138,7 +134,7 @@ export default function RootLayout({
         />
       </head>
 
-      <body className={inter.className}>
+      <body>
         {/* The mine and flag art every <Sprite> points at; follows the palette
             (holiday pairs included) unless the player pinned a general set. */}
         <SpriteDefsHost />
@@ -151,9 +147,9 @@ export default function RootLayout({
           {children}
           {/* Sign-in and privacy dialogs, opened imperatively from anywhere. */}
           <AccountMenu />
-          {/* Achievement toast, here rather than on the game page so it survives navigation. */}
-          <AchievementToast />
-          <FriendInviteToast />
+          {/* Achievement and invite toasts, here rather than on the game page so
+              they survive navigation; their code loads when one first shows. */}
+          <Toasts />
         </AuthProvider>
         <UsageAnalytics />
       </body>

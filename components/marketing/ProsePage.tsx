@@ -5,6 +5,7 @@ import Link from "next/link";
 // RadioCard, whose module-level `createContext` throws when a server
 // component imports it.
 import ButtonLink from "@/components/ds/ButtonLink";
+import { proseFont } from "./proseFont";
 
 interface ProsePageProps {
     title: string;
@@ -24,7 +25,7 @@ interface ProsePageProps {
  */
 export default function ProsePage({ title, lede, children, cta }: ProsePageProps) {
     return (
-        <main className="ms-prose mx-auto w-full max-w-2xl px-4 py-10">
+        <main className={`${proseFont.variable} ms-prose mx-auto w-full max-w-2xl px-4 py-10`}>
             <h1 className="text-pixel-xl md:text-pixel-2xl font-bold">{title}</h1>
             <p className="mt-6 text-body text-ink-muted">{lede}</p>
 

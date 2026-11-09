@@ -11,7 +11,7 @@ vi.mock('next-auth/react', () => ({
     useSession: () => ({ status: 'authenticated' }),
 }));
 vi.mock('@/lib/authBridge', () => ({ getBridgeToken: async () => 'token' }));
-vi.mock('@/lib/initSocket', () => ({ serverURL: 'http://test' }));
+vi.mock('@/lib/serverUrl', () => ({ serverURL: 'http://test' }));
 
 afterEach(() => {
     cleanup();

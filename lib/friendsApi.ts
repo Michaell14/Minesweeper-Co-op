@@ -4,7 +4,7 @@
  * same. A refusal a person needs to READ comes back as a message instead.
  */
 
-import { serverURL } from "@/lib/initSocket";
+import { serverURL } from "@/lib/serverUrl";
 import { getBridgeToken } from "@/lib/authBridge";
 
 /** Somebody else, as the graph shows them. Never an email. */
