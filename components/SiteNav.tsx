@@ -3,7 +3,7 @@ import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { Avatar, GearIcon, GithubIcon, StarIcon, UserIcon, UserSignedInIcon, pointerClass } from '@/components/ds';
+import { Avatar, GearIcon, StarIcon, UserIcon, UserSignedInIcon, pointerClass } from '@/components/ds';
 import { DIALOGS, openDialog } from '@/lib/dialogs';
 import { hasUnseenEntries, markChangelogSeen } from '@/lib/changelog';
 import { useAccountProfile } from '@/hooks/useAccountProfile';
@@ -111,15 +111,6 @@ export default function SiteNav() {
                                 : <UserIcon size={ICON_SIZE} />}
                         </Link>
                     )}
-
-                    <a
-                        href="https://github.com/Michaell14/Minesweeper-Co-op"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        aria-label="GitHub"
-                        className={pointerClass}>
-                        <GithubIcon size={ICON_SIZE} />
-                    </a>
                 </div>
 
                 {/* Full width on mobile so it wraps to its own line, scrolling
