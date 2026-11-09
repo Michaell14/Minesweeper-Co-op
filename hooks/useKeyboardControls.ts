@@ -109,30 +109,32 @@ export function useKeyboardControls({ openCell, toggleFlag, chordCell, emitCellH
 
             /*
              * Space under the mouse. Its own setting, so it works with
-             * keyboard controls off. Off the board it falls through to the
-             * keyboard cursor, a focused button or the page scroll.
+             * keyboard controls off. While the mouse holds Space it is the
+             * board's alone: a press that misses every cell (the gap between
+             * cells, the border, past the edge) does nothing, like a click
+             * there, instead of scrolling the board away, pressing a button
+             * clicked earlier or revealing under a keyboard cursor left behind.
              */
-            if (key === " " && mouse.ownsSpace && state.settings.spaceToFlag) {
+            if (key === " " && mouse.ownsSpace && state.settings.spaceToFlag && board.length > 0) {
+                event.preventDefault();
+                // A button the mouse clicked earlier keeps focus; Space must not press it again.
+                if (activatableFocus instanceof HTMLElement) activatableFocus.blur();
+                if (event.repeat) return;
                 const target = cellAtPoint(mouse.x, mouse.y);
                 const cell = target && board[target.r]?.[target.c];
-                if (target && cell) {
-                    event.preventDefault();
-                    // A button the mouse clicked earlier keeps focus; Space must not press it again.
-                    if (activatableFocus instanceof HTMLElement) activatableFocus.blur();
-                    if (event.repeat) return;
-                    // The mouse is playing now, like a click on the board; the shared hover follows it.
-                    if (kbCursor !== null) {
-                        state.setKbCursor(null);
-                        emitCellHover(target.r, target.c);
-                    }
-                    if (state.mode === "pvp" && !state.pvpStarted) return;
-                    if (!cell.isOpen) {
-                        toggleFlag(target.r, target.c);
-                    } else if (cell.nearbyMines > 0 && state.settings.chording) {
-                        chordCell(target.r, target.c);
-                    }
-                    return;
+                if (!target || !cell) return;
+                // The mouse is playing now, like a click on the board; the shared hover follows it.
+                if (kbCursor !== null) {
+                    state.setKbCursor(null);
+                    emitCellHover(target.r, target.c);
                 }
+                if (state.mode === "pvp" && !state.pvpStarted) return;
+                if (!cell.isOpen) {
+                    toggleFlag(target.r, target.c);
+                } else if (cell.nearbyMines > 0 && state.settings.chording) {
+                    chordCell(target.r, target.c);
+                }
+                return;
             }
 
             if (!state.settings.keyboardControls) return;
