@@ -2,7 +2,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
-import { Button, Panel, RadioCard, RadioCardGroup } from '@/components/ds';
+import { Button, GithubIcon, Panel, RadioCard, RadioCardGroup } from '@/components/ds';
 import { DIALOGS, openDialog } from '@/lib/dialogs';
 import ThemeCards from '@/components/ThemeCards';
 import SpriteSetCards from '@/components/SpriteSetCards';
@@ -186,7 +186,7 @@ export default function SettingsClient() {
                 </Panel>
             </section>
 
-            <section aria-labelledby="settings-account">
+            <section aria-labelledby="settings-account" className="mb-8">
                 <Panel title={<span id="settings-account">Account</span>}>
                     {status === 'authenticated' ? (
                         <>
@@ -215,6 +215,23 @@ export default function SettingsClient() {
                             </Button>
                         </>
                     )}
+                </Panel>
+            </section>
+
+            <section aria-labelledby="settings-about">
+                <Panel title={<span id="settings-about">About</span>}>
+                    <p className="text-pixel-sm">
+                        Minesweeper Co-op is open source. Bug reports, ideas and pull
+                        requests are welcome.
+                    </p>
+                    <a
+                        href="https://github.com/Michaell14/Minesweeper-Co-op"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 mt-4 text-pixel-sm underline">
+                        <GithubIcon size={20} />
+                        View the source on GitHub
+                    </a>
                 </Panel>
             </section>
         </main>

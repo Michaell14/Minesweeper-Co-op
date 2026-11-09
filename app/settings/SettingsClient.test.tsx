@@ -319,3 +319,14 @@ describe('the sound section', () => {
         expect(useMinesweeperStore.getState().settings.soundVolume).toBe(0.8);
     });
 });
+
+describe('the about section', () => {
+    it('links the repository in a new tab, safely', () => {
+        render(<SettingsClient />);
+        const section = within(screen.getByRole('region', { name: 'About' }));
+        const github = section.getByRole('link', { name: /github/i });
+        expect(github.getAttribute('href')).toBe('https://github.com/Michaell14/Minesweeper-Co-op');
+        expect(github.getAttribute('target')).toBe('_blank');
+        expect(github.getAttribute('rel')).toContain('noopener');
+    });
+});
