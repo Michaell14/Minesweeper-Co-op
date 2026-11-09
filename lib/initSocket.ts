@@ -1,6 +1,8 @@
 import { io, Socket } from "socket.io-client";
 import type { ClientToServerEvents, ServerToClientEvents } from "@/shared/socketPayloads";
 import { getBridgeToken } from "@/lib/authBridge";
+// Not re-exported: anything reading the URL from here pulls socket.io with it.
+import { serverURL } from "@/lib/serverUrl";
 
 /**
  * The socket, carrying the protocol: emits and the `hooks/useGameEvents.ts`
@@ -8,16 +10,6 @@ import { getBridgeToken } from "@/lib/authBridge";
  * a bare `Socket`, which accepts anything.
  */
 export type AppSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
-
-/**
- * Backend URL. NEXT_PUBLIC_SOCKET_URL overrides it, inlined at build time (a
- * change needs a Vercel rebuild). Exported for lib/profileApi.ts.
- */
-export const serverURL =
-    process.env.NEXT_PUBLIC_SOCKET_URL ||
-    (process.env.NODE_ENV === "development"
-        ? "http://localhost:3001"
-        : "https://nameless-coast-33840-33c3fd45fe2d.herokuapp.com"); // no trailing slash
 
 /**
  * Creates the client socket; connection is deferred to hooks/useSocketEvents.

@@ -10,7 +10,7 @@ vi.mock('next-auth/react', () => ({
     useSession: () => ({ status: 'authenticated' }),
 }));
 vi.mock('@/lib/authBridge', () => ({ getBridgeToken: async () => 'test-token' }));
-vi.mock('@/lib/initSocket', () => ({ serverURL: 'https://settings.test' }));
+vi.mock('@/lib/serverUrl', () => ({ serverURL: 'https://settings.test' }));
 vi.mock('@/lib/themesApi', () => ({
     fetchThemes: async () => null,
     saveThemeRemote: async () => true,

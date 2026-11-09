@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { SITE_URL } from "@/lib/site";
+import { proseFont } from "@/components/marketing/proseFont";
 import DailyClient from "./DailyClient";
 
 const TITLE = "Minesweeper Daily Challenge — One Board, Everyone, Every Day";
@@ -52,7 +53,7 @@ export default function DailyPage() {
 
             <DailyClient
                 intro={
-                    <main className="ms-prose mx-auto w-full max-w-2xl px-4 pt-10 pb-12">
+                    <main className={`${proseFont.variable} ms-prose mx-auto w-full max-w-2xl px-4 pt-10 pb-12`}>
                         <h2 className="text-pixel-xl md:text-pixel-2xl font-bold">
                             Minesweeper Daily Challenge
                         </h2>

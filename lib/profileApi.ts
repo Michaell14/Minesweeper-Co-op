@@ -4,7 +4,7 @@
  * a thrown ProfileApiError is only an ANSWERED refusal, worth showing.
  */
 
-import { serverURL } from "@/lib/initSocket";
+import { serverURL } from "@/lib/serverUrl";
 import { getBridgeToken, clearBridgeToken } from "@/lib/authBridge";
 
 export interface ProfileUser {

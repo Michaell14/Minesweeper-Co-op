@@ -2,6 +2,7 @@
 import { beforeEach, expect, test, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { useMinesweeperStore } from '@/app/store';
+import { DIALOGS } from '@/lib/dialogs';
 import JoinRoomForm from './JoinRoomForm';
 
 const openDialog = vi.hoisted(() => vi.fn());
@@ -44,4 +45,31 @@ test('an invalid auto-join link shows its error instead of sending a truncated c
     expect(screen.getByRole('alert').textContent).toContain('100 characters or fewer');
     expect(joinRoom).not.toHaveBeenCalled();
     expect(window.location.search).toBe('');
+});
+
+test('a rejected code takes focus, and fixing it clears the message as you type', async () => {
+    render(<JoinRoomForm joinRoom={null} />);
+    const field = screen.getByRole('textbox', { name: 'Room code to join' });
+    fireEvent.change(field, { target: { value: '   ' } });
+    // Nothing is checked before the first submit.
+    expect(screen.queryByRole('alert')).toBeNull();
+
+    fireEvent.submit(screen.getByRole('form'));
+    expect((await screen.findByRole('alert')).textContent).toContain('Enter a room code');
+    await waitFor(() => expect(document.activeElement).toBe(field));
+    expect(field.getAttribute('aria-invalid')).toBe('true');
+
+    fireEvent.change(field, { target: { value: 'Calm-Otter' } });
+    await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
+    expect(field.getAttribute('aria-invalid')).toBe('false');
+    expect(openDialog).not.toHaveBeenCalled();
+});
+
+test('a guest with a valid code is asked for a name, not joined', async () => {
+    render(<JoinRoomForm joinRoom={null} />);
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: '  Calm-Otter ' } });
+    fireEvent.submit(screen.getByRole('form'));
+    await waitFor(() => expect(openDialog).toHaveBeenCalledWith(DIALOGS.nameJoin));
+    expect(useMinesweeperStore.getState().room).toBe('Calm-Otter');
+    expect((screen.getByRole('textbox') as HTMLInputElement).value).toBe('Calm-Otter');
 });

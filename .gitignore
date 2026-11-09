@@ -42,3 +42,6 @@ next-env.d.ts
 .vercel
 
 notes.txt
+
+# Redis snapshots, written to whatever directory redis-server was started from
+dump.rdb

@@ -3,7 +3,7 @@
  * available" and the local copy stays authoritative.
  */
 
-import { serverURL } from "@/lib/initSocket";
+import { serverURL } from "@/lib/serverUrl";
 import { getBridgeToken } from "@/lib/authBridge";
 import { sanitizeCustomTheme, type CustomTheme } from "@/lib/customThemes";
 

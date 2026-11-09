@@ -14,7 +14,7 @@ Real-time multiplayer Minesweeper with two modes: **co-op** (everyone shares one
 app/                      Next.js App Router (client-side app; no server components, no API routes)
   page.tsx                "Home" — picks Landing, Grid or DailyChallenge; owns the top-level dialogs
   store.ts                Re-exports the store from state/ (keeps the @/app/store path)
-  layout.tsx              Metadata/SEO, fonts, global stylesheets, Footer
+  layout.tsx              Metadata/SEO, the pixel font, global stylesheets, SiteNav, toasts
   tokens.css              Design tokens: palette -> semantic colour, type scale, spacing, motion
   ds/                     Component catalog at /ds (noindex); dev surface, not a player page
     contrast.ts           WCAG maths + the audited pairs the catalog measures live
@@ -66,7 +66,11 @@ components/
     CustomBoardDialog.tsx   Hand-rolled dimensions, with the derived mine preview
     CustomBoardErrorDialog.tsx  Out-of-range dimensions
     NameDialog.tsx          "Enter your Name", shared by create and join
-  Footer.tsx              GitHub link, how-to-play and theme dialogs
+  SiteNav.tsx             The site header, the only navigation
+  Toasts.tsx              Achievement + invite toasts, their code fetched when one first shows
+  marketing/
+    ProsePage.tsx         Shell for the content pages (.ms-prose)
+    proseFont.ts          Inter, declared here so only prose routes preload it
 components/ds/            The design system. Import via its index barrel
   pixel.module.css        The two border treatments: notched (controls), boxed (regions)
   icons.tsx               16x16 sprites stored as editable character grids
@@ -80,10 +84,11 @@ shared/                   Imported by BOTH halves; viable because the whole repo
   socketPayloads.ts       Payload shapes; binds the CLIENT only (the server is CommonJS)
 lib/
   dialogs.ts              Every dialog id, plus openDialog/closeDialog
-  initSocket.ts           socket.io-client factory (URL from NEXT_PUBLIC_SOCKET_URL)
+  initSocket.ts           socket.io-client factory (game routes only)
+  serverUrl.ts            Backend URL (NEXT_PUBLIC_SOCKET_URL); import-free so REST clients skip socket.io
   session.ts              Per-tab session id (sessionStorage) used for reconnect
-  throttle.ts             throttle() + generateColorFromId() for hover colors
-  confetti.ts             canvas-confetti wrapper
+  throttle.ts             throttle(), which keeps hover emits off the wire
+  confetti.ts             canvas-confetti wrapper; the library is fetched on first use (prefetched)
   motion.ts               prefersReducedMotion() and the cascade banding
   theme.ts                Palettes, persistence, the no-flash script, cursor ramp
   holidays.ts             The seasonal schedule: which palette the DATE picks, if any
@@ -154,7 +159,7 @@ server/                   Separate npm package (own package.json, lockfile, node
 ### Component tree
 
 ```
-layout.tsx → tokens.css + globals.css → SpriteDefs + page.tsx + Footer + Analytics
+layout.tsx → tokens.css + globals.css → SpriteDefs + SiteNav + page.tsx + Toasts + Analytics
 page.tsx ──┬→ DailyChallenge (when dailyActive)   → Cell[][]
            ├→ Landing        (when !playerJoined)
            └→ Grid           (when playerJoined)  → Cell[][]
@@ -1328,7 +1333,7 @@ through both modes and compares, so the two can't drift apart again.
 | Redis key names | `server/data/keys.js` | — |
 | How a board is stored in Redis | `server/domain/boardCodec.js` (`encodeBoard` / `decodeBoard`) | — called only by `roomRepo` and `dailyRepo`; reads the pre-encoding JSON too |
 | CORS origins | `server/config.js` | — |
-| Backend URL | `lib/initSocket.ts` (`NEXT_PUBLIC_SOCKET_URL`) | — |
+| Backend URL | `lib/serverUrl.ts` (`NEXT_PUBLIC_SOCKET_URL`) | — |
 | Join-link query param | `lib/roomLink.ts` (`ROOM_QUERY_PARAM`, `buildJoinUrl`) | — |
 | Cell reveal (flood fill) | `domain/board.js` `revealFrom()` | each mode wraps it to react to a mine: co-op ends the room's game, PVP ends only that player's |
 | Neighbor enumeration | `domain/board.js` `getAdjacentCells()` | plus `solverUtils.js:10` (`getAdjacentCoords`) and inline loops in `gameUtils.js:56` and `:250` |
