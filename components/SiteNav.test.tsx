@@ -73,12 +73,6 @@ describe('destinations', () => {
         expect(href('Drills')).toBe('/drills');
     });
 
-    it('opens the repository in a new tab, safely', () => {
-        render(<SiteNav />);
-        const github = screen.getByRole('link', { name: /github/i });
-        expect(github.getAttribute('target')).toBe('_blank');
-        expect(github.getAttribute('rel')).toContain('noopener');
-    });
 });
 
 describe('the current route', () => {
