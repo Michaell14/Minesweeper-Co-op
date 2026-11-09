@@ -518,6 +518,271 @@ describe("guards", () => {
     });
 });
 
+describe("Space under the mouse", () => {
+    /**
+     * A cell at (r, c) under the mouse. jsdom has no hit testing, so
+     * elementFromPoint is stubbed to return the cell's inner hit area — the
+     * element a real hit lands on.
+     */
+    const hoverCell = (r: number, c: number) => {
+        const grid = document.createElement("div");
+        grid.setAttribute("role", "grid");
+        const cell = document.createElement("div");
+        cell.setAttribute("role", "gridcell");
+        cell.dataset.row = String(r);
+        cell.dataset.col = String(c);
+        const hitArea = document.createElement("div");
+        cell.appendChild(hitArea);
+        grid.appendChild(cell);
+        document.body.appendChild(grid);
+        document.elementFromPoint = vi.fn(() => hitArea);
+    };
+
+    /** jsdom has no PointerEvent; a MouseEvent carrying pointerType is all the hook reads. */
+    const pointerMove = (x: number, y: number, pointerType = "mouse") =>
+        act(() => {
+            const event = new MouseEvent("pointermove", { clientX: x, clientY: y, bubbles: true });
+            Object.defineProperty(event, "pointerType", { value: pointerType });
+            window.dispatchEvent(event);
+        });
+
+    /** `key`, returning the event so a test can ask whether the page would have scrolled. */
+    const press = (k: string, init: KeyboardEventInit = {}) => {
+        const event = new KeyboardEvent("keydown", { key: k, cancelable: true, ...init });
+        act(() => {
+            window.dispatchEvent(event);
+        });
+        return event;
+    };
+
+    afterEach(() => {
+        delete (document as { elementFromPoint?: unknown }).elementFromPoint;
+    });
+
+    test("flags the covered cell under the mouse, hit-tested where the mouse is", () => {
+        const a = actions();
+        render(<Probe {...a} />);
+        hoverCell(0, 2);
+        pointerMove(30, 40);
+
+        const event = press(" ");
+
+        expect(a.toggleFlag).toHaveBeenCalledWith(0, 2);
+        expect(a.openCell).not.toHaveBeenCalled();
+        expect(document.elementFromPoint).toHaveBeenCalledWith(30, 40);
+        expect(event.defaultPrevented).toBe(true); // and the page does not scroll
+    });
+
+    test("lifts a flag the same way", () => {
+        const a = actions();
+        const board = closedBoard();
+        board[1][1] = flagged();
+        render(<Probe {...a} />);
+        act(() => state().setBoard(board));
+        hoverCell(1, 1);
+        pointerMove(5, 5);
+
+        press(" ");
+
+        expect(a.toggleFlag).toHaveBeenCalledWith(1, 1);
+    });
+
+    test("chords a revealed number, and leaves it alone with chording off", () => {
+        const a = actions();
+        const board = closedBoard();
+        board[1][1] = open(2);
+        render(<Probe {...a} />);
+        act(() => state().setBoard(board));
+        hoverCell(1, 1);
+        pointerMove(5, 5);
+
+        press(" ");
+        expect(a.chordCell).toHaveBeenCalledWith(1, 1);
+        expect(a.toggleFlag).not.toHaveBeenCalled();
+
+        useMinesweeperStore.setState((s) => ({ settings: { ...s.settings, chording: false } }));
+        press(" ");
+        expect(a.chordCell).toHaveBeenCalledTimes(1);
+    });
+
+    test("an open blank does nothing, but Space still does not scroll the board away", () => {
+        const a = actions();
+        const board = closedBoard();
+        board[1][1] = open(0);
+        render(<Probe {...a} />);
+        act(() => state().setBoard(board));
+        hoverCell(1, 1);
+        pointerMove(5, 5);
+
+        const event = press(" ");
+
+        expect(a.chordCell).not.toHaveBeenCalled();
+        expect(a.toggleFlag).not.toHaveBeenCalled();
+        expect(event.defaultPrevented).toBe(true);
+    });
+
+    test("a held Space flags once instead of flickering the flag", () => {
+        const a = actions();
+        render(<Probe {...a} />);
+        hoverCell(0, 0);
+        pointerMove(5, 5);
+
+        press(" ");
+        press(" ", { repeat: true });
+        press(" ", { repeat: true });
+
+        expect(a.toggleFlag).toHaveBeenCalledTimes(1);
+    });
+
+    test("is its own setting: off here, and still on with keyboard controls off", () => {
+        const a = actions();
+        render(<Probe {...a} />);
+        hoverCell(0, 0);
+        pointerMove(5, 5);
+
+        useMinesweeperStore.setState((s) => ({ settings: { ...s.settings, spaceToFlag: false } }));
+        const off = press(" ");
+        expect(a.toggleFlag).not.toHaveBeenCalled();
+        expect(off.defaultPrevented).toBe(false);
+
+        useMinesweeperStore.setState((s) => ({ settings: { ...s.settings, spaceToFlag: true, keyboardControls: false } }));
+        press(" ");
+        expect(a.toggleFlag).toHaveBeenCalledWith(0, 0);
+    });
+
+    /* A keyboard player's mouse often rests on the board. */
+    test("the keyboard cursor keeps Space while the mouse stays put", () => {
+        const a = actions();
+        render(<Probe {...a} />);
+        hoverCell(0, 0);
+        pointerMove(5, 5);
+
+        key("ArrowRight");     // shows the cursor at the centre
+        pointerMove(5, 5);     // a move event to the same point is not a move
+        key(" ");
+
+        expect(a.openCell).toHaveBeenCalledWith(1, 1);
+        expect(a.toggleFlag).not.toHaveBeenCalled();
+    });
+
+    /* The reverse: a cursor left on the board must not reveal a cell the mouse is not on. */
+    test("moving the mouse takes Space back and retires the keyboard cursor", () => {
+        const a = actions();
+        render(<Probe {...a} />);
+        hoverCell(0, 0);
+        key("ArrowRight");
+        expect(state().kbCursor).toEqual({ r: 1, c: 1 });
+
+        pointerMove(5, 5);
+        key(" ");
+
+        expect(a.toggleFlag).toHaveBeenCalledWith(0, 0);
+        expect(a.openCell).not.toHaveBeenCalled();
+        expect(state().kbCursor).toBeNull();
+        expect(a.emitCellHover).toHaveBeenLastCalledWith(0, 0);
+    });
+
+    test("a button reached with Tab keeps Space, wherever the mouse rests", () => {
+        const a = actions();
+        render(<Probe {...a} />);
+        hoverCell(0, 0);
+        pointerMove(5, 5);
+        const button = document.createElement("button");
+        document.body.appendChild(button);
+        button.focus();
+
+        key("Tab");
+        const event = press(" ");
+
+        expect(a.toggleFlag).not.toHaveBeenCalled();
+        expect(event.defaultPrevented).toBe(false);
+        expect(document.activeElement).toBe(button);
+    });
+
+    /* Clicking Reset Board leaves it focused; Space on the board must not reset again. */
+    test("a button the mouse clicked earlier gives Space up once the mouse is on the board", () => {
+        const a = actions();
+        render(<Probe {...a} />);
+        const button = document.createElement("button");
+        document.body.appendChild(button);
+        button.focus();
+        hoverCell(0, 0);
+        pointerMove(5, 5);
+
+        const event = press(" ");
+
+        expect(a.toggleFlag).toHaveBeenCalledWith(0, 0);
+        expect(event.defaultPrevented).toBe(true);
+        expect(document.activeElement).not.toBe(button);
+    });
+
+    test("a touch is not a hover", () => {
+        const a = actions();
+        render(<Probe {...a} />);
+        hoverCell(0, 0);
+        pointerMove(5, 5, "touch");
+
+        press(" ");
+
+        expect(a.toggleFlag).not.toHaveBeenCalled();
+    });
+
+    test("the mouse leaving the window lets go of Space", () => {
+        const a = actions();
+        render(<Probe {...a} />);
+        hoverCell(0, 0);
+        pointerMove(5, 5);
+        act(() => {
+            window.dispatchEvent(new MouseEvent("pointerout", { relatedTarget: null, bubbles: true }));
+        });
+
+        press(" ");
+
+        expect(a.toggleFlag).not.toHaveBeenCalled();
+    });
+
+    test("off the board, Space is left to the page", () => {
+        const a = actions();
+        render(<Probe {...a} />);
+        pointerMove(5, 5);
+        document.elementFromPoint = vi.fn(() => document.body);
+
+        const event = press(" ");
+
+        expect(a.toggleFlag).not.toHaveBeenCalled();
+        expect(event.defaultPrevented).toBe(false);
+    });
+
+    test("waits for the race to start in PVP", () => {
+        const a = actions();
+        render(<Probe {...a} />);
+        act(() => state().setMode("pvp"));
+        hoverCell(0, 0);
+        pointerMove(5, 5);
+
+        press(" ");
+        expect(a.toggleFlag).not.toHaveBeenCalled();
+
+        act(() => state().setPvpStarted(true));
+        press(" ");
+        expect(a.toggleFlag).toHaveBeenCalledWith(0, 0);
+    });
+
+    test("a text field keeps its spaces", () => {
+        const a = actions();
+        render(<Probe {...a} />);
+        hoverCell(0, 0);
+        pointerMove(5, 5);
+        const input = document.createElement("input");
+        document.body.appendChild(input);
+        input.focus();
+
+        press(" ");
+
+        expect(a.toggleFlag).not.toHaveBeenCalled();
+    });
+});
+
 describe("teardown", () => {
     test("stops listening once the board view is gone", () => {
         const a = actions();

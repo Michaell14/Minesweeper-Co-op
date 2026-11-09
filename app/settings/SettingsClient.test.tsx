@@ -249,6 +249,7 @@ describe('the gameplay and HUD sections', () => {
         };
         expectSwitch('Swap mouse buttons', false);
         expectSwitch('Chording', true);
+        expectSwitch('Space to flag', true);
         expectSwitch('Start taps in flag mode', false);
         expectSwitch('Confetti', true);
         expectSwitch('Share your cursor', true);
@@ -271,6 +272,13 @@ describe('the gameplay and HUD sections', () => {
         fireEvent.click(screen.getByRole('switch', { name: 'Show reactions' }));
         expect(useMinesweeperStore.getState().settings.emotes).toBe(false);
         expect(localStorage.getItem('minesweeper_settings')).toContain('"emotes":false');
+    });
+
+    it('Space to flag can be switched off, and it persists', () => {
+        render(<SettingsClient />);
+        fireEvent.click(screen.getByRole('switch', { name: 'Space to flag' }));
+        expect(useMinesweeperStore.getState().settings.spaceToFlag).toBe(false);
+        expect(localStorage.getItem('minesweeper_settings')).toContain('"spaceToFlag":false');
     });
 
     it('keyboard controls can be switched off, and it persists', () => {

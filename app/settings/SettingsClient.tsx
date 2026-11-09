@@ -72,6 +72,11 @@ export default function SettingsClient() {
                         description="Both buttons, middle click, or a right click on a number opens its unflagged neighbours."
                     />
                     <SettingRow
+                        settingKey="spaceToFlag"
+                        name="Space to flag"
+                        description="With the mouse over a covered cell, Space flags or unflags it. Over a number, Space chords."
+                    />
+                    <SettingRow
                         settingKey="mobileDefaultFlag"
                         name="Start taps in flag mode"
                         description="On touch screens, tapping flags by default instead of opening."

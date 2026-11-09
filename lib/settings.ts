@@ -43,6 +43,8 @@ export interface Settings {
     mobileDefaultFlag: boolean;
     /** Both-buttons / middle-click / right-click-a-number chording. */
     chording: boolean;
+    /** Space flags the covered cell under the mouse, or chords the number under it. */
+    spaceToFlag: boolean;
     /** Win celebration bursts (composed with prefers-reduced-motion). */
     confetti: boolean;
     /** Broadcast your cursor position to the co-op room. Privacy setting. */
@@ -79,6 +81,7 @@ export const DEFAULT_SETTINGS: Settings = {
     swapMouseButtons: false,
     mobileDefaultFlag: false,
     chording: true,
+    spaceToFlag: true,
     confetti: true,
     shareCursor: true,
     emotes: true,
@@ -120,6 +123,7 @@ const SANITISERS: { [K in SettingKey]: (value: unknown) => Settings[K] | undefin
     swapMouseButtons: boolean,
     mobileDefaultFlag: boolean,
     chording: boolean,
+    spaceToFlag: boolean,
     confetti: boolean,
     shareCursor: boolean,
     emotes: boolean,

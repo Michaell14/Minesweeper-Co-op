@@ -325,6 +325,7 @@ describe("the gameplay and HUD settings", () => {
             swapMouseButtons: false,
             mobileDefaultFlag: false,
             chording: true,
+            spaceToFlag: true,
             confetti: true,
             shareCursor: true,
             keyboardControls: true,
@@ -357,6 +358,11 @@ describe("the gameplay and HUD settings", () => {
         expect(sanitizeSettings({ keyboardControls: false }).keyboardControls).toBe(false);
         expect(sanitizeSettings({ keyboardControls: "yes" }).keyboardControls).toBe(true);
         expect(sanitizeSettings({ keyboardControls: 1 }).keyboardControls).toBe(true);
+    });
+
+    it("Space to flag: off survives, junk defaults on", () => {
+        expect(sanitizeSettings({ spaceToFlag: false }).spaceToFlag).toBe(false);
+        expect(sanitizeSettings({ spaceToFlag: "false" }).spaceToFlag).toBe(true);
     });
 
     it("accepts each cell size and defaults an unknown one", () => {
