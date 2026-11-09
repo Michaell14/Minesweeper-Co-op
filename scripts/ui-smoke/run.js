@@ -1215,7 +1215,8 @@ async function joinLink(host, guest) {
 
 /**
  * Keyboard play: arrows move the cursor, Space reveals, F flags, Escape
- * dismisses. Same emits as the mouse, so this only proves the keys reach them.
+ * dismisses; then Space under the mouse flags and unflags. Same emits as the
+ * mouse, so this only proves the keys reach them.
  */
 async function keyboardPlay(page) {
     console.log('\n\x1b[1m--- KEYBOARD PLAY ---\x1b[0m');
@@ -1267,6 +1268,30 @@ async function keyboardPlay(page) {
     await page.key('Escape', { code: 'Escape', keyCode: 27 });
     await page.waitFor(`!document.querySelector('[data-kb-cursor]')`, { label: 'Escape hides the cursor' });
     pass('Escape hides the cursor');
+
+    /*
+     * Space under the mouse flags, where the cursor's Space reveals. Only a
+     * real browser hit-tests, so only here does the key prove it lands on the
+     * cell the pointer is over rather than on an overlay above it.
+     */
+    const target = JSON.parse(await page.evaluate(`
+        const cell = [...document.querySelectorAll('[role=grid] [role=gridcell]')]
+            .find(c => (c.getAttribute('aria-label') || '').startsWith('Unrevealed'));
+        if (!cell) return JSON.stringify(null);
+        cell.scrollIntoView({ block: 'center', inline: 'center' });
+        const r = cell.getBoundingClientRect();
+        return JSON.stringify({ row: cell.dataset.row, col: cell.dataset.col, x: r.left + r.width / 2, y: r.top + r.height / 2 });
+    `));
+    if (!target) return fail('a covered cell is left to hover', 'every cell is open or flagged');
+    const targetLabel = `(document.querySelector('[role=grid] [data-row="${target.row}"][data-col="${target.col}"]')`
+        + `.getAttribute('aria-label') || '')`;
+    await page.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: target.x, y: target.y });
+    await page.key(' ', { code: 'Space', keyCode: 32 });
+    await page.waitFor(`${targetLabel}.startsWith('Flagged')`, { label: 'Space flags the cell under the mouse' });
+    pass('Space flags the covered cell under the mouse');
+    await page.key(' ', { code: 'Space', keyCode: 32 });
+    await page.waitFor(`${targetLabel}.startsWith('Unrevealed')`, { label: 'Space again lifts the flag' });
+    pass('Space again lifts the flag');
 }
 
 /**

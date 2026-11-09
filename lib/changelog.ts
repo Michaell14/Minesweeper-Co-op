@@ -18,6 +18,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
     {
+        id: 'space-to-flag',
+        date: '2026-11-09',
+        tag: 'New',
+        title: 'Flag and chord with Space',
+        bullets: [
+            'Rest the mouse on a covered cell and press Space to flag it, or press it again to lift the flag.',
+            'Space over a number chords it, the same as pressing both buttons.',
+            'Prefer clicking? Switch off Space to flag under Gameplay in Settings.',
+        ],
+    },
+    {
         id: 'halloween-2026',
         date: '2026-10-21',
         tag: 'New',

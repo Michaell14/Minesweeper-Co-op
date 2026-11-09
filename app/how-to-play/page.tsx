@@ -117,6 +117,11 @@ export default function HowToPlayPage() {
                         one motion instead of five.
                     </p>
                     <p className="mt-3">
+                        Space does the same with one key: rest the mouse on a number and press it.
+                        On a covered cell, Space places or lifts a flag instead, so you can flag and
+                        chord without clicking at all. It can be switched off in Settings.
+                    </p>
+                    <p className="mt-3">
                         This is where nearly all of the difference between a slow time and a fast one
                         lives. It is also the reason flags are worth placing even though the win
                         condition ignores them: flags are what make chording possible.

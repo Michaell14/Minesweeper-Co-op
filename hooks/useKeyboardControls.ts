@@ -41,15 +41,47 @@ const isCheckbox = (el: Element | null | undefined): boolean =>
     el instanceof HTMLInputElement && el.type === "checkbox";
 
 /**
+ * The board cell at a viewport point, by the `data-row`/`data-col` the ping
+ * interception also reads. Hit-tested at the keypress rather than remembered
+ * from mouseenter, so a scroll under a still mouse cannot leave it naming the
+ * wrong cell. The board's overlays are `pointer-events: none`, so the hit
+ * lands on the cell.
+ */
+const cellAtPoint = (x: number, y: number): { r: number; c: number } | null => {
+    // Optional call: jsdom has no hit testing.
+    const hit = document.elementFromPoint?.(x, y);
+    const cell = hit?.closest('[role="grid"] [role="gridcell"]');
+    if (!(cell instanceof HTMLElement)) return null;
+    const r = Number(cell.dataset.row);
+    const c = Number(cell.dataset.col);
+    return Number.isInteger(r) && Number.isInteger(c) ? { r, c } : null;
+};
+
+/**
  * Keyboard play: arrows/WASD move a cursor, Space/Enter reveals (or chords an
- * open number), F flags, Escape hides the cursor. Mounted beside useChording
- * by Grid and DailyChallenge with each mode's own callbacks. State is read via
- * getState() at event time so a keystroke costs no render; the cursor lives in
- * inputSlice and KeyboardCursor renders it.
+ * open number), F flags, Escape hides the cursor. With the mouse, Space flags
+ * the covered cell under it or chords the number under it. Mounted beside
+ * useChording by Grid and DailyChallenge with each mode's own callbacks. State
+ * is read via getState() at event time so a keystroke costs no render; the
+ * cursor lives in inputSlice and KeyboardCursor renders it.
  */
 export function useKeyboardControls({ openCell, toggleFlag, chordCell, emitCellHover, pingCell }: KeyboardActions): void {
     useEffect(() => {
+        /*
+         * Space has two owners: the keyboard cursor (reveal) and the mouse
+         * (flag or chord what it points at). Whichever moved last holds it, so
+         * a keyboard player whose mouse rests on the board keeps Space, and a
+         * mouse player never reveals a cell they are not pointing at. Only a
+         * move that changes the position counts, so a still mouse never takes
+         * Space from the keyboard.
+         */
+        const mouse = { x: NaN, y: NaN, ownsSpace: false };
+
         const onKeyDown = (event: KeyboardEvent) => {
+            const key = event.key.toLowerCase();
+            // Navigating by keyboard, anywhere on the page, hands Space back.
+            if (key === "tab" || MOVES[key]) mouse.ownsSpace = false;
+
             const state = useMinesweeperStore.getState();
             if (event.defaultPrevented) return;
             // Shift changes no binding here.
@@ -62,7 +94,6 @@ export function useKeyboardControls({ openCell, toggleFlag, chordCell, emitCellH
             const gridFocused = document.activeElement?.matches('[role="grid"]');
             const activatableFocus = gridFocused ? null : editableFocus ?? document.activeElement?.closest(ACTIVATABLE);
 
-            const key = event.key.toLowerCase();
             const { board, kbCursor } = state;
 
             if (key === "escape") {
@@ -74,6 +105,34 @@ export function useKeyboardControls({ openCell, toggleFlag, chordCell, emitCellH
                     emitCellHover(-1, -1);
                 }
                 return;
+            }
+
+            /*
+             * Space under the mouse. Its own setting, so it works with
+             * keyboard controls off. Off the board it falls through to the
+             * keyboard cursor, a focused button or the page scroll.
+             */
+            if (key === " " && mouse.ownsSpace && state.settings.spaceToFlag) {
+                const target = cellAtPoint(mouse.x, mouse.y);
+                const cell = target && board[target.r]?.[target.c];
+                if (target && cell) {
+                    event.preventDefault();
+                    // A button the mouse clicked earlier keeps focus; Space must not press it again.
+                    if (activatableFocus instanceof HTMLElement) activatableFocus.blur();
+                    if (event.repeat) return;
+                    // The mouse is playing now, like a click on the board; the shared hover follows it.
+                    if (kbCursor !== null) {
+                        state.setKbCursor(null);
+                        emitCellHover(target.r, target.c);
+                    }
+                    if (state.mode === "pvp" && !state.pvpStarted) return;
+                    if (!cell.isOpen) {
+                        toggleFlag(target.r, target.c);
+                    } else if (cell.nearbyMines > 0 && state.settings.chording) {
+                        chordCell(target.r, target.c);
+                    }
+                    return;
+                }
             }
 
             if (!state.settings.keyboardControls) return;
@@ -158,11 +217,29 @@ export function useKeyboardControls({ openCell, toggleFlag, chordCell, emitCellH
             }
         };
 
+        const onPointerMove = (event: PointerEvent) => {
+            // A finger has already lifted by the time a key could follow it.
+            if (event.pointerType !== "mouse") return;
+            if (event.clientX === mouse.x && event.clientY === mouse.y) return;
+            mouse.x = event.clientX;
+            mouse.y = event.clientY;
+            mouse.ownsSpace = true;
+        };
+
+        // Out of the window, the last position names a cell nobody is pointing at.
+        const onPointerOut = (event: PointerEvent) => {
+            if (event.relatedTarget === null) mouse.ownsSpace = false;
+        };
+
         window.addEventListener("keydown", onKeyDown);
         window.addEventListener("mousedown", onMouseDown);
+        window.addEventListener("pointermove", onPointerMove);
+        window.addEventListener("pointerout", onPointerOut);
         return () => {
             window.removeEventListener("keydown", onKeyDown);
             window.removeEventListener("mousedown", onMouseDown);
+            window.removeEventListener("pointermove", onPointerMove);
+            window.removeEventListener("pointerout", onPointerOut);
         };
     }, [openCell, toggleFlag, chordCell, emitCellHover, pingCell]);
 }
