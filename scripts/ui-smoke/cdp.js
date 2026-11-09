@@ -77,8 +77,30 @@ function findChrome() {
     return found;
 }
 
-async function launchChrome() {
-    const binary = findChrome();
+/*
+ * Chrome on a cold CI runner now and then never opens its debugging port, and
+ * one such launch turned `main` red before a single check ran. So a launch gets
+ * a bounded wait, and one that hangs or dies is killed and started afresh. Each
+ * retry is logged, so a flaky runner stays visible rather than papered over.
+ */
+const LAUNCH_ATTEMPTS = 3;
+const LAUNCH_WAIT_MS = 15_000;
+/** Chrome's own stderr, kept for the final error: the only clue to why it never came up. */
+const STDERR_LINES = 20;
+
+/** Ends a failed launch and waits for it, so the next one can take the port and the profile. */
+async function stopChrome(proc) {
+    if (proc.pid === undefined || proc.exitCode !== null || proc.signalCode !== null) return;
+    const exited = new Promise((resolve) => proc.once('exit', resolve));
+    proc.kill();
+    // A hung browser can sit on SIGTERM, and the retry needs it gone.
+    if (await Promise.race([exited.then(() => true), sleep(2000).then(() => false)])) return;
+    proc.kill('SIGKILL');
+    await exited;
+}
+
+/** One launch: the process once its debugging port answers, or why it did not. */
+async function launchOnce(binary) {
     const ciFlags = process.env.CI ? ['--no-sandbox', '--disable-dev-shm-usage'] : [];
     const proc = spawn(binary, [
         '--headless=new',
@@ -90,17 +112,45 @@ async function launchChrome() {
         '--window-size=1440,900',
         ...ciFlags,
         'about:blank',
-    ], { stdio: 'ignore' });
+    ], { stdio: ['ignore', 'ignore', 'pipe'] });
 
-    for (let i = 0; i < 60; i++) {
+    // Drained for the whole run, not just the launch: a full pipe would stall Chrome.
+    const stderr = [];
+    proc.stderr.on('data', (chunk) => {
+        stderr.push(...String(chunk).split('\n').filter(Boolean));
+        if (stderr.length > STDERR_LINES) stderr.splice(0, stderr.length - STDERR_LINES);
+    });
+
+    let ended = null;
+    proc.once('exit', (code, signal) => { ended = `exited (${signal ?? code})`; });
+    proc.once('error', (error) => { ended = `could not start (${error.message})`; });
+
+    const deadline = Date.now() + LAUNCH_WAIT_MS;
+    while (!ended && Date.now() < deadline) {
         await sleep(250);
         try {
             const r = await fetch(`http://127.0.0.1:${PORT}/json/version`);
-            if (r.ok) return proc;
+            if (r.ok) return { proc };
         } catch { /* not up yet */ }
     }
-    proc.kill();
-    throw new Error(`Chrome never exposed its debugging port on ${PORT}`);
+    // Read before stopping it, or our own kill is reported as the reason.
+    const reason = ended ?? `no debugging port after ${LAUNCH_WAIT_MS / 1000}s`;
+    await stopChrome(proc);
+    return { reason, stderr };
+}
+
+async function launchChrome() {
+    const binary = findChrome();
+    let last;
+    for (let attempt = 1; attempt <= LAUNCH_ATTEMPTS; attempt++) {
+        last = await launchOnce(binary);
+        if (last.proc) return last.proc;
+        console.warn(`Chrome launch ${attempt} of ${LAUNCH_ATTEMPTS} failed: ${last.reason}`);
+    }
+    throw new Error(
+        `Chrome never exposed its debugging port on ${PORT} in ${LAUNCH_ATTEMPTS} launches. ` +
+        `Its last stderr:\n  ${last.stderr.join('\n  ') || '(nothing)'}`,
+    );
 }
 
 /** Opens a fresh tab and returns its target descriptor. */
