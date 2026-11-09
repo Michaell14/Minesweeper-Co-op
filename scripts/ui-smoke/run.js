@@ -1292,6 +1292,42 @@ async function keyboardPlay(page) {
     await page.key(' ', { code: 'Space', keyCode: 32 });
     await page.waitFor(`${targetLabel}.startsWith('Unrevealed')`, { label: 'Space again lifts the flag' });
     pass('Space again lifts the flag');
+
+    /*
+     * A miss: Space in the gap between two cells, about an eighth of the
+     * board, used to scroll the page. Read as the keydown's defaultPrevented,
+     * which holds whether or not this page happens to be tall enough to scroll.
+     */
+    const gap = JSON.parse(await page.evaluate(`
+        const cellAt = (r, c) => document.querySelector('[role=grid] [data-row="' + r + '"][data-col="' + c + '"]');
+        cellAt(0, 0).scrollIntoView({ block: 'center', inline: 'center' });
+        const a = cellAt(0, 0).getBoundingClientRect();
+        const b = cellAt(0, 1).getBoundingClientRect();
+        const x = Math.round((a.right + b.left) / 2);
+        const y = Math.round((a.top + a.bottom) / 2);
+        const hit = document.elementFromPoint(x, y);
+        window.__smokeSpacePrevented = null;
+        window.addEventListener('keydown', (e) => { if (e.key === ' ') window.__smokeSpacePrevented = e.defaultPrevented; });
+        return JSON.stringify({
+            x, y,
+            inGap: !!hit && !hit.closest('[role=gridcell]') && !!hit.closest('[role=grid]'),
+            labels: [cellAt(0, 0).getAttribute('aria-label'), cellAt(0, 1).getAttribute('aria-label')],
+        });
+    `));
+    if (!gap.inGap) return fail('a point between two cells hit-tests as a gap', `(${gap.x}, ${gap.y}) is not between cells`);
+    await page.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: gap.x, y: gap.y });
+    await page.key(' ', { code: 'Space', keyCode: 32 });
+    const missed = JSON.parse(await page.evaluate(`
+        const cellAt = (r, c) => document.querySelector('[role=grid] [data-row="' + r + '"][data-col="' + c + '"]');
+        return JSON.stringify({
+            prevented: window.__smokeSpacePrevented,
+            labels: [cellAt(0, 0).getAttribute('aria-label'), cellAt(0, 1).getAttribute('aria-label')],
+        });
+    `));
+    check(missed.prevented === true, 'Space in the gap between cells does not scroll the page',
+        `the keydown's defaultPrevented was ${missed.prevented}`);
+    check(JSON.stringify(missed.labels) === JSON.stringify(gap.labels), '...and acts on neither neighbour',
+        `before ${JSON.stringify(gap.labels)}, after ${JSON.stringify(missed.labels)}`);
 }
 
 /**

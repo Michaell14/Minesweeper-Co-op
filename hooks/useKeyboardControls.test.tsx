@@ -741,16 +741,71 @@ describe("Space under the mouse", () => {
         expect(a.toggleFlag).not.toHaveBeenCalled();
     });
 
-    test("off the board, Space is left to the page", () => {
-        const a = actions();
-        render(<Probe {...a} />);
-        pointerMove(5, 5);
-        document.elementFromPoint = vi.fn(() => document.body);
+    /*
+     * A miss is the reported bug: about an eighth of the board is the gap
+     * between cells, and Space there used to scroll the board away.
+     */
+    describe("a press that misses every cell", () => {
+        /** Where the hit lands instead: a row (the gap between two cells), or off the board. */
+        const missOnto = (where: "gap" | "page") => {
+            const grid = document.createElement("div");
+            grid.setAttribute("role", "grid");
+            const row = document.createElement("div");
+            row.setAttribute("role", "row");
+            grid.appendChild(row);
+            document.body.appendChild(grid);
+            document.elementFromPoint = vi.fn(() => (where === "gap" ? row : document.body));
+        };
 
-        const event = press(" ");
+        test.each(["gap", "page"] as const)("onto the %s does nothing and does not scroll", (where) => {
+            const a = actions();
+            render(<Probe {...a} />);
+            missOnto(where);
+            pointerMove(5, 5);
 
-        expect(a.toggleFlag).not.toHaveBeenCalled();
-        expect(event.defaultPrevented).toBe(false);
+            const event = press(" ");
+
+            expect(event.defaultPrevented).toBe(true);
+            expect(a.toggleFlag).not.toHaveBeenCalled();
+            expect(a.chordCell).not.toHaveBeenCalled();
+        });
+
+        test("does not reveal under a keyboard cursor left on the board", () => {
+            const a = actions();
+            render(<Probe {...a} />);
+            key("ArrowRight");     // the cursor shows at (1,1)
+            missOnto("page");
+            pointerMove(5, 5);
+
+            press(" ");
+
+            expect(a.openCell).not.toHaveBeenCalled();
+            expect(state().kbCursor).toEqual({ r: 1, c: 1 });
+        });
+
+        test("does not press a button the mouse clicked earlier", () => {
+            const a = actions();
+            render(<Probe {...a} />);
+            const button = document.createElement("button");
+            document.body.appendChild(button);
+            button.focus();
+            missOnto("page");
+            pointerMove(5, 5);
+
+            const event = press(" ");
+
+            expect(event.defaultPrevented).toBe(true);
+            expect(document.activeElement).not.toBe(button);
+        });
+
+        test("is the page's again once there is no board to play", () => {
+            render(<Probe {...actions()} />);
+            act(() => state().setBoard([]));
+            missOnto("page");
+            pointerMove(5, 5);
+
+            expect(press(" ").defaultPrevented).toBe(false);
+        });
     });
 
     test("waits for the race to start in PVP", () => {
