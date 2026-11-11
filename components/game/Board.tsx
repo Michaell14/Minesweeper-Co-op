@@ -141,6 +141,9 @@ export default function Board({ toggleFlag, openCell, chordCell, emitCellHover, 
                 ...(reserve === null ? {} : { '--ms-board-reserve': `${reserve}px` }),
             } as React.CSSProperties}
             onMouseLeave={handleBoardLeave}
+            /* The gaps between cells are the board, not a cell, so a right
+               click that lands in one would open the browser menu mid-game. */
+            onContextMenu={(e) => e.preventDefault()}
             onMouseDownCapture={onPointerCapture}
             onMouseUpCapture={swallowIfPinging}
             onClickCapture={swallowIfPinging}

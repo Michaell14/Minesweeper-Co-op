@@ -33,6 +33,8 @@ export default function DrillBoard({ layout, marks, hintAt, onOpen, onFlag }: Dr
                otherwise, which sizes a 2-row drill far below what fits. */
             style={{ '--board-cols': cols, '--board-rows': rows } as React.CSSProperties}
             role="grid"
+            /* Right clicks in the gaps between cells must not open the browser menu. */
+            onContextMenu={(e) => e.preventDefault()}
         >
             {layout.map((row, r) => (
                 <div key={r} className={styles.gameRow} role="row">
