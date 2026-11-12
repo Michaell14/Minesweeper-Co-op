@@ -6,6 +6,7 @@ import {
     Badge,
     Button,
     CalendarIcon,
+    CoffeeIcon,
     CoinIcon,
     Emote,
     Field,
@@ -435,6 +436,7 @@ export default function DsCatalogClient() {
                     <TrophyIcon size={64} />
                     <CalendarIcon size={48} />
                     <SwordsIcon size={48} />
+                    <CoffeeIcon size={48} />
                     {/* The footer's two account states: signed out, signed in. */}
                     <UserIcon size={48} />
                     <UserSignedInIcon size={48} />

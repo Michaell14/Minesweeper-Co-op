@@ -7,6 +7,7 @@ import { DIALOGS, openDialog } from '@/lib/dialogs';
 import ThemeCards from '@/components/ThemeCards';
 import SpriteSetCards from '@/components/SpriteSetCards';
 import ThemeStudio from '@/components/ThemeStudio';
+import SupportLink from '@/components/SupportLink';
 import SettingRow from './SettingRow';
 import { useMinesweeperStore } from '@/app/store';
 import { CELL_SIZES, type CellSize } from '@/lib/settings';
@@ -232,6 +233,10 @@ export default function SettingsClient() {
                         <GithubIcon size={20} />
                         View the source on GitHub
                     </a>
+                    <p className="text-pixel-sm mt-6">
+                        Enjoying the game? You can support its development.
+                    </p>
+                    <SupportLink className="mt-4 text-pixel-sm" />
                 </Panel>
             </section>
         </main>

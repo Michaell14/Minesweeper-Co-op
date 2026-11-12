@@ -6,3 +6,6 @@ export const SITE_URL = "https://www.minesweepercoop.com";
 
 /** The share card. 1200x630, generated from the design system's own tokens. */
 export const OG_IMAGE = `${SITE_URL}/og.png`;
+
+/** The tip jar. One constant so every "Buy me a coffee" link moves together. */
+export const SUPPORT_URL = "https://buymeacoffee.com/limich19";

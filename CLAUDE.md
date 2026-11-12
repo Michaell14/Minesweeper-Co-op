@@ -95,6 +95,7 @@ Backend deps install separately: `npm --prefix server install`.
 | Socket event names | `shared/events.js` — imported by both halves |
 | Socket payload types | `shared/socketPayloads.ts` — keyed by the event VALUE (`'gameClock'`), not its constant name |
 | Post-deploy check | `scripts/verify-deploy/` — `npm run verify:deploy` |
+| Tip jar ("Buy me a coffee") | `SUPPORT_URL` in `lib/site.ts`; the one link is `components/SupportLink.tsx`, shown in the /settings About section and in `GameSummary` when its dialog passes `won` |
 | Client test setup (jsdom, DOM cleanup) | `vitest.config.ts`, `test/setup.ts` |
 | Motion / reduced motion | `--ms-duration-*` in `app/tokens.css`; `lib/motion.ts` for the JS path |
 | Add a friend from a game | `server/controllers/roomFriendController.js` — the client names a co-player by SOCKET id and the server resolves the account, after checking BOTH sockets are in the room; account ids NEVER go on the wire. Guests, blocks and departed sockets are filtered server-side. Client `components/game/AddFriendsFromGame.tsx`, inside `GameSummary` |

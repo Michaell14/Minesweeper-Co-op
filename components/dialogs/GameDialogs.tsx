@@ -72,7 +72,7 @@ export default function GameDialogs({ resetGame, resetMyBoard, pvpRematch, addRo
                 {!gameWon && (
                     <p>{relaxed ? 'Your team uncovered three mines. Try another board together.' : <><span className="underline decoration-2">{gameOverName}</span> hit a bomb.</>}</p>
                 )}
-                <GameSummary {...summaryProps} />
+                <GameSummary {...summaryProps} won={gameWon} />
             </Dialog>
 
             {/* Both room errors carry a way out; a bare title over "Cancel" was
@@ -159,7 +159,7 @@ export default function GameDialogs({ resetGame, resetMyBoard, pvpRematch, addRo
                 actionsAlign="between"
                 actions={raceActions}>
                 <p>You completed your board first. You win!</p>
-                <GameSummary {...summaryProps} />
+                <GameSummary {...summaryProps} won />
                 {rematchHint}
             </Dialog>
 

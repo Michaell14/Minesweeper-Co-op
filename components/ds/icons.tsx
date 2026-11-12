@@ -283,6 +283,36 @@ const SWORDS = {
     ],
 } as const;
 
+/**
+ * A steaming mug for the tip-jar link. Outline in the surrounding ink and the
+ * fill in a token, because it sits in running text on every palette.
+ */
+const COFFEE = {
+    palette: {
+        "#": "currentColor",
+        "w": "var(--ms-intent-warning)",
+    },
+    rows: [
+        "                ",
+        "    #  #  #     ",
+        "     #  #  #    ",
+        "    #  #  #     ",
+        "                ",
+        " ###########    ",
+        " #wwwwwwwww###  ",
+        " #wwwwwwwww#  # ",
+        " #wwwwwwwww#  # ",
+        " #wwwwwwwww###  ",
+        " #wwwwwwwww#    ",
+        "  #wwwwwww#     ",
+        "  #wwwwwww#     ",
+        "   #######      ",
+        " ###########    ",
+        "                ",
+    ],
+} as const;
+
 export const CalendarIcon = (props: PixelIconProps) => <PixelIcon art={CALENDAR} {...props} />;
+export const CoffeeIcon = (props: PixelIconProps) => <PixelIcon art={COFFEE} {...props} />;
 export const SwordsIcon = (props: PixelIconProps) => <PixelIcon art={SWORDS} {...props} />;
 export const PingIcon = (props: PixelIconProps) => <PixelIcon art={PING} {...props} />;
