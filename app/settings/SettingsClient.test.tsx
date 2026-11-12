@@ -329,4 +329,13 @@ describe('the about section', () => {
         expect(github.getAttribute('target')).toBe('_blank');
         expect(github.getAttribute('rel')).toContain('noopener');
     });
+
+    it('links the tip jar in a new tab, safely', () => {
+        render(<SettingsClient />);
+        const section = within(screen.getByRole('region', { name: 'About' }));
+        const coffee = section.getByRole('link', { name: /buy me a coffee/i });
+        expect(coffee.getAttribute('href')).toBe('https://buymeacoffee.com/limich19');
+        expect(coffee.getAttribute('target')).toBe('_blank');
+        expect(coffee.getAttribute('rel')).toContain('noopener');
+    });
 });

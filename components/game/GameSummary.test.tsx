@@ -14,6 +14,7 @@ vi.mock("next-auth/react", () => ({ useSession: () => ({ status: mockStatus() })
 const summaryProps = { addRoomFriend: vi.fn() };
 import { DEFAULT_PRESET } from "@/shared/boardConfig";
 import type { Cell } from "@/shared/socketPayloads";
+import { SUPPORT_URL } from "@/lib/site";
 import GameSummary from "./GameSummary";
 
 /**
@@ -145,6 +146,29 @@ describe("co-op", () => {
 
         expect(screen.getByRole("table", { name: /leaderboard/i })).toBeDefined();
         expect(screen.getByText("Alice")).toBeDefined();
+    });
+});
+
+/*
+ * The tip jar. It leaves the site, so it must open a new tab — a same-tab
+ * navigation would drop the player out of a live room.
+ */
+describe("the support link", () => {
+    test("is offered after a clear, in a new tab", () => {
+        arrange({ opened: SAFE_CELLS });
+        render(<GameSummary {...summaryProps} won />);
+
+        const link = screen.getByRole("link", { name: /buy me a coffee/i });
+        expect(link.getAttribute("href")).toBe(SUPPORT_URL);
+        expect(link.getAttribute("target")).toBe("_blank");
+        expect(link.getAttribute("rel")).toContain("noopener");
+    });
+
+    test("stays out of a loss", () => {
+        arrange({ opened: 33 });
+        render(<GameSummary {...summaryProps} />);
+
+        expect(screen.queryByRole("link", { name: /buy me a coffee/i })).toBeNull();
     });
 });
 

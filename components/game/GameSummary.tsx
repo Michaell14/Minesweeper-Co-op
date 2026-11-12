@@ -5,6 +5,7 @@ import { useGameStats } from '@/hooks/useGameStats';
 import { elapsedSeconds, formatClock } from '@/lib/gameClock';
 import BestTimeNote from '@/components/game/BestTimeNote';
 import AddFriendsFromGame from '@/components/game/AddFriendsFromGame';
+import SupportLink from '@/components/SupportLink';
 
 /** One number and its caption. */
 function Stat({ label, value }: { label: string; value: string }) {
@@ -18,6 +19,11 @@ function Stat({ label, value }: { label: string; value: string }) {
 
 export interface GameSummaryProps {
     addRoomFriend: (playerId: string) => void;
+    /**
+     * Whether the viewer cleared their board. Passed by the dialog, which
+     * already knows the outcome, rather than re-derived from state here.
+     */
+    won?: boolean;
 }
 
 /**
@@ -25,7 +31,7 @@ export interface GameSummaryProps {
  * ends on the scoreboard; PVP is a race, where the only number that settles
  * anything is how far each player got.
  */
-export default function GameSummary({ addRoomFriend }: GameSummaryProps) {
+export default function GameSummary({ addRoomFriend, won = false }: GameSummaryProps) {
     const relaxed = useMinesweeperStore((state) => state.relaxed);
     const lives = useMinesweeperStore((state) => state.livesRemaining);
     const mode = useMinesweeperStore((state) => state.mode);
@@ -69,6 +75,13 @@ export default function GameSummary({ addRoomFriend }: GameSummaryProps) {
 
             {/* Both modes: a quick match pairs strangers, the case this exists for. */}
             <AddFriendsFromGame addRoomFriend={addRoomFriend} />
+
+            {/* Only after a clear: asking for a tip over a loss reads badly. */}
+            {won && (
+                <p className="text-center m-0">
+                    <SupportLink className="text-pixel-xs text-ink-muted" iconSize={16} />
+                </p>
+            )}
         </div>
     );
 }

@@ -5,7 +5,9 @@ import { useMinesweeperStore } from '@/app/store';
 import { DIALOGS } from '@/lib/dialogs';
 import GameDialogs from './GameDialogs';
 
-vi.mock('@/components/game/GameSummary', () => ({ default: () => <div>Summary</div> }));
+vi.mock('@/components/game/GameSummary', () => ({
+    default: ({ won = false }: { won?: boolean }) => <div data-testid="summary" data-won={String(won)}>Summary</div>,
+}));
 
 beforeEach(() => {
     useMinesweeperStore.setState(useMinesweeperStore.getInitialState(), true);
@@ -78,4 +80,21 @@ test('a surviving guest is directed to a new race when the host has left', () =>
     const result = dialog(DIALOGS.pvpOpponentDisconnected);
     expect(result.queryByRole('button', { name: 'Rematch' })).toBeNull();
     expect(result.getByRole('status').textContent).toContain('create a new race');
+});
+
+/* `won` is what puts the support link in a summary, so a loss must not carry it. */
+test('only a clear tells the summary the player won', () => {
+    useMinesweeperStore.setState({ gameWon: true });
+    renderDialogs();
+    const wonIn = (id: string) => dialog(id).getByTestId('summary').dataset.won;
+    expect(wonIn(DIALOGS.gameSummary)).toBe('true');
+    expect(wonIn(DIALOGS.pvpYouWon)).toBe('true');
+    expect(wonIn(DIALOGS.pvpOpponentWon)).toBe('false');
+    expect(wonIn(DIALOGS.pvpOpponentDisconnected)).toBe('false');
+});
+
+test('a lost co-op run does not tell the summary the player won', () => {
+    useMinesweeperStore.setState({ gameWon: false });
+    renderDialogs();
+    expect(dialog(DIALOGS.gameSummary).getByTestId('summary').dataset.won).toBe('false');
 });
