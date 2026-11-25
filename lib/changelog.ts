@@ -18,6 +18,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
     {
+        id: 'happy-holidays-2026',
+        date: '2026-11-25',
+        tag: 'New',
+        title: 'Happy holidays!',
+        bullets: [
+            'Thank you to everyone who plays here. We hope your holidays are warm and happy. Shoutout Allen.',
+        ],
+    },
+    {
         id: 'space-to-flag',
         date: '2026-11-09',
         tag: 'New',
